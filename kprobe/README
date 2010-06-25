@@ -1,0 +1,36 @@
+########################################
+## ELP2 KProbe Dynamically Loaded Module
+########################################
+
+1. Overview
+	ELP2 KProbe Module provides dynamic enabling of KProbe facilities on the current platform,
+	eliminating the necessity of according Linux kernel patches.
+	Supports the following architectures:
+		a) ARM (OMAP 5912 OSK, MV320-LCD)
+		b) MIPS (DTV x260, DMB2 AMD)
+	Runs on Linux kernel 2.6.10 - 2.6.21.
+
+2. Installation
+	a) Extract files from installation archive "elp2-kprobe-dynamic.tgz"
+		into desired location.
+	b) Find the following files:
+		asm/kprobe.h	- architecture specific header file
+		kprobes_arch.c	- architecture specific source code
+		kprobe.h	- header file
+		kprobes.c	- source code
+		build_arm	- example of how to compile the module for OMAP 5912 OSK
+		build_cosmos	- example of how to compile the module for MV320-LCD
+		build_dtv_x260	- example of how to compile the module for DTV x260
+		build_mips	- example of how to compile the module for DMB2 AMD
+		README		- this file
+	c) Execute the following command to compile the module:
+		make ARCH=[arm, mips] CROSS_COMPILE=[/opt/...] KERNELDIR=[/opt/...]
+	d) Copy the output file "elp_kprobes.ko" to the target filesystem.
+
+3. Usage
+	a) Find out the address [XXX] of function "kallsyms_lookup_name":
+		cat /proc/kallsyms > kallsyms.txt
+	b) Execute the pointed command to load the module into memory:
+		insmod elp_kprobes.ko ksyms=0x[XXX]
+
+	Now, KProbe facilities are enabled to requestors.

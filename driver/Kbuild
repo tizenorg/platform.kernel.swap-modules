@@ -1,0 +1,21 @@
+include $(project_pwd)/common.mk
+
+program_name := $(driver_name)
+source_dirs := $(project_pwd)/$(src_path)/$(driver_path)
+include_dirs := $(project_pwd)/$(src_path)/$(common_path) \
+	$(project_pwd)/$(src_path)/$(probes_path)
+include_libs := 
+special_defines := EC_ARCH_$(target_cpu)
+ifeq ($(specific_target), chelsea)
+    special_defines += KERNEL_HAS_ISPAGEPRESENT
+endif
+special_compiling_flags := 
+special_linking_flags := 
+ifeq ($(memory_checker), yes)
+special_defines += MEMORY_CHECKER
+endif
+ifeq ($(thread_profiler), yes)
+special_defines += THREAD_PROFILER
+endif
+
+include $(project_pwd)/rules-m.mk
