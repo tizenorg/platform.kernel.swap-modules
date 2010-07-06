@@ -17,9 +17,7 @@
 #if !defined(__PROBES_MANAGER_H__)
 #define __PROBES_MANAGER_H__
 
-#include "ec_module.h"
 #include "ec_probe.h"
-#include "ec_module.h"
 #include "probes.h"
 
 typedef struct

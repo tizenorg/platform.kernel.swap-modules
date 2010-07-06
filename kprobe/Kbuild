@@ -1,14 +1,2 @@
-include $(project_pwd)/common.mk
-
-program_name := $(kprobe_name)
-source_dirs := $(project_pwd)/$(src_path)/$(kprobe_path)
-include_dirs := 
-include_libs := 
-special_defines := CONFIG_KPROBES
-ifeq ($(specific_target), chelsea)
-    special_defines += KERNEL_HAS_ISPAGEPRESENT
-endif
-special_compiling_flags := 
-special_linking_flags := 
-
-include $(project_pwd)/rules-m.mk
+obj-m := inperfa_kprobes.o
+inperfa_kprobes-y := kprobes_arch.o kprobes.o

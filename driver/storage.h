@@ -21,7 +21,6 @@
 #include "picl.h"
 #include "ec_ioctl.h"
 #include "ec_probe.h"
-#include "ec_module.h"
 #include "probes_manager.h"
 #include "probes.h"
 #include "event_tmpl.h"

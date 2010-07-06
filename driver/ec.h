@@ -19,7 +19,6 @@
 
 #include "ec_ioctl.h"
 #include "ec_info.h"
-#include "ec_module.h"
 #include "ec_probe.h"
 #include "picl.h"
 

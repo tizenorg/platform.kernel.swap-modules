@@ -79,14 +79,12 @@
 
 #include "debug.h"
 #include "ec.h"
-#include "event.h"
 #include "legacy.h"
 #include "storage.h"
 #include "us_proc_inst.h"
 #include "device_driver.h"
 #include "probes_manager.h"
 #include "probes.h"
-#include "stdfunc.h"
 
 typedef unsigned long (*fp_kallsyms_lookup_name_t) (const char *name);
 extern int fp_kallsyms_lookup_name;

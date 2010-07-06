@@ -17,7 +17,6 @@
 #if !defined(device_driver_h)
 #define device_driver_h
 
-#include "event.h"		// event_id_t
 #include "ec_info.h"		// ec_info_t
 #include "ec_probe.h"		// probe_id_t
 
