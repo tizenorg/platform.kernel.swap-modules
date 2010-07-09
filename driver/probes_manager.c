@@ -195,6 +195,7 @@ add_probe (unsigned long addr)
 	int result = 0;
 	kernel_probe_t **pprobe = NULL;
 
+	DPRINTF("add probe at 0x%0x\n", addr);
 	if (EC_STATE_IDLE != ec_info.ec_state)
 	{
 		EPRINTF("Probes addition is allowed in IDLE state only.");
