@@ -1,2 +1,2 @@
-obj-m := inperfa_kprobes.o
-inperfa_kprobes-y := kprobes_arch.o kprobes.o
+obj-m := inperfa_kprobe.o
+inperfa_kprobe-y := kprobes_arch.o kprobes.o

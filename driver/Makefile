@@ -1,4 +1,4 @@
-target_kernel_src="/home/kain/dev/inperfa/kernel/tegra/linux-2.6.29-tegra250-9.12.8"
+target_kernel_src=@KERNEL@
 driver_module_dir=$(realpath $(top_srcdir)/src/modules/driver)
 module_name=inperfa_driver
 
