@@ -7,5 +7,6 @@ all-local:
 
 clean-local:
 	$(MAKE) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) clean
+
 install-exec-local:
 	install -m 644 $(driver_module_dir)/$(module_name).ko $(prefix)
