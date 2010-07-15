@@ -820,6 +820,7 @@ valid_p:
 int __kprobes
 register_ujprobe (struct task_struct *task, struct mm_struct *mm, struct jprobe *jp, int atomic)
 {
+	int ret = 0;
 #ifdef _DEBUG
 	gSilent = 0;
 #endif
@@ -827,7 +828,7 @@ register_ujprobe (struct task_struct *task, struct mm_struct *mm, struct jprobe 
 	jp->kp.pre_handler = setjmp_pre_handler;
 	jp->kp.break_handler = longjmp_break_handler;
 	
-	int ret = __register_uprobe (&jp->kp, task, atomic,
+	ret = __register_uprobe (&jp->kp, task, atomic,
 				    (unsigned long) __builtin_return_address (0));
 
 #ifdef _DEBUG
@@ -1302,57 +1303,270 @@ unregister_all_uprobes (struct task_struct *task, int atomic)
 	purge_garbage_uslots(task, atomic);
 }
 
-#if 0
-int
-access_process_vm (struct task_struct *tsk, unsigned long addr, void *buf, int len, int write)
+
+#define GUP_FLAGS_WRITE                  0x1
+#define GUP_FLAGS_FORCE                  0x2
+#define GUP_FLAGS_IGNORE_VMA_PERMISSIONS 0x4
+#define GUP_FLAGS_IGNORE_SIGKILL         0x8
+
+
+static inline int use_zero_page(struct vm_area_struct *vma)
 {
-	struct mm_struct *mm;
+	/*
+	 * We don't want to optimize FOLL_ANON for make_pages_present()
+	 * when it tries to page in a VM_LOCKED region. As to VM_SHARED,
+	 * we want to get the page from the page tables to make sure
+	 * that we serialize and update with any other user of that
+	 * mapping.
+	 */
+	if (vma->vm_flags & (VM_LOCKED | VM_SHARED))
+		return 0;
+	/*
+	 * And if we have a fault routine, it's not an anonymous region.
+	 */
+	return !vma->vm_ops || !vma->vm_ops->fault;
+}
+
+int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
+		     unsigned long start, int len, int flags,
+		struct page **pages, struct vm_area_struct **vmas)
+{
+	int i;
+	unsigned int vm_flags = 0;
+	int write = !!(flags & GUP_FLAGS_WRITE);
+	int force = !!(flags & GUP_FLAGS_FORCE);
+	int ignore = !!(flags & GUP_FLAGS_IGNORE_VMA_PERMISSIONS);
+	int ignore_sigkill = !!(flags & GUP_FLAGS_IGNORE_SIGKILL);
+
+	if (len <= 0)
+		return 0;
+	/* 
+	 * Require read or write permissions.
+	 * If 'force' is set, we only require the "MAY" flags.
+	 */
+	vm_flags  = write ? (VM_WRITE | VM_MAYWRITE) : (VM_READ | VM_MAYREAD);
+	vm_flags &= force ? (VM_MAYREAD | VM_MAYWRITE) : (VM_READ | VM_WRITE);
+	i = 0;
+
+	do {
+		struct vm_area_struct *vma;
+		unsigned int foll_flags;
+
+		//vma = find_extend_vma(mm, start);
+		vma = find_vma(mm, start);
+		if (!vma && in_gate_area(tsk, start)) {
+			unsigned long pg = start & PAGE_MASK;
+			struct vm_area_struct *gate_vma = get_gate_vma(tsk);
+			pgd_t *pgd;
+			pud_t *pud;
+			pmd_t *pmd;
+			pte_t *pte;
+
+			/* user gate pages are read-only */
+			if (!ignore && write)
+				return i ? : -EFAULT;
+			if (pg > TASK_SIZE)
+				pgd = pgd_offset_k(pg);
+			else
+				pgd = pgd_offset_gate(mm, pg);
+			BUG_ON(pgd_none(*pgd));
+			pud = pud_offset(pgd, pg);
+			BUG_ON(pud_none(*pud));
+			pmd = pmd_offset(pud, pg);
+			if (pmd_none(*pmd))
+				return i ? : -EFAULT;
+			pte = pte_offset_map(pmd, pg);
+			if (pte_none(*pte)) {
+				pte_unmap(pte);
+				return i ? : -EFAULT;
+			}
+			if (pages) {
+				struct page *page = vm_normal_page(gate_vma, start, *pte);
+				pages[i] = page;
+				if (page)
+					get_page(page);
+			}
+			pte_unmap(pte);
+			if (vmas)
+				vmas[i] = gate_vma;
+			i++;
+			start += PAGE_SIZE;
+			len--;
+			continue;
+		}
+
+		if (!vma ||
+		    (vma->vm_flags & (VM_IO | VM_PFNMAP)) ||
+		    (!ignore && !(vm_flags & vma->vm_flags)))
+			return i ? : -EFAULT;
+
+		if (is_vm_hugetlb_page(vma)) {
+			i = follow_hugetlb_page(mm, vma, pages, vmas,
+						&start, &len, i, write);
+			continue;
+		}
+
+		foll_flags = FOLL_TOUCH;
+		if (pages)
+			foll_flags |= FOLL_GET;
+		if (!write && use_zero_page(vma))
+		  foll_flags |= FOLL_ANON;
+
+		do {
+			struct page *page;
+
+			/*
+			 * If we have a pending SIGKILL, don't keep faulting
+			 * pages and potentially allocating memory, unless
+			 * current is handling munlock--e.g., on exit. In
+			 * that case, we are not allocating memory.  Rather,
+			 * we're only unlocking already resident/mapped pages.
+			 */
+			if (unlikely(!ignore_sigkill &&
+					fatal_signal_pending(current)))
+				return i ? i : -ERESTARTSYS;
+
+			if (write)
+				foll_flags |= FOLL_WRITE;
+
+			
+			//cond_resched();
+
+			DBPRINTF ("pages = %p vma = %p\n", pages, vma);
+			while (!(page = follow_page(vma, start, foll_flags))) {
+				int ret;
+				ret = handle_mm_fault(mm, vma, start,
+						foll_flags & FOLL_WRITE);
+				if (ret & VM_FAULT_ERROR) {
+					if (ret & VM_FAULT_OOM)
+						return i ? i : -ENOMEM;
+					else if (ret & VM_FAULT_SIGBUS)
+						return i ? i : -EFAULT;
+					BUG();
+				}
+				if (ret & VM_FAULT_MAJOR)
+					tsk->maj_flt++;
+				else
+					tsk->min_flt++;
+
+				/*
+				 * The VM_FAULT_WRITE bit tells us that
+				 * do_wp_page has broken COW when necessary,
+				 * even if maybe_mkwrite decided not to set
+				 * pte_write. We can thus safely do subsequent
+				 * page lookups as if they were reads. But only
+				 * do so when looping for pte_write is futile:
+				 * in some cases userspace may also be wanting
+				 * to write to the gotten user page, which a
+				 * read fault here might prevent (a readonly
+				 * page might get reCOWed by userspace write).
+				 */
+				if ((ret & VM_FAULT_WRITE) &&
+				    !(vma->vm_flags & VM_WRITE))
+					foll_flags &= ~FOLL_WRITE;
+
+				//cond_resched();
+			}
+			if (IS_ERR(page))
+				return i ? i : PTR_ERR(page);
+			if (pages) {
+				pages[i] = page;
+
+				flush_anon_page(vma, page, start);
+				flush_dcache_page(page);
+			}
+			if (vmas)
+				vmas[i] = vma;
+			i++;
+			start += PAGE_SIZE;
+			len--;
+		} while (len && start < vma->vm_end);
+	} while (len);
+	return i;
+}
+
+int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
+		unsigned long start, int len, int write, int force,
+		struct page **pages, struct vm_area_struct **vmas)
+{
+	int flags = 0;
+
+	if (write)
+		flags |= GUP_FLAGS_WRITE;
+	if (force)
+		flags |= GUP_FLAGS_FORCE;
+
+	return __get_user_pages_uprobe(tsk, mm,
+				start, len, flags,
+				pages, vmas);
+}
+
+int
+access_process_vm_atomic (struct task_struct *tsk, unsigned long addr, void *buf, int len, int write)
+{
+
+	
+  	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	struct page *page;
 	void *old_buf = buf;
 
-	mm = get_task_mm (tsk);
+	mm = get_task_mm(tsk);
 	if (!mm)
 		return 0;
 
-	down_read (&mm->mmap_sem);
-	/* ignore errors, just check how much was sucessfully transfered */
-	while (len)
-	{
+	down_read(&mm->mmap_sem);
+	/* ignore errors, just check how much was successfully transferred */
+	while (len) {
 		int bytes, ret, offset;
 		void *maddr;
+		struct page *page = NULL;
 
-		ret = get_user_pages (tsk, mm, addr, 1, write, 1, &page, &vma);
-		if (ret <= 0)
-			break;
+		ret = get_user_pages_uprobe(tsk, mm, addr, 1,
+				write, 1, &page, &vma);
+		if (ret <= 0) {
+			/*
+			 * Check if this is a VM_IO | VM_PFNMAP VMA, which
+			 * we can access using slightly different code.
+			 */
+#ifdef CONFIG_HAVE_IOREMAP_PROT
+			vma = find_vma(mm, addr);
+			if (!vma)
+				break;
+			if (vma->vm_ops && vma->vm_ops->access)
+				ret = vma->vm_ops->access(vma, addr, buf,
+							  len, write);
+			if (ret <= 0)
+#endif
+				break;
+			bytes = ret;
+		} else {
+			bytes = len;
+			offset = addr & (PAGE_SIZE-1);
+			if (bytes > PAGE_SIZE-offset)
+				bytes = PAGE_SIZE-offset;
 
-		bytes = len;
-		offset = addr & (PAGE_SIZE - 1);
-		if (bytes > PAGE_SIZE - offset)
-			bytes = PAGE_SIZE - offset;
-
-		maddr = kmap (page);	//, KM_USER0);
-		if (write)
-		{
-			copy_to_user_page (vma, page, addr, maddr + offset, buf, bytes);
-			set_page_dirty_lock (page);
+			maddr = kmap(page);
+			if (write) {
+				copy_to_user_page(vma, page, addr,
+						  maddr + offset, buf, bytes);
+				set_page_dirty_lock(page);
+			} else {
+				copy_from_user_page(vma, page, addr,
+						    buf, maddr + offset, bytes);
+			}
+			kunmap(page);
+			page_cache_release(page);
 		}
-		else
-		{
-			copy_from_user_page (vma, page, addr, buf, maddr + offset, bytes);
-		}
-		kunmap (page);	//, KM_USER0);
-		page_cache_release (page);
 		len -= bytes;
 		buf += bytes;
 		addr += bytes;
 	}
-	up_read (&mm->mmap_sem);
-	mmput (mm);
+	up_read(&mm->mmap_sem);
+	mmput(mm);
 
 	return buf - old_buf;
+
 }
-#endif
 
 #ifdef CONFIG_DEBUG_FS
 const char *(*__real_kallsyms_lookup) (unsigned long addr, unsigned long *symbolsize, unsigned long *offset, char **modname, char *namebuf);
@@ -1732,7 +1946,7 @@ EXPORT_SYMBOL_GPL (unregister_kretprobe);
 EXPORT_SYMBOL_GPL (register_uretprobe);
 EXPORT_SYMBOL_GPL (unregister_uretprobe);
 EXPORT_SYMBOL_GPL (unregister_all_uprobes);
-//EXPORT_SYMBOL_GPL (access_process_vm_atomic);
+EXPORT_SYMBOL_GPL (access_process_vm_atomic);
 #if LINUX_VERSION_CODE != KERNEL_VERSION(2,6,23)
 EXPORT_SYMBOL_GPL (access_process_vm);
 #endif
@@ -1741,4 +1955,4 @@ EXPORT_SYMBOL_GPL (is_page_present);
 #else
 EXPORT_SYMBOL_GPL (page_present);
 #endif
-//EXPORT_SYMBOL_GPL(get_user_pages_atomic);
+

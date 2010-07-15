@@ -1572,6 +1572,12 @@ collect_one_slot (struct hlist_head *page_list, struct task_struct *task,
 		else
 		{
 			if(task){
+//E. G.: This code provides kernel dump because of rescheduling while atomic. 
+//As workaround, this code was commented. In this case we will have memory leaks 
+//for instrumented process, but instrumentation process should functionate correctly. 
+//Planned that good solution for this problem will be done during redesigning KProbe 
+//for improving supportability and performance.
+#if 0
 				//printk("collect_one_slot %p/%d\n", task, task->pid);
 				mm = get_task_mm (task);
 				if (mm){			
@@ -1580,6 +1586,8 @@ collect_one_slot (struct hlist_head *page_list, struct task_struct *task,
 					up_write (&mm->mmap_sem);
 					mmput(mm);
 				}
+#endif
+				kip->insns = NULL; //workaround
 				kip->tgid = 0;
 			}
 			else {
@@ -2314,7 +2322,7 @@ setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 			rcu_read_unlock();
 		}
 		if (pre_entry)
-			p->ss_addr = pre_entry (jp->priv_arg, regs);
+			p->ss_addr = (void *)pre_entry (jp->priv_arg, regs);
 		if (entry){
 # if defined(CONFIG_MIPS)
 			entry (regs->regs[4], regs->regs[5], regs->regs[6], regs->regs[7], regs->regs[8], regs->regs[9]);
@@ -3080,6 +3088,17 @@ static struct jprobe do_exit_p =
 // persistent deps
 DECLARE_MOD_CB_DEP(kallsyms_search, unsigned long, const char *name);
 DECLARE_MOD_FUNC_DEP(access_process_vm, int, struct task_struct * tsk, unsigned long addr, void *buf, int len, int write);
+
+DECLARE_MOD_FUNC_DEP(find_extend_vma, struct vm_area_struct *, struct mm_struct * mm, unsigned long addr);
+DECLARE_MOD_FUNC_DEP(handle_mm_fault, int, struct mm_struct *mm, struct vm_area_struct *vma, unsigned long address, int write_access);
+DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *, struct task_struct *tsk);
+DECLARE_MOD_FUNC_DEP(in_gate_area_no_task, int, unsigned long addr);
+DECLARE_MOD_FUNC_DEP(follow_page, struct page *, struct vm_area_struct * vma, unsigned long address, unsigned int foll_flags);
+DECLARE_MOD_FUNC_DEP(__flush_anon_page, void, struct vm_area_struct *vma, struct page *page, unsigned long vmaddr);
+DECLARE_MOD_FUNC_DEP(vm_normal_page, struct page *, struct vm_area_struct *vma, unsigned long addr, pte_t pte);
+DECLARE_MOD_FUNC_DEP(flush_ptrace_access, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *kaddr, unsigned long len, int write);
+
+
 // deps controled by config macros
 #ifdef KERNEL_HAS_ISPAGEPRESENT
 DECLARE_MOD_FUNC_DEP(is_page_present, int, struct mm_struct * mm, unsigned long address);
@@ -3128,6 +3147,32 @@ DECLARE_MOD_FUNC_DEP(put_task_struct, void, struct rcu_head * rhp);
 // persistent deps
 DECLARE_MOD_DEP_WRAPPER(access_process_vm, int, struct task_struct *tsk, unsigned long addr, void *buf, int len, int write)
 IMP_MOD_DEP_WRAPPER(access_process_vm, tsk, addr, buf, len, write)
+
+DECLARE_MOD_DEP_WRAPPER (find_extend_vma, struct vm_area_struct *, struct mm_struct * mm, unsigned long addr)
+IMP_MOD_DEP_WRAPPER (find_extend_vma, mm, addr)
+
+DECLARE_MOD_DEP_WRAPPER (handle_mm_fault, int, struct mm_struct *mm, struct vm_area_struct *vma, unsigned long address, int write_access)
+IMP_MOD_DEP_WRAPPER (handle_mm_fault, mm, vma, address, write_access)
+
+DECLARE_MOD_DEP_WRAPPER (get_gate_vma, struct vm_area_struct *, struct task_struct *tsk)
+IMP_MOD_DEP_WRAPPER (get_gate_vma, tsk)
+
+DECLARE_MOD_DEP_WRAPPER (in_gate_area_no_task, int, unsigned long addr)
+IMP_MOD_DEP_WRAPPER (in_gate_area_no_task, addr)
+
+DECLARE_MOD_DEP_WRAPPER (follow_page, struct page *, struct vm_area_struct * vma, unsigned long address, unsigned int foll_flags)
+IMP_MOD_DEP_WRAPPER (follow_page, vma, address, foll_flags)
+
+DECLARE_MOD_DEP_WRAPPER (__flush_anon_page, void, struct vm_area_struct *vma, struct page *page, unsigned long vmaddr)
+IMP_MOD_DEP_WRAPPER (__flush_anon_page, vma, page, vmaddr)
+
+DECLARE_MOD_DEP_WRAPPER(vm_normal_page, struct page *, struct vm_area_struct *vma, unsigned long addr, pte_t pte)
+IMP_MOD_DEP_WRAPPER (vm_normal_page, vma, addr, pte)
+
+DECLARE_MOD_DEP_WRAPPER (flush_ptrace_access, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *kaddr, unsigned long len, int write)
+IMP_MOD_DEP_WRAPPER (flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
+
+
 // deps controled by config macros
 #ifdef KERNEL_HAS_ISPAGEPRESENT
 int is_page_present (struct mm_struct *mm, unsigned long address)
@@ -3219,6 +3264,15 @@ int __init arch_init_kprobes (void)
  
 	sched_addr = (kprobe_opcode_t *)kallsyms_search("__switch_to");//"schedule");
 	fork_addr = (kprobe_opcode_t *)kallsyms_search("do_fork");
+
+	INIT_MOD_DEP_VAR(handle_mm_fault, handle_mm_fault);
+	INIT_MOD_DEP_VAR(flush_ptrace_access, flush_ptrace_access);
+	INIT_MOD_DEP_VAR(find_extend_vma, find_extend_vma);
+	INIT_MOD_DEP_VAR(get_gate_vma, get_gate_vma);
+	INIT_MOD_DEP_VAR(in_gate_area_no_task, in_gate_area_no_task);
+	INIT_MOD_DEP_VAR(follow_page, follow_page);
+	INIT_MOD_DEP_VAR(__flush_anon_page, __flush_anon_page);
+	INIT_MOD_DEP_VAR(vm_normal_page, vm_normal_page);
  
 	INIT_MOD_DEP_VAR(access_process_vm, access_process_vm);
 #ifdef KERNEL_HAS_ISPAGEPRESENT

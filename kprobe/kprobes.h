@@ -246,8 +246,8 @@ void set_normalized_timeval (struct timeval *tv, time_t sec, suseconds_t usec);
 kprobe_opcode_t *get_insn_slot (struct task_struct *task, int atomic);
 void free_insn_slot (struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot, int dirty);
 
-//int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
-#define access_process_vm_atomic	access_process_vm
+int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
+
 #define read_proc_vm_atomic(tsk, addr, buf, len)	access_process_vm_atomic(tsk, addr, buf, len, 0)
 #define write_proc_vm_atomic(tsk, addr, buf, len)	access_process_vm_atomic(tsk, addr, buf, len, 1)
 int page_present (struct mm_struct *mm, unsigned long addr);
