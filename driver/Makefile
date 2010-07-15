@@ -1,10 +1,10 @@
-target_kernel_src=@KERNEL@
-driver_module_dir=$(realpath $(top_srcdir)/src/modules/driver)
-module_name=inperfa_driver
+target_kernel_src = @KERNEL@
+driver_module_dir = $(realpath $(top_srcdir)/src/modules/driver)
+module_name = inperfa_driver
 cross_compiler = $(subst gcc,,$(CC))
 
 all-local:
-	CROSS_COMPILE=$(cross_compiler) $(MAKE) ARCH=arm $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) modules
+	CROSS_COMPILE=$(cross_compiler) $(MAKE) ARCH=arm memchecker=$(memchecker) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) modules
 
 clean-local:
 	CROSS_COMPILE=$(cross_compiler) $(MAKE) ARCH=arm $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) clean
