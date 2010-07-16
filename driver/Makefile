@@ -11,3 +11,4 @@ clean-local:
 
 install-exec-local:
 	install -m 644 $(driver_module_dir)/$(module_name).ko $(prefix)
+	install -m 755 $(driver_module_dir)/$(module_name).sh $(prefix)
