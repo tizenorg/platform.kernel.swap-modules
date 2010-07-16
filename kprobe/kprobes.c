@@ -1409,8 +1409,11 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		foll_flags = FOLL_TOUCH;
 		if (pages)
 			foll_flags |= FOLL_GET;
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,30)
 		if (!write && use_zero_page(vma))
 		  foll_flags |= FOLL_ANON;
+#endif
 
 		do {
 			struct page *page;

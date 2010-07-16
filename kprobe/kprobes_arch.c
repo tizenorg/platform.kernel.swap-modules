@@ -3090,7 +3090,13 @@ DECLARE_MOD_CB_DEP(kallsyms_search, unsigned long, const char *name);
 DECLARE_MOD_FUNC_DEP(access_process_vm, int, struct task_struct * tsk, unsigned long addr, void *buf, int len, int write);
 
 DECLARE_MOD_FUNC_DEP(find_extend_vma, struct vm_area_struct *, struct mm_struct * mm, unsigned long addr);
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
 DECLARE_MOD_FUNC_DEP(handle_mm_fault, int, struct mm_struct *mm, struct vm_area_struct *vma, unsigned long address, int write_access);
+#else
+DECLARE_MOD_FUNC_DEP(handle_mm_fault, int, struct mm_struct *mm, struct vm_area_struct *vma, unsigned long address, unsigned int flags);
+#endif
+
 DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *, struct task_struct *tsk);
 DECLARE_MOD_FUNC_DEP(in_gate_area_no_task, int, unsigned long addr);
 DECLARE_MOD_FUNC_DEP(follow_page, struct page *, struct vm_area_struct * vma, unsigned long address, unsigned int foll_flags);
@@ -3098,6 +3104,8 @@ DECLARE_MOD_FUNC_DEP(__flush_anon_page, void, struct vm_area_struct *vma, struct
 DECLARE_MOD_FUNC_DEP(vm_normal_page, struct page *, struct vm_area_struct *vma, unsigned long addr, pte_t pte);
 DECLARE_MOD_FUNC_DEP(flush_ptrace_access, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *kaddr, unsigned long len, int write);
 
+struct mm_struct* init_mm_ptr;
+struct mm_struct init_mm;
 
 // deps controled by config macros
 #ifdef KERNEL_HAS_ISPAGEPRESENT
@@ -3151,8 +3159,13 @@ IMP_MOD_DEP_WRAPPER(access_process_vm, tsk, addr, buf, len, write)
 DECLARE_MOD_DEP_WRAPPER (find_extend_vma, struct vm_area_struct *, struct mm_struct * mm, unsigned long addr)
 IMP_MOD_DEP_WRAPPER (find_extend_vma, mm, addr)
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
 DECLARE_MOD_DEP_WRAPPER (handle_mm_fault, int, struct mm_struct *mm, struct vm_area_struct *vma, unsigned long address, int write_access)
 IMP_MOD_DEP_WRAPPER (handle_mm_fault, mm, vma, address, write_access)
+#else
+DECLARE_MOD_DEP_WRAPPER (handle_mm_fault, int, struct mm_struct *mm, struct vm_area_struct *vma, unsigned long address, unsigned int flags)
+IMP_MOD_DEP_WRAPPER (handle_mm_fault, mm, vma, address, flags)
+#endif
 
 DECLARE_MOD_DEP_WRAPPER (get_gate_vma, struct vm_area_struct *, struct task_struct *tsk)
 IMP_MOD_DEP_WRAPPER (get_gate_vma, tsk)
@@ -3273,6 +3286,9 @@ int __init arch_init_kprobes (void)
 	INIT_MOD_DEP_VAR(follow_page, follow_page);
 	INIT_MOD_DEP_VAR(__flush_anon_page, __flush_anon_page);
 	INIT_MOD_DEP_VAR(vm_normal_page, vm_normal_page);
+
+	init_mm_ptr = (struct mm_struct*) kallsyms_search ("init_mm");
+	memcmp(init_mm_ptr, &init_mm, sizeof(struct mm_struct));
  
 	INIT_MOD_DEP_VAR(access_process_vm, access_process_vm);
 #ifdef KERNEL_HAS_ISPAGEPRESENT
