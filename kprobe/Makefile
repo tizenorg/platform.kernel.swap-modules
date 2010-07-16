@@ -11,3 +11,4 @@ clean-local:
 
 install-exec-local:
 	install -m 644 $(kprobes_module_dir)/$(module_name).ko $(prefix)
+	install -m 755 $(kprobes_module_dir)/$(module_name).sh $(prefix)

@@ -6,7 +6,7 @@ MODULE_FILE=inperfa_driver
 
 # device name
 DEVICE=inperfa_drv
-DEFAULT_MAJOR=250
+DEFAULT_MAJOR=249
 
 # name of device visible in /proc/devices
 DEVICE_NAME=${DEVICE}
