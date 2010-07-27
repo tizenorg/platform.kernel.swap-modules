@@ -59,6 +59,10 @@ int src_register_die_notifier(struct notifier_block *nb)
 	return err;
 }
 */
+
+int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
+			  unsigned long start, int len, int write, int force,
+			  struct page **pages, struct vm_area_struct **vmas);
 /**
  * hlist_replace_rcu - replace old entry by new one
  * @old : the element to be replaced
@@ -138,7 +142,7 @@ get_kprobe (void *addr, int tgid, struct task_struct *ctask)
 
 	if (ctask && ctask->active_mm)
 	{
-		ret = get_user_pages_atomic (ctask, ctask->active_mm, (unsigned long) addr, 1, 0, 0, &tpage, NULL);
+		ret = get_user_pages_uprobe (ctask, ctask->active_mm, (unsigned long) addr, 1, 0, 0, &tpage, NULL);
 		if (ret <= 0)
 			DBPRINTF ("get_user_pages for task %d at %p failed!", current->pid, addr);
 		else
@@ -203,7 +207,7 @@ get_kprobe (void *addr, int tgid, struct task_struct *ctask)
 				{
 					if (page_present (task->active_mm, (unsigned long) p->addr))
 					{
-						ret = get_user_pages_atomic (task, task->active_mm, (unsigned long) p->addr, 1, 0, 0, &page, &vma);
+						ret = get_user_pages_uprobe (task, task->active_mm, (unsigned long) p->addr, 1, 0, 0, &page, &vma);
 						if (ret <= 0)
 							DBPRINTF ("get_user_pages for task %d at %p failed!", p->tgid, p->addr);
 					}
@@ -1009,10 +1013,7 @@ register_uretprobe (struct task_struct *task, struct mm_struct *mm, struct kretp
 
 	rp->nmissed = 0;
 #if 0
-	if (atomic)
-		ret = get_user_pages_atomic (task, mm, (unsigned long) rp->kp.addr, 1, 1, 1, &pages[0], &vmas[0]);
-	else
-		ret = get_user_pages (task, mm, (unsigned long) rp->kp.addr, 1, 1, 1, &pages[0], &vmas[0]);
+	ret = get_user_pages_uprobe (task, mm, (unsigned long) rp->kp.addr, 1, 1, 1, &pages[0], &vmas[0]);
 	if (ret <= 0)
 	{
 		DBPRINTF ("get_user_pages for %p failed!", rp->kp.addr);
@@ -1026,10 +1027,7 @@ register_uretprobe (struct task_struct *task, struct mm_struct *mm, struct kretp
 	// if 2nd instruction is on the 2nd page
 	if ((((unsigned long) (rp->kp.addr + 1)) & ~PAGE_MASK) == 0)
 	{
-		if (atomic)
-			ret = get_user_pages_atomic (task, mm, (unsigned long) (rp->kp.addr + 1), 1, 1, 1, &pages[1], &vmas[1]);
-		else
-			ret = get_user_pages (task, mm, (unsigned long) (rp->kp.addr + 1), 1, 1, 1, &pages[1], &vmas[1]);
+	  ret = get_user_pages_uprobe (task, mm, (unsigned long) (rp->kp.addr + 1), 1, 1, 1, &pages[1], &vmas[1]);
 		if (ret <= 0)
 		{
 			DBPRINTF ("get_user_pages for %p failed!", rp->kp.addr + 1);
@@ -1169,13 +1167,9 @@ unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int atomic
 #endif
 		return;
 	}
-	if (atomic)
-		ret = get_user_pages_atomic (task, mm, (unsigned long) rp->kp.addr, 1, 1, 1, &pages[0], &vmas[0]);
-	else
-	{
-		down_read (&mm->mmap_sem);
-		ret = get_user_pages (task, mm, (unsigned long) rp->kp.addr, 1, 1, 1, &pages[0], &vmas[0]);
-	}
+	down_read (&mm->mmap_sem);
+	ret = get_user_pages_uprobe (task, mm, (unsigned long) rp->kp.addr, 1, 1, 1, &pages[0], &vmas[0]);
+
 	if (ret <= 0)
 	{
 		DBPRINTF ("get_user_pages for %p failed!", rp->kp.addr);
@@ -1187,10 +1181,8 @@ unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int atomic
 		kaddrs[0] = kmap (pages[0]) + ((unsigned long) rp->kp.addr & ~PAGE_MASK);
 	if ((((unsigned long) (rp->kp.addr + 1)) & ~PAGE_MASK) == 0)
 	{
-		if (atomic)
-			ret = get_user_pages_atomic (task, mm, (unsigned long) (rp->kp.addr + 1), 1, 1, 1, &pages[1], &vmas[1]);
-		else
-			ret = get_user_pages (task, mm, (unsigned long) (rp->kp.addr + 1), 1, 1, 1, &pages[1], &vmas[1]);
+	  
+	  ret = get_user_pages_uprobe (task, mm, (unsigned long) (rp->kp.addr + 1), 1, 1, 1, &pages[1], &vmas[1]);
 		if (ret <= 0)
 		{
 			DBPRINTF ("get_user_pages for %p failed!", rp->kp.addr + 1);
