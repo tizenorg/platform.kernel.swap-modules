@@ -22,7 +22,7 @@
 #include "module.h"
 #include "storage.h"
 #include "CProfile.h"
-//#include "def_handlers.h"
+#include "def_handlers.h"
 
 #define after_buffer ec_info.buffer_size
 
@@ -841,13 +841,6 @@ int set_us_proc_inst_info (ioctl_inst_usr_space_proc_t * inst_info)
 					return -EFAULT;
 				}
 				d_ip->offset = s_ip.addr;
-
-                                /* TNCHK */
-                                /*d_ip->jprobe.pre_entry		= ujprobe_event_pre_handler;
-                                d_ip->jprobe.entry 		= ujprobe_event_handler;
-                                d_ip->retprobe.handler		= uretprobe_event_handler;*/
-		                /* TNCHK */
-                                
 				if(pd_lib){
 					for(l = 0; l < pd_lib->ips_count; l++){
 						if(d_ip->offset == pd_lib->p_ips[l].offset){
@@ -1416,14 +1409,20 @@ void *mec_find_in_object_range(void *addr, int *rz)
 	unsigned long spinlock_flags = 0;
 
 	*rz = 0;
-	//DPRINTF("mec_find_in_object_range %p", addr);
+//	DPRINTF("mec_find_in_object_range %p", addr);
 	hlist_for_each_entry(obj, node, head, hlist)
 	{
 		// hit into another object
 		if((addr >= obj->address) && (addr < (obj->address + obj->size)))
-	    {
-	    	//DPRINTF("mec_find_in_object_range found %lx, %u", obj->address, obj->size);
-			return obj;
+		{
+			if(obj != curr_mec_obj)
+			{
+//				DPRINTF("mec_find_in_object_range found %lx, %u", obj->address, obj->size);
+				return obj;
+			}
+			else
+			{
+			}
 	    }
 		obj_zone_start = (void *)((unsigned long)(obj->address) & ~(PAGE_SIZE-1));
 		obj_zone_end = (char *)obj_zone_start + PAGE_ALIGN(obj->size);
@@ -1432,8 +1431,8 @@ void *mec_find_in_object_range(void *addr, int *rz)
 		   ((addr >= (obj->address+obj->size)) && (addr < obj_zone_end)))
 		{
 			*rz = 1;
-			//DPRINTF("mec_find_in_object_range %lx found in red zone of %lx, %u. [%p..%p]",
-			//		addr, obj->address, obj->size, obj_zone_start, obj_zone_end);
+//			DPRINTF("mec_find_in_object_range %lx found in red zone of %lx, %u. [%p..%p]",
+//					addr, obj->address, obj->size, obj_zone_start, obj_zone_end);
 			return obj;
 		}
 	}
@@ -1447,16 +1446,20 @@ void *mec_find_in_object_range(void *addr, int *rz)
 		if((addr < obj_zone_start) && (addr >= (obj_zone_start - MEC_MAX_OVERFLOW_SIZE)))
 		{
 			*rz = 1;
-			//DPRINTF("mec_find_in_object_range %lx found in unalloc pre-zone of %lx, %u. [%p..%p]",
-			//		addr, curr_mec_obj->address, curr_mec_obj->size, obj_zone_start, obj_zone_end);
+			DPRINTF("mec_find_in_object_range %lx found in unalloc pre-zone of %lx, %u. [%p..%p]",
+					addr, curr_mec_obj->address, curr_mec_obj->size, obj_zone_start, obj_zone_end);
 			return curr_mec_obj;
 		}
 		if((addr >= obj_zone_end) && (addr < (obj_zone_end + MEC_MAX_OVERFLOW_SIZE)))
 		{
 			*rz = 1;
-			//DPRINTF("mec_find_in_object_range %lx found in unalloc post-zone of %lx, %u.  [%p..%p]",
-			//		addr, curr_mec_obj->address, curr_mec_obj->size, obj_zone_start, obj_zone_end);
+//			DPRINTF("mec_find_in_object_range %lx found in unalloc post-zone of %lx, %u.  [%p..%p]",
+//					addr, curr_mec_obj->address, curr_mec_obj->size, obj_zone_start, obj_zone_end);
 			return curr_mec_obj;
+		}
+		else
+		{
+//		    DPRINTF("mec_find_in_object_range %p is in unallocated area. Can cause a segfault... :(", addr);
 		}
 	}
 	else
@@ -1468,7 +1471,7 @@ EXPORT_SYMBOL_GPL(mec_find_in_object_range);
 
 int mec_mprotect(unsigned long start, size_t len, unsigned long prot)
 {
-	//DPRINTF("mec_mprotect %lx, %u, %lx", start, len, prot);
+//	DPRINTF("mec_mprotect %lx, %u, %lx", start, len, prot);
 	return orig_sys_mprotect(start, len, prot);
 }
 
@@ -1482,14 +1485,14 @@ void mec_change_active_object(void *obj)
 	if(curr_mec_obj != NULL)
 	{
 		// protect old object
-		//DPRINTF("mec_change_active_object protect old obj %lx, %u", curr_obj->address, curr_obj->size);
+//		DPRINTF("mec_change_active_object protect old obj %lx, %u", curr_mec_obj->address, curr_mec_obj->size);
 		addr = (unsigned long)(curr_mec_obj->address) & ~(PAGE_SIZE-1);
 		sz = PAGE_ALIGN((unsigned long)(curr_mec_obj->address) + curr_mec_obj->size) - addr;
 		mec_mprotect(addr, sz, PROT_NONE);
 	}
 
 	// remove protection from new object
-	//DPRINTF("mec_change_active_object unprotect new obj %lx, %u", new_obj->address, new_obj->size);
+//	DPRINTF("mec_change_active_object unprotect new obj %lx, %u", new_obj->address, new_obj->size);
 	addr = (unsigned long)(new_obj->address) & ~(PAGE_SIZE-1);
 	sz = PAGE_ALIGN((unsigned long)(new_obj->address) + new_obj->size) - addr;
 	mec_mprotect(addr, sz, PROT_READ|PROT_WRITE);
@@ -1566,11 +1569,96 @@ void mec_remove_objects()
 	curr_mec_obj = NULL;
 	spin_unlock_irqrestore (&mec_spinlock, spinlock_flags);
 
+	//before deleting heap objects we must do the snapshot of: heap, stack and static data
+//	mec_dump_static_stack_data();
+
+	//saving heap data should be done here
 	hlist_for_each_entry_safe(obj, node, tmp, head, hlist)
 	{
+		/*
+		//dumping heap objects goes here - it could take quite long time... :(
+		*/
 		hlist_del(&obj->hlist);
 		kfree(obj);
 	}
+}
+
+void mec_dump_static_stack_data()
+{
+/*	struct task_struct tsk_cur = current;
+	struct mm_struct mm_cur = get_task_mm(tsk_cur);
+	struct vm_area_struct vma_cur = NULL;
+	struct vm_area_struct gate_vma = NULL;
+	struct pt_regs regs_cur = __get_cpu_var(gpUserRegs);
+	gate_vma = get_gate_vma(current);
+	if(gate_vma == NULL)
+	{
+		return;
+	}
+*/
+	//saving stack data
+/*#if defined(CONFIG_ARM)
+	unsigned long stack_ptr = (unsigned long)regs_cur->ARM_sp;
+#elif defined(CONFIG_MIPS)
+	unsigned long stack_ptr = regs_cur->regs[29];
+#elif defined(CONFIG_X86)
+	unsigned long stack_ptr = regs_cur->sp;
+#else
+#error retrieve page fault address for this arch!!!
+#endif
+	for (vma_cur = first_vma(current, gate_vma); vma_cur != NULL;vma_cur = next_vma(vma_cur, gate_vma))
+	{
+		if(vma_cur->vm_start <= stack_ptr && stack_ptr <= vma_cur->vm_end)
+		{
+			
+			//we found VMA with stack data
+			//TBD ASAP: check how it corresponds to mm_cur->stack_vm and mm_cur->start_stack
+
+			//now let's save the data
+
+			break;
+		}
+	}
+*/
+	//saving static data
+/*	unsigned long start_static = mm_cur->start_data;
+	unsigned long end_static = mm_cur->end_data;
+	unsigned long start_bss = 0;
+	// These two variables provides a handle only for .data section:
+	// this is initialized global variables. But we also need 
+	// un-initialized global data - .bss section. Typically it is
+	// right after .data section. So what we have to do is:
+	// 1) find .data section among existing WMAs
+	// 2) take found VMA and the one right after found - it should be .BSS
+	// 3) an additional check - both VMAs should have "rw" only flags
+	// I am not sure we have another way to find .BSS, except this ugly one.
+
+	for (vma_cur = first_vma(current, gate_vma); vma_cur != NULL;vma_cur = next_vma(vma_cur, gate_vma))
+	{
+		if(vma_cur->vm_start <= start_static && end_static <= vma_cur->vm_end)
+		{
+
+			// we found VMA with static data
+			// now let's save the data
+
+			// we should also find the BSS section; the hypothesis
+			// is following: end address of vma with static data is
+			// the start address of vma with BSS data
+			start_bss = vma_cur->vm_end;
+			break;
+		}
+	}
+
+	for (vma_cur = first_vma(current, gate_vma); vma_cur != NULL;vma_cur = next_vma(vma_cur, gate_vma))
+	{
+		if(vma_cur->start_bss <= start_static && start_bss <= vma_cur->vm_end)
+		{
+			// we found VMA with BSS data
+			// now let's save the data
+			break;
+		}
+	}
+*/
 }
 
 void mec_resize_object(void *hnd, unsigned long size)
