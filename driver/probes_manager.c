@@ -40,11 +40,11 @@ unsigned long exit_addr;
 kernel_probe_t *pf_probe = NULL;
 kernel_probe_t *exit_probe = NULL;
 unsigned int probes_flags = 0;
-
+/*
 #ifdef MEMORY_CHECKER
 EXPORT_SYMBOL_GPL(pf_addr);
 #endif
-
+*/
 int
 probes_manager_init (void)
 {
