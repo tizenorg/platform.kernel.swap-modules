@@ -35,22 +35,8 @@ struct cond cond_list;
 int paused = 0; /* a state after a stop condition (events are not collected) */
 struct timeval last_attach_time = {0, 0};
 
-#ifdef MEMORY_CHECKER
-#define M_BITS 6
-#define M_SIZE (1 << M_BITS)
-
-static struct hlist_head malloc_table[M_SIZE];
-//void *sys_call_table[];
-asmlinkage int (*orig_sys_mprotect)(unsigned long start, size_t len, unsigned long prot);
-
-typedef struct {
-    void * address;
-    size_t size;
-    struct hlist_node hlist;
-} mec_object_t;
-
 EXPORT_SYMBOL_GPL(us_proc_info);
-#endif
+void (*mec_post_event)(char *data, unsigned long len) = NULL;
 
 unsigned copy_into_cyclic_buffer (char *buffer, unsigned dst_offset, char *src, unsigned size)
 {
@@ -841,6 +827,12 @@ int set_us_proc_inst_info (ioctl_inst_usr_space_proc_t * inst_info)
 					return -EFAULT;
 				}
 				d_ip->offset = s_ip.addr;
+
+				/* TNCHK */
+				/*d_ip->jprobe.pre_entry               = ujprobe_event_pre_handler;
+				d_ip->jprobe.entry             = ujprobe_event_handler;
+				d_ip->retprobe.handler         = uretprobe_event_handler;*/
+				/* TNCHK */
 				if(pd_lib){
 					for(l = 0; l < pd_lib->ips_count; l++){
 						if(d_ip->offset == pd_lib->p_ips[l].offset){
@@ -1069,23 +1061,6 @@ int storage_init (void)
 	}
 
 	INIT_HLIST_HEAD (&kernel_probes);
-
-#ifdef MEMORY_CHECKER
-	{
-	void **sys_call_table_ptr = (void **)lookup_name("sys_call_table");
-	if(!sys_call_table_ptr){
-		EPRINTF("Cannot find sys_call_table in kernel!");
-		return -1;
-	}
-	orig_sys_mprotect = sys_call_table_ptr[__NR_mprotect];
-
-	int i;
-	for(i = 0; i < M_SIZE; i++)
-	{
-	    INIT_HLIST_HEAD(&malloc_table[i]);
-	}
-	}
-#endif
 
 	return 0;
 }
@@ -1393,326 +1368,6 @@ int remove_probe_from_list (unsigned long addr)
 	return 0;
 }
 
-#ifdef MEMORY_CHECKER
-
-// active (unprotected) memory object
-static mec_object_t *curr_mec_obj;
-// protects 'curr_mec_obj'
-static spinlock_t mec_spinlock = SPIN_LOCK_UNLOCKED;
-
-void *mec_find_in_object_range(void *addr, int *rz)
-{
-	mec_object_t *obj = NULL;
-	struct hlist_node *node = NULL;
-	struct hlist_head *head = &malloc_table[0];//hash_ptr(addr, M_BITS)];
-	void *obj_zone_start, *obj_zone_end;
-	unsigned long spinlock_flags = 0;
-
-	*rz = 0;
-//	DPRINTF("mec_find_in_object_range %p", addr);
-	hlist_for_each_entry(obj, node, head, hlist)
-	{
-		// hit into another object
-		if((addr >= obj->address) && (addr < (obj->address + obj->size)))
-		{
-			if(obj != curr_mec_obj)
-			{
-//				DPRINTF("mec_find_in_object_range found %lx, %u", obj->address, obj->size);
-				return obj;
-			}
-			else
-			{
-			}
-	    }
-		obj_zone_start = (void *)((unsigned long)(obj->address) & ~(PAGE_SIZE-1));
-		obj_zone_end = (char *)obj_zone_start + PAGE_ALIGN(obj->size);
-		// hit into red zone of another object
-		if(((addr >= obj_zone_start) && (addr < obj->address)) ||
-		   ((addr >= (obj->address+obj->size)) && (addr < obj_zone_end)))
-		{
-			*rz = 1;
-//			DPRINTF("mec_find_in_object_range %lx found in red zone of %lx, %u. [%p..%p]",
-//					addr, obj->address, obj->size, obj_zone_start, obj_zone_end);
-			return obj;
-		}
-	}
-	spin_lock_irqsave (&mec_spinlock, spinlock_flags);
-	if(curr_mec_obj)
-	{
-		// hit into unallocated zone near active object but within max underflow/overflow zone
-		obj_zone_start = (void *)((unsigned long)(curr_mec_obj->address) & ~(PAGE_SIZE-1));
-		obj_zone_end = (char *)obj_zone_start + PAGE_ALIGN(curr_mec_obj->size);
-		spin_unlock_irqrestore (&mec_spinlock, spinlock_flags);
-		if((addr < obj_zone_start) && (addr >= (obj_zone_start - MEC_MAX_OVERFLOW_SIZE)))
-		{
-			*rz = 1;
-			DPRINTF("mec_find_in_object_range %lx found in unalloc pre-zone of %lx, %u. [%p..%p]",
-					addr, curr_mec_obj->address, curr_mec_obj->size, obj_zone_start, obj_zone_end);
-			return curr_mec_obj;
-		}
-		if((addr >= obj_zone_end) && (addr < (obj_zone_end + MEC_MAX_OVERFLOW_SIZE)))
-		{
-			*rz = 1;
-//			DPRINTF("mec_find_in_object_range %lx found in unalloc post-zone of %lx, %u.  [%p..%p]",
-//					addr, curr_mec_obj->address, curr_mec_obj->size, obj_zone_start, obj_zone_end);
-			return curr_mec_obj;
-		}
-		else
-		{
-//		    DPRINTF("mec_find_in_object_range %p is in unallocated area. Can cause a segfault... :(", addr);
-		}
-	}
-	else
-		spin_unlock_irqrestore (&mec_spinlock, spinlock_flags);
-
-	return NULL;
-}
-EXPORT_SYMBOL_GPL(mec_find_in_object_range);
-
-int mec_mprotect(unsigned long start, size_t len, unsigned long prot)
-{
-//	DPRINTF("mec_mprotect %lx, %u, %lx", start, len, prot);
-	return orig_sys_mprotect(start, len, prot);
-}
-
-void mec_change_active_object(void *obj)
-{
-	mec_object_t *new_obj = (mec_object_t *)obj;
-	unsigned long sz, addr, spinlock_flags = 0;
-
-	spin_lock_irqsave (&mec_spinlock, spinlock_flags);
-
-	if(curr_mec_obj != NULL)
-	{
-		// protect old object
-//		DPRINTF("mec_change_active_object protect old obj %lx, %u", curr_mec_obj->address, curr_mec_obj->size);
-		addr = (unsigned long)(curr_mec_obj->address) & ~(PAGE_SIZE-1);
-		sz = PAGE_ALIGN((unsigned long)(curr_mec_obj->address) + curr_mec_obj->size) - addr;
-		mec_mprotect(addr, sz, PROT_NONE);
-	}
-
-	// remove protection from new object
-//	DPRINTF("mec_change_active_object unprotect new obj %lx, %u", new_obj->address, new_obj->size);
-	addr = (unsigned long)(new_obj->address) & ~(PAGE_SIZE-1);
-	sz = PAGE_ALIGN((unsigned long)(new_obj->address) + new_obj->size) - addr;
-	mec_mprotect(addr, sz, PROT_READ|PROT_WRITE);
-
-	curr_mec_obj = new_obj;
-
-	spin_unlock_irqrestore (&mec_spinlock, spinlock_flags);
-}
-EXPORT_SYMBOL_GPL(mec_change_active_object);
-
-void *mec_find_object(void *addr)
-{
-	mec_object_t *obj = NULL;
-	struct hlist_node *node = NULL;
-	struct hlist_head *head = &malloc_table[0];//hash_ptr(addr, M_BITS)];
-
-	hlist_for_each_entry(obj, node, head, hlist)
-	{
-	    if(obj->address == addr)
-			return obj;
-	}
-
-	return NULL;
-}
-
-void *mec_add_object(void *addr, unsigned long size)
-{
-	mec_object_t *new;
-
-	if (mec_find_object(addr))
-		return NULL;
-
-	DPRINTF("Add object %p/%lu!", addr, size);
-	new = (mec_object_t *)kmalloc(sizeof(mec_object_t), GFP_KERNEL);
-	if(new != NULL)
-	{
-		new->address = addr;
-		new->size = size;
-		INIT_HLIST_NODE (&new->hlist);
-		hlist_add_head(&new->hlist, &malloc_table[0]);//hash_ptr(addr, M_BITS)]);
-	}
-
-	return new;
-}
-
-void mec_delete_object(void *addr)
-{
-	struct hlist_head *head = &malloc_table[0];//hash_ptr(addr, M_BITS)];
-	unsigned long spinlock_flags = 0;
-
-	mec_object_t *obj = (mec_object_t *)mec_find_object(addr);
-	if(!obj)
-		return;
-
-	DPRINTF("Delete object %p!", addr);
-	hlist_del(&obj->hlist);
-	if(hlist_empty(head))
-	{
-		spin_lock_irqsave (&mec_spinlock, spinlock_flags);
-		curr_mec_obj = NULL;
-		spin_unlock_irqrestore (&mec_spinlock, spinlock_flags);
-	}
-	kfree(obj);
-}
-
-void mec_remove_objects()
-{
-	mec_object_t *obj = NULL;
-	struct hlist_node *node = NULL, *tmp;
-	struct hlist_head *head = &malloc_table[0];//hash_ptr(addr, M_BITS)];
-	unsigned long spinlock_flags = 0;
-
-	spin_lock_irqsave (&mec_spinlock, spinlock_flags);
-	curr_mec_obj = NULL;
-	spin_unlock_irqrestore (&mec_spinlock, spinlock_flags);
-
-	//before deleting heap objects we must do the snapshot of: heap, stack and static data
-//	mec_dump_static_stack_data();
-
-	//saving heap data should be done here
-	hlist_for_each_entry_safe(obj, node, tmp, head, hlist)
-	{
-		/*
-		//dumping heap objects goes here - it could take quite long time... :(
-		*/
-		hlist_del(&obj->hlist);
-		kfree(obj);
-	}
-}
-
-void mec_dump_static_stack_data()
-{
-/*	struct task_struct tsk_cur = current;
-	struct mm_struct mm_cur = get_task_mm(tsk_cur);
-	struct vm_area_struct vma_cur = NULL;
-	struct vm_area_struct gate_vma = NULL;
-	struct pt_regs regs_cur = __get_cpu_var(gpUserRegs);
-	gate_vma = get_gate_vma(current);
-	if(gate_vma == NULL)
-	{
-		return;
-	}
-*/
-	//saving stack data
-/*#if defined(CONFIG_ARM)
-	unsigned long stack_ptr = (unsigned long)regs_cur->ARM_sp;
-#elif defined(CONFIG_MIPS)
-	unsigned long stack_ptr = regs_cur->regs[29];
-#elif defined(CONFIG_X86)
-	unsigned long stack_ptr = regs_cur->sp;
-#else
-#error retrieve page fault address for this arch!!!
-#endif
-	for (vma_cur = first_vma(current, gate_vma); vma_cur != NULL;vma_cur = next_vma(vma_cur, gate_vma))
-	{
-		if(vma_cur->vm_start <= stack_ptr && stack_ptr <= vma_cur->vm_end)
-		{
-			
-			//we found VMA with stack data
-			//TBD ASAP: check how it corresponds to mm_cur->stack_vm and mm_cur->start_stack
-
-			//now let's save the data
-
-			break;
-		}
-	}
-*/
-	//saving static data
-/*	unsigned long start_static = mm_cur->start_data;
-	unsigned long end_static = mm_cur->end_data;
-	unsigned long start_bss = 0;
-	// These two variables provides a handle only for .data section:
-	// this is initialized global variables. But we also need 
-	// un-initialized global data - .bss section. Typically it is
-	// right after .data section. So what we have to do is:
-	// 1) find .data section among existing WMAs
-	// 2) take found VMA and the one right after found - it should be .BSS
-	// 3) an additional check - both VMAs should have "rw" only flags
-	// I am not sure we have another way to find .BSS, except this ugly one.
-
-	for (vma_cur = first_vma(current, gate_vma); vma_cur != NULL;vma_cur = next_vma(vma_cur, gate_vma))
-	{
-		if(vma_cur->vm_start <= start_static && end_static <= vma_cur->vm_end)
-		{
-
-			// we found VMA with static data
-			// now let's save the data
-
-			// we should also find the BSS section; the hypothesis
-			// is following: end address of vma with static data is
-			// the start address of vma with BSS data
-			start_bss = vma_cur->vm_end;
-			break;
-		}
-	}
-
-	for (vma_cur = first_vma(current, gate_vma); vma_cur != NULL;vma_cur = next_vma(vma_cur, gate_vma))
-	{
-		if(vma_cur->start_bss <= start_static && start_bss <= vma_cur->vm_end)
-		{
-			// we found VMA with BSS data
-			// now let's save the data
-			break;
-		}
-	}
-*/
-}
-
-void mec_resize_object(void *hnd, unsigned long size)
-{
-	mec_object_t *obj = (mec_object_t *)hnd;
-
-	DPRINTF("Resize object %p/%u->%lu!", obj->address, obj->size, size);
-	obj->size = size;
-}
-
-void mec_post_event(char *data, unsigned long len)
-{
-	SWAP_TYPE_EVENT_HEADER *pEventHeader = (SWAP_TYPE_EVENT_HEADER *)data;
-	void **oaddr;
-	// point to the first arg
-	char *arg = (char *)&(pEventHeader->m_nNumberOfArgs) + sizeof(TYPEOF_NUMBER_OF_ARGS);
-	arg += ALIGN_VALUE(strlen(arg) + 1);
-	//func_addr, ret_addr, frame_ptr, new_addr, new_size, [old_addr]
-	oaddr = (void **)(arg + 3*sizeof(void *));
-	if((pEventHeader->m_nProbeID >= MEC_ALLOC_PROBE_ID_MIN) && (pEventHeader->m_nProbeID <= MEC_ALLOC_PROBE_ID_MAX))
-	{
-		if(pEventHeader->m_nType == RECORD_RET)
-		{
-			unsigned long *osize = (unsigned long *)(arg + 4*sizeof(void *));
-			if((pEventHeader->m_nProbeID == MEC_REALLOC_PROBE_ID) || (pEventHeader->m_nProbeID == MEC_MREMAP_PROBE_ID))
-			{
-				void **addr = (void *)(arg + 4*sizeof(void *) + sizeof(unsigned long));
-				if(*oaddr == *addr)
-				{
-					void *obj = mec_find_object(*addr);
-					if(obj)
-						mec_resize_object(obj, *osize);
-					else if(!mec_add_object(*oaddr, *osize)) // normally should not get here
-							EPRINTF("Failed to add new object %p/%lu!", *oaddr, *osize);
-				}
-				else
-				{
-					mec_delete_object(*addr); // delete old
-					if(!mec_add_object(*oaddr, *osize)) // add new
-						EPRINTF("Failed to add new object %p/%lu!", *oaddr, *osize);
-				}
-			}
-			else if(!mec_add_object(*oaddr, *osize))
-					EPRINTF("Failed to add new object %p/%lu!", *oaddr, *osize);
-		}
-	}
-	else if((pEventHeader->m_nProbeID >= MEC_DEALLOC_PROBE_ID_MIN) && (pEventHeader->m_nProbeID <= MEC_DEALLOC_PROBE_ID_MAX))
-	{
-		if(pEventHeader->m_nType == RECORD_ENTRY)
-			mec_delete_object(*oaddr);
-	}
-	pEventHeader->m_nProbeID = US_PROBE_ID;
-}
-#endif
 
 int put_us_event (char *data, unsigned long len)
 {
@@ -1739,7 +1394,24 @@ int put_us_event (char *data, unsigned long len)
 #ifdef MEMORY_CHECKER
 	//TODO: move this part to special MEC event posting routine, new IOCTL is needed
 	if((probe_id >= MEC_PROBE_ID_MIN) && (probe_id <= MEC_PROBE_ID_MAX))
-		mec_post_event(data, len);
+	{
+		if(mec_post_event != NULL)
+		{
+			mec_post_event(data, len);
+		}
+		else
+		{
+			mec_post_event = lookup_name("mec_post_event");
+			if(mec_post_event == NULL)
+			{
+				EPRINTF ("Failed to find function 'mec_post_event' from mec_handlers.ko. Memory Error Checker will work incorrectly.");
+			}
+			else
+			{
+				mec_post_event(data, len);
+			}
+		}
+	}
 #endif
 
 	if((probe_id == EVENT_FMT_PROBE_ID) || !(event_mask & IOCTL_EMASK_TIME)){

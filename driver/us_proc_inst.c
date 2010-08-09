@@ -743,9 +743,6 @@ do_exit_probe_pre_code (void)
 		us_proc_info.tgid = 0;
 	}
 
-#ifdef MEMORY_CHECKER
-	mec_remove_objects();
-#endif
 }
 EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
 
@@ -770,16 +767,7 @@ ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg
 	//static int nCount;
 
 	//DPRINTF("[%d]proc %s(%d): ENTRY %s(%#lx)", nCount++, current->comm, current->pid, ip->name, arg1);
-#ifdef MEMORY_CHECKER
-	struct pt_regs *regs = __get_cpu_var(gpUserRegs);
-#if defined(CONFIG_ARM)
-	pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", ip->jprobe.kp.addr, regs->ARM_lr, regs->ARM_fp, arg1, arg2, arg3, arg4, arg5, arg6);
-#else
-#warning not implemented for this arch!
-#endif
-#else
 	pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", ip->jprobe.kp.addr, arg1, arg2, arg3, arg4, arg5, arg6);
-#endif
 	uprobe_return ();
 }
 

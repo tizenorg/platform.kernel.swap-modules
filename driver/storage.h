@@ -113,16 +113,6 @@ extern int get_predef_uprobes_size(int *size);
 */
 extern int get_predef_uprobes(ioctl_predef_uprobes_info_t *data);
 
-#ifdef MEMORY_CHECKER
-extern void mec_remove_objects(void);
-extern void *mec_find_in_object_range(void *addr, int *rz);
-extern void mec_change_active_object(void *obj);
-extern unsigned long pf_addr;
-// maximum overflow/underflow size
-// access into unallocated process space near active object,
-// but within this gap will be treated as overflow/underflow
-#define MEC_MAX_OVERFLOW_SIZE	(1024)
-#endif
 
 // internal bookkeeping of storage
 extern char *p_buffer;
