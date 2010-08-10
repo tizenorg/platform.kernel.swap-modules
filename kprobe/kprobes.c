@@ -1301,7 +1301,7 @@ unregister_all_uprobes (struct task_struct *task, int atomic)
 #define GUP_FLAGS_IGNORE_VMA_PERMISSIONS 0x4
 #define GUP_FLAGS_IGNORE_SIGKILL         0x8
 
-
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,18)
 static inline int use_zero_page(struct vm_area_struct *vma)
 {
 	/*
@@ -1318,6 +1318,7 @@ static inline int use_zero_page(struct vm_area_struct *vma)
 	 */
 	return !vma->vm_ops || !vma->vm_ops->fault;
 }
+#endif
 
 int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		     unsigned long start, int len, int flags,
@@ -1393,8 +1394,13 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 			return i ? : -EFAULT;
 
 		if (is_vm_hugetlb_page(vma)) {
+#if  LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,18)
+		  	i = follow_hugetlb_page(mm, vma, pages, vmas,
+						&start, &len, i);
+#else
 			i = follow_hugetlb_page(mm, vma, pages, vmas,
 						&start, &len, i, write);
+#endif
 			continue;
 		}
 
@@ -1402,14 +1408,17 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		if (pages)
 			foll_flags |= FOLL_GET;
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,18)
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,30)
 		if (!write && use_zero_page(vma))
 		  foll_flags |= FOLL_ANON;
+#endif
 #endif
 
 		do {
 			struct page *page;
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,18)
 			/*
 			 * If we have a pending SIGKILL, don't keep faulting
 			 * pages and potentially allocating memory, unless
@@ -1420,6 +1429,7 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 			if (unlikely(!ignore_sigkill &&
 					fatal_signal_pending(current)))
 				return i ? i : -ERESTARTSYS;
+#endif
 
 			if (write)
 				foll_flags |= FOLL_WRITE;
@@ -1432,18 +1442,39 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 				int ret;
 				ret = handle_mm_fault(mm, vma, start,
 						foll_flags & FOLL_WRITE);
+
+#if  LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,18)
+				if (ret & VM_FAULT_WRITE)
+				  foll_flags &= ~FOLL_WRITE;
+				
+				switch (ret & ~VM_FAULT_WRITE) {
+				case VM_FAULT_MINOR:
+				  tsk->min_flt++;
+				  break;
+				case VM_FAULT_MAJOR:
+				  tsk->maj_flt++;
+				  break;
+				case VM_FAULT_SIGBUS:
+				  return i ? i : -EFAULT;
+				case VM_FAULT_OOM:
+				  return i ? i : -ENOMEM;
+				default:
+				  BUG();
+				}
+				
+#else
 				if (ret & VM_FAULT_ERROR) {
-					if (ret & VM_FAULT_OOM)
-						return i ? i : -ENOMEM;
-					else if (ret & VM_FAULT_SIGBUS)
-						return i ? i : -EFAULT;
-					BUG();
+				  if (ret & VM_FAULT_OOM)
+				    return i ? i : -ENOMEM;
+				  else if (ret & VM_FAULT_SIGBUS)
+				    return i ? i : -EFAULT;
+				  BUG();
 				}
 				if (ret & VM_FAULT_MAJOR)
-					tsk->maj_flt++;
+				  tsk->maj_flt++;
 				else
-					tsk->min_flt++;
-
+				  tsk->min_flt++;
+				
 				/*
 				 * The VM_FAULT_WRITE bit tells us that
 				 * do_wp_page has broken COW when necessary,
@@ -1458,16 +1489,23 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 				 */
 				if ((ret & VM_FAULT_WRITE) &&
 				    !(vma->vm_flags & VM_WRITE))
-					foll_flags &= ~FOLL_WRITE;
-
+				  foll_flags &= ~FOLL_WRITE;
+				
 				//cond_resched();
+#endif
+				
 			}
+
 			if (IS_ERR(page))
 				return i ? i : PTR_ERR(page);
 			if (pages) {
 				pages[i] = page;
 
+#if  LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,18)
+				flush_anon_page(page, start);
+#else
 				flush_anon_page(vma, page, start);
+#endif
 				flush_dcache_page(page);
 			}
 			if (vmas)
