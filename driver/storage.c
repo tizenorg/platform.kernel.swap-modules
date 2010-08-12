@@ -22,7 +22,6 @@
 #include "module.h"
 #include "storage.h"
 #include "CProfile.h"
-#include "def_handlers.h"
 
 #define after_buffer ec_info.buffer_size
 
