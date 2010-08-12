@@ -230,7 +230,7 @@ _restart:
 	while (vma)
 	{
 		// skip non-text section
-		if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file || 
+		if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file || (vma->vm_flags & VM_ACCOUNT) || 
 			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) || 
 			!(vma->vm_flags & (VM_READ | VM_MAYREAD)))
 		{
