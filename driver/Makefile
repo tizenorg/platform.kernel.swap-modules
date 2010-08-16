@@ -5,7 +5,7 @@ cross_compiler = $(subst gcc,,$(CC))
 
 all-local:
 	cp $(top_srcdir)/src/modules/kprobe/Module.symvers $(driver_module_dir)
-	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=arm memchecker=$(memchecker) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) modules
+	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=arm memchecker=$(memchecker) debug_opt=$(debug_opt) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) modules
 
 clean-local:
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=arm $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) clean
