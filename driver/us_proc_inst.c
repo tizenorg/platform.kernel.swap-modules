@@ -230,7 +230,7 @@ _restart:
 	while (vma)
 	{
 		// skip non-text section
-		if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file || 
+		if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file || (vma->vm_flags & VM_ACCOUNT) || 
 			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) || 
 			!(vma->vm_flags & (VM_READ | VM_MAYREAD)))
 		{
@@ -751,7 +751,15 @@ EXPORT_PER_CPU_SYMBOL_GPL(gpCurIp);
 DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpUserRegs);
 
-static unsigned long
+// XXX MCPP: introduced custom default handlers defined in (exported from) another kernel module(s)
+unsigned long (* ujprobe_event_pre_handler_custom_p)(us_proc_ip_t *, struct pt_regs *) = NULL;
+EXPORT_SYMBOL(ujprobe_event_pre_handler_custom_p);
+void (* ujprobe_event_handler_custom_p)() = NULL;
+EXPORT_SYMBOL(ujprobe_event_handler_custom_p);
+int (* uretprobe_event_handler_custom_p)(struct kretprobe_instance *, struct pt_regs *, us_proc_ip_t *) = NULL;
+EXPORT_SYMBOL(uretprobe_event_handler_custom_p);
+
+unsigned long
 ujprobe_event_pre_handler (us_proc_ip_t * ip, struct pt_regs *regs)
 {
 	__get_cpu_var (gpCurIp) = ip;
@@ -789,10 +797,22 @@ register_usprobe (struct task_struct *task, struct mm_struct *mm, us_proc_ip_t *
 
 	ip->jprobe.kp.tgid = task->tgid;
 	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
-	if(!ip->jprobe.entry)
-		ip->jprobe.entry = (kprobe_opcode_t *) ujprobe_event_handler;
-	if(!ip->jprobe.pre_entry)
-		ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t) ujprobe_event_pre_handler;
+	if(!ip->jprobe.entry) {
+		if (ujprobe_event_handler_custom_p != NULL)
+			ip->jprobe.entry = (kprobe_opcode_t *) ujprobe_event_handler_custom_p;
+		else {
+			ip->jprobe.entry = (kprobe_opcode_t *) ujprobe_event_handler;
+			//DPRINTF("Failed custom ujprobe_event_handler_custom_p");
+		}
+	}
+	if(!ip->jprobe.pre_entry) {
+		if (ujprobe_event_pre_handler_custom_p != NULL)
+			ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t) ujprobe_event_pre_handler_custom_p;
+		else {
+			ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t) ujprobe_event_pre_handler;
+			//DPRINTF("Failed custom ujprobe_event_pre_handler_custom_p");
+		}
+	}
 	ip->jprobe.priv_arg = ip;
 	ret = register_ujprobe (task, mm, &ip->jprobe, atomic);
 	if (ret)
@@ -811,8 +831,14 @@ register_usprobe (struct task_struct *task, struct mm_struct *mm, us_proc_ip_t *
 	{
 		ip->retprobe.kp.tgid = task->tgid;
 		//ip->retprobe.kp.addr = (kprobe_opcode_t *) addr;
-		if(!ip->retprobe.handler)
-			ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler;
+		if(!ip->retprobe.handler) {
+			if (uretprobe_event_handler_custom_p != NULL)
+				ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler_custom_p;
+			else {
+				ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler;
+				//DPRINTF("Failed custom uretprobe_event_handler_custom_p");
+			}
+		}
 		ip->retprobe.priv_arg = ip;
 		ret = register_uretprobe (task, mm, &ip->retprobe, atomic);
 		if (ret)
