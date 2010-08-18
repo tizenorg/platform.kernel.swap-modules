@@ -35,7 +35,7 @@ int paused = 0; /* a state after a stop condition (events are not collected) */
 struct timeval last_attach_time = {0, 0};
 
 EXPORT_SYMBOL_GPL(us_proc_info);
-void (*mec_post_event)(char *data, unsigned long len) = NULL;
+int (*mec_post_event)(char *data, unsigned long len) = NULL;
 
 unsigned copy_into_cyclic_buffer (char *buffer, unsigned dst_offset, char *src, unsigned size)
 {
@@ -1396,7 +1396,11 @@ int put_us_event (char *data, unsigned long len)
 	{
 		if(mec_post_event != NULL)
 		{
-			mec_post_event(data, len);
+			int res = mec_post_event(data, len);
+			if(res == -1)
+			{
+				return -1;
+			}
 		}
 		else
 		{
@@ -1407,7 +1411,11 @@ int put_us_event (char *data, unsigned long len)
 			}
 			else
 			{
-				mec_post_event(data, len);
+				int res = mec_post_event(data, len);
+				if(res == -1)
+				{
+					return -1;
+				}
 			}
 		}
 	}
@@ -1520,6 +1528,7 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 	char *buf, *sep1, *sep2;
 
 	inst_us_proc_t *my_uprobes_info = (inst_us_proc_t *)lookup_name("my_uprobes_info");
+	DPRINTF("my_uprobes_info lookup result: 0x%p", my_uprobes_info);
 	inst_us_proc_t empty_uprobes_info =
 	{
 		.libs_count = 0,
