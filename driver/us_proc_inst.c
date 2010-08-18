@@ -526,13 +526,16 @@ deinst_usr_space_proc (void)
 	rcu_read_unlock ();
 	if (found)
 	{
+		int i;
 		// uninstall IPs
 		iRet = uninstall_mapped_ips (task, 0);
 		if (iRet != 0)
 			EPRINTF ("failed to uninstall IPs %d!", iRet);
 		put_task_struct (task);
-		//unregister_all_uprobes(task, 1);
+		unregister_all_uprobes(task, 1);
 		us_proc_info.tgid = 0;
+		for(i = 0; i < us_proc_info.libs_count; i++)
+			us_proc_info.p_libs[i].loaded = 0;
 	}
 
 	return iRet;
@@ -666,9 +669,9 @@ do_page_fault_ret_pre_code (void)
 			{
 				if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file)
 				{
-					//DPRINTF("do_page_fault: dentry %p-%p.", vma->vm_file->m_f_dentry, nd.dentry);
-					//DPRINTF("do_page_fault: expath %s.", 
-					//              d_path(vma->vm_file->m_f_dentry, vma->vm_file->f_vfsmnt, expath, sizeof(expath)));                                      
+					//DPRINTF("do_page_fault: dentry %p-%p.", vma->vm_file->f_dentry, us_proc_info.m_f_dentry);
+					//DPRINTF("do_page_fault: expath %s.",
+					//              d_path(vma->vm_file->f_dentry, vma->vm_file->f_vfsmnt, expath, sizeof(expath)));
 					if (vma->vm_file->f_dentry == us_proc_info.m_f_dentry)
 					{
 						//if (strcmp(d_path(vma->vm_file->m_f_dentry, vma->vm_file->f_vfsmnt, expath, sizeof(expath)),
@@ -735,12 +738,15 @@ do_exit_probe_pre_code (void)
 	rcu_read_unlock ();
 	if (del)
 	{
+		int i;
 //		DPRINTF ("do_exit from the last target proc %s-%d", current->comm, current->pid);
 		iRet = uninstall_mapped_ips (current, 1);
 		if (iRet != 0)
 			EPRINTF ("failed to uninstall IPs (%d)!", iRet);
 		unregister_all_uprobes(current, 1);
 		us_proc_info.tgid = 0;
+		for(i = 0; i < us_proc_info.libs_count; i++)
+			us_proc_info.p_libs[i].loaded = 0;
 	}
 
 }
