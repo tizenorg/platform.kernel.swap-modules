@@ -1528,6 +1528,7 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 	char *buf, *sep1, *sep2;
 
 	inst_us_proc_t *my_uprobes_info = (inst_us_proc_t *)lookup_name("my_uprobes_info");
+	DPRINTF("my_uprobes_info lookup result: 0x%p", my_uprobes_info);
 	inst_us_proc_t empty_uprobes_info =
 	{
 		.libs_count = 0,
