@@ -549,11 +549,10 @@ int ResetBuffer(void) {
 int WriteEventIntoSingleBuffer(char* pEvent, unsigned long nEventSize) {
 	unsigned long spinlock_flags = 0L;
 	int bCopied = 0;
-	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
+
 	if(!p_buffer) {
 		EPRINTF("Invalid pointer to buffer!");
 		++ec_info.lost_events_count;
-		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 		return -1;
 	}
 	while (!bCopied) {
@@ -594,21 +593,18 @@ int WriteEventIntoSingleBuffer(char* pEvent, unsigned long nEventSize) {
 			}
 		}
 	}
-	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 	return 0;
 }
 
 int WriteEventIntoMultipleBuffer(char* pEvent, unsigned long nEventSize) {
 #ifndef __DISABLE_RELAYFS
 	unsigned long spinlock_flags = 0L;
-	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
 	__relay_write(GetRelayChannel(), pEvent, nEventSize);
 	ec_info.buffer_effect += nEventSize;
 	ec_info.trace_size += nEventSize;
 	ec_info.saved_events_count++;
 	ec_info.m_nEndOffset += nEventSize;
 	ec_info.m_nSubbufSavedEvents++;
-	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 	return 0;
 #else
 	EPRINTF("RelayFS not supported!");
@@ -1099,25 +1095,6 @@ static u_int32_t get_probe_func_addr(const char *fmt, va_list args)
 	return va_arg(args, u_int32_t);
 }
 
-/*
-    Note: Experiment shows that on x86 jprobe and retprobe are handled with
-    interrupts disabled. Thus collision is possible only due to hardware
-    exception happening inside our code or due to parallel execution on 2 or
-    more physical CPUs. Experiment shows that on x86 with single CPU collisions
-    do not happen.
-
-    mk: We have dual situation. SMP (non-UP) Spinlock will help against
-    cross-CPU collisions but will lock-up even single CPU in case of hardware
-    exception like pagefault.
-
-    Per-CPU counter will allow us to catch nesting for the same CPU.
-    "pack_event_info()" is a preemption-safe, thus we can use "__get_cpu_var()"
-    directly.
-
-    NOTE: real_per_cpu_in_use_count = per_cpu_in_use_count + 1
-*/
-static DEFINE_PER_CPU (local_t, per_cpu_in_use_count) = LOCAL_INIT (-1);
-
 void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char *fmt, ...)
 {
 	unsigned long spinlock_flags = 0L;
@@ -1132,6 +1109,8 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 	unsigned long addr = 0;
 	struct cond *p_cond;
 	struct event_tmpl *p_tmpl;
+
+	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
 
 	memset(buf, 0, EVENT_MAX_SIZE);
 	do_gettimeofday (&tv);
@@ -1202,27 +1181,6 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 		return;
 	}
 
-	// We are in a preemption-safe context (because interrupts are disabled on
-	// local CPU), thus we can use "__get_cpu_var()" directly.
-	local_inc (&__get_cpu_var (per_cpu_in_use_count));
-	if (0 != local_read (&__get_cpu_var (per_cpu_in_use_count))) {
-		// nested entry for the same CPU means page fault or something
-		// similarly terrific in our code
-		local_dec (&__get_cpu_var (per_cpu_in_use_count));	// roll back
-		EPRINTF ("nested %s() for the same CPU", __FUNCTION__);
-
-		spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-		++ec_info.collision_count;
-		++ec_info.lost_events_count;
-		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
-
-		return;		// bail out
-	}
-
-	/*
-	   The same CPU can't get here second time thus we can safely use spinlock
-	   to separate multiple CPUs accessing our data.
-	 */
 	va_start (args, fmt);
 	event_len = VPackEvent(buf, sizeof(buf), event_mask, probe_id, record_type, &tv,
 				current_tgid, current_pid, current_cpu, fmt, args);
@@ -1242,8 +1200,6 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 		++ec_info.lost_events_count;
 		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 	}
-
-	local_dec (&__get_cpu_var (per_cpu_in_use_count));	// roll back
 
 	/* Check for stop condition.  We pause collecting the trace right after
 	 * storing this event */
@@ -1272,6 +1228,7 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 			break;
 		}
 	}
+	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 }
 EXPORT_SYMBOL_GPL(pack_event_info);
 
@@ -1480,35 +1437,6 @@ int put_us_event (char *data, unsigned long len)
 	*((TYPEOF_EVENT_LENGTH *)cur) = pEventHeader->m_nLength;
 	len = pEventHeader->m_nLength;
 	
-	/*if(probe_id == US_PROBE_ID){
-		printk("edst[");
-		for(i = 0; i < len; i++)
-			printk("%02x ", data[i]);
-		printk("]\n");
-	}*/
-	
-	// We are in a preemption-safe context (because interrupts are disabled on
-	// local CPU), thus we can use "__get_cpu_var()" directly.
-	local_inc (&__get_cpu_var (per_cpu_in_use_count));
-	if (0 != local_read (&__get_cpu_var (per_cpu_in_use_count)))
-	{
-		// nested entry for the same CPU means page fault or something
-		// similarly terrific in our code
-		local_dec (&__get_cpu_var (per_cpu_in_use_count));	// roll back
-		EPRINTF ("nested %s() for the same CPU", __FUNCTION__);
-
-		spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-		++ec_info.collision_count;
-		++ec_info.lost_events_count;
-		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
-
-		return -1;		// bail out
-	}
-
-	/*
-	   The same CPU can't get here second time thus we can safely use spinlock
-	   to separate multiple CPUs accessing our data.
-	 */
 	if(WriteEventIntoBuffer(data, len) == -1) {
 		EPRINTF("Cannot write event into buffer!");
 
@@ -1517,8 +1445,6 @@ int put_us_event (char *data, unsigned long len)
 		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 	}
 
-	local_dec (&__get_cpu_var (per_cpu_in_use_count));	// roll back
-	
 	return 0;
 }
 
