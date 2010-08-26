@@ -635,6 +635,8 @@ inst_usr_space_proc (void)
 	return 0;
 }
 
+char expath[512];
+
 void
 do_page_fault_ret_pre_code (void)
 {
@@ -669,9 +671,10 @@ do_page_fault_ret_pre_code (void)
 			{
 				if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file)
 				{
-					//DPRINTF("do_page_fault: dentry %p-%p.", vma->vm_file->f_dentry, us_proc_info.m_f_dentry);
-					//DPRINTF("do_page_fault: expath %s.",
-					//              d_path(vma->vm_file->f_dentry, vma->vm_file->f_vfsmnt, expath, sizeof(expath)));
+					/*struct path pth = {.dentry=vma->vm_file->f_dentry, .mnt=vma->vm_file->f_vfsmnt};
+					DPRINTF("do_page_fault: dentry %p-%p.", vma->vm_file->f_dentry, us_proc_info.m_f_dentry);
+					DPRINTF("do_page_fault: expath %s.",
+					              d_path(&pth, expath, sizeof(expath)-1));*/
 					if (vma->vm_file->f_dentry == us_proc_info.m_f_dentry)
 					{
 						//if (strcmp(d_path(vma->vm_file->m_f_dentry, vma->vm_file->f_vfsmnt, expath, sizeof(expath)),
