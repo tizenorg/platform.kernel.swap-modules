@@ -75,9 +75,14 @@ find_task_by_path (const char *path, struct task_struct **p_task, struct list_he
 	rcu_read_unlock ();
 
 	if (*p_task)
+	{
 		DPRINTF ("found pid %d for %s.", (*p_task)->pid, path);
+		gl_nNotifyTgid = current->tgid;
+	}
 	else
+	{
 		DPRINTF ("pid for %s not found!", path);
+	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	path_release (&nd);
@@ -696,6 +701,7 @@ do_page_fault_ret_pre_code (void)
 		{
 			DPRINTF ("do_page_fault found target proc %s(%d)", current->comm, current->pid);
 			us_proc_info.tgid = current->pid;
+			gl_nNotifyTgid = current->tgid;
 		}
 	}
 	if (us_proc_info.tgid == current->tgid)
