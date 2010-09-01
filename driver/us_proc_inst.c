@@ -644,6 +644,18 @@ do_page_fault_ret_pre_code (void)
 	if (!us_proc_info.path)
 		return;
 
+	if (!strcmp(us_proc_info.path,"*"))
+	  {
+	    //DPRINTF("us_proc_info.path = * ALL");
+	    if (install_mapped_ips (current, 1) == 0)
+	      {
+		/*iRet = unregister_one_probe(pf_probe_id);
+		  if (iRet)
+		  EPRINTF("unregister_one_probe(do_page_fault) result=%d!", iRet); */
+	      }
+	    return;
+	  }
+
 	//DPRINTF("do_page_fault from proc %d-%d-%d", current->pid, us_proc_info.tgid, us_proc_info.unres_ips_count);
 	if ((us_proc_info.unres_ips_count + us_proc_info.unres_vtps_count) == 0)
 	{

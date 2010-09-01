@@ -733,20 +733,25 @@ int set_us_proc_inst_info (ioctl_inst_usr_space_proc_t * inst_info)
 		EPRINTF ("strncpy_from_user app path failed %p (%ld)", us_proc_info.path, len);
 		return -EFAULT;
 	}
-
-	if (path_lookup (us_proc_info.path, LOOKUP_FOLLOW, &nd) != 0)
-	{
+	if(strcmp(us_proc_info.path,"*"))
+	  {
+	    if (path_lookup (us_proc_info.path, LOOKUP_FOLLOW, &nd) != 0)
+	      {
 		EPRINTF ("failed to lookup dentry for path %s!", us_proc_info.path);
 		return -EFAULT;
-	}
+	      }
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	us_proc_info.m_f_dentry = nd.dentry;
-	path_release (&nd);
+	    us_proc_info.m_f_dentry = nd.dentry;
+	    path_release (&nd);
 #else
-	us_proc_info.m_f_dentry = nd.path.dentry;
-	path_put (&nd.path);
+	    us_proc_info.m_f_dentry = nd.path.dentry;
+	    path_put (&nd.path);
 #endif
-
+	  }
+	else
+	  {
+	    us_proc_info.m_f_dentry = NULL;
+	  }
 	us_proc_info.libs_count = inst_info->libs_count;
 	us_proc_info.p_libs = kmalloc (us_proc_info.libs_count * sizeof (us_proc_lib_t), GFP_KERNEL);
 	DPRINTF ("us_proc_info.p_libs=%p/%u", us_proc_info.p_libs, us_proc_info.libs_count);
