@@ -18,6 +18,11 @@
 #include "module.h"
 #include "device_driver.h"	// device driver
 #include "CProfile.h"
+#include <linux/notifier.h>
+
+static BLOCKING_NOTIFIER_HEAD(inperfa_notifier_list);
+pid_t gl_nNotifyTgid;
+EXPORT_SYMBOL_GPL(gl_nNotifyTgid);
 
 DECLARE_WAIT_QUEUE_HEAD (notification_waiters_queue);
 volatile unsigned notification_count;
@@ -61,6 +66,18 @@ void device_down (void)
 {
 	unregister_chrdev(device_major, device_name);
 }
+
+void inperfa_register_notify (struct notifier_block *nb)
+{
+	blocking_notifier_chain_register(&inperfa_notifier_list, nb);
+}
+EXPORT_SYMBOL_GPL(inperfa_register_notify);
+
+void inperfa_unregister_notify (struct notifier_block *nb)
+{
+	blocking_notifier_chain_unregister(&inperfa_notifier_list, nb);
+}
+EXPORT_SYMBOL_GPL(inperfa_unregister_notify);
 
 void notify_user (event_id_t event_id)
 {
@@ -371,6 +388,7 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 		}
 		result = 0;
 		DPRINTF("Stop and Detach Probes");
+		blocking_notifier_call_chain(&inperfa_notifier_list, EC_IOCTL_STOP_AND_DETACH, (void*)&gl_nNotifyTgid);
 		break;
 	}
 	case EC_IOCTL_WAIT_NOTIFICATION:

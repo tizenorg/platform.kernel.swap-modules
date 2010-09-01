@@ -46,6 +46,8 @@ extern void do_exit_probe_pre_code (void);
 
 extern int us_proc_probes;
 
+extern pid_t gl_nNotifyTgid;
+
 #define US_PROC_PF_INSTLD	0x1
 #define US_PROC_EXIT_INSTLD	0x2
 //#define US_PROC_SS_INSTLD	0x4
