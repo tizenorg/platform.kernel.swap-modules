@@ -1104,7 +1104,6 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 {
 	unsigned long spinlock_flags = 0L;
 	static char buf[EVENT_MAX_SIZE] = "";
-	//char* probe_name = NULL;
 	TYPEOF_EVENT_LENGTH event_len = 0L;
 	TYPEOF_TIME tv = { 0, 0 };
 	TYPEOF_THREAD_ID current_pid = current->pid;
@@ -1115,9 +1114,10 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 	struct cond *p_cond;
 	struct event_tmpl *p_tmpl;
 
-	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-
+	spin_lock_irqsave(&ec_spinlock, spinlock_flags);
 	memset(buf, 0, EVENT_MAX_SIZE);
+	spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
+
 	do_gettimeofday (&tv);
 
 	if (probe_id == KS_PROBE_ID) {
@@ -1157,8 +1157,10 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 				 (tv.tv_sec == last_attach_time.tv_sec + p_tmpl->sec &&
 				  tv.tv_usec >= last_attach_time.tv_usec + p_tmpl->usec)) &&
 				!p_cond->applied) {
+				spin_lock_irqsave(&ec_spinlock, spinlock_flags);
 				paused = 0;
 				p_cond->applied = 1;
+				spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
 			}
 			break;
 		case ET_TYPE_IGNORE_COND:
@@ -1174,13 +1176,16 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 				 (current_cpu == p_tmpl->cpu_num)) &&
 				(!ET_FIELD_ISSET(p_tmpl->flags, ET_MATCH_BIN_NAME) ||
 				 (strcmp(current->comm, p_tmpl->bin_name) == 0))) {
+				spin_lock_irqsave(&ec_spinlock, spinlock_flags);
 				ec_info.ignored_events_count++;
+				spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
 				return;
 			}
 			break;
 		}
 	}
 
+	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
 	if (paused && probe_id != EVENT_FMT_PROBE_ID) {
 		ec_info.ignored_events_count++;
 		return;
@@ -1205,6 +1210,7 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 		++ec_info.lost_events_count;
 		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 	}
+	spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
 
 	/* Check for stop condition.  We pause collecting the trace right after
 	 * storing this event */
@@ -1227,13 +1233,14 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 				 (tv.tv_sec == last_attach_time.tv_sec + p_tmpl->sec &&
 				  tv.tv_usec >= last_attach_time.tv_usec + p_tmpl->usec)) &&
 				!p_cond->applied) {
+				spin_lock_irqsave(&ec_spinlock, spinlock_flags);
 				paused = 1;
 				p_cond->applied = 1;
+				spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
 			}
 			break;
 		}
 	}
-	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 }
 EXPORT_SYMBOL_GPL(pack_event_info);
 
