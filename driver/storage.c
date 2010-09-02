@@ -1188,6 +1188,7 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
 	if (paused && probe_id != EVENT_FMT_PROBE_ID) {
 		ec_info.ignored_events_count++;
+		spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
 		return;
 	}
 
@@ -1198,17 +1199,11 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 
 	if(event_len == 0) {
 		EPRINTF ("ERROR: failed to pack event!");
-
-		spin_lock_irqsave (&ec_spinlock, spinlock_flags);
 		++ec_info.lost_events_count;
-		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 
 	} else if(WriteEventIntoBuffer(buf, event_len) == -1) {
 		EPRINTF("Cannot write event into buffer!");
-
-		spin_lock_irqsave (&ec_spinlock, spinlock_flags);
 		++ec_info.lost_events_count;
-		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 	}
 	spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
 
