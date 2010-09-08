@@ -1522,6 +1522,7 @@ int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, int len, int write, int force,
 		struct page **pages, struct vm_area_struct **vmas)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 	int flags = 0;
 
 	if (write)
@@ -1532,6 +1533,11 @@ int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 	return __get_user_pages_uprobe(tsk, mm,
 				start, len, flags,
 				pages, vmas);
+#else
+	return get_user_pages(tsk, mm,
+						  start, len, write, force,
+						  pages, vmas);
+#endif
 }
 
 int
