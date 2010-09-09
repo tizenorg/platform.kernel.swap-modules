@@ -555,42 +555,48 @@ int WriteEventIntoSingleBuffer(char* pEvent, unsigned long nEventSize) {
 		++ec_info.lost_events_count;
 		return -1;
 	}
-	while (!bCopied) {
-		unsigned unused_space;
-		if(ec_info.saved_events_count == 0 || ec_info.after_last > ec_info.first) {
-			unused_space = ec_info.buffer_size - ec_info.after_last;
-			if(unused_space > nEventSize) {
-				ec_info.after_last = copy_into_cyclic_buffer (p_buffer, ec_info.after_last, pEvent, nEventSize);
-				++ec_info.saved_events_count;
-				bCopied = 1;
-				ec_info.buffer_effect = ec_info.buffer_size;
-				ec_info.trace_size = ec_info.after_last - ec_info.first;
-			} else {
-				bCopied = 0;
-				ec_info.buffer_effect = ec_info.after_last;
-				ec_info.after_last = 0;
-			}
+	unsigned int unused_space;
+	if (ec_info.trace_size == 0 || ec_info.after_last > ec_info.first) {
+		unused_space = ec_info.buffer_size - ec_info.after_last;
+		if (unused_space > nEventSize) {
+			ec_info.after_last = copy_into_cyclic_buffer(p_buffer,
+														 ec_info.after_last,
+														 pEvent,
+														 nEventSize);
+			ec_info.saved_events_count++;
+			ec_info.buffer_effect = ec_info.buffer_size;
+			ec_info.trace_size = ec_info.after_last - ec_info.first;
 		} else {
-			unused_space = ec_info.first - ec_info.after_last;
-			if(unused_space > nEventSize) {
-				ec_info.after_last = copy_into_cyclic_buffer (p_buffer, ec_info.after_last, pEvent, nEventSize);
-				++ec_info.saved_events_count;
-				bCopied = 1;
-				ec_info.trace_size = ec_info.buffer_effect - ec_info.first + ec_info.after_last;
+			if (ec_info.first > nEventSize) {
+				ec_info.buffer_effect = ec_info.after_last;
+				ec_info.after_last = copy_into_cyclic_buffer(p_buffer,
+															 0,
+															 pEvent,
+															 nEventSize);
+				ec_info.saved_events_count++;
+				ec_info.trace_size = ec_info.buffer_effect
+					- ec_info.first
+					+ ec_info.after_last;
 			} else {
-				if(ec_info.first < ec_info.buffer_effect) {
-					TYPEOF_EVENT_LENGTH discard_len = 0;
-					copy_from_cyclic_buffer ((char *) &discard_len, p_buffer, ec_info.first, sizeof (TYPEOF_EVENT_LENGTH));
-					ec_info.first = ec_info.first + discard_len;
-					++ec_info.discarded_events_count;
-					bCopied = 0;
-					ec_info.trace_size = ec_info.buffer_effect - ec_info.first + ec_info.after_last;
-				} else {
-					bCopied = 0;
-					ec_info.buffer_effect = ec_info.buffer_size;
-					ec_info.first = 0;
-				}
+				// TODO: consider two variants!
+				// Do nothing
+				ec_info.discarded_events_count++;
 			}
+		}
+	} else {
+		unused_space = ec_info.first - ec_info.after_last;
+		if (unused_space > nEventSize) {
+			ec_info.after_last = copy_into_cyclic_buffer(p_buffer,
+														 ec_info.after_last,
+														 pEvent,
+														 nEventSize);
+			ec_info.saved_events_count++;
+			ec_info.trace_size = ec_info.buffer_effect
+				- ec_info.first
+				+ ec_info.after_last;
+		} else {
+			// Do nothing
+			ec_info.discarded_events_count++;
 		}
 	}
 	return 0;
