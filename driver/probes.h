@@ -19,7 +19,7 @@
 
 #include "ec_probe.h"
 #include "storage.h"
-#include "../kprobe/kprobes.h"
+#include "../kprobe/dbi_kprobes.h"
 
 #ifndef regs_return_value
 /* "regs_return_value" is ARCH-dependent. ARCH is passed via "EC_ARCH_*" */

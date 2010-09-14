@@ -1,2 +1,2 @@
 obj-m := inperfa_kprobe.o
-inperfa_kprobe-y := kprobes_arch.o kprobes.o
+inperfa_kprobe-y := dbi_kprobes_deps.o dbi_insn_slots.o dbi_uprobes.o arch/asm/dbi_kprobes.o arch/dbi_kprobes.o dbi_kprobes.o

@@ -21,7 +21,7 @@
 
 #ifdef EC_ARCH_arm
 /* ARCH == arm */
-#include "../kprobe/kprobes.h"
+#include "../kprobe/dbi_kprobes.h"
 #endif /* def EC_ARCH_arm */
 
 #ifdef EC_ARCH_i386

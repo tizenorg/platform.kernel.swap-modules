@@ -18,6 +18,10 @@
 #include "module.h"
 #include "us_proc_inst.h"
 
+#include "../kprobe/dbi_kprobes_deps.h"
+#include "../kprobe/dbi_uprobes.h"
+
+
 static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_proc_ip_t * ip, int atomic, kprobe_opcode_t * islot);
 static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic);
 
