@@ -49,15 +49,6 @@
 
  */
 
-#include <linux/version.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
-#include <linux/config.h>
-#endif
-
-#include <linux/hash.h>
-#include <linux/module.h>
-
-
 #include "dbi_kprobes.h"
 #include "arch/dbi_kprobes.h"
 #include "arch/asm/dbi_kprobes.h"
@@ -66,6 +57,19 @@
 #include "dbi_kprobes_deps.h"
 #include "dbi_insn_slots.h"
 #include "dbi_uprobes.h"
+
+
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#include <linux/config.h>
+#endif
+
+#include <linux/hash.h>
+#include <linux/module.h>
+#include <linux/mm.h>
+#include <linux/pagemap.h>
+
+
 
 extern unsigned int *sched_addr;
 extern unsigned int *fork_addr;

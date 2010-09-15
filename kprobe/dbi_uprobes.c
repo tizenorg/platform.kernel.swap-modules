@@ -25,13 +25,15 @@
 
  */
 
-#include <linux/hash.h>
-#include <linux/mempolicy.h>
-#include <linux/module.h>
 
 #include "dbi_uprobes.h"
 #include "dbi_insn_slots.h"
 #include "dbi_kdebug.h"
+
+#include <linux/hash.h>
+#include <linux/mempolicy.h>
+#include <linux/module.h>
+
 
 extern atomic_t kprobe_count;
 extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];

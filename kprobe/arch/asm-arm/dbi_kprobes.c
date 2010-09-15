@@ -26,6 +26,8 @@
 
  */
 
+#include<linux/module.h>
+
 #include "dbi_kprobes.h"
 #include "../dbi_kprobes.h"
 
