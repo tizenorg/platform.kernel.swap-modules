@@ -31,6 +31,8 @@
 #include <linux/version.h>	// LINUX_VERSION_CODE, KERNEL_VERSION()
 #include <linux/hugetlb.h>
 #include <linux/mempolicy.h>
+#include <linux/highmem.h>
+#include <linux/pagemap.h>
 
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12))

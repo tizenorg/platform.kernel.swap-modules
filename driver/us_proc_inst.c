@@ -271,7 +271,7 @@ _restart:
 						if (page_present (mm, addr))
 						{
 							//DPRINTF ("pid %d, %s sym is present at %lx/%lx.", task->pid, us_proc_info.p_libs[i].path, us_proc_info.p_libs[i].p_ips[k].offset, addr);
-							//if (!us_proc_info.p_libs[i].p_ips[k].installed)
+							if (!us_proc_info.p_libs[i].p_ips[k].installed)
 							{
 								us_proc_info.unres_ips_count--;
 								us_proc_info.p_libs[i].p_ips[k].installed = 1;

@@ -61,6 +61,7 @@
 #include <linux/spinlock.h>
 #include <linux/rcupdate.h>
 #include <linux/sched.h>
+#include <linux/pagemap.h>
 
 #include "arch/asm/dbi_kprobes.h"
 

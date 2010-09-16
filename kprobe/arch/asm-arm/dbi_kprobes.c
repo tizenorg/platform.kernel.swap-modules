@@ -939,11 +939,12 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	}
 	kretprobe_assert (ri, orig_ret_address, trampoline_address);
 	//BUG_ON(!orig_ret_address || (orig_ret_address == trampoline_address));
-	if (trampoline_address != (unsigned long) &kretprobe_trampoline){
-		if (ri->rp2) BUG_ON (ri->rp2->kp.tgid == 0);
-		if (ri->rp) BUG_ON (ri->rp->kp.tgid == 0);
-		else if (ri->rp2) BUG_ON (ri->rp2->kp.tgid == 0);
-	}
+	//E.G. Check this code in case of __switch_to function instrumentation -- currently this code generates dump in this case
+	//if (trampoline_address != (unsigned long) &kretprobe_trampoline){
+	//if (ri->rp2) BUG_ON (ri->rp2->kp.tgid == 0);
+	//if (ri->rp) BUG_ON (ri->rp->kp.tgid == 0);
+	//else if (ri->rp2) BUG_ON (ri->rp2->kp.tgid == 0);
+	//}
 	if ((ri->rp && ri->rp->kp.tgid) || (ri->rp2 && ri->rp2->kp.tgid)) 
 		BUG_ON (trampoline_address == (unsigned long) &kretprobe_trampoline);
 
