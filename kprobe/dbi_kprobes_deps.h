@@ -76,8 +76,6 @@
 	} \
 }
 
-//struct mm_struct* init_mm_ptr;
-//struct mm_struct init_mm;
 
 int init_module_dependencies(void);
 

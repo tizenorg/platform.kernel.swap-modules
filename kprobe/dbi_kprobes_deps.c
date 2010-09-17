@@ -44,6 +44,12 @@ unsigned int *fork_addr;
 #define GUP_FLAGS_IGNORE_VMA_PERMISSIONS 0x4
 #define GUP_FLAGS_IGNORE_SIGKILL         0x8
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
+struct mm_struct* init_mm_ptr;
+struct mm_struct init_mm;
+#endif
+
+
 DECLARE_MOD_CB_DEP(kallsyms_search, unsigned long, const char *name);
 
 DECLARE_MOD_FUNC_DEP(access_process_vm, int, struct task_struct * tsk, unsigned long addr, void *buf, int len, int write);
@@ -130,6 +136,12 @@ IMP_MOD_DEP_WRAPPER (flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
 
 int init_module_dependencies()
 {
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
+  	init_mm_ptr = (struct mm_struct*) kallsyms_search ("init_mm");
+	memcmp(init_mm_ptr, &init_mm, sizeof(struct mm_struct));
+#endif
+
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18)
 	INIT_MOD_DEP_VAR(handle_mm_fault, handle_mm_fault);
