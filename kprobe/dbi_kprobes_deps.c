@@ -142,11 +142,11 @@ int init_module_dependencies()
 	memcmp(init_mm_ptr, &init_mm, sizeof(struct mm_struct));
 #endif
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
+//#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18)
 	INIT_MOD_DEP_VAR(handle_mm_fault, handle_mm_fault);
 #endif
-#endif
+//#endif
 
 	INIT_MOD_DEP_VAR(flush_ptrace_access, flush_ptrace_access);
 	INIT_MOD_DEP_VAR(find_extend_vma, find_extend_vma);

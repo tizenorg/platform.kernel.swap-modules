@@ -1,4 +1,5 @@
 target_kernel_src = @KERNEL@
+board = @BOARD@
 kprobes_module_dir = $(realpath $(top_srcdir)/src/modules/kprobe)
 module_name = inperfa_kprobe
 cross_compiler = $(subst gcc,,$(CC))
@@ -11,4 +12,5 @@ clean-local:
 
 install-exec-local:
 	install -m 644 $(kprobes_module_dir)/$(module_name).ko $(prefix)
-	install -m 755 $(kprobes_module_dir)/$(module_name).sh $(prefix)
+	if [ "$(board)" != "beagle_eclair" ] ; then install -m 755 $(kprobes_module_dir)/$(module_name).sh $(prefix) ; fi
+
