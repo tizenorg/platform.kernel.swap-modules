@@ -368,6 +368,7 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 		}
 	case EC_IOCTL_ATTACH:
 		result = ec_user_attach ();
+		blocking_notifier_call_chain(&inperfa_notifier_list, EC_IOCTL_ATTACH, (void*)NULL);
 		DPRINTF("Attach Probes");
 		break;
 	case EC_IOCTL_ACTIVATE:
