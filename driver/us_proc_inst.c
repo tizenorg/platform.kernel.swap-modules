@@ -437,8 +437,8 @@ _restart:
 					else
 						p++;
 					task_inst_info->p_libs[i].loaded = 1;
-					pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "spd", 
-							p, vma->vm_start, vma->vm_end-vma->vm_start);
+					pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspd",
+									 task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start);
 				}
 			}
 		}
