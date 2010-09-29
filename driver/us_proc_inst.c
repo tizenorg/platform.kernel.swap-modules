@@ -541,7 +541,7 @@ int deinst_usr_space_proc (void)
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_exit) result=%d!", iRet);
 
-	if (!strcmp(us_proc_info.path,"*"))
+	if (us_proc_info.path && !strcmp(us_proc_info.path,"*"))
 	{
 		for_each_process (task)
 		{
