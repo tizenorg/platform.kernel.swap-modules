@@ -21,6 +21,19 @@
 #include "../kprobe/dbi_kprobes_deps.h"
 #include "../kprobe/dbi_uprobes.h"
 
+DEFINE_PER_CPU (us_proc_vtp_t *, gpVtp) = NULL;
+DEFINE_PER_CPU (struct pt_regs *, gpCurVtpRegs) = NULL;
+
+#if defined(CONFIG_MIPS)
+#	define ARCH_REG_VAL(regs, idx)	regs->regs[idx]
+#elif defined(CONFIG_ARM)
+#	define ARCH_REG_VAL(regs, idx)	regs->uregs[idx]
+#else
+#	define ARCH_REG_VAL(regs, idx)	0
+#	warning ARCH_REG_VAL is not implemented for this architecture. FBI will work improperly or even crash!!!
+#endif // ARCH
+
+
 static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_proc_ip_t * ip, int atomic, kprobe_opcode_t * islot);
 static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic);
 
@@ -38,101 +51,92 @@ LIST_HEAD(task_inst_info_list);
  * in case of library only instrumentation 
  */
 
-inst_us_proc_t* copy_task_inst_info (inst_us_proc_t * task_inst_info)
+inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * task_inst_info)
 {
 	int i, j, len;
 
-	inst_us_proc_t* copy_task_inst_info = 0;
+	inst_us_proc_t* copy_info = 0;
 
 	int unres_ips_count = 0, unres_vtps_count = 0;
 
-	copy_task_inst_info = kmalloc (sizeof (inst_us_proc_t), GFP_KERNEL);
-	memset ((void *) copy_task_inst_info, 0, sizeof (inst_us_proc_t));
 
-	copy_task_inst_info->path = task_inst_info->path;
-	copy_task_inst_info->m_f_dentry = NULL;
+	copy_info = kmalloc (sizeof (inst_us_proc_t), GFP_KERNEL);
+	memset ((void *) copy_info, 0, sizeof (inst_us_proc_t));
 
-	copy_task_inst_info->libs_count = task_inst_info->libs_count;
-	copy_task_inst_info->p_libs = 
+	copy_info->path = task_inst_info->path;
+	copy_info->m_f_dentry = NULL;
+
+	copy_info->libs_count = task_inst_info->libs_count;
+	copy_info->p_libs = 
 		kmalloc (task_inst_info->libs_count * sizeof (us_proc_lib_t), GFP_KERNEL);
 
-	if (!copy_task_inst_info->p_libs)
-	{
-		DPRINTF ("No enough memory for copy_task_inst_info->p_libs");
+	if (!copy_info->p_libs) {
+		DPRINTF ("No enough memory for copy_info->p_libs");
 		return -ENOMEM;
 	}
-	memcpy (copy_task_inst_info->p_libs, task_inst_info->p_libs, 
-			copy_task_inst_info->libs_count * sizeof (us_proc_lib_t));
+	memcpy (copy_info->p_libs, task_inst_info->p_libs, 
+			copy_info->libs_count * sizeof (us_proc_lib_t));
 
-	for (i = 0; i < copy_task_inst_info->libs_count; i++)
-	{
-		if (copy_task_inst_info->p_libs[i].ips_count > 0) 
+	for (i = 0; i < copy_info->libs_count; i++) {
+		if (copy_info->p_libs[i].ips_count > 0) 
 		{
-			unres_ips_count += copy_task_inst_info->p_libs[i].ips_count;
+			unres_ips_count += copy_info->p_libs[i].ips_count;
 
-			copy_task_inst_info->p_libs[i].p_ips = 
-				kmalloc (copy_task_inst_info->p_libs[i].ips_count * sizeof (us_proc_ip_t), GFP_KERNEL);
+			copy_info->p_libs[i].p_ips = 
+				kmalloc (copy_info->p_libs[i].ips_count * sizeof (us_proc_ip_t), GFP_KERNEL);
 
-			if (!copy_task_inst_info->p_libs[i].p_ips)
-			{
-				DPRINTF ("No enough memory for copy_task_inst_info->p_libs[i].p_ips");
+			if (!copy_info->p_libs[i].p_ips) {
+				DPRINTF ("No enough memory for copy_info->p_libs[i].p_ips");
 				return -ENOMEM;
 			}
 
-			memcpy (copy_task_inst_info->p_libs[i].p_ips, task_inst_info->p_libs[i].p_ips, 
-					copy_task_inst_info->p_libs[i].ips_count * sizeof (us_proc_ip_t));
-			for (j = 0; j < copy_task_inst_info->p_libs[i].ips_count; j++)
-			{
-				copy_task_inst_info->p_libs[i].p_ips[j].installed = 0;
-				memset (&copy_task_inst_info->p_libs[i].p_ips[j].jprobe, 0, sizeof(struct jprobe));
-				memset(&copy_task_inst_info->p_libs[i].p_ips[j].retprobe, 0, sizeof(struct kretprobe));
+			memcpy (copy_info->p_libs[i].p_ips, task_inst_info->p_libs[i].p_ips, 
+					copy_info->p_libs[i].ips_count * sizeof (us_proc_ip_t));
+			for (j = 0; j < copy_info->p_libs[i].ips_count; j++) {
+				copy_info->p_libs[i].p_ips[j].installed = 0;
+				memset (&copy_info->p_libs[i].p_ips[j].jprobe, 0, sizeof(struct jprobe));
+				memset(&copy_info->p_libs[i].p_ips[j].retprobe, 0, sizeof(struct kretprobe));
 			}
 
-			unres_ips_count += copy_task_inst_info->p_libs[i].ips_count;
+			unres_ips_count += copy_info->p_libs[i].ips_count;
 		}
 
-		if (copy_task_inst_info->p_libs[i].vtps_count > 0) 
-		{
-			unres_vtps_count += copy_task_inst_info->p_libs[i].vtps_count;
+		if (copy_info->p_libs[i].vtps_count > 0) {
+			unres_vtps_count += copy_info->p_libs[i].vtps_count;
 
-			copy_task_inst_info->p_libs[i].p_vtps = 
-				kmalloc (copy_task_inst_info->p_libs[i].vtps_count * sizeof (us_proc_vtp_t), GFP_KERNEL);
+			copy_info->p_libs[i].p_vtps = 
+				kmalloc (copy_info->p_libs[i].vtps_count * sizeof (us_proc_vtp_t), GFP_KERNEL);
 
-			if (!copy_task_inst_info->p_libs[i].p_vtps)
-			{
-				DPRINTF ("No enough memory for copy_task_inst_info->p_libs[i].p_vtps");
+			if (!copy_info->p_libs[i].p_vtps) {
+				DPRINTF ("No enough memory for copy_info->p_libs[i].p_vtps");
 				return -ENOMEM;
 			}
 
-			memcpy (copy_task_inst_info->p_libs[i].p_vtps, task_inst_info->p_libs[i].p_vtps, 
-					copy_task_inst_info->p_libs[i].vtps_count * sizeof (us_proc_vtp_t));
-			for (j = 0; j < copy_task_inst_info->p_libs[i].vtps_count; j++)
-			{
-				copy_task_inst_info->p_libs[i].p_vtps[j].installed = 0;
-				memset (&copy_task_inst_info->p_libs[i].p_vtps[j].jprobe, 0, sizeof(struct jprobe));
+			memcpy (copy_info->p_libs[i].p_vtps, task_inst_info->p_libs[i].p_vtps, 
+					copy_info->p_libs[i].vtps_count * sizeof (us_proc_vtp_t));
+			for (j = 0; j < copy_info->p_libs[i].vtps_count; j++) {
+				copy_info->p_libs[i].p_vtps[j].installed = 0;
+				memset (&copy_info->p_libs[i].p_vtps[j].jprobe, 0, sizeof(struct jprobe));
 			}
-			unres_vtps_count = copy_task_inst_info->p_libs[i].vtps_count;
+			unres_vtps_count = copy_info->p_libs[i].vtps_count;
 		}
 
-		copy_task_inst_info->p_libs[i].m_f_dentry = task_inst_info->p_libs[i].m_f_dentry;
-		copy_task_inst_info->p_libs[i].loaded = 0;
+		copy_info->p_libs[i].m_f_dentry = task_inst_info->p_libs[i].m_f_dentry;
+		copy_info->p_libs[i].loaded = 0;
 	}
-	copy_task_inst_info->unres_ips_count = unres_ips_count;
-	copy_task_inst_info->unres_vtps_count = unres_vtps_count;
+	copy_info->unres_ips_count = unres_ips_count;
+	copy_info->unres_vtps_count = unres_vtps_count;
 
-	return copy_task_inst_info;
+	return copy_info;
 }
 
 inst_us_proc_t* get_task_inst_node(struct task_struct *task)
 {
 	struct task_inst_info_node *node, *tnode;
 
-	DPRINTF ("Before list_for_each_entry_safe");
 	list_for_each_entry_safe(node, tnode, &task_inst_info_list, plist) 
 	{
-		if (node && task && node->tgid == task->tgid) 
-		{
-			DPRINTF ("Before return node->task_inst_info tgid = %i\n", task->tgid);
+		if (node && task && node->tgid == task->tgid) {
 			return node->task_inst_info;
 		}
 	}
@@ -173,8 +177,7 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 	/* find corresponding dir entry, this is also check for valid path */
 	// TODO: test - try to instrument process with non-existing path
 	// TODO: test - try to instrument process  with existing path and delete file just after start
-	if (path_lookup (path, LOOKUP_FOLLOW, &nd) != 0)
-	{
+	if (path_lookup (path, LOOKUP_FOLLOW, &nd) != 0) {
 		EPRINTF ("failed to lookup dentry for path %s!", path);
 		return -EINVAL;
 	}
@@ -209,13 +212,10 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 		}
 		rcu_read_unlock ();
 
-		if (*p_task)
-		{
+		if (*p_task) {
 			DPRINTF ("found pid %d for %s.", (*p_task)->pid, path);
 			gl_nNotifyTgid = current->tgid;
-		}
-		else
-		{
+		} else {
 			DPRINTF ("pid for %s not found!", path);
 		}
 
@@ -225,19 +225,8 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 		path_put (&nd.path);
 #endif
 		return 0;
-}
+	}
 
-#if defined(CONFIG_MIPS)
-#	define ARCH_REG_VAL(regs, idx)	regs->regs[idx]
-#elif defined(CONFIG_ARM)
-#	define ARCH_REG_VAL(regs, idx)	regs->uregs[idx]
-#else
-#	define ARCH_REG_VAL(regs, idx)	0
-#	warning ARCH_REG_VAL is not implemented for this architecture. FBI will work improperly or even crash!!!
-#endif // ARCH
-	
-DEFINE_PER_CPU (us_proc_vtp_t *, gpVtp) = NULL;
-DEFINE_PER_CPU (struct pt_regs *, gpCurVtpRegs) = NULL;
 
 static void us_vtp_event_pre_handler (us_proc_vtp_t * vtp, struct pt_regs *regs)
 {
@@ -260,8 +249,7 @@ static void us_vtp_event_handler (unsigned long arg1, unsigned long arg2, unsign
 	fmt[0] = 'p';
 	fmt[2] = 0;
 
-	list_for_each_entry_rcu (vtp_data, &vtp->list, list)
-	{
+	list_for_each_entry_rcu (vtp_data, &vtp->list, list) {
 		//		DPRINTF ("[%d]proc %s(%d): %lx", nCount++, current->comm, current->pid, vtp->addr);
 		fmt[1] = vtp_data->type;
 		if (vtp_data->reg == -1)
@@ -292,24 +280,21 @@ static void us_vtp_event_handler (unsigned long arg1, unsigned long arg2, unsign
 					pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, cval);
 				break;
 			case 's':
-				if (current->active_mm)
-				{
+				if (current->active_mm) {
 					struct page *page;
 					struct vm_area_struct *vma;
 					void *maddr;
 					int len;
-					if (get_user_pages_atomic (current, current->active_mm, vaddr, 1, 0, 1, &page, &vma) <= 0)
-					  {
+					if (get_user_pages_atomic (current, current->active_mm, vaddr, 1, 0, 1, &page, &vma) <= 0) {
 						EPRINTF ("get_user_pages_atomic failed for proc %s/%u addr %lu!", current->comm, current->pid, vaddr);
 						break;
-					  }
+					}
 					maddr = kmap_atomic (page, KM_USER0);
 					len = strlen (maddr + (vaddr & ~PAGE_MASK));
 					sval = kmalloc (len + 1, GFP_KERNEL);
 					if (!sval)
 						EPRINTF ("failed to alloc memory for string in proc %s/%u addr %lu!", current->comm, current->pid, vaddr);
-					else
-					{
+					else {
 						copy_from_user_page (vma, page, vaddr, sval, maddr + (vaddr & ~PAGE_MASK), len + 1);
 						pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, sval);
 						kfree (sval);
@@ -326,108 +311,36 @@ static void us_vtp_event_handler (unsigned long arg1, unsigned long arg2, unsign
 	}
 	uprobe_return ();
 }
-
 static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_inst_info, int atomic)
 {
 	struct vm_area_struct *vma;
-	int i, k, err, retry;
+	int i, k;
 	unsigned long addr;
 	unsigned int old_ips_count, old_vtps_count;
 	struct mm_struct *mm;
-	struct ip_node {
-		struct list_head	plist;
-		us_proc_ip_t *		ip;
-	} * nip, *tnip;
-	LIST_HEAD(iplist);
-	struct vtp_node {
-		struct list_head	plist;
-		us_proc_vtp_t *		vtp;		
-	} * nvtp, *tnvtp;
-	LIST_HEAD(vtplist);
-		DPRINTF ("mapped_ips 1\n");
-_restart:
+
 	mm = atomic ? task->active_mm : get_task_mm (task);
-	if (!mm){
-		//		DPRINTF ("proc %d has no mm", task->pid);
+	if (!mm) {
 		return task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count;
 	}
+
 	old_ips_count = task_inst_info->unres_ips_count;
 	old_vtps_count = task_inst_info->unres_vtps_count;
 	if(!atomic) 
 		down_read (&mm->mmap_sem);
 	vma = mm->mmap;
-	while (vma)
-	{
+	while (vma) {
 		// skip non-text section
 		if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file || (vma->vm_flags & VM_ACCOUNT) || 
 				!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) || 
-				!(vma->vm_flags & (VM_READ | VM_MAYREAD)))
-		{
+				!(vma->vm_flags & (VM_READ | VM_MAYREAD))) {
 			vma = vma->vm_next;
 			continue;
 		}
-		for (i = 0; i < task_inst_info->libs_count; i++)
-		{	
+		for (i = 0; i < task_inst_info->libs_count; i++) {	
 			//TODO: test - try to instrument non-existing libs
-			if (vma->vm_file->f_dentry == task_inst_info->p_libs[i].m_f_dentry)
-			{
-				DPRINTF ("	if (vma->vm_file->f_dentry == task_inst_info->p_libs[i].m_f_dentry)\n");
-				for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++/*, slot_idx++*/)
-				{
-					if (!task_inst_info->p_libs[i].p_ips[k].installed)
-					{
-						addr = task_inst_info->p_libs[i].p_ips[k].offset;
-						if (!(vma->vm_flags & VM_EXECUTABLE))
-							addr += vma->vm_start;
-						if (page_present (mm, addr))
-						  {
-						    if (!task_inst_info->p_libs[i].p_ips[k].installed)
-							{
-								task_inst_info->unres_ips_count--;
-								task_inst_info->p_libs[i].p_ips[k].installed = 1;
-								DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.", task->pid, task_inst_info->p_libs[i].path, task_inst_info->p_libs[i].p_ips[k].offset, addr);
-								nip = kmalloc(sizeof(struct ip_node), GFP_KERNEL);
-								if(!nip){
-									EPRINTF ("failed to allocate list item for IP!");
-									continue;
-								}
-								task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
-								task_inst_info->p_libs[i].p_ips[k].retprobe.kp.addr = (kprobe_opcode_t *) addr;
-								INIT_LIST_HEAD (&nip->plist);
-								nip->ip = &task_inst_info->p_libs[i].p_ips[k];
-								list_add_tail (&nip->plist, &iplist);
-							}
-						}
-					}
-				}
-				for (k = 0; k < task_inst_info->p_libs[i].vtps_count; k++)
-				{
-					if (!task_inst_info->p_libs[i].p_vtps[k].installed)
-					{
-						addr = task_inst_info->p_libs[i].p_vtps[k].addr;
-						if (!(vma->vm_flags & VM_EXECUTABLE))
-							addr += vma->vm_start;
-							if (page_present (mm, addr))
-							  {
-							        task_inst_info->unres_vtps_count--;
-							        task_inst_info->p_libs[i].p_vtps[k].installed = 1;
-								task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.tgid = task_inst_info->tgid;
-								task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
-								task_inst_info->p_libs[i].p_vtps[k].jprobe.entry = (kprobe_opcode_t *) us_vtp_event_handler;
-								task_inst_info->p_libs[i].p_vtps[k].jprobe.pre_entry = (kprobe_pre_entry_handler_t) us_vtp_event_pre_handler;
-								task_inst_info->p_libs[i].p_vtps[k].jprobe.priv_arg = &task_inst_info->p_libs[i].p_vtps[k];
-								nvtp = kmalloc(sizeof(struct vtp_node), GFP_KERNEL);
-								if(!nvtp){
-									EPRINTF ("failed to allocate list item for VTP!");
-									continue;
-								}
-								INIT_LIST_HEAD (&nvtp->plist);
-								nvtp->vtp = &task_inst_info->p_libs[i].p_vtps[k];
-								list_add_tail (&nvtp->plist, &vtplist);
-							  }
-					}
-				}
-				if(!(vma->vm_flags & VM_EXECUTABLE) && !task_inst_info->p_libs[i].loaded){
+			if (vma->vm_file->f_dentry == task_inst_info->p_libs[i].m_f_dentry) {
+				if(!(vma->vm_flags & VM_EXECUTABLE) && !task_inst_info->p_libs[i].loaded) {
 					char *p;
 					DPRINTF ("post dyn lib event %s/%s", current->comm, task_inst_info->p_libs[i].path);
 					// if we installed something, post library info for those IPs
@@ -438,7 +351,53 @@ _restart:
 						p++;
 					task_inst_info->p_libs[i].loaded = 1;
 					pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspd",
-									 task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start);
+							task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start);
+				}
+
+				//DPRINTF ("	if (vma->vm_file->f_dentry == task_inst_info->p_libs[i].m_f_dentry)\n");
+				for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++) {
+					if (!task_inst_info->p_libs[i].p_ips[k].installed)
+					{
+						addr = task_inst_info->p_libs[i].p_ips[k].offset;
+						if (!(vma->vm_flags & VM_EXECUTABLE))
+							addr += vma->vm_start;
+						if (page_present (mm, addr)) {
+							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.", task->pid, task_inst_info->p_libs[i].path, task_inst_info->p_libs[i].p_ips[k].offset, addr);
+							task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
+							task_inst_info->p_libs[i].p_ips[k].retprobe.kp.addr = (kprobe_opcode_t *) addr;
+								if (!register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0)) {
+								task_inst_info->p_libs[i].p_ips[k].installed = 1;
+								task_inst_info->unres_ips_count--;
+
+							} else {
+								EPRINTF ("failed to install IP at %lx/%p. Error %d!", task_inst_info->p_libs[i].p_ips[k].offset, 
+										task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr);
+							}
+						}
+					}
+				}
+				for (k = 0; k < task_inst_info->p_libs[i].vtps_count; k++) {
+					if (!task_inst_info->p_libs[i].p_vtps[k].installed)
+					{
+						addr = task_inst_info->p_libs[i].p_vtps[k].addr;
+						if (!(vma->vm_flags & VM_EXECUTABLE))
+							addr += vma->vm_start;
+						if (page_present (mm, addr)) {
+							task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.tgid = task_inst_info->tgid;
+							task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
+							task_inst_info->p_libs[i].p_vtps[k].jprobe.entry = (kprobe_opcode_t *) us_vtp_event_handler;
+							task_inst_info->p_libs[i].p_vtps[k].jprobe.pre_entry = (kprobe_pre_entry_handler_t) us_vtp_event_pre_handler;
+							task_inst_info->p_libs[i].p_vtps[k].jprobe.priv_arg = &task_inst_info->p_libs[i].p_vtps[k];
+								if (!register_ujprobe (task, mm, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic)) {
+								task_inst_info->p_libs[i].p_vtps[k].installed = 1;
+								task_inst_info->unres_vtps_count--;
+
+							} else {
+								EPRINTF ("failed to install VTP at %p. Error %d!", 
+										task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr);
+							}
+						}
+					}
 				}
 			}
 		}
@@ -448,42 +407,6 @@ _restart:
 		up_read (&mm->mmap_sem);
 		mmput (mm);
 	}
-	if(!list_empty(&iplist) || !list_empty(&vtplist))
-	  {
-		DPRINTF ("Unres IPs/VTPs %d/%d -> %d/%d.", old_ips_count, old_vtps_count, task_inst_info->unres_ips_count, task_inst_info->unres_vtps_count);
-	  }
-		
-	retry = 0;
-	list_for_each_entry_safe(nip, tnip, &iplist, plist) 
-	  {
-		DPRINTF ("Install %p/%d IP at %lx.", task, task->pid, nip->ip->offset);
-		if((PAGE_SIZE-(nip->ip->offset % PAGE_SIZE)) < MAX_INSN_SIZE)
-		  {
-			retry = 1;
-			DPRINTF ("Possibly 1st insn of IP at %lx lies on 2 pages.",  nip->ip->offset);
-		  }
-		err = register_usprobe (task, mm, nip->ip, atomic, 0);
-		if (err != 0)
-			EPRINTF ("failed to install IP at %lx/%p. Error %d!", nip->ip->offset, nip->ip->jprobe.kp.addr, err);
-		list_del(&nip->plist);
-		kfree(nip);
-	  }
-	list_for_each_entry_safe(nvtp, tnvtp, &vtplist, plist) 
-	  {
-		DPRINTF ("Install VTP at %p.", nvtp->vtp->jprobe.kp.addr);
-		if((PAGE_SIZE-(nvtp->vtp->addr % PAGE_SIZE)) < MAX_INSN_SIZE){
-			retry = 1;
-			DPRINTF ("Possibly 1st insn of VTP %lx lies on 2 pages.", nvtp->vtp->addr);
-		}
-		err = register_ujprobe (task, mm, &nvtp->vtp->jprobe, atomic);
-		if (err)
-			EPRINTF ("failed to install VTP at %p. Error %d!", nvtp->vtp->jprobe.kp.addr, err);
-		list_del(&nvtp->plist);
-		kfree(nvtp);
-	  }
-
-	if(retry) goto _restart;
-
 	return task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count;
 }
 
@@ -521,7 +444,7 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 	}
 	DPRINTF ("Ures IPs  %d.", task_inst_info->unres_ips_count);
 	DPRINTF ("Ures VTPs %d.", task_inst_info->unres_vtps_count);
-		return 0;
+	return 0;
 }
 
 void send_sig_jprobe_event_handler (int sig, struct siginfo *info, struct task_struct *t, struct sigpending *signals)
@@ -530,11 +453,9 @@ void send_sig_jprobe_event_handler (int sig, struct siginfo *info, struct task_s
 	struct task_struct *task;
 	inst_us_proc_t *task_inst_info = NULL;
 
-
 	if (sig != SIGKILL)
 		return;
-
-	if (!strcmp(us_proc_info.path,"*"))
+		if (!strcmp(us_proc_info.path,"*"))
 	{
 		task_inst_info = get_task_inst_node(t);
 		if (task_inst_info) 
@@ -550,8 +471,7 @@ void send_sig_jprobe_event_handler (int sig, struct siginfo *info, struct task_s
 	{
 		if (current->tgid != us_proc_info.tgid)
 			return;
-
-		del = 1;
+			del = 1;
 
 		// look for another process with the same tgid 
 		rcu_read_lock ();
@@ -574,7 +494,6 @@ void send_sig_jprobe_event_handler (int sig, struct siginfo *info, struct task_s
 		}
 	}
 }
-
 static int uninstall_kernel_probe (unsigned long addr, int uflag, int kflag, kernel_probe_t ** pprobe)
 {
 	kernel_probe_t *probe = NULL;
@@ -590,7 +509,6 @@ static int uninstall_kernel_probe (unsigned long addr, int uflag, int kflag, ker
 		}
 		probes_flags &= ~kflag;
 	}
-
 	if (us_proc_probes & uflag) {
 		if (!(probes_flags & uflag)) {
 			if (probe) {
@@ -606,7 +524,6 @@ static int uninstall_kernel_probe (unsigned long addr, int uflag, int kflag, ker
 	}
 	return iRet;
 }
-
 
 int deinst_usr_space_proc (void)
 {
@@ -642,8 +559,7 @@ int deinst_usr_space_proc (void)
 	{
 		if (us_proc_info.tgid == 0)
 			return 0;
-
-		rcu_read_lock ();
+			rcu_read_lock ();
 		for_each_process (task)
 		{
 			if (task->tgid == us_proc_info.tgid)
@@ -660,7 +576,7 @@ int deinst_usr_space_proc (void)
 			// uninstall IPs
 			iRet = uninstall_mapped_ips (task, &us_proc_info, 0);
 			if (iRet != 0)
-				EPRINTF ("failed to uninstall IPs %d!", iRet);
+			EPRINTF ("failed to uninstall IPs %d!", iRet);
 			put_task_struct (task);
 			unregister_all_uprobes(task, 1);
 			us_proc_info.tgid = 0;
@@ -671,7 +587,6 @@ int deinst_usr_space_proc (void)
 
 	return iRet;
 }
-
 static int install_kernel_probe (unsigned long addr, int uflag, int kflag, kernel_probe_t ** pprobe)
 {
 	kernel_probe_t *probe = NULL;
@@ -689,7 +604,6 @@ static int install_kernel_probe (unsigned long addr, int uflag, int kflag, kerne
 		}
 		probes_flags |= kflag;
 	}
-
 	if (!(us_proc_probes & uflag)) {
 		if (!(probes_flags & uflag)) {
 			iRet = register_kernel_probe (probe);
@@ -726,7 +640,6 @@ int inst_usr_space_proc (void)
 	 * 2) if process is not running - make sure that do_page_fault handler is installed
 	 * */
 
-
 	if (!strcmp(us_proc_info.path,"*")) 
 	{
 		clear_task_inst_info();
@@ -737,7 +650,7 @@ int inst_usr_space_proc (void)
 				task_inst_info = get_task_inst_node(task);
 				if (!task_inst_info) 
 				{
-					task_inst_info = copy_task_inst_info (&us_proc_info);
+					task_inst_info = copy_task_inst_info (task, &us_proc_info);
 					put_task_inst_node(task, task_inst_info);
 				}
 				install_mapped_ips (task, task_inst_info, 1);
@@ -749,8 +662,7 @@ int inst_usr_space_proc (void)
 	else
 	{
 		ret = find_task_by_path (us_proc_info.path, &task, NULL);
-
-		if (task)
+			if (task)
 		{
 			us_proc_info.tgid = task->pid;
 			install_mapped_ips (task, &us_proc_info, 0);
@@ -772,7 +684,6 @@ int inst_usr_space_proc (void)
 		EPRINTF ("install_kernel_probe(do_exit) result=%d!", ret);
 		return ret;
 	}
-
 	return 0;
 }
 
@@ -792,7 +703,7 @@ void do_page_fault_ret_pre_code (void)
 		task_inst_info = get_task_inst_node(current);
 		if (!task_inst_info) 
 		{
-			task_inst_info = copy_task_inst_info (&us_proc_info);
+			task_inst_info = copy_task_inst_info (current, &us_proc_info);
 			put_task_inst_node(current, task_inst_info);
 		}
 		install_mapped_ips (current, task_inst_info, 1);
@@ -842,7 +753,7 @@ void do_page_fault_ret_pre_code (void)
 		//DPRINTF("do_page_fault from target proc %d", task_inst_info->tgid);
 		install_mapped_ips (current, &us_proc_info, 1);
 	}
-		//DPRINTF("do_page_fault from proc %d-%d exit", current->pid, task_inst_info->pid);
+	//DPRINTF("do_page_fault from proc %d-%d exit", current->pid, task_inst_info->pid);
 }
 
 EXPORT_SYMBOL_GPL(do_page_fault_ret_pre_code);
@@ -852,7 +763,6 @@ void do_exit_probe_pre_code (void)
 	int iRet, del = 0;
 	struct task_struct *task;
 	inst_us_proc_t *task_inst_info = NULL;
-
 
 	if (!strcmp(us_proc_info.path,"*"))
 	{
@@ -870,8 +780,7 @@ void do_exit_probe_pre_code (void)
 	{
 		if (current->tgid != us_proc_info.tgid)
 			return;
-
-		del = 1;
+			del = 1;
 		// look for another process with the same tgid 
 		rcu_read_lock ();
 		for_each_process (task)
@@ -881,7 +790,6 @@ void do_exit_probe_pre_code (void)
 				del = 0;
 				break;
 			}
-
 		}
 		rcu_read_unlock ();
 		if (del)
