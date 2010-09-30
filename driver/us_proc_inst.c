@@ -314,7 +314,7 @@ static void us_vtp_event_handler (unsigned long arg1, unsigned long arg2, unsign
 static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_inst_info, int atomic)
 {
 	struct vm_area_struct *vma;
-	int i, k;
+	int i, k, err;
 	unsigned long addr;
 	unsigned int old_ips_count, old_vtps_count;
 	struct mm_struct *mm;
@@ -337,6 +337,34 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 			vma = vma->vm_next;
 			continue;
 		}
+
+		/**
+		 * After process was forked, some time it inherits parent process environment.
+		 * We need to renew instrumentation when we detect that process gets own environment.
+		 */
+		if (vma->vm_flags & VM_EXECUTABLE) {
+		    if (!task_inst_info->m_f_dentry) {
+			task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
+			printk("initiate dentry tgid = %d\n", task->tgid, task->comm);
+		    } else if (task_inst_info->m_f_dentry != vma->vm_file->f_dentry) {
+			printk("we have detected that detry was changed tgid = %d\n", task->tgid, task->comm);
+			for (i = 0; i < task_inst_info->libs_count; i++) {
+			    task_inst_info->p_libs[i].loaded = 0;
+			    for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++) {
+				task_inst_info->p_libs[i].p_ips[k].installed = 0;
+				task_inst_info->unres_ips_count++;
+			    }
+
+			    for (k = 0; k < task_inst_info->p_libs[i].vtps_count; k++) {
+				task_inst_info->p_libs[i].p_vtps[k].installed = 0;
+				task_inst_info->unres_vtps_count++;
+			    }
+
+			    task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
+			}
+		    }
+		}
+		
 		for (i = 0; i < task_inst_info->libs_count; i++) {	
 			//TODO: test - try to instrument non-existing libs
 			if (vma->vm_file->f_dentry == task_inst_info->p_libs[i].m_f_dentry) {
@@ -354,7 +382,6 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start);
 				}
 
-				//DPRINTF ("	if (vma->vm_file->f_dentry == task_inst_info->p_libs[i].m_f_dentry)\n");
 				for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++) {
 					if (!task_inst_info->p_libs[i].p_ips[k].installed)
 					{
@@ -365,12 +392,12 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.", task->pid, task_inst_info->p_libs[i].path, task_inst_info->p_libs[i].p_ips[k].offset, addr);
 							task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
 							task_inst_info->p_libs[i].p_ips[k].retprobe.kp.addr = (kprobe_opcode_t *) addr;
-								if (!register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0)) {
-								task_inst_info->p_libs[i].p_ips[k].installed = 1;
-								task_inst_info->unres_ips_count--;
-
-							} else {
-								EPRINTF ("failed to install IP at %lx/%p. Error %d!", task_inst_info->p_libs[i].p_ips[k].offset, 
+							task_inst_info->p_libs[i].p_ips[k].installed = 1;
+							task_inst_info->unres_ips_count--;
+							
+							err = register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
+							if (!err) {
+								DPRINTF ("failed to install IP at %lx/%p. Error %d!", task_inst_info->p_libs[i].p_ips[k].offset, 
 										task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr);
 							}
 						}
@@ -388,11 +415,11 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							task_inst_info->p_libs[i].p_vtps[k].jprobe.entry = (kprobe_opcode_t *) us_vtp_event_handler;
 							task_inst_info->p_libs[i].p_vtps[k].jprobe.pre_entry = (kprobe_pre_entry_handler_t) us_vtp_event_pre_handler;
 							task_inst_info->p_libs[i].p_vtps[k].jprobe.priv_arg = &task_inst_info->p_libs[i].p_vtps[k];
-								if (!register_ujprobe (task, mm, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic)) {
-								task_inst_info->p_libs[i].p_vtps[k].installed = 1;
-								task_inst_info->unres_vtps_count--;
-
-							} else {
+							task_inst_info->p_libs[i].p_vtps[k].installed = 1;
+							task_inst_info->unres_vtps_count--;
+							
+							err = register_ujprobe (task, mm, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
+							if (!err) {
 								EPRINTF ("failed to install VTP at %p. Error %d!", 
 										task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr);
 							}
@@ -874,7 +901,7 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	ret = register_ujprobe (task, mm, &ip->jprobe, atomic);
 	if (ret)
 	{
-		EPRINTF ("register_ujprobe() failure %d", ret);
+		DPRINTF ("register_ujprobe() failure %d", ret);
 		return ret;
 	}
 	ip->retprobe.kp.tgid = task->tgid;

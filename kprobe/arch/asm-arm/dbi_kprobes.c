@@ -199,9 +199,10 @@ int prep_pc_dep_insn_execbuf (kprobe_opcode_t * insns, kprobe_opcode_t insn, int
 int arch_check_insn (struct arch_specific_insn *ainsn)
 {
 	int ret = 0;
+
 	// check instructions that can change PC by nature 
 	if (ARM_INSN_MATCH (UNDEF, ainsn->insn[0]) ||
-			ARM_INSN_MATCH (AUNDEF, ainsn->insn[0]) ||
+	      ARM_INSN_MATCH (AUNDEF, ainsn->insn[0]) ||
 			ARM_INSN_MATCH (SWI, ainsn->insn[0]) ||
 			ARM_INSN_MATCH (BREAK, ainsn->insn[0]) ||
 			ARM_INSN_MATCH (B, ainsn->insn[0]) ||
@@ -211,7 +212,7 @@ int arch_check_insn (struct arch_specific_insn *ainsn)
 			ARM_INSN_MATCH (BX, ainsn->insn[0]) || 
 			ARM_INSN_MATCH (BXJ, ainsn->insn[0]))
 	{
-		DBPRINTF ("arch_check_insn: %lx\n", ainsn->insn[0]);
+		DBPRINTF ("Bad insn arch_check_insn: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
 #ifndef CONFIG_CPU_V7
@@ -223,7 +224,7 @@ int arch_check_insn (struct arch_specific_insn *ainsn)
 				ARM_INSN_MATCH (LRO, ainsn->insn[0])) && 
 			(ARM_INSN_REG_RD (ainsn->insn[0]) == 15))
 	{
-		DBPRINTF ("arch_check_insn: %lx\n", ainsn->insn[0]);
+		DBPRINTF ("Bad arch_check_insn: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
 #endif // CONFIG_CPU_V7
@@ -234,7 +235,7 @@ int arch_check_insn (struct arch_specific_insn *ainsn)
 			 // store/load with pc update
 			 ((ARM_INSN_REG_RN (ainsn->insn[0]) == 15) && (ainsn->insn[0] & 0x200000))))
 	{
-		DBPRINTF ("arch_check_insn: %lx\n", ainsn->insn[0]);
+		DBPRINTF ("Bad insn arch_check_insn: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
 	return ret;

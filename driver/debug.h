@@ -21,6 +21,8 @@
 #include <linux/kernel.h>
 #include <linux/string.h>	// strrchr
 
+#undef __DEBUG
+
 #ifdef __DEBUG
 #define DPRINTF(format, args...) do { \
 	char *f = __FILE__; \

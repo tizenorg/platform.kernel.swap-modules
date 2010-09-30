@@ -421,7 +421,7 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 	if (!mm)
 		return 0;
 
-	down_read(&mm->mmap_sem);
+	//down_read(&mm->mmap_sem);
 	/* ignore errors, just check how much was successfully transferred */
 	while (len) {
 		int bytes, ret, offset;
@@ -468,7 +468,7 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 		buf += bytes;
 		addr += bytes;
 	}
-	up_read(&mm->mmap_sem);
+	//up_read(&mm->mmap_sem);
 	mmput(mm);
 
 	return buf - old_buf;

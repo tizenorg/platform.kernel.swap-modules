@@ -70,10 +70,12 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 		ret = register_aggr_kprobe (old_p, p);
 		if (!ret)
 			atomic_inc (&kprobe_count);
+		DBPRINTF ("goto out\n", ret);
 		goto out;
 	}
 	if ((ret = arch_prepare_uprobe (p, task, atomic)) != 0)
 	{
+	       	DBPRINTF ("goto out\n", ret);
 		goto out;
 	}
 
