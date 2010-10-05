@@ -480,9 +480,14 @@ void send_sig_jprobe_event_handler (int sig, struct siginfo *info, struct task_s
 	struct task_struct *task;
 	inst_us_proc_t *task_inst_info = NULL;
 
+	//if user-space instrumentation is not set
+	if (!us_proc_info.path)
+	    return;
+	
 	if (sig != SIGKILL)
 		return;
-		if (!strcmp(us_proc_info.path,"*"))
+	
+	if (!strcmp(us_proc_info.path,"*"))
 	{
 		task_inst_info = get_task_inst_node(t);
 		if (task_inst_info) 
@@ -558,6 +563,10 @@ int deinst_usr_space_proc (void)
 	struct task_struct *task = 0;
 	inst_us_proc_t *task_inst_info = NULL;
 
+	//if user-space instrumentation is not set
+	if (!us_proc_info.path)
+	    return;
+
 	iRet = uninstall_kernel_probe (pf_addr, US_PROC_PF_INSTLD,
 			0, &pf_probe);
 	if (iRet)
@@ -568,7 +577,7 @@ int deinst_usr_space_proc (void)
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_exit) result=%d!", iRet);
 
-	if (us_proc_info.path && !strcmp(us_proc_info.path,"*"))
+	if (!strcmp(us_proc_info.path,"*"))
 	{
 		for_each_process (task)
 		{
@@ -654,6 +663,7 @@ int inst_usr_space_proc (void)
 	struct task_struct *task = 0;
 	inst_us_proc_t *task_inst_info = NULL;
 
+	//if user-space instrumentation is not set
 	if (!us_proc_info.path)
 		return 0;
 
@@ -722,6 +732,7 @@ void do_page_fault_ret_pre_code (void)
 	struct vm_area_struct *vma = 0;
 	inst_us_proc_t *task_inst_info = NULL;
 
+	//if user-space instrumentation is not set
 	if (!us_proc_info.path)
 		return;
 
@@ -790,6 +801,10 @@ void do_exit_probe_pre_code (void)
 	int iRet, del = 0;
 	struct task_struct *task;
 	inst_us_proc_t *task_inst_info = NULL;
+
+	//if user-space instrumentation is not set
+	if (!us_proc_info.path)
+	    return;
 
 	if (!strcmp(us_proc_info.path,"*"))
 	{
