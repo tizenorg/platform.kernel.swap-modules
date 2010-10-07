@@ -1191,27 +1191,34 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 		}
 	}
 
-	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-	if (paused && probe_id != EVENT_FMT_PROBE_ID) {
-		ec_info.ignored_events_count++;
+	/* Save only not masked entry or return kernel and user space events */
+	if (likely(!((probe_id == KS_PROBE_ID || probe_id == US_PROBE_ID)
+		  && ((record_type == RECORD_ENTRY && (event_mask & IOCTL_EMASK_ENTRY))
+			  || (record_type == RECORD_RET && (event_mask & IOCTL_EMASK_EXIT)))))) {
+
+		spin_lock_irqsave (&ec_spinlock, spinlock_flags);
+		if (paused && probe_id != EVENT_FMT_PROBE_ID) {
+			ec_info.ignored_events_count++;
+			spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
+			return;
+		}
+
+		va_start (args, fmt);
+		event_len = VPackEvent(buf, sizeof(buf), event_mask, probe_id, record_type, &tv,
+							   current_tgid, current_pid, current_cpu, fmt, args);
+		va_end (args);
+
+		if(event_len == 0) {
+			EPRINTF ("ERROR: failed to pack event!");
+			++ec_info.lost_events_count;
+
+		} else if(WriteEventIntoBuffer(buf, event_len) == -1) {
+			EPRINTF("Cannot write event into buffer!");
+			++ec_info.lost_events_count;
+		}
 		spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
-		return;
+
 	}
-
-	va_start (args, fmt);
-	event_len = VPackEvent(buf, sizeof(buf), event_mask, probe_id, record_type, &tv,
-				current_tgid, current_pid, current_cpu, fmt, args);
-	va_end (args);
-
-	if(event_len == 0) {
-		EPRINTF ("ERROR: failed to pack event!");
-		++ec_info.lost_events_count;
-
-	} else if(WriteEventIntoBuffer(buf, event_len) == -1) {
-		EPRINTF("Cannot write event into buffer!");
-		++ec_info.lost_events_count;
-	}
-	spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
 
 	/* Check for stop condition.  We pause collecting the trace right after
 	 * storing this event */
