@@ -359,7 +359,17 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 			p_data = (unsigned char *)(arg + sizeof(int));
 			for (i = 0; i < args_cnt; i++) {
 				p_cond = kmalloc(sizeof(struct cond), GFP_KERNEL);
-				memcpy(&p_cond->tmpl, p_data, sizeof(struct event_tmpl));
+				if (!p_cond) {
+					DPRINTF("Cannot alloc cond!\n");
+					result = -1;
+					break;
+				}
+				err = copy_from_user(&p_cond->tmpl, p_data, sizeof(struct event_tmpl));
+				if (err) {
+					DPRINTF("Cannot copy cond from user!\n");
+					result = -1;
+					break;
+				}
 				p_cond->applied = 0;
 				list_add(&(p_cond->list), &(cond_list.list));
 				p_data += sizeof(struct event_tmpl);
