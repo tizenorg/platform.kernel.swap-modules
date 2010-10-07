@@ -331,12 +331,13 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 	vma = mm->mmap;
 	while (vma) {
 		// skip non-text section
-		if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file || (vma->vm_flags & VM_ACCOUNT) || 
-				!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) || 
-				!(vma->vm_flags & (VM_READ | VM_MAYREAD))) {
+	  if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file /*|| (vma->vm_flags & VM_ACCOUNT)*/ /*||
+		  !(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
+		  !(vma->vm_flags & (VM_READ | VM_MAYREAD))*/) {
 			vma = vma->vm_next;
 			continue;
 		}
+	    vma->vm_flags |= (VM_WRITE | VM_MAYWRITE | VM_READ | VM_MAYREAD);
 
 		/**
 		 * After process was forked, some time it inherits parent process environment.
