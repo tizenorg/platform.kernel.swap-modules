@@ -386,8 +386,16 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 					if (!task_inst_info->p_libs[i].p_ips[k].installed)
 					{
 						addr = task_inst_info->p_libs[i].p_ips[k].offset;
-						if (!(vma->vm_flags & VM_EXECUTABLE))
-							addr += vma->vm_start;
+						if (!(vma->vm_flags & VM_EXECUTABLE)) {
+							/* In the case of prelinking addr is already an
+							 * absolute address so we do not need to add
+							 * library base address to it.  We use a rule of
+							 * thumb here: if addr is greater than library base
+							 * address than there is prelinking.
+							 */
+							if (addr < vma->vm_start)
+								addr += vma->vm_start;
+						}
 						if (page_present (mm, addr)) {
 							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.", task->pid, task_inst_info->p_libs[i].path, task_inst_info->p_libs[i].p_ips[k].offset, addr);
 							task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
