@@ -27,5 +27,7 @@
 extern int device_init (void);
 extern void device_down (void);
 extern void notify_user (event_id_t event_id);
+extern char *deps;
+extern char *bundle;
 
 #endif /* !defined(device_driver_h) */

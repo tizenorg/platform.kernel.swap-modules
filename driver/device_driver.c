@@ -332,6 +332,71 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 
 			break;
 		}*/
+	case EC_IOCTL_SET_APPDEPS:
+	{
+		size_t size;
+		result = copy_from_user(&size, (void *)arg, sizeof(size_t));
+		if (result) {
+			EPRINTF("Cannot copy deps size!\n");
+			result = -1;
+			break;
+		}
+		DPRINTF("Deps size has been copied (%d)\n", size);
+
+		deps = vmalloc(size);
+		if (deps == NULL) {
+			EPRINTF("Cannot alloc mem for deps!\n");
+			result = -1;
+			break;
+		}
+		DPRINTF("Mem for deps has been alloced\n");
+
+		result = copy_from_user(deps, (void *)arg, size);
+		if (result) {
+			EPRINTF("Cannot copy deps!\n");
+			result = -1;
+			break;
+		}
+		DPRINTF("Deps has been copied successfully\n");
+
+		break;
+	}
+	case EC_IOCTL_SET_PROFILEBUNDLE:
+	{
+		size_t size;
+
+		result = copy_from_user(&size, (void *)arg, sizeof(size_t));
+		if (result) {
+			EPRINTF("Cannot copy bundle size!\n");
+			result = -1;
+			break;
+		}
+		DPRINTF("Bundle size has been copied\n");
+
+		bundle = vmalloc(size);
+		if (bundle == NULL) {
+			EPRINTF("Cannot alloc mem for bundle!\n");
+			result = -1;
+			break;
+		}
+		DPRINTF("Mem for bundle has been alloced\n");
+
+		result = copy_from_user(bundle, (void *)arg, size);
+		if (result) {
+			EPRINTF("Cannot copy bundle!\n");
+			result = -1;
+			break;
+		}
+		DPRINTF("Bundle has been copied successfully\n");
+
+		if (link_bundle() == -1) {
+			EPRINTF("Cannot link profile bundle!\n");
+			result = -1;
+			break;
+		}
+
+		break;
+	}
 	case EC_IOCTL_RESET_PROBES:
 		{
 			result = reset_probes();
@@ -397,6 +462,7 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 			result = -1;
 			break;
 		}
+		vfree(bundle);
 		result = 0;
 		DPRINTF("Stop and Detach Probes");
 		blocking_notifier_call_chain(&inperfa_notifier_list, EC_IOCTL_STOP_AND_DETACH, (void*)&gl_nNotifyTgid);
