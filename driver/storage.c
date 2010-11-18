@@ -1197,7 +1197,8 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 			  || (record_type == RECORD_RET && (event_mask & IOCTL_EMASK_EXIT)))))) {
 
 		spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-		if (paused && probe_id != EVENT_FMT_PROBE_ID) {
+
+		if (paused && (!(probe_id == EVENT_FMT_PROBE_ID || probe_id == DYN_LIB_PROBE_ID))) {
 			ec_info.ignored_events_count++;
 			spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
 			return;
