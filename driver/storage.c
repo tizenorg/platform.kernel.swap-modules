@@ -1068,6 +1068,8 @@ int link_bundle()
 	int is_app = 0;
 	char *ptr;
 	us_proc_ip_t *d_ip;
+	struct cond *c, *c_tmp, *p_cond;
+	size_t nr_conds;
 
 	/* Get user-defined us handlers (if they are provided) */
 	my_uprobes_info = (inst_us_proc_t *)lookup_name("my_uprobes_info");
@@ -1327,6 +1329,43 @@ int link_bundle()
 /* 		} */
 	}
 
+	/* Lib path */
+	p += sizeof(u_int32_t) + *p;
+
+	/* Var trace points */
+
+	/* Conds */
+	/* first, delete all the conds */
+	list_for_each_entry_safe(c, c_tmp, &cond_list.list, list) {
+		list_del(&c->list);
+		kfree(c);
+	}
+	/* second, add new conds */
+	/* This can be improved (by placing conds into array) */
+	nr_conds = *(u_int32_t *)p;
+	DPRINTF("nr_conds = %d", nr_conds);
+	p += sizeof(u_int32_t);
+	for (i = 0; i < nr_conds; i++) {
+		p_cond = kmalloc(sizeof(struct cond), GFP_KERNEL);
+		if (!p_cond) {
+			EPRINTF("Cannot alloc cond!\n");
+			return -1;
+			break;
+		}
+		memcpy(&p_cond->tmpl, p, sizeof(struct event_tmpl));
+		p_cond->applied = 0;
+		list_add(&(p_cond->list), &(cond_list.list));
+		p += sizeof(struct event_tmpl);
+	}
+
+	/* Event mask */
+	if (set_event_mask(*(u_int32_t *)p)) {
+		EPRINTF("Cannot set event mask!");
+		return -1;
+	}
+
+	p += sizeof(u_int32_t);
+
 	return 0;
 }
 
@@ -1456,8 +1495,6 @@ void storage_down (void)
 #endif // __USE_PROCFS
 
 #endif //__DISABLE_RELAYFS
-
-	release_us_proc_inst_info ();
 
 	if (ec_info.collision_count)
 		EPRINTF ("ec_info.collision_count=%d", ec_info.collision_count);
