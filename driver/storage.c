@@ -1070,6 +1070,7 @@ int link_bundle()
 	us_proc_ip_t *d_ip;
 	struct cond *c, *c_tmp, *p_cond;
 	size_t nr_conds;
+	int lib_name_len;
 
 	/* Get user-defined us handlers (if they are provided) */
 	my_uprobes_info = (inst_us_proc_t *)lookup_name("my_uprobes_info");
@@ -1143,7 +1144,7 @@ int link_bundle()
 
 	for (i = 0; i < us_proc_info.libs_count; i++) {
 		d_lib = &us_proc_info.p_libs[i];
-		int lib_name_len = *(u_int32_t *)p;
+		lib_name_len = *(u_int32_t *)p;
 		p += sizeof(u_int32_t);
 		d_lib->path = (char *)p;
 		DPRINTF("d_lib->path = %s", d_lib->path);
@@ -1162,6 +1163,8 @@ int link_bundle()
 
 		if (path_lookup(d_lib->path, LOOKUP_FOLLOW, &nd) != 0) {
 			EPRINTF ("failed to lookup dentry for path %s!", d_lib->path);
+			p += lib_name_len;
+			p += sizeof(u_int32_t);
 			continue;
 		}
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)

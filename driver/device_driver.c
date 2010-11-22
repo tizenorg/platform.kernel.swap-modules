@@ -337,27 +337,32 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 		size_t size;
 		result = copy_from_user(&size, (void *)arg, sizeof(size_t));
 		if (result) {
-			EPRINTF("Cannot copy deps size!\n");
+			EPRINTF("Cannot copy deps size!");
 			result = -1;
 			break;
 		}
-		DPRINTF("Deps size has been copied (%d)\n", size);
+		DPRINTF("Deps size has been copied (%d)", size);
+
+		if (size == 0) {
+			DPRINTF("Deps are size of 0");
+			break;
+		}
 
 		deps = vmalloc(size);
 		if (deps == NULL) {
-			EPRINTF("Cannot alloc mem for deps!\n");
+			EPRINTF("Cannot alloc mem for deps!");
 			result = -1;
 			break;
 		}
-		DPRINTF("Mem for deps has been alloced\n");
+		DPRINTF("Mem for deps has been allocated");
 
 		result = copy_from_user(deps, (void *)arg, size);
 		if (result) {
-			EPRINTF("Cannot copy deps!\n");
+			EPRINTF("Cannot copy deps!");
 			result = -1;
 			break;
 		}
-		DPRINTF("Deps has been copied successfully\n");
+		DPRINTF("Deps has been copied successfully");
 
 		break;
 	}
@@ -367,30 +372,30 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 
 		result = copy_from_user(&size, (void *)arg, sizeof(size_t));
 		if (result) {
-			EPRINTF("Cannot copy bundle size!\n");
+			EPRINTF("Cannot copy bundle size!");
 			result = -1;
 			break;
 		}
-		DPRINTF("Bundle size has been copied\n");
+		DPRINTF("Bundle size has been copied");
 
 		bundle = vmalloc(size);
 		if (bundle == NULL) {
-			EPRINTF("Cannot alloc mem for bundle!\n");
+			EPRINTF("Cannot alloc mem for bundle!");
 			result = -1;
 			break;
 		}
-		DPRINTF("Mem for bundle has been alloced\n");
+		DPRINTF("Mem for bundle has been alloced");
 
 		result = copy_from_user(bundle, (void *)arg, size);
 		if (result) {
-			EPRINTF("Cannot copy bundle!\n");
+			EPRINTF("Cannot copy bundle!");
 			result = -1;
 			break;
 		}
-		DPRINTF("Bundle has been copied successfully\n");
+		DPRINTF("Bundle has been copied successfully");
 
 		if (link_bundle() == -1) {
-			EPRINTF("Cannot link profile bundle!\n");
+			EPRINTF("Cannot link profile bundle!");
 			result = -1;
 			break;
 		}
@@ -425,13 +430,13 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 			for (i = 0; i < args_cnt; i++) {
 				p_cond = kmalloc(sizeof(struct cond), GFP_KERNEL);
 				if (!p_cond) {
-					DPRINTF("Cannot alloc cond!\n");
+					DPRINTF("Cannot alloc cond!");
 					result = -1;
 					break;
 				}
 				err = copy_from_user(&p_cond->tmpl, p_data, sizeof(struct event_tmpl));
 				if (err) {
-					DPRINTF("Cannot copy cond from user!\n");
+					DPRINTF("Cannot copy cond from user!");
 					result = -1;
 					break;
 				}
