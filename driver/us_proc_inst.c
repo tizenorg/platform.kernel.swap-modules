@@ -393,6 +393,11 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							 * thumb here: if addr is greater than library base
 							 * address than there is prelinking.
 							 */
+							if (addr >= 0x7f000000) {
+								DPRINTF("warning! addr = 0x%x", addr);
+								task_inst_info->p_libs[i].p_ips[k].installed = 1;
+								continue;
+							}
 							if (addr < vma->vm_start)
 								addr += vma->vm_start;
 						}

@@ -332,6 +332,76 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 
 			break;
 		}*/
+	case EC_IOCTL_SET_APPDEPS:
+	{
+		size_t size;
+		result = copy_from_user(&size, (void *)arg, sizeof(size_t));
+		if (result) {
+			EPRINTF("Cannot copy deps size!");
+			result = -1;
+			break;
+		}
+		DPRINTF("Deps size has been copied (%d)", size);
+
+		if (size == 0) {
+			DPRINTF("Deps are size of 0");
+			break;
+		}
+
+		deps = vmalloc(size);
+		if (deps == NULL) {
+			EPRINTF("Cannot alloc mem for deps!");
+			result = -1;
+			break;
+		}
+		DPRINTF("Mem for deps has been allocated");
+
+		result = copy_from_user(deps, (void *)arg, size);
+		if (result) {
+			EPRINTF("Cannot copy deps!");
+			result = -1;
+			break;
+		}
+		DPRINTF("Deps has been copied successfully");
+
+		break;
+	}
+	case EC_IOCTL_SET_PROFILEBUNDLE:
+	{
+		size_t size;
+
+		result = copy_from_user(&size, (void *)arg, sizeof(size_t));
+		if (result) {
+			EPRINTF("Cannot copy bundle size!");
+			result = -1;
+			break;
+		}
+		DPRINTF("Bundle size has been copied");
+
+		bundle = vmalloc(size);
+		if (bundle == NULL) {
+			EPRINTF("Cannot alloc mem for bundle!");
+			result = -1;
+			break;
+		}
+		DPRINTF("Mem for bundle has been alloced");
+
+		result = copy_from_user(bundle, (void *)arg, size);
+		if (result) {
+			EPRINTF("Cannot copy bundle!");
+			result = -1;
+			break;
+		}
+		DPRINTF("Bundle has been copied successfully");
+
+		if (link_bundle() == -1) {
+			EPRINTF("Cannot link profile bundle!");
+			result = -1;
+			break;
+		}
+
+		break;
+	}
 	case EC_IOCTL_RESET_PROBES:
 		{
 			result = reset_probes();
@@ -360,13 +430,13 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 			for (i = 0; i < args_cnt; i++) {
 				p_cond = kmalloc(sizeof(struct cond), GFP_KERNEL);
 				if (!p_cond) {
-					DPRINTF("Cannot alloc cond!\n");
+					DPRINTF("Cannot alloc cond!");
 					result = -1;
 					break;
 				}
 				err = copy_from_user(&p_cond->tmpl, p_data, sizeof(struct event_tmpl));
 				if (err) {
-					DPRINTF("Cannot copy cond from user!\n");
+					DPRINTF("Cannot copy cond from user!");
 					result = -1;
 					break;
 				}
@@ -397,6 +467,7 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 			result = -1;
 			break;
 		}
+		vfree(bundle);
 		result = 0;
 		DPRINTF("Stop and Detach Probes");
 		blocking_notifier_call_chain(&inperfa_notifier_list, EC_IOCTL_STOP_AND_DETACH, (void*)&gl_nNotifyTgid);

@@ -65,6 +65,12 @@ extern void pack_event_info (probe_id_t probe_id, record_type_t record_type, con
 */
 extern int set_us_proc_inst_info (ioctl_inst_usr_space_proc_t * inst_info);
 
+/* Set most links from us_proc_info to data in the bundle */
+int link_bundle();
+
+/* Undo the actions of link_bundle() */
+void unlink_bundle();
+
 /*
     Function "release_us_proc_inst_info()" destroys instrumentation info for user space process.
 */
