@@ -664,7 +664,7 @@ static int install_kernel_probe (unsigned long addr, int uflag, int kflag, kerne
 		us_proc_probes |= uflag;
 	}
 
-	if (pprobe)
+	if (probe)
 		*pprobe = probe;
 
 	return 0;

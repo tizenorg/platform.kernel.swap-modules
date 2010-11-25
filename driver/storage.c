@@ -1687,7 +1687,8 @@ int add_probe_to_list (unsigned long addr, kernel_probe_t ** pprobe)
 	if (pprobe)
 		*pprobe = NULL;
 	//check if such probe does already exist
-	if (find_probe (addr)) {
+	*pprobe = find_probe (addr);
+	if (*pprobe) {
 		/* It is not a problem if we have already registered
 		   this probe before */
 		return 0;
