@@ -1684,11 +1684,13 @@ int add_probe_to_list (unsigned long addr, kernel_probe_t ** pprobe)
 	unsigned long (*find_pre_handler)(unsigned long) =
 			(unsigned long (*)(unsigned long))lookup_name("find_pre_handler");
 
+	kernel_probe_t *probe;
+
 	if (pprobe)
 		*pprobe = NULL;
 	//check if such probe does already exist
-	*pprobe = find_probe (addr);
-	if (*pprobe) {
+	probe = find_probe(addr);
+	if (probe) {
 		/* It is not a problem if we have already registered
 		   this probe before */
 		return 0;
