@@ -1071,6 +1071,7 @@ int link_bundle()
 	struct cond *c, *c_tmp, *p_cond;
 	size_t nr_conds;
 	int lib_name_len;
+	int handler_index;
 
 	/* Get user-defined us handlers (if they are provided) */
 	my_uprobes_info = (inst_us_proc_t *)lookup_name("my_uprobes_info");
@@ -1176,6 +1177,7 @@ int link_bundle()
 #endif
 		p += lib_name_len;
 		d_lib->ips_count = *(u_int32_t *)p;
+		DPRINTF("d_lib->ips_count = %d", d_lib->ips_count);
 		p += sizeof(u_int32_t);
 
 		pd_lib = NULL;
@@ -1207,21 +1209,20 @@ int link_bundle()
 				d_ip->offset = *(u_int32_t *)p;
 				p += sizeof(u_int32_t);
 				p += sizeof(u_int32_t); /* Skip inst type */
+				handler_index = *(u_int32_t *)p;
+				p += sizeof(u_int32_t);
 
+				DPRINTF("pd_lib = 0x%x", pd_lib);
 				if (pd_lib) {
-					for (l = 0; l < pd_lib->ips_count; l++) {
-						if (d_ip->offset == pd_lib->p_ips[l].offset) {
-							DPRINTF("predefined probe %s in %s at %lx",
-									pd_lib->p_ips[l].name, pd_lib->path,
-									pd_lib->p_ips[l].offset);
-							d_ip->jprobe.pre_entry =
-								pd_lib->p_ips[l].jprobe.pre_entry;
-							d_ip->jprobe.entry =
-								pd_lib->p_ips[l].jprobe.entry;
-							d_ip->retprobe.handler =
-								pd_lib->p_ips[l].retprobe.handler;
-							break;
-						}
+					DPRINTF("pd_lib->ips_count = 0x%x", pd_lib->ips_count);
+					if (handler_index != -1) {
+						DPRINTF("found handler for 0x%x", d_ip->offset);
+						d_ip->jprobe.pre_entry =
+							pd_lib->p_ips[handler_index].jprobe.pre_entry;
+						d_ip->jprobe.entry =
+							pd_lib->p_ips[handler_index].jprobe.entry;
+						d_ip->retprobe.handler =
+							pd_lib->p_ips[handler_index].retprobe.handler;
 					}
 				}
 			}
@@ -1333,7 +1334,12 @@ int link_bundle()
 	}
 
 	/* Lib path */
-	p += sizeof(u_int32_t) + *p;
+	int lib_path_len = *(u_int32_t *)p;
+	DPRINTF("lib_path_len = %d", lib_path_len);
+	p += sizeof(u_int32_t);
+	char *lib_path = p;
+	DPRINTF("lib_path = %s", lib_path);
+	p += lib_path_len;
 
 	/* Var trace points */
 
