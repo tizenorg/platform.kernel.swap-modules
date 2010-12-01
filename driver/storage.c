@@ -701,270 +701,6 @@ static int addr_cmp (const void *a, const void *b)
 	return *(unsigned long *) a > *(unsigned long *) b ? -1 : 1;
 }
 
-int set_us_proc_inst_info (ioctl_inst_usr_space_proc_t * inst_info)
-{
-	int i, k, j, l, is_app = 0;
-	long len;
-	us_proc_lib_t *d_lib, *pd_lib;
-	ioctl_usr_space_lib_t s_lib;
-	us_proc_ip_t *d_ip;
-	ioctl_usr_space_ip_t s_ip;
-	us_proc_vtp_t *mvtp;
-	ioctl_usr_space_vtp_t s_vtp;
-	struct nameidata nd;
-	char *ptr;
-
-	inst_us_proc_t *my_uprobes_info = (inst_us_proc_t *)lookup_name("my_uprobes_info");
-	inst_us_proc_t empty_uprobes_info =
-	{
-		.libs_count = 0,
-		.p_libs = NULL,
-	};
-	if (my_uprobes_info == 0)
-		my_uprobes_info = &empty_uprobes_info;
-
-	if (us_proc_info.path)
-		release_us_proc_inst_info ();
-
-	memset ((void *) &us_proc_info, 0, sizeof (us_proc_info));
-	len = strlen_user (inst_info->path);
-	us_proc_info.path = kmalloc (len, GFP_KERNEL);
-	DPRINTF ("us_proc_info.path=%p", us_proc_info.path);
-	if (!us_proc_info.path)
-		return -ENOMEM;
-	if (strncpy_from_user (us_proc_info.path, inst_info->path, len) != (len-1))
-	{
-		EPRINTF ("strncpy_from_user app path failed %p (%ld)", us_proc_info.path, len);
-		return -EFAULT;
-	}
-	if(strcmp(us_proc_info.path,"*"))
-	  {
-	    if (path_lookup (us_proc_info.path, LOOKUP_FOLLOW, &nd) != 0)
-	      {
-		EPRINTF ("failed to lookup dentry for path %s!", us_proc_info.path);
-		return -EFAULT;
-	      }
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	    us_proc_info.m_f_dentry = nd.dentry;
-	    path_release (&nd);
-#else
-	    us_proc_info.m_f_dentry = nd.path.dentry;
-	    path_put (&nd.path);
-#endif
-	  }
-	else
-	  {
-	    us_proc_info.m_f_dentry = NULL;
-	  }
-	us_proc_info.libs_count = inst_info->libs_count;
-	us_proc_info.p_libs = kmalloc (us_proc_info.libs_count * sizeof (us_proc_lib_t), GFP_KERNEL);
-	DPRINTF ("us_proc_info.p_libs=%p/%u", us_proc_info.p_libs, us_proc_info.libs_count);
-	if (!us_proc_info.p_libs)
-		return -ENOMEM;
-	memset (us_proc_info.p_libs, 0, us_proc_info.libs_count * sizeof (us_proc_lib_t));
-	for (i = 0; i < us_proc_info.libs_count; i++)
-	{
-		d_lib = &us_proc_info.p_libs[i];
-		if (copy_from_user ((void *) &s_lib, &inst_info->p_libs[i], sizeof (ioctl_usr_space_lib_t)))
-		{
-			EPRINTF ("copy_from_user lib failed %p", &inst_info->p_libs[i]);
-			return -EFAULT;
-		}
-
-		len = strlen_user (s_lib.path);
-		d_lib->path = kmalloc(len, GFP_KERNEL);
-		DPRINTF ("d_lib[%i]->path=%p", i, d_lib->path);
-		if (!d_lib->path)
-		{
-			return -ENOMEM;
-		}
-		if (strncpy_from_user (d_lib->path, s_lib.path, len) != (len-1))
-		{
-			EPRINTF ("strncpy_from_user lib path failed %p (%ld)", d_lib->path, len);
-			return -EFAULT;
-		}
-		if (path_lookup (d_lib->path, LOOKUP_FOLLOW, &nd) != 0)
-		{
-			EPRINTF ("failed to lookup dentry for path %s!", d_lib->path);
-			continue;
-		}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-		d_lib->m_f_dentry = nd.dentry;
-		path_release (&nd);
-#else
-		d_lib->m_f_dentry = nd.path.dentry;
-		path_put (&nd.path);
-#endif
-		
-		if(strcmp(inst_info->path, d_lib->path) == 0)
-			is_app = 1;
-		else
-			is_app = 0;
-
-		pd_lib = NULL;
-		ptr = strrchr(d_lib->path, '/');
-		if(ptr)	ptr++;
-		else	ptr = d_lib->path;
-		for(l = 0; l < my_uprobes_info->libs_count; l++){
-			//DPRINTF("LIB %s/%s", ptr, my_uprobes_info->p_libs[l].path);
-			if((strcmp(ptr, my_uprobes_info->p_libs[l].path) == 0) ||
-			   (is_app && *(my_uprobes_info->p_libs[l].path) == '\0')){
-				pd_lib = &my_uprobes_info->p_libs[l];
-				//DPRINTF("predef lib %s", pd_lib->path);
-				break;
-			}
-		}
-		
-		if (s_lib.ips_count > 0)
-		{
-			us_proc_info.unres_ips_count += s_lib.ips_count;
-			d_lib->ips_count = s_lib.ips_count;
-			d_lib->p_ips = vmalloc (d_lib->ips_count * sizeof (us_proc_ip_t));
-			DPRINTF ("d_lib[%i]->p_ips=%p/%u [%s]", i, d_lib->p_ips, us_proc_info.unres_ips_count, d_lib->path);
-			if (!d_lib->p_ips)
-			{
-				return -ENOMEM;
-			}
-			memset (d_lib->p_ips, 0, d_lib->ips_count * sizeof (us_proc_ip_t));
-			for (k = 0; k < d_lib->ips_count; k++)
-			{
-				d_ip = &d_lib->p_ips[k];
-				if (copy_from_user ((void *) &s_ip, &s_lib.p_ips[k], sizeof (ioctl_usr_space_ip_t)))
-				{
-					EPRINTF ("copy_from_user ip failed %p", &s_lib.p_ips[k]);
-					return -EFAULT;
-				}
-				d_ip->offset = s_ip.addr;
-
-				/* TNCHK */
-				/*d_ip->jprobe.pre_entry               = ujprobe_event_pre_handler;
-				d_ip->jprobe.entry             = ujprobe_event_handler;
-				d_ip->retprobe.handler         = uretprobe_event_handler;*/
-				/* TNCHK */
-				if(pd_lib){
-					for(l = 0; l < pd_lib->ips_count; l++){
-						if(d_ip->offset == pd_lib->p_ips[l].offset){
-							DPRINTF("predefined probe %s in %s at %lx", pd_lib->p_ips[l].name, pd_lib->path, pd_lib->p_ips[l].offset);
-							d_ip->jprobe.pre_entry 		= pd_lib->p_ips[l].jprobe.pre_entry;
-							d_ip->jprobe.entry 		= pd_lib->p_ips[l].jprobe.entry;
-							d_ip->retprobe.handler 	= pd_lib->p_ips[l].retprobe.handler;
-							break;
-						}
-					}
-				}
-			}
-		}
-		if (s_lib.vtps_count > 0)
-		{
-			unsigned long ucount = 1, pre_addr;
-			// array containing elements like (addr, index)
-			unsigned long *addrs = kmalloc (s_lib.vtps_count * 2 * sizeof (unsigned long), GFP_KERNEL);
-//			DPRINTF ("addrs=%p/%u", addrs, s_lib.vtps_count);
-			if (!addrs)
-			{
-				//note: storage will released next time or at clean-up moment
-				return -ENOMEM;
-			}
-			memset (addrs, 0, s_lib.vtps_count * 2 * sizeof (unsigned long));
-			// fill the array in
-			for (k = 0; k < s_lib.vtps_count; k++)
-			{
-				if (copy_from_user ((void *) &s_vtp, &s_lib.p_vtps[k], sizeof (ioctl_usr_space_vtp_t)))
-				{
-					//note: storage will released next time or at clean-up moment
-					EPRINTF ("copy_from_user VTP failed %p", &s_lib.p_vtps[k]);
-					kfree (addrs);
-					return -EFAULT;
-				}
-				addrs[2 * k] = s_vtp.addr;
-				addrs[2 * k + 1] = k;
-			}
-			// sort by VTP addresses, i.e. make VTPs with the same addresses adjacent;
-			// organize them into bundles
-			sort (addrs, s_lib.vtps_count, 2 * sizeof (unsigned long), addr_cmp, generic_swap);
-
-			// calc number of VTPs with unique addresses 
-			for (k = 1, pre_addr = addrs[0]; k < s_lib.vtps_count; k++)
-			{
-				if (addrs[2 * k] != pre_addr)
-					ucount++;	// count different only
-				pre_addr = addrs[2 * k];
-			}
-			us_proc_info.unres_vtps_count += ucount;
-			d_lib->vtps_count = ucount;
-			d_lib->p_vtps = kmalloc (ucount * sizeof (us_proc_vtp_t), GFP_KERNEL);
-			DPRINTF ("d_lib[%i]->p_vtps=%p/%lu", i, d_lib->p_vtps, ucount);	//, d_lib->path);
-			if (!d_lib->p_vtps)
-			{
-				//note: storage will released next time or at clean-up moment
-				kfree (addrs);
-				return -ENOMEM;
-			}
-			memset (d_lib->p_vtps, 0, d_lib->vtps_count * sizeof (us_proc_vtp_t));
-			// go through sorted VTPS.
-			for (k = 0, j = 0, pre_addr = 0, mvtp = NULL; k < s_lib.vtps_count; k++)
-			{
-				us_proc_vtp_data_t *vtp_data;
-				// copy VTP data
-				if (copy_from_user ((void *) &s_vtp, &s_lib.p_vtps[addrs[2 * k + 1]], sizeof (ioctl_usr_space_vtp_t)))
-				{
-					//note: storage will released next time or at clean-up moment
-					EPRINTF ("copy_from_user VTP failed %p", &s_lib.p_vtps[addrs[2 * k + 1]]);
-					kfree (addrs);
-					return -EFAULT;
-				}
-				// if this is the first VTP in bundle (master VTP)
-				if (addrs[2 * k] != pre_addr)
-				{
-					// data are in the array of master VTPs
-					mvtp = &d_lib->p_vtps[j++];
-					mvtp->addr = s_vtp.addr;
-					INIT_LIST_HEAD (&mvtp->list);
-				}
-				// data are in the list of slave VTPs
-				vtp_data = kmalloc (sizeof (us_proc_vtp_data_t), GFP_KERNEL);
-				if (!vtp_data)
-				{
-					//note: storage will released next time or at clean-up moment
-					kfree (addrs);
-					return -ENOMEM;
-				}
-
-				/*len = strlen_user (s_vtp.name);
-				vtp_data->name = kmalloc (len, GFP_KERNEL);
-				if (!vtp_data->name)
-				{
-					//note: storage will released next time or at clean-up moment
-					kfree (vtp_data);
-					kfree (addrs);
-					return -ENOMEM;
-				}
-				if (strncpy_from_user (vtp_data->name, s_vtp.name, len) != (len-1))
-				{
-					//note: storage will released next time or at clean-up moment
-					EPRINTF ("strncpy_from_user VTP name failed %p (%ld)", vtp_data->name, len);
-					kfree (vtp_data->name);
-					kfree (vtp_data);
-					kfree (addrs);
-					return -EFAULT;
-				}
-				//vtp_data->name[len] = 0;*/
-				vtp_data->type = s_vtp.type;
-				vtp_data->size = s_vtp.size;
-				vtp_data->reg = s_vtp.reg;
-				vtp_data->off = s_vtp.off;
-				list_add_tail_rcu (&vtp_data->list, &mvtp->list);
-				pre_addr = addrs[2 * k];
-			}
-			kfree (addrs);
-		}
-	}
-
-	//us_proc_info.mapped_codelets = (kprobe_opcode_t *) - 1;
-
-	return 0;
-}
-
 char *find_lib_path(const char *lib_name)
 {
 	char *p = deps + sizeof(size_t);
@@ -987,6 +723,10 @@ char *find_lib_path(const char *lib_name)
 
 	return p;
 }
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
+#define list_for_each_rcu(pos, head) __list_for_each_rcu(pos, head)
+#endif
 
 void unlink_bundle(void)
 {
@@ -1017,27 +757,25 @@ void unlink_bundle(void)
 					kfree ((void *) d_lib->p_ips[k].name);*/
 				vfree ((void *) d_lib->p_ips);
 			}
-			/* if (d_lib->p_vtps) */
-			/* { */
-			/* 	// first make sure "d_lib->p_vtps" is not used any more and only */
-			/* 	// then release storage */
-			/* 	int count2 = d_lib->vtps_count; */
-			/* 	d_lib->vtps_count = 0; */
-			/* 	for (k = 0; k < count2; k++) */
-			/* 	{ */
-			/* 		//list_for_each_safe_rcu(pos, tmp, &d_lib->p_vtps[k].list) { */
-			/* 		list_for_each_rcu (pos, &d_lib->p_vtps[k].list) */
-			/* 		{ */
-			/* 			us_proc_vtp_data_t *vtp = list_entry (pos, us_proc_vtp_data_t, list); */
-			/* 			list_del_rcu (pos); */
-			/* 			//kfree (vtp->name); */
-			/* 			kfree (vtp); */
-			/* 		} */
-			/* 	} */
-			/* 	kfree ((void *) d_lib->p_vtps); */
-			/* } */
-			//kfree ((void *) d_lib->path);
-			//putname(d_lib->path);
+			if (d_lib->p_vtps)
+			{
+				// first make sure "d_lib->p_vtps" is not used any more and only
+				// then release storage
+				int count2 = d_lib->vtps_count;
+				d_lib->vtps_count = 0;
+				for (k = 0; k < count2; k++)
+				{
+					//list_for_each_safe_rcu(pos, tmp, &d_lib->p_vtps[k].list) {
+					list_for_each_rcu (pos, &d_lib->p_vtps[k].list)
+					{
+						us_proc_vtp_data_t *vtp = list_entry (pos, us_proc_vtp_data_t, list);
+						list_del_rcu (pos);
+						//kfree (vtp->name);
+						kfree (vtp);
+					}
+				}
+				kfree ((void *) d_lib->p_vtps);
+			}
 		}
 		kfree ((void *) us_proc_info.p_libs);
 		us_proc_info.p_libs = 0;
@@ -1396,75 +1134,6 @@ int link_bundle()
 
 	return 0;
 }
-
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
-#define list_for_each_rcu(pos, head) __list_for_each_rcu(pos, head)
-#endif
-
-// release storage of user space process instrumentation info
-void release_us_proc_inst_info (void)
-{
-	int i, k;
-	us_proc_lib_t *d_lib;
-	char *path;
-	struct list_head *pos;	//, *tmp;
-
-	path = us_proc_info.path;
-	us_proc_info.path = 0;
-
-	// first make sure "d_lib" is not used any more and only
-	// then release storage
-	if (us_proc_info.p_libs)
-	{
-		int count1 = us_proc_info.libs_count;
-		us_proc_info.libs_count = 0;
-		for (i = 0; i < count1; i++)
-		{
-			d_lib = &us_proc_info.p_libs[i];
-			if (d_lib->p_ips)
-			{
-				// first make sure "d_lib->p_ips" is not used any more and only
-				// then release storage
-				//int count2 = d_lib->ips_count;
-				d_lib->ips_count = 0;
-				/*for (k = 0; k < count2; k++)
-					kfree ((void *) d_lib->p_ips[k].name);*/
-				vfree ((void *) d_lib->p_ips);
-			}
-			if (d_lib->p_vtps)
-			{
-				// first make sure "d_lib->p_vtps" is not used any more and only
-				// then release storage
-				int count2 = d_lib->vtps_count;
-				d_lib->vtps_count = 0;
-				for (k = 0; k < count2; k++)
-				{
-					//list_for_each_safe_rcu(pos, tmp, &d_lib->p_vtps[k].list) {
-					list_for_each_rcu (pos, &d_lib->p_vtps[k].list)
-					{
-						us_proc_vtp_data_t *vtp = list_entry (pos, us_proc_vtp_data_t, list);
-						list_del_rcu (pos);
-						//kfree (vtp->name);
-						kfree (vtp);
-					}
-				}
-				kfree ((void *) d_lib->p_vtps);
-			}
-			kfree ((void *) d_lib->path);
-			//putname(d_lib->path);
-		}
-		kfree ((void *) us_proc_info.p_libs);
-		us_proc_info.p_libs = 0;
-	}
-	if (path)
-	{
-		kfree ((void *) path);
-		//putname(path);
-	}
-
-	us_proc_info.tgid = 0;
-}
-
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++//
 int storage_init (void)
