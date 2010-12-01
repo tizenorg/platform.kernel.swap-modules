@@ -1061,9 +1061,12 @@ int link_bundle()
 	};
 	char *p = bundle; /* read pointer for bundle */
 	int nr_kern_probes;
-	int i, l, k;
+	int i, j, l, k;
 	int len;
 	us_proc_lib_t *d_lib, *pd_lib;
+	ioctl_usr_space_lib_t s_lib;
+	ioctl_usr_space_vtp_t *s_vtp;
+	us_proc_vtp_t *mvtp;
 	struct nameidata nd;
 	int is_app = 0;
 	char *ptr;
@@ -1227,110 +1230,6 @@ int link_bundle()
 				}
 			}
 		}
-/* 		if (s_lib.vtps_count > 0) */
-/* 		{ */
-/* 			unsigned long ucount = 1, pre_addr; */
-/* 			// array containing elements like (addr, index) */
-/* 			unsigned long *addrs = kmalloc (s_lib.vtps_count * 2 * sizeof (unsigned long), GFP_KERNEL); */
-/* //			DPRINTF ("addrs=%p/%u", addrs, s_lib.vtps_count); */
-/* 			if (!addrs) */
-/* 			{ */
-/* 				//note: storage will released next time or at clean-up moment */
-/* 				return -ENOMEM; */
-/* 			} */
-/* 			memset (addrs, 0, s_lib.vtps_count * 2 * sizeof (unsigned long)); */
-/* 			// fill the array in */
-/* 			for (k = 0; k < s_lib.vtps_count; k++) */
-/* 			{ */
-/* 				if (copy_from_user ((void *) &s_vtp, &s_lib.p_vtps[k], sizeof (ioctl_usr_space_vtp_t))) */
-/* 				{ */
-/* 					//note: storage will released next time or at clean-up moment */
-/* 					EPRINTF ("copy_from_user VTP failed %p", &s_lib.p_vtps[k]); */
-/* 					kfree (addrs); */
-/* 					return -EFAULT; */
-/* 				} */
-/* 				addrs[2 * k] = s_vtp.addr; */
-/* 				addrs[2 * k + 1] = k; */
-/* 			} */
-/* 			// sort by VTP addresses, i.e. make VTPs with the same addresses adjacent; */
-/* 			// organize them into bundles */
-/* 			sort (addrs, s_lib.vtps_count, 2 * sizeof (unsigned long), addr_cmp, generic_swap); */
-
-/* 			// calc number of VTPs with unique addresses  */
-/* 			for (k = 1, pre_addr = addrs[0]; k < s_lib.vtps_count; k++) */
-/* 			{ */
-/* 				if (addrs[2 * k] != pre_addr) */
-/* 					ucount++;	// count different only */
-/* 				pre_addr = addrs[2 * k]; */
-/* 			} */
-/* 			us_proc_info.unres_vtps_count += ucount; */
-/* 			d_lib->vtps_count = ucount; */
-/* 			d_lib->p_vtps = kmalloc (ucount * sizeof (us_proc_vtp_t), GFP_KERNEL); */
-/* 			DPRINTF ("d_lib[%i]->p_vtps=%p/%lu", i, d_lib->p_vtps, ucount);	//, d_lib->path); */
-/* 			if (!d_lib->p_vtps) */
-/* 			{ */
-/* 				//note: storage will released next time or at clean-up moment */
-/* 				kfree (addrs); */
-/* 				return -ENOMEM; */
-/* 			} */
-/* 			memset (d_lib->p_vtps, 0, d_lib->vtps_count * sizeof (us_proc_vtp_t)); */
-/* 			// go through sorted VTPS. */
-/* 			for (k = 0, j = 0, pre_addr = 0, mvtp = NULL; k < s_lib.vtps_count; k++) */
-/* 			{ */
-/* 				us_proc_vtp_data_t *vtp_data; */
-/* 				// copy VTP data */
-/* 				if (copy_from_user ((void *) &s_vtp, &s_lib.p_vtps[addrs[2 * k + 1]], sizeof (ioctl_usr_space_vtp_t))) */
-/* 				{ */
-/* 					//note: storage will released next time or at clean-up moment */
-/* 					EPRINTF ("copy_from_user VTP failed %p", &s_lib.p_vtps[addrs[2 * k + 1]]); */
-/* 					kfree (addrs); */
-/* 					return -EFAULT; */
-/* 				} */
-/* 				// if this is the first VTP in bundle (master VTP) */
-/* 				if (addrs[2 * k] != pre_addr) */
-/* 				{ */
-/* 					// data are in the array of master VTPs */
-/* 					mvtp = &d_lib->p_vtps[j++]; */
-/* 					mvtp->addr = s_vtp.addr; */
-/* 					INIT_LIST_HEAD (&mvtp->list); */
-/* 				} */
-/* 				// data are in the list of slave VTPs */
-/* 				vtp_data = kmalloc (sizeof (us_proc_vtp_data_t), GFP_KERNEL); */
-/* 				if (!vtp_data) */
-/* 				{ */
-/* 					//note: storage will released next time or at clean-up moment */
-/* 					kfree (addrs); */
-/* 					return -ENOMEM; */
-/* 				} */
-
-/* 				/\*len = strlen_user (s_vtp.name); */
-/* 				vtp_data->name = kmalloc (len, GFP_KERNEL); */
-/* 				if (!vtp_data->name) */
-/* 				{ */
-/* 					//note: storage will released next time or at clean-up moment */
-/* 					kfree (vtp_data); */
-/* 					kfree (addrs); */
-/* 					return -ENOMEM; */
-/* 				} */
-/* 				if (strncpy_from_user (vtp_data->name, s_vtp.name, len) != (len-1)) */
-/* 				{ */
-/* 					//note: storage will released next time or at clean-up moment */
-/* 					EPRINTF ("strncpy_from_user VTP name failed %p (%ld)", vtp_data->name, len); */
-/* 					kfree (vtp_data->name); */
-/* 					kfree (vtp_data); */
-/* 					kfree (addrs); */
-/* 					return -EFAULT; */
-/* 				} */
-/* 				//vtp_data->name[len] = 0;*\/ */
-/* 				vtp_data->type = s_vtp.type; */
-/* 				vtp_data->size = s_vtp.size; */
-/* 				vtp_data->reg = s_vtp.reg; */
-/* 				vtp_data->off = s_vtp.off; */
-/* 				list_add_tail_rcu (&vtp_data->list, &mvtp->list); */
-/* 				pre_addr = addrs[2 * k]; */
-/* 			} */
-/* 			kfree (addrs); */
-/* 		} */
 	}
 
 	/* Lib path */
@@ -1341,7 +1240,127 @@ int link_bundle()
 	DPRINTF("lib_path = %s", lib_path);
 	p += lib_path_len;
 
-	/* Var trace points */
+	/* Link FBI info */
+	d_lib = &us_proc_info.p_libs[0];
+	s_lib.vtps_count = *(u_int32_t *)p;
+	DPRINTF("s_lib.vtps_count = %d", s_lib.vtps_count);
+	p += sizeof(u_int32_t);
+	s_lib.p_vtps = kmalloc(s_lib.vtps_count
+						   * sizeof(ioctl_usr_space_vtp_t), GFP_KERNEL);
+	if (!s_lib.p_vtps) {
+		//kfree (addrs);
+		return -1;
+	}
+	for (i = 0; i < s_lib.vtps_count; i++) {
+		int var_name_len = *(u_int32_t *)p;
+		p += sizeof(u_int32_t);
+		s_lib.p_vtps[i].name = p;
+		p += var_name_len;
+		s_lib.p_vtps[i].addr = *(u_int32_t *)p;
+		p += sizeof(u_int32_t);
+		s_lib.p_vtps[i].type = *(u_int32_t *)p;
+		p += sizeof(u_int32_t);
+		s_lib.p_vtps[i].size = *(u_int32_t *)p;
+		p += sizeof(u_int32_t);
+		s_lib.p_vtps[i].reg = *(u_int32_t *)p;
+		p += sizeof(u_int32_t);
+		s_lib.p_vtps[i].off = *(u_int32_t *)p;
+		p += sizeof(u_int32_t);
+	}
+
+	if (s_lib.vtps_count > 0)
+	{
+		unsigned long ucount = 1, pre_addr;
+		// array containing elements like (addr, index)
+		unsigned long *addrs = kmalloc (s_lib.vtps_count * 2 * sizeof (unsigned long), GFP_KERNEL);
+//			DPRINTF ("addrs=%p/%u", addrs, s_lib.vtps_count);
+		if (!addrs)
+		{
+			//note: storage will released next time or at clean-up moment
+			return -ENOMEM;
+		}
+		memset (addrs, 0, s_lib.vtps_count * 2 * sizeof (unsigned long));
+		// fill the array in
+		for (k = 0; k < s_lib.vtps_count; k++)
+		{
+			s_vtp = &s_lib.p_vtps[k];
+			addrs[2 * k] = s_vtp->addr;
+			addrs[2 * k + 1] = k;
+		}
+		// sort by VTP addresses, i.e. make VTPs with the same addresses adjacent;
+		// organize them into bundles
+		sort (addrs, s_lib.vtps_count, 2 * sizeof (unsigned long), addr_cmp, generic_swap);
+
+		// calc number of VTPs with unique addresses
+		for (k = 1, pre_addr = addrs[0]; k < s_lib.vtps_count; k++)
+		{
+			if (addrs[2 * k] != pre_addr)
+				ucount++;	// count different only
+			pre_addr = addrs[2 * k];
+		}
+		us_proc_info.unres_vtps_count += ucount;
+		d_lib->vtps_count = ucount;
+		d_lib->p_vtps = kmalloc (ucount * sizeof (us_proc_vtp_t), GFP_KERNEL);
+		DPRINTF ("d_lib[%i]->p_vtps=%p/%lu", i, d_lib->p_vtps, ucount);	//, d_lib->path);
+		if (!d_lib->p_vtps)
+		{
+			//note: storage will released next time or at clean-up moment
+			kfree (addrs);
+			return -ENOMEM;
+		}
+		memset (d_lib->p_vtps, 0, d_lib->vtps_count * sizeof (us_proc_vtp_t));
+		// go through sorted VTPS.
+		for (k = 0, j = 0, pre_addr = 0, mvtp = NULL; k < s_lib.vtps_count; k++)
+		{
+			us_proc_vtp_data_t *vtp_data;
+			// copy VTP data
+			s_vtp = &s_lib.p_vtps[addrs[2 * k + 1]];
+			// if this is the first VTP in bundle (master VTP)
+			if (addrs[2 * k] != pre_addr)
+			{
+				// data are in the array of master VTPs
+				mvtp = &d_lib->p_vtps[j++];
+				mvtp->addr = s_vtp->addr;
+				INIT_LIST_HEAD (&mvtp->list);
+			}
+			// data are in the list of slave VTPs
+			vtp_data = kmalloc (sizeof (us_proc_vtp_data_t), GFP_KERNEL);
+			if (!vtp_data)
+			{
+				//note: storage will released next time or at clean-up moment
+				kfree (addrs);
+				return -ENOMEM;
+			}
+
+			/*len = strlen_user (s_vtp->name);
+			  vtp_data->name = kmalloc (len, GFP_KERNEL);
+			  if (!vtp_data->name)
+			  {
+			  //note: storage will released next time or at clean-up moment
+			  kfree (vtp_data);
+			  kfree (addrs);
+			  return -ENOMEM;
+			  }
+			  if (strncpy_from_user (vtp_data->name, s_vtp->name, len) != (len-1))
+			  {
+			  //note: storage will released next time or at clean-up moment
+			  EPRINTF ("strncpy_from_user VTP name failed %p (%ld)", vtp_data->name, len);
+			  kfree (vtp_data->name);
+			  kfree (vtp_data);
+			  kfree (addrs);
+			  return -EFAULT;
+			  }
+			  //vtp_data->name[len] = 0;*/
+			vtp_data->type = s_vtp->type;
+			vtp_data->size = s_vtp->size;
+			vtp_data->reg = s_vtp->reg;
+			vtp_data->off = s_vtp->off;
+			list_add_tail_rcu (&vtp_data->list, &mvtp->list);
+			pre_addr = addrs[2 * k];
+		}
+		kfree (addrs);
+	}
+	kfree(s_lib.p_vtps);
 
 	/* Conds */
 	/* first, delete all the conds */
