@@ -517,29 +517,6 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 			DPRINTF("Wake up");
 			break;
 		}
-	case EC_IOCTL_INST_USR_SPACE_PROC:
-		{
-			ioctl_inst_usr_space_proc_t ioctl_args;
-			result = copy_from_user (&ioctl_args, (void *) arg, sizeof (ioctl_args));
-			if (result)
-			{
-				result = -1;
-				EPRINTF ("copy_from_user() failure");
-			}
-			else
-			{
-				result = set_us_proc_inst_info (&ioctl_args);
-			}
-			DPRINTF("Instrument User Space Procedures");
-			break;
-		}
-	case EC_IOCTL_DEINST_USR_SPACE_PROC:
-		{
-			release_us_proc_inst_info ();
-			result = 0;
-			DPRINTF("Deinstrument User Space Procedures");
-			break;
-		}
 	case EC_IOCTL_US_EVENT:
 		{
 			ioctl_us_event_t ioctl_args;

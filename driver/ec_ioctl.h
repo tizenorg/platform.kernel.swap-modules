@@ -57,11 +57,6 @@ typedef enum
 	EC_IOCTL_GET_COMPLEX_STATUS,
 	EC_IOCTL_CONSUME_BUFFER,
 
-	// instrument user space process
-	EC_IOCTL_INST_USR_SPACE_PROC,
-	// deinstrument user space process
-	EC_IOCTL_DEINST_USR_SPACE_PROC,
-
 	// conditions
 	EC_IOCTL_UPDATE_CONDS,
 
