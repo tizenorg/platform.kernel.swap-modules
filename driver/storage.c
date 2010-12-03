@@ -983,31 +983,29 @@ int link_bundle()
 	s_lib.vtps_count = *(u_int32_t *)p;
 	DPRINTF("s_lib.vtps_count = %d", s_lib.vtps_count);
 	p += sizeof(u_int32_t);
-	s_lib.p_vtps = kmalloc(s_lib.vtps_count
-						   * sizeof(ioctl_usr_space_vtp_t), GFP_KERNEL);
-	if (!s_lib.p_vtps) {
-		//kfree (addrs);
-		return -1;
-	}
-	for (i = 0; i < s_lib.vtps_count; i++) {
-		int var_name_len = *(u_int32_t *)p;
-		p += sizeof(u_int32_t);
-		s_lib.p_vtps[i].name = p;
-		p += var_name_len;
-		s_lib.p_vtps[i].addr = *(u_int32_t *)p;
-		p += sizeof(u_int32_t);
-		s_lib.p_vtps[i].type = *(u_int32_t *)p;
-		p += sizeof(u_int32_t);
-		s_lib.p_vtps[i].size = *(u_int32_t *)p;
-		p += sizeof(u_int32_t);
-		s_lib.p_vtps[i].reg = *(u_int32_t *)p;
-		p += sizeof(u_int32_t);
-		s_lib.p_vtps[i].off = *(u_int32_t *)p;
-		p += sizeof(u_int32_t);
-	}
-
-	if (s_lib.vtps_count > 0)
-	{
+	if (s_lib.vtps_count > 0) {
+		s_lib.p_vtps = kmalloc(s_lib.vtps_count
+							   * sizeof(ioctl_usr_space_vtp_t), GFP_KERNEL);
+		if (!s_lib.p_vtps) {
+			//kfree (addrs);
+			return -1;
+		}
+		for (i = 0; i < s_lib.vtps_count; i++) {
+			int var_name_len = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+			s_lib.p_vtps[i].name = p;
+			p += var_name_len;
+			s_lib.p_vtps[i].addr = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+			s_lib.p_vtps[i].type = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+			s_lib.p_vtps[i].size = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+			s_lib.p_vtps[i].reg = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+			s_lib.p_vtps[i].off = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+		}
 		unsigned long ucount = 1, pre_addr;
 		// array containing elements like (addr, index)
 		unsigned long *addrs = kmalloc (s_lib.vtps_count * 2 * sizeof (unsigned long), GFP_KERNEL);
@@ -1097,8 +1095,8 @@ int link_bundle()
 			pre_addr = addrs[2 * k];
 		}
 		kfree (addrs);
+		kfree(s_lib.p_vtps);
 	}
-	kfree(s_lib.p_vtps);
 
 	/* Conds */
 	/* first, delete all the conds */
