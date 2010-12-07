@@ -891,6 +891,18 @@ int link_bundle()
 		d_lib->path = (char *)p;
 		DPRINTF("d_lib->path = %s", d_lib->path);
 
+		p += lib_name_len;
+		d_lib->ips_count = *(u_int32_t *)p;
+		DPRINTF("d_lib->ips_count = %d", d_lib->ips_count);
+		p += sizeof(u_int32_t);
+
+		/* If there are any probes for "*" app we have to drop them */
+		if (strcmp(d_lib->path, "*") == 0) {
+			p += d_lib->ips_count * 3 * sizeof(u_int32_t);
+			d_lib->ips_count = 0;
+			continue;
+		}
+
 		if (strcmp(us_proc_info.path, d_lib->path) == 0)
 			is_app = 1;
 		else {
@@ -916,10 +928,6 @@ int link_bundle()
 		d_lib->m_f_dentry = nd.path.dentry;
 		path_put(&nd.path);
 #endif
-		p += lib_name_len;
-		d_lib->ips_count = *(u_int32_t *)p;
-		DPRINTF("d_lib->ips_count = %d", d_lib->ips_count);
-		p += sizeof(u_int32_t);
 
 		pd_lib = NULL;
 		ptr = strrchr(d_lib->path, '/');
