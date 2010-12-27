@@ -1,4 +1,4 @@
-EXTRA_CFLAGS := -I$(src)/../../common -I$(src)/../../profile -DEC_ARCH_$(ARCH) -D__DEBUG -D__DISABLE_RELAYFS $(memchecker) $(debug_opt)
+EXTRA_CFLAGS := -I$(src)/../../common -I$(src)/../../profile -DEC_ARCH_$(ARCH) -D__DEBUG -D__DISABLE_RELAYFS $(memchecker) $(debug_opt) $(android_opt)
 
 obj-m := inperfa_driver.o
 inperfa_driver-y := device_driver.o ec.o legacy.o module.o probes.o probes_manager.o storage.o us_proc_inst.o
