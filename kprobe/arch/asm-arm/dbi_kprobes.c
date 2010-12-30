@@ -56,6 +56,7 @@ extern unsigned long (*kallsyms_search) (const char *name);
 extern struct kprobe *kprobe_running (void);
 extern struct kprobe_ctlblk *get_kprobe_ctlblk (void);
 extern void reset_current_kprobe (void);
+extern struct kprobe * current_kprobe;
 
 unsigned int arr_traps_template[] = {   0xe1a0c00d,    // mov          ip, sp
 	0xe92dd800,    // stmdb        sp!, {fp, ip, lr, pc}

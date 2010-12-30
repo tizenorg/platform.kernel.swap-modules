@@ -34,6 +34,8 @@
 #include "dbi_kdebug.h"
 
 
+#include <linux/slab.h>
+
 unsigned int *sched_addr;
 unsigned int *fork_addr;
 

@@ -54,6 +54,9 @@
 #include <linux/mman.h>
 #include <linux/hugetlb.h>
 
+#include <linux/slab.h>
+
+
 
 extern struct hlist_head uprobe_insn_slot_table[KPROBE_TABLE_SIZE];
 
