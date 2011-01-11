@@ -30,6 +30,8 @@
  */
 
 #include "../dbi_kprobes.h"
+#include "dbi_kprobes_arm.h"
+#include "dbi_kprobes_thumb.h"
 
 typedef unsigned long kprobe_opcode_t;
 
@@ -153,10 +155,10 @@ struct arch_specific_insn {
 
 typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long);
 
-void gen_insn_execbuf (void);
-void pc_dep_insn_execbuf (void);
-void gen_insn_execbuf_holder (void);
-void pc_dep_insn_execbuf_holder (void);
+//void gen_insn_execbuf (void);
+//void pc_dep_insn_execbuf (void);
+//void gen_insn_execbuf_holder (void);
+//void pc_dep_insn_execbuf_holder (void);
 
 void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp);
 
