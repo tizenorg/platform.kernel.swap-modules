@@ -563,8 +563,7 @@ int kprobe_handler (struct pt_regs *regs)
 	if (!thumb_mode ( regs )) addr = (kprobe_opcode_t *) (regs->uregs[15] - 4);
 	else addr = (kprobe_opcode_t *) (regs->uregs[15] - 2);
 
-	DBPRINTF ("KPROBE: regs->uregs[15] = 0x%lx addr = 0x%p\n", regs->uregs[15], addr);
-	DBPRINTF ("KPROBE: regs->uregs[15] = 0x%lx addr = 0x%p\n", regs->uregs[15], addr);
+//	DBPRINTF ("KPROBE: regs->uregs[15] = 0x%lx addr = 0x%p\n", regs->uregs[15], addr);
 
 	if (!thumb_mode ( regs )) regs->uregs[15] -= 4;
 	else regs->uregs[15] -= 2;
@@ -632,7 +631,7 @@ int kprobe_handler (struct pt_regs *regs)
 				/*if (p->break_handler && p->break_handler(p, regs)) {
 				  DBPRINTF("kprobe_running !!! goto ss");
 				  goto ss_probe;
-				  } */			
+				  } */
 				DBPRINTF ("unknown uprobe at %p cur at %p/%p\n", addr, p->addr, p->ainsn.insn);
 				if(pid)
 					ssaddr = p->ainsn.insn + UPROBES_TRAMP_SS_BREAK_IDX;
@@ -659,7 +658,6 @@ int kprobe_handler (struct pt_regs *regs)
 	}
 	//if(einsn != UNDEF_INSTRUCTION) {
 //	DBPRINTF ("get_kprobe %p-%d", addr, pid);
-if (user_mode ( regs )) printk ("get_kprobe %p-%d, p=%X\n", addr, pid, p);
 	if (!p)
 	{
 		p = get_kprobe (addr, pid, current);
@@ -669,8 +667,6 @@ if (user_mode ( regs )) printk ("get_kprobe %p-%d, p=%X\n", addr, pid, p);
 		if(pid) {
 			DBPRINTF ("search UNDEF_INSTRUCTION %p\n", addr);
 			// UNDEF_INSTRUCTION from user space
-
-printk ("search UNDEF_INSTRUCTION %p\n", addr);
 
 			if (!thumb_mode ( regs ))
 				p = get_kprobe_by_insn_slot (addr-UPROBES_TRAMP_RET_BREAK_IDX, pid, current);
@@ -757,7 +753,7 @@ void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 			ri->ret_addr = (kprobe_opcode_t *)thread_saved_pc(p);
 			task_thread_info(p)->cpu_context.pc = (unsigned long) &kretprobe_trampoline;
 		}
-		return; 
+		return;
 	}
 
 	if ((ri = get_free_rp_inst(rp)) != NULL)
@@ -772,7 +768,7 @@ void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 	}
 	else{
 		printk("no ri for %d\n", p->pid);
-		BUG();				
+		BUG();
 	}
 }
 
@@ -805,7 +801,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 			// other tasks
 			do_each_thread(g, p){
 				if(p == current)
-					continue;									
+					continue;
 				patch_suspended_task_ret_addr(p, sched_rp);
 			} while_each_thread(g, p);
 			rcu_read_unlock();
@@ -827,7 +823,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 
 	prepare_singlestep (p, regs);
 
-	return 1;	
+	return 1;
 }
 
 void jprobe_return (void)
@@ -897,20 +893,23 @@ void arch_disarm_kprobe (struct kprobe *p)
 
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 {
-	struct kretprobe_instance *ri = NULL; 
-	struct hlist_head *head, empty_rp; 
-	struct hlist_node *node, *tmp; 
+	struct kretprobe_instance *ri = NULL;
+	struct hlist_head *head, empty_rp;
+	struct hlist_node *node, *tmp;
 	unsigned long flags, orig_ret_address = 0;
 	unsigned long trampoline_address = (unsigned long) &kretprobe_trampoline;
 
-	struct kretprobe *crp = NULL; 
+	struct kretprobe *crp = NULL;
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
 
 	DBPRINTF ("start");
 
 	if (p && p->tgid){
-		// in case of user space retprobe trampoline is at the Nth instruction of US tramp 
-		trampoline_address = (unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
+		// in case of user space retprobe trampoline is at the Nth instruction of US tramp.
+		if (!thumb_mode( regs ))
+			trampoline_address = (unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
+		else
+			trampoline_address = (unsigned long)(p->ainsn.insn + 0x13);
 	}
 
 	INIT_HLIST_HEAD (&empty_rp); 
@@ -939,8 +938,8 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 			ri->rp->handler (ri, regs, ri->rp->priv_arg);
 		}
 
-		orig_ret_address = (unsigned long) ri->ret_addr; 
-		recycle_rp_inst (ri, &empty_rp); 
+		orig_ret_address = (unsigned long) ri->ret_addr;
+		recycle_rp_inst (ri, &empty_rp);
 		if (orig_ret_address != trampoline_address)
 			/*
 			 * This is the real return address. Any other
@@ -957,19 +956,22 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	//if (ri->rp) BUG_ON (ri->rp->kp.tgid == 0);
 	//else if (ri->rp2) BUG_ON (ri->rp2->kp.tgid == 0);
 	//}
-	if ((ri->rp && ri->rp->kp.tgid) || (ri->rp2 && ri->rp2->kp.tgid)) 
+	if ((ri->rp && ri->rp->kp.tgid) || (ri->rp2 && ri->rp2->kp.tgid))
 		BUG_ON (trampoline_address == (unsigned long) &kretprobe_trampoline);
 
 	regs->uregs[14] = orig_ret_address; 
 	DBPRINTF ("regs->uregs[14] = 0x%lx\n", regs->uregs[14]);
-	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]); 
+	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);
 
-	if (trampoline_address != (unsigned long) &kretprobe_trampoline) 
+	if (trampoline_address != (unsigned long) &kretprobe_trampoline)
+	{
 		regs->uregs[15] = orig_ret_address;
-	else
-		regs->uregs[15] += 4;
+	}else{
+		if (!thumb_mode( regs )) regs->uregs[15] += 4;
+		else regs->uregs[15] += 2;
+	}
 
-//	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);
+	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);
 
 	if(p){ // ARM, MIPS, X86 user space
 		if (kcb->kprobe_status == KPROBE_REENTER)
@@ -982,6 +984,12 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 
 		if (trampoline_address != (unsigned long) &kretprobe_trampoline)
 		{
+			// Check for switch mode
+			if (thumb_mode( regs ) && !(regs->uregs[15] & 0x01))
+			{
+				regs->ARM_cpsr ^= 0x20;
+			}
+
 			// if we are not at the end of the list and current retprobe should be disarmed 
 			if (node && ri->rp2)
 			{
@@ -992,7 +1000,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 				// look for other instances for the same retprobe
 				hlist_for_each_entry_continue (ri, node, hlist)
 				{
-					if (ri->task != current) 
+					if (ri->task != current)
 						continue;	/* another task is sharing our hash bucket */
 					if (ri->rp2 == crp)	//if instance belong to the same retprobe
 						break;
@@ -1022,6 +1030,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	 * kprobe_handler() that we don't want the post_handler
 	 * to run (and have re-enabled preemption)
 	 */
+
 	return 1;
 }
 
@@ -1065,7 +1074,7 @@ int asm_init_module_dependencies()
 
 int __init arch_init_kprobes (void)
 {
-	unsigned int do_bp_handler; 
+	unsigned int do_bp_handler;
 	unsigned int kprobe_handler_addr;
 
 	unsigned int insns_num = 0;
@@ -1075,7 +1084,7 @@ int __init arch_init_kprobes (void)
 
 	if (arch_init_module_dependencies())
 	{
-		DBPRINTF ("Unable to init module dependencies\n"); 
+		DBPRINTF ("Unable to init module dependencies\n");
 		return -1;
 	}
 
@@ -1089,7 +1098,7 @@ int __init arch_init_kprobes (void)
 	arr_traps_original = kmalloc (code_size, GFP_KERNEL);
 	if (!arr_traps_original)
 	{
-		DBPRINTF ("Unable to allocate space for original code of <do_bp>!\n"); 
+		DBPRINTF ("Unable to allocate space for original code of <do_bp>!\n");
 		return -1;
 	}
 	memcpy (arr_traps_original, (void *) do_bp_handler, code_size);
@@ -1104,7 +1113,7 @@ int __init arch_init_kprobes (void)
 		return ret;
 	}
 
-	return ret;	
+	return ret;
 }
 
 void __exit arch_exit_kprobes (void)
