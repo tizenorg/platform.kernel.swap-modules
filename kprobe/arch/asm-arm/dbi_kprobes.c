@@ -16,14 +16,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * Copyright (C) Samsung Electronics, 2006-2010
+ * Copyright (C) Samsung Electronics, 2006-2011
  *
  * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM/MIPS
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86.
  * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
- *
-
+ * 2010-2011    Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
  */
 
 #include<linux/module.h>
@@ -97,7 +96,7 @@ int prep_pc_dep_insn_execbuf (kprobe_opcode_t * insns, kprobe_opcode_t insn, int
 	{
 		for (i = 0; i < 13; i++)
 		{
-			//              DBPRINTF("prep_pc_dep_insn_execbuf: check R%d/%d, changing regs %x in %x", 
+			//              DBPRINTF("prep_pc_dep_insn_execbuf: check R%d/%d, changing regs %x in %x",
 			//                              i, ARM_INSN_REG_RN(insn), uregs, insn);
 			if ((uregs & 0x1) && (ARM_INSN_REG_RN (insn) == i))
 				continue;
@@ -156,9 +155,9 @@ int arch_check_insn (struct arch_specific_insn *ainsn)
 			ARM_INSN_MATCH (BREAK, ainsn->insn[0]) ||
 			ARM_INSN_MATCH (B, ainsn->insn[0]) ||
 			ARM_INSN_MATCH (BL, ainsn->insn[0]) ||
-			ARM_INSN_MATCH (BLX1, ainsn->insn[0]) || 
-			ARM_INSN_MATCH (BLX2, ainsn->insn[0]) || 
-			ARM_INSN_MATCH (BX, ainsn->insn[0]) || 
+			ARM_INSN_MATCH (BLX1, ainsn->insn[0]) ||
+			ARM_INSN_MATCH (BLX2, ainsn->insn[0]) ||
+			ARM_INSN_MATCH (BX, ainsn->insn[0]) ||
 			ARM_INSN_MATCH (BXJ, ainsn->insn[0]))
 	{
 		DBPRINTF ("Bad insn arch_check_insn: %lx\n", ainsn->insn[0]);
@@ -168,9 +167,9 @@ int arch_check_insn (struct arch_specific_insn *ainsn)
 	// check instructions that can write result to PC
 	else if ((ARM_INSN_MATCH (DPIS, ainsn->insn[0]) ||
 				ARM_INSN_MATCH (DPRS, ainsn->insn[0]) ||
-				ARM_INSN_MATCH (DPI, ainsn->insn[0]) || 
-				ARM_INSN_MATCH (LIO, ainsn->insn[0]) || 
-				ARM_INSN_MATCH (LRO, ainsn->insn[0])) && 
+				ARM_INSN_MATCH (DPI, ainsn->insn[0]) ||
+				ARM_INSN_MATCH (LIO, ainsn->insn[0]) ||
+				ARM_INSN_MATCH (LRO, ainsn->insn[0])) &&
 			(ARM_INSN_REG_RD (ainsn->insn[0]) == 15))
 	{
 		DBPRINTF ("Bad arch_check_insn: %lx\n", ainsn->insn[0]);
@@ -220,12 +219,12 @@ int arch_prepare_kprobe (struct kprobe *p)
 			p->ainsn.boostable = 1;
 			uregs = pc_dep = 0;
 			// Rn, Rm ,Rd
-			if (ARM_INSN_MATCH (DPIS, insn[0]) || ARM_INSN_MATCH (LRO, insn[0]) || 
+			if (ARM_INSN_MATCH (DPIS, insn[0]) || ARM_INSN_MATCH (LRO, insn[0]) ||
 					ARM_INSN_MATCH (SRO, insn[0]))
 			{
 
 				uregs = 0xb;
-				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) || 
+				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) ||
 						(ARM_INSN_MATCH (SRO, insn[0]) && (ARM_INSN_REG_RD (insn[0]) == 15)))
 				{
 
@@ -234,12 +233,12 @@ int arch_prepare_kprobe (struct kprobe *p)
 				}
 			}
 			// Rn ,Rd
-			else if (ARM_INSN_MATCH (DPI, insn[0]) || ARM_INSN_MATCH (LIO, insn[0]) || 
+			else if (ARM_INSN_MATCH (DPI, insn[0]) || ARM_INSN_MATCH (LIO, insn[0]) ||
 					ARM_INSN_MATCH (SIO, insn[0]))
 			{
 
 				uregs = 0x3;
-				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_MATCH (SIO, insn[0]) && 
+				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_MATCH (SIO, insn[0]) &&
 							(ARM_INSN_REG_RD (insn[0]) == 15)))
 				{
 
@@ -247,12 +246,12 @@ int arch_prepare_kprobe (struct kprobe *p)
 					DBPRINTF ("Unboostable insn %lx/%p/%d, DPI/LIO/SIO\n", insn[0], p, p->ainsn.boostable);
 				}
 			}
-			// Rn, Rm, Rs                                   
+			// Rn, Rm, Rs
 			else if (ARM_INSN_MATCH (DPRS, insn[0]))
 			{
 
 				uregs = 0xd;
-				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) || 
+				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) ||
 						(ARM_INSN_REG_RS (insn[0]) == 15))
 				{
 
@@ -298,12 +297,12 @@ int arch_prepare_kprobe (struct kprobe *p)
 				{
 					memcpy (insns, gen_insn_execbuf, sizeof (insns));
 					insns[KPROBES_TRAMP_INSN_IDX] = insn[0];
-				}			
+				}
 				//insns[KPROBES_TRAMP_RET_BREAK_IDX] = UNDEF_INSTRUCTION;
 				insns[7] = (kprobe_opcode_t) (p->addr + 1);
 				DBPRINTF ("arch_prepare_kprobe: insn %lx", insn[0]);
-				DBPRINTF ("arch_prepare_kprobe: to %p - %lx %lx %lx %lx %lx %lx %lx %lx %lx", 
-						p->ainsn.insn, insns[0], insns[1], insns[2], insns[3], insns[4], 
+				DBPRINTF ("arch_prepare_kprobe: to %p - %lx %lx %lx %lx %lx %lx %lx %lx %lx",
+						p->ainsn.insn, insns[0], insns[1], insns[2], insns[3], insns[4],
 						insns[5], insns[6], insns[7], insns[8]);
 				memcpy (p->ainsn.insn, insns, sizeof(insns));
 			}
@@ -371,28 +370,27 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 			uregs = pc_dep = 0;
 
 			// Rn, Rm ,Rd
-			if (ARM_INSN_MATCH (DPIS, insn[0]) || ARM_INSN_MATCH (LRO, insn[0]) || 
+			if (ARM_INSN_MATCH (DPIS, insn[0]) || ARM_INSN_MATCH (LRO, insn[0]) ||
 					ARM_INSN_MATCH (SRO, insn[0]))
 			{
 				none_of_them = 0;
 
 				uregs = 0xb;
-				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) || 
+				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) ||
 						(ARM_INSN_MATCH (SRO, insn[0]) && (ARM_INSN_REG_RD (insn[0]) == 15)))
 				{
-
 					DBPRINTF ("Unboostable insn %lx, DPIS/LRO/SRO\n", insn[0]);
 					pc_dep = 1;
 				}
 			}
 			// Rn ,Rd
-			else if (ARM_INSN_MATCH (DPI, insn[0]) || ARM_INSN_MATCH (LIO, insn[0]) || 
+			else if (ARM_INSN_MATCH (DPI, insn[0]) || ARM_INSN_MATCH (LIO, insn[0]) ||
 					ARM_INSN_MATCH (SIO, insn[0]))
 			{
 				none_of_them = 0;
 
 				uregs = 0x3;
-				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_MATCH (SIO, insn[0]) && 
+				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_MATCH (SIO, insn[0]) &&
 							(ARM_INSN_REG_RD (insn[0]) == 15)))
 				{
 
@@ -400,16 +398,15 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 					DBPRINTF ("Unboostable insn %lx/%p/%d, DPI/LIO/SIO\n", insn[0], p, p->ainsn.boostable);
 				}
 			}
-			// Rn, Rm, Rs                                   
+			// Rn, Rm, Rs
 			else if (ARM_INSN_MATCH (DPRS, insn[0]))
 			{
 				none_of_them = 0;
 
 				uregs = 0xd;
-				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) || 
+				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) ||
 						(ARM_INSN_REG_RS (insn[0]) == 15))
 				{
-
 					pc_dep = 1;
 					DBPRINTF ("Unboostable insn %lx, DPRS\n", insn[0]);
 				}
@@ -422,7 +419,6 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 				uregs = 0x10;
 				if (ARM_INSN_REG_MR (insn[0], 15))
 				{
-
 					DBPRINTF ("Unboostable insn %lx, SM\n", insn[0]);
 					pc_dep = 1;
 				}
@@ -457,11 +453,11 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 				{
 					memcpy (insns, gen_insn_execbuf, sizeof (insns));
 					insns[UPROBES_TRAMP_INSN_IDX] = insn[0];
-				}			
+				}
 				insns[UPROBES_TRAMP_RET_BREAK_IDX] = UNDEF_INSTRUCTION;
 				insns[7] = (kprobe_opcode_t) (p->addr + 1);
 				DBPRINTF ("arch_prepare_uprobe: to %p - %lx %lx %lx %lx %lx %lx %lx %lx %lx", 
-						p->ainsn.insn, insns[0], insns[1], insns[2], insns[3], insns[4], 
+						p->ainsn.insn, insns[0], insns[1], insns[2], insns[3], insns[4],
 						insns[5], insns[6], insns[7], insns[8]);
 			}
 
@@ -616,7 +612,12 @@ int kprobe_handler (struct pt_regs *regs)
 			if(pid) { //we can reenter probe upon uretprobe exception   
 				DBPRINTF ("check for UNDEF_INSTRUCTION %p\n", addr);
 				// UNDEF_INSTRUCTION from user space
-				p = get_kprobe_by_insn_slot (addr-UPROBES_TRAMP_RET_BREAK_IDX, pid, current);
+
+				if (!thumb_mode ( regs ))
+					p = get_kprobe_by_insn_slot (addr-UPROBES_TRAMP_RET_BREAK_IDX, pid, current);
+				else
+					p = get_kprobe_by_insn_slot ((unsigned long)addr - 0x12, pid, current);
+
 				if (p) {
 					save_previous_kprobe (kcb, p);
 					kcb->kprobe_status = KPROBE_REENTER;
@@ -631,7 +632,7 @@ int kprobe_handler (struct pt_regs *regs)
 				/*if (p->break_handler && p->break_handler(p, regs)) {
 				  DBPRINTF("kprobe_running !!! goto ss");
 				  goto ss_probe;
-				  } */
+				  } */			
 				DBPRINTF ("unknown uprobe at %p cur at %p/%p\n", addr, p->addr, p->ainsn.insn);
 				if(pid)
 					ssaddr = p->ainsn.insn + UPROBES_TRAMP_SS_BREAK_IDX;
@@ -658,6 +659,7 @@ int kprobe_handler (struct pt_regs *regs)
 	}
 	//if(einsn != UNDEF_INSTRUCTION) {
 //	DBPRINTF ("get_kprobe %p-%d", addr, pid);
+
 	if (!p)
 	{
 		p = get_kprobe (addr, pid, current);
@@ -708,7 +710,7 @@ int kprobe_handler (struct pt_regs *regs)
 		if(!p->ainsn.boostable)
 			kcb->kprobe_status = KPROBE_HIT_SS;
 		else if(p->pre_handler != trampoline_probe_handler)
-			reset_current_kprobe ();			
+			reset_current_kprobe ();
 	}
 
 	if (ret)
@@ -728,20 +730,20 @@ no_kprobe:
 void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 {
 	struct kretprobe_instance *ri = NULL;
-	struct hlist_node *node, *tmp; 
+	struct hlist_node *node, *tmp;
 	struct hlist_head *head;
 	unsigned long flags;
 	int found = 0;
 
-	spin_lock_irqsave (&kretprobe_lock, flags); 
+	spin_lock_irqsave (&kretprobe_lock, flags);
 	head = kretprobe_inst_table_head (p);
 	hlist_for_each_entry_safe (ri, node, tmp, head, hlist){
 		if ((ri->rp == rp) && (p == ri->task)){
 			found = 1;
-			break; 
+			break;
 		}
 	}
-	spin_unlock_irqrestore (&kretprobe_lock, flags); 
+	spin_unlock_irqrestore (&kretprobe_lock, flags);
 
 #ifndef task_thread_info
 #define task_thread_info(task) (task)->thread_info
@@ -758,8 +760,8 @@ void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 
 	if ((ri = get_free_rp_inst(rp)) != NULL)
 	{
-		ri->rp = rp; 
-		ri->rp2 = NULL; 
+		ri->rp = rp;
+		ri->rp2 = NULL;
 		ri->task = p;
 		ri->ret_addr = (kprobe_opcode_t *)thread_saved_pc(p);
 		task_thread_info(p)->cpu_context.pc = (unsigned long) &kretprobe_trampoline;
@@ -872,7 +874,7 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 
 	reset_current_kprobe ();
 
-#endif //REENTER 
+#endif //REENTER
 
 	return 0;
 }
@@ -899,21 +901,21 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	unsigned long flags, orig_ret_address = 0;
 	unsigned long trampoline_address = (unsigned long) &kretprobe_trampoline;
 
-	struct kretprobe *crp = NULL;
+	struct kretprobe *crp = NULL; 
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
 
 	DBPRINTF ("start");
 
 	if (p && p->tgid){
-		// in case of user space retprobe trampoline is at the Nth instruction of US tramp.
+		// in case of user space retprobe trampoline is at the Nth instruction of US tramp
 		if (!thumb_mode( regs ))
 			trampoline_address = (unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
 		else
 			trampoline_address = (unsigned long)(p->ainsn.insn + 0x13);
 	}
 
-	INIT_HLIST_HEAD (&empty_rp); 
-	spin_lock_irqsave (&kretprobe_lock, flags); 
+	INIT_HLIST_HEAD (&empty_rp);
+	spin_lock_irqsave (&kretprobe_lock, flags);
 	head = kretprobe_inst_table_head (current);
 
 	/*
@@ -933,7 +935,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	{
 		if (ri->task != current)
 			/* another task is sharing our hash bucket */
-			continue; 
+			continue;
 		if (ri->rp && ri->rp->handler){
 			ri->rp->handler (ri, regs, ri->rp->priv_arg);
 		}
@@ -959,7 +961,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	if ((ri->rp && ri->rp->kp.tgid) || (ri->rp2 && ri->rp2->kp.tgid))
 		BUG_ON (trampoline_address == (unsigned long) &kretprobe_trampoline);
 
-	regs->uregs[14] = orig_ret_address; 
+	regs->uregs[14] = orig_ret_address;
 	DBPRINTF ("regs->uregs[14] = 0x%lx\n", regs->uregs[14]);
 	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);
 
@@ -971,7 +973,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 		else regs->uregs[15] += 2;
 	}
 
-	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);
+//	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);
 
 	if(p){ // ARM, MIPS, X86 user space
 		if (kcb->kprobe_status == KPROBE_REENTER)
@@ -979,22 +981,30 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 		else
 			reset_current_kprobe ();
 
-		//TODO: test - enter function, delete us retprobe, exit function 
+
+		if (thumb_mode( regs ) && !(regs->uregs[14] & 0x01))
+		{
+//			printk(" >>>>> switch state to ARM\n");
+			regs->ARM_cpsr ^= 0x20;
+		}else{
+			if (user_mode( regs ) && (regs->uregs[14] & 0x01))
+			{
+//				printk(" >>>>> switch state to Thumb\n");
+				regs->ARM_cpsr |= 0x20;
+			}
+		}
+
+
+		//TODO: test - enter function, delete us retprobe, exit function
 		// for user space retprobes only - deferred deletion
 
 		if (trampoline_address != (unsigned long) &kretprobe_trampoline)
 		{
-			// Check for switch mode
-			if (thumb_mode( regs ) && !(regs->uregs[15] & 0x01))
-			{
-				regs->ARM_cpsr ^= 0x20;
-			}
-
-			// if we are not at the end of the list and current retprobe should be disarmed 
+			// if we are not at the end of the list and current retprobe should be disarmed
 			if (node && ri->rp2)
 			{
 				crp = ri->rp2;
-				/*sprintf(die_msg, "deferred disarm p->addr = %p [%lx %lx %lx]\n", 
+				/*sprintf(die_msg, "deferred disarm p->addr = %p [%lx %lx %lx]\n",
 				  crp->kp.addr, *kaddrs[0], *kaddrs[1], *kaddrs[2]);
 				  DIE(die_msg, regs); */
 				// look for other instances for the same retprobe
@@ -1017,10 +1027,10 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 		}
 	}
 
-	spin_unlock_irqrestore (&kretprobe_lock, flags); 
+	spin_unlock_irqrestore (&kretprobe_lock, flags);
 	hlist_for_each_entry_safe (ri, node, tmp, &empty_rp, hlist)
 	{
-		hlist_del (&ri->hlist); 
+		hlist_del (&ri->hlist);
 		kfree (ri);
 	}
 
@@ -1042,8 +1052,8 @@ void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 	//TODO: test - remove retprobe after func entry but before its exit
 	if ((ri = get_free_rp_inst (rp)) != NULL)
 	{
-		ri->rp = rp; 
-		ri->rp2 = NULL; 
+		ri->rp = rp;
+		ri->rp2 = NULL;
 		ri->task = current;
 		ri->ret_addr = (kprobe_opcode_t *) regs->uregs[14];
 
@@ -1068,7 +1078,7 @@ void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 
 int asm_init_module_dependencies()
 {
-	//No module dependencies 
+	//No module dependencies
 	return 0;
 }
 
@@ -1092,7 +1102,7 @@ int __init arch_init_kprobes (void)
 
 	kprobe_handler_addr = (unsigned int) &kprobe_handler;
 	insns_num = sizeof (arr_traps_template) / sizeof (arr_traps_template[0]);
-	code_size = insns_num * sizeof (unsigned int); 
+	code_size = insns_num * sizeof (unsigned int);
 	DBPRINTF ("insns_num = %d\n", insns_num);
 	// Save original code
 	arr_traps_original = kmalloc (code_size, GFP_KERNEL);
@@ -1106,8 +1116,8 @@ int __init arch_init_kprobes (void)
 	arr_traps_template[NOTIFIER_CALL_CHAIN_INDEX] = arch_construct_brunch ((unsigned int)kprobe_handler, do_bp_handler + NOTIFIER_CALL_CHAIN_INDEX * 4, 1);
 
 	// Insert new code
-	memcpy ((void *) do_bp_handler, arr_traps_template, code_size); 
-	flush_icache_range (do_bp_handler, do_bp_handler + code_size); 
+	memcpy ((void *) do_bp_handler, arr_traps_template, code_size);
+	flush_icache_range (do_bp_handler, do_bp_handler + code_size);
 	if((ret = register_kprobe (&trampoline_p, 0)) != 0){
 		//unregister_jprobe(&do_exit_p, 0);
 		return ret;
@@ -1132,9 +1142,9 @@ void __exit arch_exit_kprobes (void)
 
 	insns_num = sizeof (arr_traps_template) / sizeof (arr_traps_template[0]);
 	code_size = insns_num * sizeof (unsigned int); 
-	memcpy ((void *) do_bp_handler, arr_traps_original, code_size); 
-	flush_icache_range (do_bp_handler, do_bp_handler + code_size); 
-	kfree (arr_traps_original); 
+	memcpy ((void *) do_bp_handler, arr_traps_original, code_size);
+	flush_icache_range (do_bp_handler, do_bp_handler + code_size);
+	kfree (arr_traps_original);
 	arr_traps_original = NULL;
 }
 
