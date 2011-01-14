@@ -775,10 +775,10 @@ void do_page_fault_ret_pre_code (void)
 
 	if (task_inst_info->tgid == 0)
 	{
-		mm = get_task_mm (current);//current->active_mm;
+		mm = current->active_mm;
 		if (mm)
 		{
-			down_read (&mm->mmap_sem);
+//			down_read (&mm->mmap_sem);
 			vma = mm->mmap;
 			while (vma)
 			{
@@ -791,8 +791,8 @@ void do_page_fault_ret_pre_code (void)
 				}
 				vma = vma->vm_next;
 			}
-			up_read (&mm->mmap_sem);
-			mmput (mm);
+//			up_read (&mm->mmap_sem);
+//			mmput (mm);
 		} else {
 			//			DPRINTF ("proc %s/%d has no mm", current->comm, current->pid);
 		}
