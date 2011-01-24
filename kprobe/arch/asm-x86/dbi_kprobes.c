@@ -47,13 +47,108 @@
  */
 
 
-#include "dbi_krobes.h"
-#include "../dbi_krobes.h"
+#include<linux/module.h>
+#include <linux/kdebug.h>
+
+#include "dbi_kprobes.h"
+#include "../dbi_kprobes.h"
 #include "../../dbi_kprobes.h"
 
 #include "../../dbi_kdebug.h"
 #include "../../dbi_insn_slots.h"
 #include "../../dbi_kprobes_deps.h"
+#include "../../dbi_uprobes.h"
+
+
+extern struct kprobe * per_cpu__current_kprobe;
+
+extern struct hlist_head kprobe_insn_pages;
+extern struct hlist_head uprobe_insn_pages;
+
+extern spinlock_t kretprobe_lock;
+
+extern unsigned long (*kallsyms_search) (const char *name);
+
+extern struct kprobe *kprobe_running (void);
+extern struct kprobe_ctlblk *get_kprobe_ctlblk (void);
+extern void reset_current_kprobe (void);
+extern struct kprobe * current_kprobe;
+
+
+#define SAVE_REGS_STRING		\
+	/* Skip cs, ip, orig_ax. */	\
+	"	subq $24, %rsp\n"	\
+	"	pushq %rdi\n"		\
+	"	pushq %rsi\n"		\
+	"	pushq %rdx\n"		\
+	"	pushq %rcx\n"		\
+	"	pushq %rax\n"		\
+	"	pushq %r8\n"		\
+	"	pushq %r9\n"		\
+	"	pushq %r10\n"		\
+	"	pushq %r11\n"		\
+	"	pushq %rbx\n"		\
+	"	pushq %rbp\n"		\
+	"	pushq %r12\n"		\
+	"	pushq %r13\n"		\
+	"	pushq %r14\n"		\
+	"	pushq %r15\n"
+#define RESTORE_REGS_STRING		\
+	"	popq %r15\n"		\
+	"	popq %r14\n"		\
+	"	popq %r13\n"		\
+	"	popq %r12\n"		\
+	"	popq %rbp\n"		\
+	"	popq %rbx\n"		\
+	"	popq %r11\n"		\
+	"	popq %r10\n"		\
+	"	popq %r9\n"		\
+	"	popq %r8\n"		\
+	"	popq %rax\n"		\
+	"	popq %rcx\n"		\
+	"	popq %rdx\n"		\
+	"	popq %rsi\n"		\
+	"	popq %rdi\n"		\
+	/* Skip orig_ax, ip, cs */	\
+	"	addq $24, %rsp\n"
+
+
+DECLARE_MOD_FUNC_DEP(module_alloc, void *, unsigned long size);
+DECLARE_MOD_FUNC_DEP(module_free, void, struct module *mod, void *module_region);
+DECLARE_MOD_FUNC_DEP(fixup_exception, int, struct pt_regs * regs);
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26))
+DECLARE_MOD_FUNC_DEP(text_poke, void, void *addr, unsigned char *opcode, int len);
+#else
+DECLARE_MOD_FUNC_DEP(text_poke, void *, void *addr, const void *opcode, size_t len);
+#endif
+DECLARE_MOD_FUNC_DEP(show_registers, void, struct pt_regs * regs);
+
+DECLARE_MOD_DEP_WRAPPER (module_alloc, void *, unsigned long size)
+IMP_MOD_DEP_WRAPPER (module_alloc, size)
+
+DECLARE_MOD_DEP_WRAPPER (module_free, void, struct module *mod, void *module_region)
+IMP_MOD_DEP_WRAPPER (module_free, mod, module_region)
+
+DECLARE_MOD_DEP_WRAPPER (fixup_exception, int, struct pt_regs * regs)
+IMP_MOD_DEP_WRAPPER (fixup_exception, regs)
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26))
+DECLARE_MOD_DEP_WRAPPER(text_poke, \
+			void, void *addr, unsigned char *opcode, int len)
+#else
+DECLARE_MOD_DEP_WRAPPER(text_poke, \
+			void *, void *addr, const void *opcode, size_t len)
+#endif
+IMP_MOD_DEP_WRAPPER(text_poke, addr, opcode, len)
+
+DECLARE_MOD_DEP_WRAPPER(show_registers, void, struct pt_regs * regs)
+IMP_MOD_DEP_WRAPPER(show_registers, regs)
+
+
+
+
+
 
 /*
  * Function return probe trampoline:
@@ -71,30 +166,31 @@ void kretprobe_trampoline_holder (void)
 			"	pushl %fs\n"
 			"	pushl %ds\n"
 			"	pushl %es\n"
-			"	pushl %eax\n" 
-			"	pushl %ebp\n" 
-			"	pushl %edi\n" 
-			"	pushl %esi\n" 
-			"	pushl %edx\n" 
-			"	pushl %ecx\n" 
-			"	pushl %ebx\n" 
-			"	movl %esp, %eax\n" 
+			"	pushl %eax\n"
+			"	pushl %ebp\n"
+			"	pushl %edi\n"
+			"	pushl %esi\n"
+			"	pushl %edx\n"
+			"	pushl %ecx\n"
+			"	pushl %ebx\n"
+			"	movl %esp, %eax\n"
 			"	call trampoline_probe_handler_x86\n"
 			/* move eflags to cs */
-			"	movl 52(%esp), %edx\n" 
+			"	movl 52(%esp), %edx\n"
 			"	movl %edx, 48(%esp)\n"
 			/* save true return address on eflags */
-			"	movl %eax, 52(%esp)\n" 
+			"	movl %eax, 52(%esp)\n"
 			"	popl %ebx\n" ""
-			"	popl %ecx\n" 
-			"	popl %edx\n" 
-			"	popl %esi\n" 
-			"	popl %edi\n" 
-			"	popl %ebp\n" 
+			"	popl %ecx\n"
+			"	popl %edx\n"
+			"	popl %esi\n"
+			"	popl %edi\n"
+			"	popl %ebp\n"
 			"	popl %eax\n"
 			/* skip eip, orig_eax, es, ds, fs */
-			"	addl $20, %esp\n" 
-			"	popf\n" 
+			"	addl $20, %esp\n"
+			"	popf\n"
+
 			"	ret\n");
 }
 
@@ -219,7 +315,7 @@ retry:
 /*
  * returns non-zero if opcode modifies the interrupt flag.
  */
-static int __kprobes is_IF_modifier (kprobe_opcode_t opcode)
+static int is_IF_modifier (kprobe_opcode_t opcode)
 {
 	switch (opcode)
 	{
@@ -234,13 +330,13 @@ static int __kprobes is_IF_modifier (kprobe_opcode_t opcode)
 
 int arch_check_insn (struct arch_specific_insn *ainsn)
 {
-	DPRINF("Warrning: arch_check_insn is not implemented for x86\n");
+	DBPRINTF("Warrning: arch_check_insn is not implemented for x86\n");
 	return 0;
 }
 
 int arch_prepare_kretprobe (struct kretprobe *p)
 {
-	DPRINF("Warrning: arch_prepare_kretprobe is not implemented\n");
+	DBPRINTF("Warrning: arch_prepare_kretprobe is not implemented\n");
 	return 0;
 }
 
@@ -330,7 +426,7 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 
 int arch_prepare_uretprobe (struct kretprobe *p, struct task_struct *task)
 {
-	DPRINF("Warrning: arch_prepare_uretprobe is not implemented\n");
+	DBPRINTF("Warrning: arch_prepare_uretprobe is not implemented\n");
 	return 0;
 }
 
@@ -361,14 +457,14 @@ void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
 {
 	if (kcb->prev_kprobe.kp != NULL)
 	{
-		panic ("no space to save new probe[%lu]: task = %d/%s, prev %d/%p, current %d/%p, new %d/%p,",
-				nCount, current->pid, current->comm, kcb->prev_kprobe.kp->tgid, kcb->prev_kprobe.kp->addr, 
+		panic ("no space to save new probe[]: task = %d/%s, prev %d/%p, current %d/%p, new %d/%p,",
+				current->pid, current->comm, kcb->prev_kprobe.kp->tgid, kcb->prev_kprobe.kp->addr, 
 				kprobe_running()->tgid, kprobe_running()->addr, cur_p->tgid, cur_p->addr);
 	}
 
 
-	kcb->prev_kprobe.old_eflags = kcb->kprobe_old_eflags;
-	kcb->prev_kprobe.saved_eflags = kcb->kprobe_saved_eflags;
+	kcb->prev_kprobe.kp = kprobe_running();
+	kcb->prev_kprobe.status = kcb->kprobe_status;
 
 }
 
@@ -378,14 +474,12 @@ void restore_previous_kprobe (struct kprobe_ctlblk *kcb)
 	kcb->kprobe_status = kcb->prev_kprobe.status;
 	kcb->prev_kprobe.kp = NULL;
 	kcb->prev_kprobe.status = 0;
-	kcb->kprobe_old_eflags = kcb->prev_kprobe.old_eflags;
-	kcb->kprobe_saved_eflags = kcb->prev_kprobe.saved_eflags;
 }
 
 void set_current_kprobe (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
 {
 	__get_cpu_var (current_kprobe) = p;
-	DBPRINTF ("set_current_kprobe[%lu]: p=%p addr=%p\n", nCount, p, p->addr);
+	DBPRINTF ("set_current_kprobe[]: p=%p addr=%p\n", p, p->addr);
 	kcb->kprobe_saved_eflags = kcb->kprobe_old_eflags = (regs->EREG (flags) & (TF_MASK | IF_MASK));
 	if (is_IF_modifier (p->opcode))
 		kcb->kprobe_saved_eflags &= ~IF_MASK;
@@ -398,11 +492,10 @@ int kprobe_handler (struct pt_regs *regs)
 	kprobe_opcode_t *addr = NULL;
 	struct kprobe_ctlblk *kcb;	
 
-	nCount++;
 
 	/* We're in an interrupt, but this is clear and BUG()-safe. */
 	addr = (kprobe_opcode_t *) (regs->EREG (ip) - sizeof (kprobe_opcode_t));
-	DBPRINTF ("KPROBE[%lu]: regs->eip = 0x%lx addr = 0x%p\n", nCount, regs->EREG (ip), addr);
+	DBPRINTF ("KPROBE: regs->eip = 0x%lx addr = 0x%p\n", regs->EREG (ip), addr);
 
 	preempt_disable ();
 
@@ -545,14 +638,14 @@ int kprobe_handler (struct pt_regs *regs)
 	if (ret)
 	{
 		if (ret == 2) { // we have alreadyc called the handler, so just single step the instruction
-			DBPRINTF ("p->pre_handler[%lu] 2", nCount);
+			DBPRINTF ("p->pre_handler[] 2");
 			goto ss_probe;
 		}
-		DBPRINTF ("p->pre_handler[%lu] 1", nCount);
+		DBPRINTF ("p->pre_handler[] 1");
 		/* handler has already set things up, so skip ss setup */
 		return 1;
 	}
-	DBPRINTF ("p->pre_handler[%lu] 0", nCount);
+	DBPRINTF ("p->pre_handler[] 0");
 
 ss_probe:
 	DBPRINTF ("p = %p\n", p);
@@ -635,7 +728,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	return 1;
 }
 
-void __kprobes jprobe_return (void)
+void jprobe_return (void)
 {
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
 
@@ -646,9 +739,9 @@ void __kprobes jprobe_return (void)
 			"       nop			\n"::"b" (kcb->jprobe_saved_esp):"memory");
 }
 
-void __kprobes arch_uprobe_return (void)
+void arch_uprobe_return (void)
 {
-	DPRINTF("arch_uprobe_return (void) is empty");
+	DBPRINTF("arch_uprobe_return (void) is empty");
 }
 
 /*
@@ -675,7 +768,7 @@ void __kprobes arch_uprobe_return (void)
  *
  * This function also checks instruction size for preparing direct execution.
  */
-static void __kprobes resume_execution (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
+static void resume_execution (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
 {
 	unsigned long *tos, tos_dword = 0;
 	unsigned long copy_eip = (unsigned long) p->ainsn.insn;
@@ -783,7 +876,7 @@ no_change:
  * Interrupts are disabled on entry as trap1 is an interrupt gate and they
  * remain disabled thoroughout this function.
  */
-static int __kprobes post_kprobe_handler (struct pt_regs *regs)
+static int post_kprobe_handler (struct pt_regs *regs)
 {
 	struct kprobe *cur = kprobe_running ();
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
@@ -822,7 +915,7 @@ out:
 	return 1;
 }
 
-int __kprobes kprobe_fault_handler (struct pt_regs *regs, int trapnr)
+int kprobe_fault_handler (struct pt_regs *regs, int trapnr)
 {
 	struct kprobe *cur = kprobe_running ();
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
@@ -921,8 +1014,8 @@ int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, vo
 			break;
 	}
 	DBPRINTF ("ret=%d", ret);
-	if(ret == NOTIFY_STOP)
-		handled_exceptions++;
+	/* if(ret == NOTIFY_STOP) */
+	/* 	handled_exceptions++; */
 
 	return ret;
 }
@@ -956,18 +1049,18 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 	}
 }
 
-void __kprobes arch_arm_kprobe (struct kprobe *p)
+void arch_arm_kprobe (struct kprobe *p)
 {
 	text_poke (p->addr, ((unsigned char[])
 				{BREAKPOINT_INSTRUCTION}), 1);
 }
 
-void __kprobes arch_disarm_kprobe (struct kprobe *p)
+void arch_disarm_kprobe (struct kprobe *p)
 {
 	text_poke (p->addr, &p->opcode, 1);
 }
 
-void *__kprobes trampoline_probe_handler_x86 (struct pt_regs *regs)
+void * trampoline_probe_handler_x86 (struct pt_regs *regs)
 {
 	return (void *)trampoline_probe_handler(NULL, regs);
 }
@@ -978,7 +1071,7 @@ void *__kprobes trampoline_probe_handler_x86 (struct pt_regs *regs)
 /*
  * Called when the probe at kretprobe trampoline is hit
  */
-int __kprobes trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
+int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 {
 	struct kretprobe_instance *ri = NULL; 
 	struct hlist_head *head, empty_rp; 
@@ -1119,7 +1212,7 @@ int __kprobes trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	return 1;
 }
 
-void __kprobes __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
+void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 {
 	struct kretprobe_instance *ri;
 
@@ -1158,6 +1251,7 @@ void __kprobes __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *r
 	}
 }
 
+
 int asm_init_module_dependencies()
 {
 	INIT_MOD_DEP_VAR(module_alloc, module_alloc);
@@ -1179,7 +1273,7 @@ int asm_init_module_dependencies()
 
 int __init arch_init_kprobes (void)
 {
-	if (!arch_init_module_dependencies())
+	if (arch_init_module_dependencies())
 	{
 		DBPRINTF ("Unable to init module dependencies\n"); 
 		return -1;

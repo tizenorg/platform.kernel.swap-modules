@@ -49,8 +49,8 @@
 
  */
 
-#include "dbi_kprobe_deps.h"
-#include "arch/dbi_kprobes.h"
+#include "../../dbi_kprobes_deps.h"
+#include "../dbi_kprobes.h"
 
 typedef u8 kprobe_opcode_t;
 
@@ -91,17 +91,14 @@ typedef u8 kprobe_opcode_t;
 #define KPROBES_TRAMP_LEN		MAX_INSN_SIZE
 #define KPROBES_TRAMP_INSN_IDX          0
 
+extern int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, void *data);
+
 static struct notifier_block kprobe_exceptions_nb = {
 	.notifier_call = kprobe_exceptions_notify,
 	.priority = INT_MAX
 };
 
-struct prev_kprobe {
-	struct kprobe *kp;
-	unsigned long status;
-	unsigned long old_eflags;
-	unsigned long saved_eflags;
-};
+struct prev_kprobe;
 
 /* per-cpu kprobe control block */
 struct kprobe_ctlblk {
@@ -114,28 +111,15 @@ struct kprobe_ctlblk {
 	kprobe_opcode_t jprobes_stack[MAX_STACK_SIZE];
 };
 
-extern int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, void *data);
 
-void __kprobes resume_execution 
+static void resume_execution 
 (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb);
 
-int __kprobes post_kprobe_handler (struct pt_regs *regs);
+static int post_kprobe_handler (struct pt_regs *regs);
 
-int __kprobes
-kprobe_fault_handler (struct pt_regs *regs, int trapnr);
+int kprobe_fault_handler (struct pt_regs *regs, int trapnr);
 
-void *__kprobes trampoline_probe_handler_x86 (struct pt_regs *regs);
-
-DECLARE_MOD_FUNC_DEP(module_alloc, void *, unsigned long size);
-DECLARE_MOD_FUNC_DEP(module_free, void, struct module *mod, void *module_region);
-DECLARE_MOD_FUNC_DEP(fixup_exception, int, struct pt_regs * regs);
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26))
-DECLARE_MOD_FUNC_DEP(text_poke, void, void *addr, unsigned char *opcode, int len);
-#else
-DECLARE_MOD_FUNC_DEP(text_poke, void *, void *addr, const void *opcode, size_t len);
-#endif
-DECLARE_MOD_FUNC_DEP(show_registers, void, struct pt_regs * regs);
+void * trampoline_probe_handler_x86 (struct pt_regs *regs);
 
 /* Architecture specific copy of original instruction */
 struct arch_specific_insn {

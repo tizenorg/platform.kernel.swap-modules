@@ -1,4 +1,4 @@
-#include "kprobe_deps.h"
+#include "../../dbi_kprobes_deps.h"
 
 DECLARE_MOD_DEP_WRAPPER (module_alloc, void *, unsigned long size)
 IMP_MOD_DEP_WRAPPER (module_alloc, size)

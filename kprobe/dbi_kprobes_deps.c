@@ -67,7 +67,16 @@ DECLARE_MOD_FUNC_DEP(handle_mm_fault, int, struct mm_struct *mm, struct vm_area_
 #endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30) */
 
 DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *, struct task_struct *tsk);
+
+#ifdef CONFIG_HUGETLB_PAGE
+DECLARE_MOD_FUNC_DEP(follow_hugetlb_page, int, struct mm_struct *mm, struct vm_area_struct *vma, struct page **pages, struct vm_area_struct **vmas, unsigned long *position, int *length, int i, int write);
+#endif
+
+#ifdef	__HAVE_ARCH_GATE_AREA
+DECLARE_MOD_FUNC_DEP(in_gate_area, int, struct task_struct *tsk,unsigned long addr);
+#else
 DECLARE_MOD_FUNC_DEP(in_gate_area_no_task, int, unsigned long addr);
+#endif
 DECLARE_MOD_FUNC_DEP(follow_page, \
 		struct page *, struct vm_area_struct * vma, \
 		unsigned long address, unsigned int foll_flags);
@@ -113,8 +122,18 @@ IMP_MOD_DEP_WRAPPER (handle_mm_fault, mm, vma, address, flags)
 			struct vm_area_struct *, struct task_struct *tsk)
 IMP_MOD_DEP_WRAPPER (get_gate_vma, tsk)
 
+#ifdef CONFIG_HUGETLB_PAGE
+	DECLARE_MOD_DEP_WRAPPER (follow_hugetlb_page, int, struct mm_struct *mm, struct vm_area_struct *vma, struct page **pages, struct vm_area_struct **vmas, unsigned long *position, int *length, int i, int write)
+	IMP_MOD_DEP_WRAPPER (follow_hugetlb_page, mm, vma, pages, vmas, position, length, i, write)
+#endif
+
+#ifdef	__HAVE_ARCH_GATE_AREA
+	DECLARE_MOD_DEP_WRAPPER (in_gate_area, int, struct task_struct *tsk, unsigned long addr)
+	IMP_MOD_DEP_WRAPPER (in_gate_area, tsk, addr)
+#else
 	DECLARE_MOD_DEP_WRAPPER (in_gate_area_no_task, int, unsigned long addr)
 IMP_MOD_DEP_WRAPPER (in_gate_area_no_task, addr)
+#endif
 
 	DECLARE_MOD_DEP_WRAPPER (follow_page, \
 			struct page *, struct vm_area_struct * vma, \
@@ -151,8 +170,18 @@ int init_module_dependencies()
 	INIT_MOD_DEP_VAR(flush_ptrace_access, flush_ptrace_access);
 	INIT_MOD_DEP_VAR(find_extend_vma, find_extend_vma);
 	INIT_MOD_DEP_VAR(get_gate_vma, get_gate_vma);
+
+#ifdef CONFIG_HUGETLB_PAGE
+	INIT_MOD_DEP_VAR(follow_hugetlb_page, follow_hugetlb_page);
+#endif
+
+#ifdef	__HAVE_ARCH_GATE_AREA
+	INIT_MOD_DEP_VAR(in_gate_area, in_gate_area);
+#else
 	INIT_MOD_DEP_VAR(in_gate_area_no_task, in_gate_area_no_task);
+#endif
 	INIT_MOD_DEP_VAR(follow_page, follow_page);
+
 	INIT_MOD_DEP_VAR(__flush_anon_page, __flush_anon_page);
 	INIT_MOD_DEP_VAR(vm_normal_page, vm_normal_page);
 	INIT_MOD_DEP_VAR(access_process_vm, access_process_vm);
