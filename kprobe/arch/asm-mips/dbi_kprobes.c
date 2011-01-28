@@ -32,6 +32,32 @@
 #include "../../dbi_kdebug.h"
 #include "../../dbi_insn_slots.h"
 #include "../../dbi_kprobes_deps.h"
+#include "../../dbi_uprobes.h"
+
+unsigned int *arr_traps_original;
+
+extern unsigned int *sched_addr;
+
+extern struct kprobe * per_cpu__current_kprobe;
+extern spinlock_t kretprobe_lock;
+extern struct kretprobe *sched_rp;
+
+extern struct hlist_head kprobe_insn_pages;
+extern struct hlist_head uprobe_insn_pages;
+
+extern struct kprobe *kprobe_running (void);
+extern struct kprobe_ctlblk *get_kprobe_ctlblk (void);
+extern void reset_current_kprobe (void);
+
+extern unsigned long (*kallsyms_search) (const char *name);
+
+unsigned int arr_traps_template[] = {  0x3c010000,   // lui  a1       [0]
+	0x24210000,   // addiu a1, a1  [1]
+	0x00200008,   // jr a1         [2]
+	0x00000000,   // nop
+	0xffffffff    // end
+};
+
 
 /*
  * Function return probe trampoline:
@@ -54,6 +80,8 @@ struct kprobe trampoline_p =
 	.pre_handler = trampoline_probe_handler
 };
 
+void gen_insn_execbuf(void);
+
 void gen_insn_execbuf_holder (void)
 {
 	asm volatile (".global gen_insn_execbuf\n" 
@@ -62,7 +90,7 @@ void gen_insn_execbuf_holder (void)
 			"nop\n"                 //ssbreak 
 			"nop\n");               //retbreak
 }
-
+		 	 	 
 
 int arch_check_insn (struct arch_specific_insn *ainsn)
 {
@@ -129,12 +157,14 @@ int arch_check_insn (struct arch_specific_insn *ainsn)
 
 int arch_prepare_kretprobe (struct kretprobe *p)
 {
-	DPRINF("Warrning: arch_prepare_kretprobe is not implemented\n");
+	DBPRINTF("Warrning: arch_prepare_kretprobe is not implemented\n");
 	return 0;
 }
 
 int arch_prepare_kprobe (struct kprobe *p)
 {
+	kprobe_opcode_t insns[KPROBES_TRAMP_LEN];
+
 	int ret = 0;
 	if (!ret)
 	{
@@ -221,7 +251,7 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 
 int arch_prepare_uretprobe (struct kretprobe *p, struct task_struct *task)
 {
-	DPRINF("Warrning: arch_prepare_uretprobe is not implemented\n");
+	DBPRINTF("Warrning: arch_prepare_uretprobe is not implemented\n");
 	return 0;
 }
 
@@ -241,8 +271,8 @@ void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
 {
 	if (kcb->prev_kprobe.kp != NULL)
 	{
-		panic ("no space to save new probe[%lu]: task = %d/%s, prev %d/%p, current %d/%p, new %d/%p,",
-				nCount, current->pid, current->comm, kcb->prev_kprobe.kp->tgid, kcb->prev_kprobe.kp->addr, 
+		panic ("no space to save new probe[]: task = %d/%s, prev %d/%p, current %d/%p, new %d/%p,",
+				current->pid, current->comm, kcb->prev_kprobe.kp->tgid, kcb->prev_kprobe.kp->addr, 
 				kprobe_running()->tgid, kprobe_running()->addr, cur_p->tgid, cur_p->addr);
 	}
 
@@ -261,7 +291,7 @@ void restore_previous_kprobe (struct kprobe_ctlblk *kcb)
 void set_current_kprobe (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
 {
 	__get_cpu_var (current_kprobe) = p;
-	DBPRINTF ("set_current_kprobe[%lu]: p=%p addr=%p\n", nCount, p, p->addr);
+	DBPRINTF ("set_current_kprobe[]: p=%p addr=%p\n", p, p->addr);
 }
 
 int kprobe_handler (struct pt_regs *regs)
@@ -271,7 +301,6 @@ int kprobe_handler (struct pt_regs *regs)
 	kprobe_opcode_t *addr = NULL, *ssaddr = 0;
 	struct kprobe_ctlblk *kcb;
 
-	nCount++;
 	/* We're in an interrupt, but this is clear and BUG()-safe. */
 
 	addr = (kprobe_opcode_t *) regs->cp0_epc;
@@ -409,7 +438,7 @@ int kprobe_handler (struct pt_regs *regs)
 
 	if (ret)
 	{
-		DBPRINTF ("p->pre_handler[%lu] 1", nCount);
+		DBPRINTF ("p->pre_handler[] 1");
 		/* handler has already set things up, so skip ss setup */
 		return 1;
 	}
@@ -422,7 +451,7 @@ no_kprobe:
 
 void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 {
-	DPRINTF("patch_suspended_task_ret_addr is not implemented");
+	DBPRINTF("patch_suspended_task_ret_addr is not implemented");
 }
 
 int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
@@ -480,19 +509,19 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 }
 
 
-void __kprobes jprobe_return (void)
+void jprobe_return (void)
 {
 	preempt_enable_no_resched();
 }
 
-void __kprobes arch_uprobe_return (void)
+void arch_uprobe_return (void)
 {
 	preempt_enable_no_resched();
 }
 
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 {
-# ifndef REENTER
+#ifndef REENTER
 	//kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
 	kprobe_opcode_t insns[2];
 
@@ -503,14 +532,14 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 		//p->opcode = *p->addr;
 		if (read_proc_vm_atomic (current, (unsigned long) (p->addr), &(p->opcode), sizeof (p->opcode)) < sizeof (p->opcode))
 		{
-			printk ("ERROR[%lu]: failed to read vm of proc %s/%u addr %p.", nCount, current->comm, current->pid, p->addr);
+			printk ("ERROR[]: failed to read vm of proc %s/%u addr %p.", current->comm, current->pid, p->addr);
 			return -1;
 		}
 		//*p->addr = BREAKPOINT_INSTRUCTION;
 		//*(p->addr+1) = p->opcode;             
 		if (write_proc_vm_atomic (current, (unsigned long) (p->addr), insns, sizeof (insns)) < sizeof (insns))
 		{
-			printk ("ERROR[%lu]: failed to write vm of proc %s/%u addr %p.", nCount, current->comm, current->pid, p->addr);
+			printk ("ERROR[]: failed to write vm of proc %s/%u addr %p.", current->comm, current->pid, p->addr);
 			return -1;
 		}
 	}
@@ -524,22 +553,23 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 	}
 
 	reset_current_kprobe ();
+#endif
 	return 0;
 }
 
-void __kprobes arch_arm_kprobe (struct kprobe *p)
+void arch_arm_kprobe (struct kprobe *p)
 {
 	*p->addr = BREAKPOINT_INSTRUCTION;
 	flush_icache_range ((unsigned long) p->addr, (unsigned long) p->addr + sizeof (kprobe_opcode_t));
 }
 
-void __kprobes arch_disarm_kprobe (struct kprobe *p)
+void arch_disarm_kprobe (struct kprobe *p)
 {
 	*p->addr = p->opcode;
 	flush_icache_range ((unsigned long) p->addr, (unsigned long) p->addr + sizeof (kprobe_opcode_t));
 }
 
-int __kprobes trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
+int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 {
 	struct kretprobe_instance *ri = NULL; 
 	struct hlist_head *head, empty_rp; 
@@ -663,7 +693,7 @@ int __kprobes trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	return 1;
 }
 
-void __kprobes __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
+void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 {
 
 	struct kretprobe_instance *ri;
@@ -675,7 +705,6 @@ void __kprobes __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *r
 		ri->rp = rp; 
 		ri->rp2 = NULL; 
 		ri->task = current;
-#if defined(CONFIG_MIPS)
 		ri->ret_addr = (kprobe_opcode_t *) regs->regs[31];
 		if (rp->kp.tgid)
 			regs->regs[31] = (unsigned long) (rp->kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
@@ -688,6 +717,13 @@ void __kprobes __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *r
 		rp->nmissed++;
 	}
 }
+
+DECLARE_MOD_CB_DEP(flush_icache_range, \
+		void, unsigned long __user start, unsigned long __user end);
+DECLARE_MOD_CB_DEP(flush_icache_page, \
+		void, struct vm_area_struct * vma, struct page * page);
+DECLARE_MOD_CB_DEP(flush_cache_page, \
+		void, struct vm_area_struct * vma, unsigned long page);
 
 int asm_init_module_dependencies()
 {
@@ -704,13 +740,15 @@ int __init arch_init_kprobes (void)
 	unsigned int do_bp_handler; 
 	unsigned int kprobe_handler_addr;
 
-	unsigned int num_insns = 0;
+	unsigned int insns_num = 0;
 	unsigned int code_size = 0;
 
 	unsigned int reg_hi; 
 	unsigned int reg_lo;
 
-	if (!arch_init_module_dependencies())
+	int ret;
+
+	if (arch_init_module_dependencies())
 	{
 		DBPRINTF ("Unable to init module dependencies\n"); 
 		return -1;
@@ -731,12 +769,12 @@ int __init arch_init_kprobes (void)
 	}
 	memcpy (arr_traps_original, (void *) do_bp_handler, code_size);
 
-	xRegHi = HIWORD (xKProbeHandler);
-	xRegLo = LOWORD (xKProbeHandler); 
-	if (xRegLo >= 0x8000) 
-		xRegHi += 0x0001; 
-	arrTrapsTemplate[REG_HI_INDEX] |= xRegHi; 
-	arrTrapsTemplate[REG_LO_INDEX] |= xRegLo;
+	reg_hi = HIWORD (kprobe_handler_addr);
+	reg_lo = LOWORD (kprobe_handler_addr); 
+	if (reg_lo >= 0x8000) 
+		reg_hi += 0x0001; 
+	arr_traps_template[REG_HI_INDEX] |= reg_hi; 
+	arr_traps_template[REG_LO_INDEX] |= reg_lo;
 
 	// Insert new code
 	memcpy ((void *) do_bp_handler, arr_traps_template, code_size); 

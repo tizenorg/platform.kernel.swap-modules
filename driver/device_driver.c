@@ -20,7 +20,9 @@
 #include "CProfile.h"
 #include <linux/notifier.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 static BLOCKING_NOTIFIER_HEAD(inperfa_notifier_list);
+#endif
 pid_t gl_nNotifyTgid;
 EXPORT_SYMBOL_GPL(gl_nNotifyTgid);
 
@@ -67,6 +69,7 @@ void device_down (void)
 	unregister_chrdev(device_major, device_name);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 void inperfa_register_notify (struct notifier_block *nb)
 {
 	blocking_notifier_chain_register(&inperfa_notifier_list, nb);
@@ -78,6 +81,7 @@ void inperfa_unregister_notify (struct notifier_block *nb)
 	blocking_notifier_chain_unregister(&inperfa_notifier_list, nb);
 }
 EXPORT_SYMBOL_GPL(inperfa_unregister_notify);
+#endif
 
 void notify_user (event_id_t event_id)
 {
@@ -448,7 +452,9 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 		}
 	case EC_IOCTL_ATTACH:
 		result = ec_user_attach ();
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 		blocking_notifier_call_chain(&inperfa_notifier_list, EC_IOCTL_ATTACH, (void*)NULL);
+#endif
 		DPRINTF("Attach Probes");
 		break;
 	case EC_IOCTL_ACTIVATE:
@@ -470,7 +476,9 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 		vfree(bundle);
 		result = 0;
 		DPRINTF("Stop and Detach Probes");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 		blocking_notifier_call_chain(&inperfa_notifier_list, EC_IOCTL_STOP_AND_DETACH, (void*)&gl_nNotifyTgid);
+#endif
 		break;
 	}
 	case EC_IOCTL_WAIT_NOTIFICATION:

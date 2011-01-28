@@ -135,11 +135,12 @@ IMP_MOD_DEP_WRAPPER (get_gate_vma, tsk)
 IMP_MOD_DEP_WRAPPER (in_gate_area_no_task, addr)
 #endif
 
+#if (LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 11))
 	DECLARE_MOD_DEP_WRAPPER (follow_page, \
 			struct page *, struct vm_area_struct * vma, \
 			unsigned long address, unsigned int foll_flags)
 IMP_MOD_DEP_WRAPPER (follow_page, vma, address, foll_flags)
-
+#endif
 	DECLARE_MOD_DEP_WRAPPER (__flush_anon_page, \
 			void, struct vm_area_struct *vma, \
 			struct page *page, unsigned long vmaddr)

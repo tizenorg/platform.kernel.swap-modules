@@ -27,12 +27,12 @@
 #ifdef EC_ARCH_i386
 /* ARCH == i386 */
 //#include <linux/kprobes.h>
-#include "../kprobe/kprobes.h"
+#include "../kprobe/dbi_kprobes.h"
 #endif /* def EC_ARCH_i386 */
 
 #ifdef EC_ARCH_mips
 /* ARCH == mips */
-#include "../kprobe/kprobes.h"
+#include "../kprobe/dbi_kprobes.h"
 #endif /* def EC_ARCH_mips */
 
 unsigned long pf_addr;

@@ -28,8 +28,8 @@
  *
  */
 
-#include "arch/dbi_kprobes.h"
-#include "dbi_kprobe_deps.h"
+#include "../../dbi_kprobes_deps.h"
+#include "../dbi_kprobes.h"
 
 typedef unsigned long kprobe_opcode_t;
 
@@ -98,19 +98,6 @@ typedef unsigned long kprobe_opcode_t;
 #define MIPS_BREAK_FUNC		0x0000000D
 #define MIPS_SYSCALL_FUNC	0x0000000C
 
-DECLARE_MOD_CB_DEP(flush_icache_range, \
-		void, unsigned long __user start, unsigned long __user end);
-DECLARE_MOD_CB_DEP(flush_icache_page, \
-		void, struct vm_area_struct * vma, struct page * page);
-DECLARE_MOD_CB_DEP(flush_cache_page, \
-		void, struct vm_area_struct * vma, unsigned long page);
-
-unsigned int arr_traps_template[] = {  0x3c010000,   // lui  a1       [0]
-	0x24210000,   // addiu a1, a1  [1]
-	0x00200008,   // jr a1         [2]
-	0x00000000,   // nop
-	0xffffffff    // end
-}
 
 /* per-cpu kprobe control block */
 struct kprobe_ctlblk {
@@ -135,11 +122,5 @@ typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned
 void gen_insn_execbuf_holder (void);
 
 void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp);
-
-static struct kprobe trampoline_p =
-{
-	.addr = (kprobe_opcode_t *) & kretprobe_trampoline,
-	.pre_handler = trampoline_probe_handler
-};
 
 #endif /*  _SRC_ASM_MIPS_KPROBES_H */

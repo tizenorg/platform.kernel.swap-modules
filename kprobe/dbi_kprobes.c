@@ -87,7 +87,6 @@ DEFINE_PER_CPU (struct kprobe *, kprobe_instance) = NULL;
 struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 
-struct mutex kprobe_mutex;
 atomic_t kprobe_count;
 
 

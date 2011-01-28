@@ -92,7 +92,7 @@ static int __init InitializeModule(void)
 	}
 
 #if defined(CONFIG_MIPS)
-	flush_cache_page = (void *) fp ("r4k_flush_cache_page");
+	flush_cache_page = (void *) lookup_name ("r4k_flush_cache_page");
 	if (!flush_cache_page)
 	{
 		EPRINTF ("failed to resolve 'flush_cache_page'!\n");
