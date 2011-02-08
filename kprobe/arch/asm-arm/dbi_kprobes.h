@@ -164,6 +164,9 @@ typedef unsigned long kprobe_opcode_t;
 # define MASK_THUMB_INSN_DP		0xFC00			// 111111xxxxxxxxxx
 # define PTRN_THUMB_INSN_DP		0x4000			// 010000xxxxxxxxxx
 
+# define MASK_THUMB_INSN_APC		0xF800			// 11111xxxxxxxxxxx
+# define PTRN_THUMB_INSN_APC		0xA000			// 10100xxxxxxxxxxx	ADD Rd, [PC, #<immed_8> * 4]
+
 # define MASK_THUMB2_INSN_DPI		0xFBE08000		// 11111x11111xxxxx1xxxxxxxxxxxxxxx
 //# define PTRN_THUMB2_INSN_DPI		0xF0000000		// 11110x0xxxxxxxxx0xxxxxxxxxxxxxxx				/? A6-19 ARM DDI 0406B
 # define PTRN_THUMB2_INSN_DPI		0xF2000000		// 11110x1xxxxxxxxx0xxxxxxxxxxxxxxx				/? A6-19 ARM DDI 0406B

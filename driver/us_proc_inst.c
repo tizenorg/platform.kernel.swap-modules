@@ -889,14 +889,34 @@ unsigned long ujprobe_event_pre_handler (us_proc_ip_t * ip, struct pt_regs *regs
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6)
 {
 	us_proc_ip_t *ip = __get_cpu_var (gpCurIp);
+
+#if defined(CONFIG_ARM)
+	if (ip->offset & 0x01)
+	{
+		pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", ((unsigned long)ip->jprobe.kp.addr | 0x01), arg1, arg2, arg3, arg4, arg5, arg6);
+	}else{
+		pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", ip->jprobe.kp.addr, arg1, arg2, arg3, arg4, arg5, arg6);
+	}
+#else
 	pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", ip->jprobe.kp.addr, arg1, arg2, arg3, arg4, arg5, arg6);
+#endif
 	uprobe_return ();
 }
 
 int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, us_proc_ip_t * ip)
 {
 	int retval = regs_return_value(regs);
+
+#if defined(CONFIG_ARM)
+	if (ip->offset & 0x01)
+	{
+		pack_event_info (US_PROBE_ID, RECORD_RET, "pd", ((unsigned long)ip->retprobe.kp.addr | 0x01), retval);
+	}else{
+		pack_event_info (US_PROBE_ID, RECORD_RET, "pd", ip->retprobe.kp.addr, retval);
+	}
+#else
 	pack_event_info (US_PROBE_ID, RECORD_RET, "pd", ip->retprobe.kp.addr, retval);
+#endif
 	return 0;
 }
 

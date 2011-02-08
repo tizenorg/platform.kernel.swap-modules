@@ -55,6 +55,14 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 
 	DBPRINTF ("p->addr = 0x%p p = 0x%p\n", p->addr, p);
 
+// thumb address = address-1;
+#if defined(CONFIG_ARM)
+	if ((unsigned long) p->addr & 0x01)
+	{
+		p->addr = (unsigned long)p->addr & 0xfffffffe;
+	}
+#endif
+
 	p->mod_refcounted = 0;
 	p->nmissed = 0;
 #ifdef KPROBES_PROFILE
