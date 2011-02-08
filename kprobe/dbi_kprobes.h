@@ -252,6 +252,7 @@ struct kretprobe * clone_kretprobe (struct kretprobe *rp);
 struct kretprobe_instance * get_used_rp_inst (struct kretprobe *rp);
 
 
+int alloc_nodes_kretprobe(struct kretprobe *rp);
 int register_kretprobe (struct kretprobe *rp, int atomic);
 void unregister_kretprobe (struct kretprobe *rp, int atomic);
 
@@ -260,6 +261,7 @@ void kretprobe_assert (struct kretprobe_instance *ri,
 
 
 struct kretprobe_instance *get_free_rp_inst (struct kretprobe *rp);
+struct kretprobe_instance *get_free_rp_inst_no_alloc (struct kretprobe *rp);
 void free_rp_inst (struct kretprobe *rp);
 void add_rp_inst (struct kretprobe_instance *ri);
 void recycle_rp_inst (struct kretprobe_instance *ri, struct hlist_head *head);

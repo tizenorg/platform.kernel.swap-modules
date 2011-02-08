@@ -339,7 +339,21 @@ struct kretprobe_instance *get_free_rp_inst (struct kretprobe *rp)
 {
 	struct hlist_node *node;
 	struct kretprobe_instance *ri;
-	hlist_for_each_entry (ri, node, &rp->free_instances, uflist) 
+	hlist_for_each_entry (ri, node, &rp->free_instances, uflist)
+		return ri;
+	if(!alloc_nodes_kretprobe(rp)){
+	     hlist_for_each_entry (ri, node, &rp->free_instances, uflist)
+		  return ri;
+	}
+	return NULL;
+}
+
+/* Called with kretprobe_lock held */
+struct kretprobe_instance *get_free_rp_inst_no_alloc (struct kretprobe *rp)
+{
+	struct hlist_node *node;
+	struct kretprobe_instance *ri;
+	hlist_for_each_entry (ri, node, &rp->free_instances, uflist)
 		return ri;
 	return NULL;
 }
@@ -397,7 +411,7 @@ struct hlist_head  * kretprobe_inst_table_head (struct task_struct *tsk)
 void free_rp_inst (struct kretprobe *rp)
 {
 	struct kretprobe_instance *ri;
-	while ((ri = get_free_rp_inst (rp)) != NULL)
+	while ((ri = get_free_rp_inst_no_alloc (rp)) != NULL)
 	{
 		hlist_del (&ri->uflist);
 		kfree (ri);
@@ -748,6 +762,48 @@ int pre_handler_kretprobe (struct kprobe *p, struct pt_regs *regs)
 
 struct kretprobe *sched_rp;
 
+#define SCHED_RP_NR 200
+#define COMMON_RP_NR 10
+
+int alloc_nodes_kretprobe(struct kretprobe *rp)
+{
+     int alloc_nodes;
+     struct kretprobe_instance *inst;
+     int i;
+
+     DBPRINTF("Alloc aditional mem for retprobes");
+
+     if((unsigned int)rp->kp.addr == sched_addr){
+	  rp->maxactive += SCHED_RP_NR;//max (100, 2 * NR_CPUS);
+	  alloc_nodes = SCHED_RP_NR;
+     }
+     else
+     {
+#if 1//def CONFIG_PREEMPT
+	  rp->maxactive += max (COMMON_RP_NR, 2 * NR_CPUS);
+#else
+	  rp->maxacpptive += NR_CPUS;
+#endif
+	  alloc_nodes = COMMON_RP_NR;
+     }
+     /* INIT_HLIST_HEAD (&rp->used_instances); */
+     /* INIT_HLIST_HEAD (&rp->free_instances); */
+     for (i = 0; i < alloc_nodes; i++)
+     {
+	  inst = kmalloc (sizeof (struct kretprobe_instance), GFP_KERNEL);
+	  if (inst == NULL)
+	  {
+	       free_rp_inst (rp);
+	       return -ENOMEM;
+	  }
+	  INIT_HLIST_NODE (&inst->uflist);
+	  hlist_add_head (&inst->uflist, &rp->free_instances);
+     }
+
+     DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
+     return 0;
+}
+
 int register_kretprobe (struct kretprobe *rp, int atomic)
 {
 	int ret = 0;
@@ -764,11 +820,11 @@ int register_kretprobe (struct kretprobe *rp, int atomic)
 
 	/* Pre-allocate memory for max kretprobe instances */
 	if((unsigned int)rp->kp.addr == sched_addr)
-		rp->maxactive = 1000;//max (100, 2 * NR_CPUS);
+		rp->maxactive = SCHED_RP_NR;//max (100, 2 * NR_CPUS);
 	else if (rp->maxactive <= 0)
 	{
 #if 1//def CONFIG_PREEMPT
-		rp->maxactive = max (10, 2 * NR_CPUS);
+		rp->maxactive = max (COMMON_RP_NR, 2 * NR_CPUS);
 #else
 		rp->maxactive = NR_CPUS;
 #endif
