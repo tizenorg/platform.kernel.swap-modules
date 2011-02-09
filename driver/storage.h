@@ -61,10 +61,10 @@ extern void storage_down (void);
 extern void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char *fmt, ...);
 
 /* Set most links from us_proc_info to data in the bundle */
-int link_bundle();
+int link_bundle(void);
 
 /* Undo the actions of link_bundle() */
-void unlink_bundle();
+void unlink_bundle(void);
 
 /*
     Adds non-predefined kernel probe to the list.

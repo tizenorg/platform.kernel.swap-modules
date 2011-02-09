@@ -874,7 +874,7 @@ EXPORT_PER_CPU_SYMBOL_GPL(gpUserRegs);
 // XXX MCPP: introduced custom default handlers defined in (exported from) another kernel module(s)
 unsigned long (* ujprobe_event_pre_handler_custom_p)(us_proc_ip_t *, struct pt_regs *) = NULL;
 EXPORT_SYMBOL(ujprobe_event_pre_handler_custom_p);
-void (* ujprobe_event_handler_custom_p)() = NULL;
+void (* ujprobe_event_handler_custom_p)(void) = NULL;
 EXPORT_SYMBOL(ujprobe_event_handler_custom_p);
 int (* uretprobe_event_handler_custom_p)(struct kretprobe_instance *, struct pt_regs *, us_proc_ip_t *) = NULL;
 EXPORT_SYMBOL(uretprobe_event_handler_custom_p);
