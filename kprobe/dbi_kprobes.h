@@ -143,17 +143,6 @@ struct kprobe
 	// if original function should be called
 	// not supported for X86, not tested for MIPS
 	kprobe_opcode_t *ss_addr;
-#ifdef _DEBUG
-	unsigned long entry_count;
-	unsigned long step_count;
-	unsigned long exit_count;
-	unsigned long lr;
-#endif
-#ifdef KPROBES_PROFILE
-	struct timeval start_tm;
-	struct timeval hnd_tm_sum;
-	unsigned long count;
-#endif
 };
 
 typedef unsigned long (*kprobe_pre_entry_handler_t) (void *priv_arg, struct pt_regs * regs);

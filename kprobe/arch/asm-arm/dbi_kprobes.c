@@ -82,6 +82,7 @@ static struct kprobe *my_p[0xffff];
 static struct task_struct *my_task[0xffff];
 static int my_atomic[0xffff];
 static int my_probe = 0;
+static int my_probe_lock = 0;
 static int my_handler_lock = 0;
 
 
@@ -187,6 +188,7 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 			*((unsigned short*)insns + 4) = ((insn & 0xffff) + 0x5000);		// LDR Rd, [SP, #immed_8*4]
 		}
 	}
+
 	return 0;
 }
 
@@ -256,6 +258,7 @@ int arch_check_insn_thumb (struct arch_specific_insn *ainsn)
 		DBPRINTF ("Bad insn arch_check_insn_thumb: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
+
 	return ret;
 }
 
@@ -415,6 +418,12 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 	}
 	if (!ret)
 	{
+		if (my_probe_lock == 0)
+		{
+			my_probe = 0;
+			my_probe_lock = 1;
+		}
+
 		my_p[my_probe] = p;
 		my_task[my_probe] = task;
 		my_atomic[my_probe] = atomic;
@@ -497,8 +506,8 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 //		*p->addr = p->opcode;
 //		flush_icache_range ((unsigned long) p->addr, (unsigned long) p->addr + sizeof (kprobe_opcode_t));
 
-		if (!read_proc_vm_atomic (task, (unsigned long) p->addr, &insn, MAX_INSN_SIZE * sizeof(kprobe_opcode_t)))
-			panic ("failed to read memory %p!\n", p->addr);
+//		if (!read_proc_vm_atomic (task, (unsigned long) p->addr, &insn, MAX_INSN_SIZE * sizeof(kprobe_opcode_t)))
+//			panic ("failed to read memory %p!\n", p->addr);
 
 		insn[0] = p->opcode;
 
@@ -532,7 +541,6 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_MATCH (SIO, insn[0]) &&
 							(ARM_INSN_REG_RD (insn[0]) == 15)))
 				{
-
 					pc_dep = 1;
 					DBPRINTF ("Unboostable insn %lx/%p/%d, DPI/LIO/SIO\n", insn[0], p, p->ainsn.boostable);
 				}
@@ -628,8 +636,8 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 //		*p->addr = p->opcode;
 //		flush_icache_range ((unsigned long) p->addr, (unsigned long) p->addr + sizeof (kprobe_opcode_t));
 
-		if (!read_proc_vm_atomic (task, (unsigned long) p->addr, &insn, MAX_INSN_SIZE * sizeof(kprobe_opcode_t)))
-			panic ("failed to read memory %p!\n", p->addr);
+//		if (!read_proc_vm_atomic (task, (unsigned long) p->addr, &insn, MAX_INSN_SIZE * sizeof(kprobe_opcode_t)))
+//			panic ("failed to read memory %p!\n", p->addr);
 
 		insn[0] = p->opcode;
 
@@ -667,7 +675,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 				*((unsigned short*)insns + 15) = ((unsigned short) (p->addr) + 2) >> 16;
 			}
 
-			if (!write_proc_vm_atomic (task, (unsigned long) p->ainsn.insn, insns, sizeof (insns)))
+			if (!write_proc_vm_atomic (task, (unsigned long) p->ainsn.insn, insns, 16 * 2))
 			{
 				panic("failed to write memory %p!\n", p->ainsn.insn);
 				DBPRINTF ("failed to write insn slot to process memory: insn %p, addr %p, probe %p!", insn, p->ainsn.insn, p->addr);
@@ -691,8 +699,12 @@ int kprobe_handler (struct pt_regs *regs)
 	int my_pr = 0;
 	int i = 0;
 
+	struct kprobe *pp = 0;
+
 	if (user_mode(regs))
 	{
+		if (my_probe_lock == 1) my_probe_lock = 0;
+
 		if (!thumb_mode ( regs )) addr = (kprobe_opcode_t *) (regs->uregs[15] - 4);
 		else addr = (kprobe_opcode_t *) (regs->uregs[15] - 2);
 
@@ -712,21 +724,22 @@ int kprobe_handler (struct pt_regs *regs)
 		{
 			my_handler_lock = 1;
 
+			pp = get_kprobe (addr, current->tgid, current);
+
 			if (thumb_mode(regs))
 			{
-				if ((ret = arch_copy_trampoline_thumb_uprobe(my_p[my_pr], my_task[my_pr], my_atomic[my_pr])) != 0)
+				if ((ret = arch_copy_trampoline_thumb_uprobe(pp, my_task[my_pr], my_atomic[my_pr])) != 0)
 				{
 					printk(" >>>>> arch_copy_trampoline_thumb_uprobe error\n");
 					return ret;
 				}
 			}else{
-				if ((ret = arch_copy_trampoline_arm_uprobe(my_p[my_pr], my_task[my_pr], my_atomic[my_pr])) != 0)
+				if ((ret = arch_copy_trampoline_arm_uprobe(pp, my_task[my_pr], my_atomic[my_pr])) != 0)
 				{
 					printk(" >>>>> arch_copy_trampoline_arm_uprobe error\n");
 					return ret;
 				}
 			}
-			my_pr++;
 		}
 	}
 
@@ -736,7 +749,6 @@ int kprobe_handler (struct pt_regs *regs)
 	else regs->uregs[15] -= 2;
 
 	addr = (kprobe_opcode_t *) regs->uregs[15];
-
 
 //	DBPRINTF ("KPROBE: regs->uregs[15] = 0x%lx addr = 0x%p\n", regs->uregs[15], addr);
 	//DBPRINTF("regs->uregs[14] = 0x%lx\n", regs->uregs[14]);
@@ -1086,7 +1098,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 		if (!thumb_mode( regs ))
 			trampoline_address = (unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
 		else
-			trampoline_address = (unsigned long)(p->ainsn.insn + 0x17);
+			trampoline_address = (unsigned long)(p->ainsn.insn) + 0x17;
 	}
 
 	INIT_HLIST_HEAD (&empty_rp);
@@ -1158,10 +1170,12 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 
 		if (thumb_mode( regs ) && !(regs->uregs[14] & 0x01))
 		{
+			printk(" >>>>> switch to arm\n");
 			regs->ARM_cpsr &= 0xFFFFFFDF;
 		}else{
 			if (user_mode( regs ) && (regs->uregs[14] & 0x01))
 			{
+				printk(" >>>>> switch to thumb\n");
 				regs->ARM_cpsr |= 0x20;
 			}
 		}
@@ -1197,8 +1211,6 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 			}
 		}
 	}
-
-
 
 	spin_unlock_irqrestore (&kretprobe_lock, flags);
 	hlist_for_each_entry_safe (ri, node, tmp, &empty_rp, hlist)
