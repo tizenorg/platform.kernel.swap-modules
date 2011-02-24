@@ -790,7 +790,7 @@ int alloc_nodes_kretprobe(struct kretprobe *rp)
      /* INIT_HLIST_HEAD (&rp->free_instances); */
      for (i = 0; i < alloc_nodes; i++)
      {
-	  inst = kmalloc (sizeof (struct kretprobe_instance), GFP_KERNEL);
+	  inst = kmalloc (sizeof (struct kretprobe_instance), GFP_ATOMIC);
 	  if (inst == NULL)
 	  {
 	       free_rp_inst (rp);
@@ -809,6 +809,7 @@ int register_kretprobe (struct kretprobe *rp, int atomic)
 	int ret = 0;
 	struct kretprobe_instance *inst;
 	int i;
+	int priority = atomic ? GFP_ATOMIC : GFP_KERNEL;
 	DBPRINTF ("START");
 
 	rp->kp.pre_handler = pre_handler_kretprobe;
@@ -833,7 +834,7 @@ int register_kretprobe (struct kretprobe *rp, int atomic)
 	INIT_HLIST_HEAD (&rp->free_instances);
 	for (i = 0; i < rp->maxactive; i++)
 	{
-		inst = kmalloc (sizeof (struct kretprobe_instance), GFP_KERNEL);
+		inst = kmalloc (sizeof (struct kretprobe_instance), priority);
 		if (inst == NULL)
 		{
 			free_rp_inst (rp);
