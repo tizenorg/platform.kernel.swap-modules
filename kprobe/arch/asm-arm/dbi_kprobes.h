@@ -80,26 +80,26 @@ typedef unsigned long kprobe_opcode_t;
 # define PTRN_ARM_INSN_B		0x0A000000		// cccc101xxxxxxxxxxxxxxxxxxxxxxxxx
 
 # define MASK_THUMB_INSN_B1		0xF000			// 1111xxxxxxxxxxxx
-# define PTRN_THUMB_INSN_B1		0xD000			// 1101xxxxxxxxxxxx						/ b<cond> label
+# define PTRN_THUMB_INSN_B1		0xD000			// 1101xxxxxxxxxxxx						// b<cond> label
 
 # define MASK_THUMB_INSN_B2		0xF800			// 11111xxxxxxxxxxx
-# define PTRN_THUMB_INSN_B2		0xE000			// 11100xxxxxxxxxxx						/ b label
+# define PTRN_THUMB_INSN_B2		0xE000			// 11100xxxxxxxxxxx						// b label
 
-# define MASK_THUMB2_INSN_B1		0xF800D000		// 11111xxxxxxxxxxx11x1xxxxxxxxxxxx
-# define PTRN_THUMB2_INSN_B1		0xF0008000		// 11110xxxxxxxxxxx10x0xxxxxxxxxxxx
+# define MASK_THUMB2_INSN_B1		0xD000F800		// 11x1xxxxxxxxxxxx 11111xxxxxxxxxxx				// swapped
+# define PTRN_THUMB2_INSN_B1		0x8000F000		// 10x0xxxxxxxxxxxx 11110xxxxxxxxxxx				// swapped
 
-# define MASK_THUMB2_INSN_B2		0xF800D000		// 11111xxxxxxxxxxx11x1xxxxxxxxxxxx
-# define PTRN_THUMB2_INSN_B2		0xF0009000		// 11110xxxxxxxxxxx10x1xxxxxxxxxxxx
+# define MASK_THUMB2_INSN_B2		0xD000F800		// 11x1xxxxxxxxxxxx 11111xxxxxxxxxxx				// swapped
+# define PTRN_THUMB2_INSN_B2		0x9000F000		// 10x1xxxxxxxxxxxx 11110xxxxxxxxxxx				// swapped
 
 # define MASK_ARM_INSN_BL		0x0E000000		// xxxx111xxxxxxxxxxxxxxxxxxxxxxxxx
 # define PTRN_ARM_INSN_BL		0x0B000000		// cccc1011xxxxxxxxxxxxxxxxxxxxxxxx
 
-# define MASK_THUMB_INSN_BL		0xF800			// 11111xxxxxxxxxxx
-# define PTRN_THUMB_INSN_BL		0xF000			// 11110xxxxxxxxxxx						// shared between BL and BLX
+//# define MASK_THUMB_INSN_BL		0xF800			// 11111xxxxxxxxxxx
+//# define PTRN_THUMB_INSN_BL		0xF000			// 11110xxxxxxxxxxx						// shared between BL and BLX
 //# define PTRN_THUMB_INSN_BL		0xF800			// 11111xxxxxxxxxxx
 
-# define MASK_THUMB2_INSN_BL		0xF800D000		// 11111xxxxxxxxxxx11x1xxxxxxxxxxxx
-# define PTRN_THUMB2_INSN_BL		0xF000D000		// 11110xxxxxxxxxxx11x1xxxxxxxxxxxx				/ bl imm
+# define MASK_THUMB2_INSN_BL		0xD000F800		// 11x1xxxxxxxxxxxx 11111xxxxxxxxxxx				// swapped
+# define PTRN_THUMB2_INSN_BL		0xD000F000		// 11x1xxxxxxxxxxxx 11110xxxxxxxxxxx				// bl imm  swapped
 
 # define MASK_ARM_INSN_BLX1		0xFF000000		// 11111111xxxxxxxxxxxxxxxxxxxxxxxx
 # define PTRN_ARM_INSN_BLX1		0xFA000000		// 11111011xxxxxxxxxxxxxxxxxxxxxxxx
@@ -107,8 +107,6 @@ typedef unsigned long kprobe_opcode_t;
 //# define MASK_THUMB_INSN_BLX1		0xF800			// 11111xxxxxxxxxxx						/ blx imm
 //# define PTRN_THUMB_INSN_BLX1		0xF000			// 11101xxxxxxxxxxx
 
-//# define MASK_THUMB2_INSN_BLX1		0xF800D001		// 11111xxxxxxxxxxx11x1xxxxxxxxxxx1
-//# define PTRN_THUMB2_INSN_BLX1		0xF000C000		// 11110xxxxxxxxxxx11x0xxxxxxxxxxx0
 # define MASK_THUMB2_INSN_BLX1		0xD001F800		// 11x1xxxxxxxxxxx1 11111xxxxxxxxxxx				// swapped
 # define PTRN_THUMB2_INSN_BLX1		0xC000F000		// 11x0xxxxxxxxxxx0 11110xxxxxxxxxxx				// swapped
 
@@ -127,8 +125,6 @@ typedef unsigned long kprobe_opcode_t;
 # define MASK_ARM_INSN_BXJ		0x0FF000F0		// xxxx11111111xxxxxxxxxxxx1111xxxx
 # define PTRN_ARM_INSN_BXJ		0x01200020		// cccc00010010xxxxxxxxxxxx0010xxxx
 
-//# define MASK_THUMB2_INSN_BXJ		0xFFF0D000		// 111111111111xxxx11x1xxxxxxxxxxxx
-//# define PTRN_THUMB2_INSN_BXJ		0xF3C08000		// 111100111100xxxx10x0xxxxxxxxxxxx
 # define MASK_THUMB2_INSN_BXJ		0xD000FFF0		// 11x1xxxxxxxxxxxx 111111111111xxxx				// swapped
 # define PTRN_THUMB2_INSN_BXJ		0x8000F3C0		// 10x0xxxxxxxxxxxx 111100111100xxxx				// swapped
 
@@ -171,6 +167,10 @@ typedef unsigned long kprobe_opcode_t;
 //# define PTRN_THUMB2_INSN_DPI		0xF0000000		// 11110x0xxxxxxxxx0xxxxxxxxxxxxxxx				/? A6-19 ARM DDI 0406B
 # define PTRN_THUMB2_INSN_DPI		0xF2000000		// 11110x1xxxxxxxxx0xxxxxxxxxxxxxxx				/? A6-19 ARM DDI 0406B
 
+# define MASK_THUMB_INSN_MOV3		0xFF00			// 11111111xxxxxxxx
+# define PTRN_THUMB_INSN_MOV3		0x4600			// 01000110xxxxxxxx	MOV Rd, PC
+
+
 // Load immediate offset
 # define MASK_ARM_INSN_LIO		0x0E100000
 # define PTRN_ARM_INSN_LIO		0x04100000
@@ -186,6 +186,10 @@ typedef unsigned long kprobe_opcode_t;
 
 # define MASK_THUMB_INSN_LIO4		MASK_THUMB_INSN_LIO1
 # define PTRN_THUMB_INSN_LIO4		0x9800			// 10011xxxxxxxxxxx	LDR SP relative
+
+# define MASK_THUMB2_INSN_LIO		0x0000ff7f		// xxxxxxxxxxxx1111 11111111x111xxxx	// swapped
+# define PTRN_THUMB2_INSN_LIO		0x0000f85f		// xxxxxxxxxxxx1111 11111000x101xxxx	LDR Rt, [PC, #(-)<imm(8)12>]// swapped
+
 
 // Store immediate offset
 # define MASK_ARM_INSN_SIO		MASK_ARM_INSN_LIO
@@ -225,6 +229,11 @@ typedef unsigned long kprobe_opcode_t;
 # define MASK_THUMB_INSN_LRO6		MASK_THUMB_INSN_LRO1
 # define PTRN_THUMB_INSN_LRO6		0x5E00			// 0101111xxxxxxxxx	LDRSH
 
+# define MASK_THUMB2_INSN_ADR		0x8000fa1f		// 1xxxxxxxxxxxxxxx 11111x1xxxx11111	// swapped
+# define PTRN_THUMB2_INSN_ADR		0x0000f20f		// 0xxxxxxxxxxxxxxx 11110x1xxxx01111	// swapped
+
+
+
 // Store register offset
 # define MASK_ARM_INSN_SRO		MASK_ARM_INSN_LRO
 # define PTRN_ARM_INSN_SRO		0x06000000
@@ -251,6 +260,9 @@ typedef unsigned long kprobe_opcode_t;
 
 # define MASK_THUMB2_INSN_SM		MASK_THUMB2_INSN_LM
 # define PTRN_THUMB2_INSN_SM		0xE8000000		// 1110100xx0x0xxxxxxxxxxxxxxxxxxxx
+
+
+
 
 
 // Coprocessor load/store and double register transfers
@@ -313,5 +325,6 @@ typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned
 
 void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp);
 
+void arch_arm_reinit();
 
 #endif /* _DBI_ASM_ARM_KPROBES_H */

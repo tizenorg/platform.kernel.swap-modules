@@ -1,26 +1,20 @@
-/*
- * Function return probe trampoline:
- * 	- init_kprobes() establishes a probepoint here
- * 	- When the probed function returns, this probe
- * 		causes the handlers to fire
- */
-
 		.thumb
-
 
 		.global gen_insn_execbuf_thumb
 gen_insn_execbuf_thumb:
 		nop
 		nop
 		nop			// original instruction
+		nop			// original instruction
+		nop
 		nop
 		nop
 		nop
 		push	{r7}
 		ldr	r7, [pc, #12]
-		mov	ip, r7
+		mov	r9, r7
 		pop	{r7}
-		mov	pc, ip		// ssbreak
+		mov	pc, r9		// ssbreak
 		nop			// retbreak
 		nop
 		nop
@@ -36,12 +30,14 @@ pc_dep_insn_execbuf_thumb:
 		mov	r7, sp
 		mov	sp, r6
 		nop			// PC -> SP
+		nop			// PC -> SP
+		nop
 		ldr	r6, i2
-		mov	ip, r6
+		mov	r9, r6
 		mov	sp, r7
 		pop	{r6, r7}
 		nop
-		mov	pc, ip		// ssbreak
+		mov	pc, r9		// ssbreak
 		nop			// retbreak
 		nop			// stored PC hi
 i1:		nop			// stored PC lo
