@@ -199,14 +199,9 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 		}
 	}
 
-	printk ("prep_pc_dep_insn_execbuf_thumb: using PC, changing Rd = R%x\n", reg);
-
 	if (reg == 6 || reg == 7)
 	{
-		printk(" >>>>> R%d in use!\n", reg);
-
 		mreg = reg - 2;
-		printk(" >>>>> remap to R%d\n", mreg);
 
 		*((unsigned short*)insns + 0) = (*((unsigned short*)insns + 0) & 0x00ff) | ((1 << mreg) | (1 << (mreg + 1)));
 		*((unsigned short*)insns + 1) = (*((unsigned short*)insns + 1) & 0xf8ff) | (mreg << 8);
@@ -832,13 +827,13 @@ int kprobe_handler (struct pt_regs *regs)
 			{
 				if ((ret = arch_copy_trampoline_thumb_uprobe(my_p[my_pr], my_task[my_pr], my_atomic[my_pr])) != 0)
 				{
-					printk(" >>>>> arch_copy_trampoline_thumb_uprobe error\n");
+					DBPRINTF(" >>>>> arch_copy_trampoline_thumb_uprobe error");
 					return ret;
 				}
 			}else{
 				if ((ret = arch_copy_trampoline_arm_uprobe(my_p[my_pr], my_task[my_pr], my_atomic[my_pr])) != 0)
 				{
-					printk(" >>>>> arch_copy_trampoline_arm_uprobe error\n");
+					DBPRINTF(" >>>>> arch_copy_trampoline_arm_uprobe error");
 					return ret;
 				}
 			}
