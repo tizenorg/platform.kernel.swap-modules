@@ -974,14 +974,14 @@ int kprobe_handler (struct pt_regs *regs)
 		}
 	}
 
-	// restore second opcode for thumb app
+	// restore opcode for thumb app
 	if (user_mode( regs ) && thumb_mode( regs ))
 	{
 		if (!isThumb2(p->opcode))
 		{
 			*((unsigned short*)p->addr + 1) = p->opcode >> 16;
 		}else{
-			*((unsigned short*)p->addr) = p->opcode;
+			*((unsigned int*)p->addr) = p->opcode;
 		}
 		flush_icache_range ((unsigned int) p->addr, (unsigned int) (((unsigned int) p->addr) + (sizeof (kprobe_opcode_t) * 2)));
 	}
