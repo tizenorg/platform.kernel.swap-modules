@@ -24,7 +24,7 @@
  * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM/MIPS
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
  * 2010-2011    Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
  */
@@ -187,8 +187,43 @@ typedef unsigned long kprobe_opcode_t;
 # define MASK_THUMB_INSN_LIO4		MASK_THUMB_INSN_LIO1
 # define PTRN_THUMB_INSN_LIO4		0x9800			// 10011xxxxxxxxxxx	LDR SP relative
 
-# define MASK_THUMB2_INSN_LIO		0x0000ff7f		// xxxxxxxxxxxx1111 11111111x111xxxx	// swapped
-# define PTRN_THUMB2_INSN_LIO		0x0000f85f		// xxxxxxxxxxxx1111 11111000x101xxxx	LDR Rt, [PC, #(-)<imm(8)12>]// swapped
+# define MASK_THUMB2_INSN_LDRW		0x0000fff0		// xxxxxxxxxxxxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_LDRW		0x0000f850		// xxxxxxxxxxxxxxxx 111110000101xxxx	LDR.W Rt, [Rn, #-<imm12>]// swapped
+
+# define MASK_THUMB2_INSN_LDRW1		MASK_THUMB2_INSN_LDRW
+# define PTRN_THUMB2_INSN_LDRW1		0x0000f8d0		// xxxxxxxxxxxxxxxx 111110001101xxxx	LDR.W Rt, [Rn, #<imm12>]// swapped
+
+# define MASK_THUMB2_INSN_LDRBW		MASK_THUMB2_INSN_LDRW
+# define PTRN_THUMB2_INSN_LDRBW		0x0000f810		// xxxxxxxxxxxxxxxx 111110000001xxxx	LDRB.W Rt, [Rn, #-<imm8>]// swapped
+
+# define MASK_THUMB2_INSN_LDRBW1	MASK_THUMB2_INSN_LDRW
+# define PTRN_THUMB2_INSN_LDRBW1	0x0000f890		// xxxxxxxxxxxxxxxx 111110001001xxxx	LDRB.W Rt, [Rn, #<imm12>]// swapped
+
+# define MASK_THUMB2_INSN_LDRHW		MASK_THUMB2_INSN_LDRW
+# define PTRN_THUMB2_INSN_LDRHW		0x0000f830		// xxxxxxxxxxxxxxxx 111110000011xxxx	LDRH.W Rt, [Rn, #-<imm8>]// swapped
+
+# define MASK_THUMB2_INSN_LDRHW1	MASK_THUMB2_INSN_LDRW
+# define PTRN_THUMB2_INSN_LDRHW1	0x0000f8b0		// xxxxxxxxxxxxxxxx 111110001011xxxx	LDRH.W Rt, [Rn, #<imm12>]// swapped
+
+# define MASK_THUMB2_INSN_LDRD		0x0000fed0		// xxxxxxxxxxxxxxxx 1111111x11x1xxxx	// swapped
+# define PTRN_THUMB2_INSN_LDRD		0x0000e850		// xxxxxxxxxxxxxxxx 1110100x01x1xxxx	LDRD Rt, Rt2, [Rn, #-<imm8>]// swapped
+
+# define MASK_THUMB2_INSN_LDRD1		MASK_THUMB2_INSN_LDRD
+# define PTRN_THUMB2_INSN_LDRD1		0x0000e8d0		// xxxxxxxxxxxxxxxx 1110100x11x1xxxx	LDRD Rt, Rt2, [Rn, #<imm8>]// swapped
+
+# define MASK_THUMB2_INSN_LDRWL		0x0fc0fff0		// xxxx111111xxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_LDRWL		0x0000f850		// xxxxxxxxxxxxxxxx 111110000101xxxx	LDR.W Rt, [Rn, Rm, LSL #<imm2>]// swapped
+
+# define MASK_THUMB2_INSN_LDREX		0x0f00fff0		// xxxx1111xxxxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_LDREX		0x0f00e850		// xxxx1111xxxxxxxx 111010000101xxxx	LDREX Rt, [PC, #<imm8>]// swapped
+
+# define MASK_THUMB2_INSN_MUL		0xf0f0fff0		// 1111xxxx1111xxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_MUL		0xf000fb00		// 1111xxxx0000xxxx 111110110000xxxx	MUL Rd, Rn, Rm// swapped
+
+# define MASK_THUMB2_INSN_DP		0x0000ff00		// xxxxxxxxxxxxxxxx 11111111xxxxxxxx	// swapped
+# define PTRN_THUMB2_INSN_DP		0x0000eb00		// xxxxxxxxxxxxxxxx 11101011xxxxxxxx	// swapped	ADD/SUB/SBC/...Rd, Rn, Rm{,<shift>}
+
+
 
 
 // Store immediate offset
@@ -206,6 +241,16 @@ typedef unsigned long kprobe_opcode_t;
 
 # define MASK_THUMB_INSN_SIO4		MASK_THUMB_INSN_LIO
 # define PTRN_THUMB_INSN_SIO4		0x9000			// 10010xxxxxxxxxxx	STR SP relative
+
+# define MASK_THUMB2_INSN_STRW		0x0000fff0		// xxxxxxxxxxxxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_STRW		0x0000f840		// xxxxxxxxxxxxxxxx 111110000100xxxx	STR.W Rt, [Rn, #-<imm8>]// swapped
+
+# define MASK_THUMB2_INSN_STRW1		MASK_THUMB2_INSN_STRW
+# define PTRN_THUMB2_INSN_STRW1		0x0000f8c0		// xxxxxxxxxxxxxxxx 111110001100xxxx	STR.W Rt, [PC, #<imm12>]// swapped
+
+
+
+
 
 // Load register offset
 # define MASK_ARM_INSN_LRO		0x0E100010
@@ -297,6 +342,11 @@ typedef unsigned long kprobe_opcode_t;
 # define ARM_INSN_REG_SET_MR(insn, nreg)	{insn |= (1 << nreg);}
 
 # define ARM_INSN_REG_CLEAR_MR(insn, nreg)	{insn &= ~(1 << nreg);}
+
+# define THUMB2_INSN_REG_RT(insn)		((insn & 0xf0000000) >> 28)
+# define THUMB2_INSN_REG_RN(insn)		(insn & 0x0000000f)
+# define THUMB2_INSN_REG_RD(insn)		((insn & 0x0f000000) >> 24)
+# define THUMB2_INSN_REG_RM(insn)		((insn & 0x000f0000) >> 16)
 
 
 /* per-cpu kprobe control block */

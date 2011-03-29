@@ -21,7 +21,7 @@
  * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM/MIPS
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
  * 2010-2011    Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
  */
@@ -190,10 +190,18 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 				reg = ((insn >> 16) & uregs) >> 8;
 				if (reg == 15) return 0;
 			}else{
-				if (THUMB2_INSN_MATCH (LIO, insn))
+				if (THUMB2_INSN_MATCH (LDRW, insn) || THUMB2_INSN_MATCH (LDRW1, insn) ||
+				    THUMB2_INSN_MATCH (LDRHW, insn) || THUMB2_INSN_MATCH (LDRHW1, insn) ||
+				    THUMB2_INSN_MATCH (LDRWL, insn))
 				{
-					reg = (insn & uregs) >> 12;
+					reg = ((insn >> 16) & uregs) >> 12;
 					if (reg == 15) return 0;
+				}else{
+// LDRB.W PC, [PC, #immed] => PLD [PC, #immed], so Rt == PC is skipped
+					if (THUMB2_INSN_MATCH (LDRBW, insn) || THUMB2_INSN_MATCH (LDRBW1, insn))
+					{
+						reg = ((insn >> 16) & uregs) >> 12;
+					}
 				}
 			}
 		}
@@ -233,9 +241,56 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 //					ADDW Rd, PC, #imm -> ADDW Rd, SP, #imm
 					insns[2] = (insn & 0xfffffff0) | 0x0d;				// ADDW Rd, SP, #imm
 				}else{
-//					LDR(.W) Rt, [PC, #<imm>] -> LDR(.W) Rt, [SP, #<imm>]
-					insns[2] = (insn & 0xfff0ffff) | 0xd0000;			// LDR(.W) Rt, [SP, #<imm>]
+					if (THUMB2_INSN_MATCH (LDRW, insn) || THUMB2_INSN_MATCH (LDRBW, insn) ||
+					    THUMB2_INSN_MATCH (LDRHW, insn))
+					{
+//						LDR.W Rt, [PC, #-<imm_12>] -> LDR.W Rt, [SP, #-<imm_8>]
+//						!!!!!!!!!!!!!!!!!!!!!!!!
+//						!!! imm_12 vs. imm_8 !!!
+//						!!!!!!!!!!!!!!!!!!!!!!!!
+						insns[2] = (insn & 0xf0fffff0) | 0x0c00000d;		// LDR.W Rt, [SP, #-<imm_8>]
+					}else{
+						if (THUMB2_INSN_MATCH (LDRW1, insn) || THUMB2_INSN_MATCH (LDRBW1, insn) ||
+						    THUMB2_INSN_MATCH (LDRHW1, insn) || THUMB2_INSN_MATCH (LDRD, insn) || THUMB2_INSN_MATCH (LDRD1, insn))
+						{
+//							LDRx.W Rt, [PC, #+<imm_12>] -> LDRx.W Rt, [SP, #+<imm_12>] (+/-imm_8 for LDRD Rt, Rt2, [PC, #<imm_8>]
+							insns[2] = (insn & 0xfffffff0) | 0xd;	// LDRx.W Rt, [SP, #+<imm_12>]
+						}else{
+							if (THUMB2_INSN_MATCH (MUL, insn))
+							{
+								insns[2] = (insn & 0xfff0ffff) | 0x000d0000;	// MUL Rd, Rn, SP
+							}else{	if (THUMB2_INSN_MATCH (DP, insn))
+								{
+									if (THUMB2_INSN_REG_RM(insn) == 15) insns[2] = (insn & 0xfff0ffff) | 0x000d0000;	// DP Rd, Rn, PC
+									else if (THUMB2_INSN_REG_RN(insn) == 15) insns[2] = (insn & 0xfffffff0) | 0xd;		// DP Rd, PC, Rm
+								}else{	if (THUMB2_INSN_MATCH (LDRWL, insn))
+									{
+//										LDRx.W Rt, [PC, #<imm_12>] -> LDRx.W Rt, [SP, #+<imm_12>] (+/-imm_8 for LDRD Rt, Rt2, [PC, #<imm_8>]
+										insns[2] = (insn & 0xfffffff0) | 0xd;	// LDRx.W Rt, [SP, #+<imm_12>]
+									}
+								}
+							}
+						}
+					}
 				}
+			}
+		}
+	}
+
+	if (THUMB2_INSN_MATCH (STRW, insn))
+	{
+		insns[2] = (insn & 0xf0fffff0) | 0x0c00000d;				// STRx.W Rt, [SP, #-<imm_8>]
+		if (((insn & 0xf000) >> 12) == 15)
+		{
+			insns[2] = (insn & 0xffffffff) | 0xd000;			// STRx.W SP, [SP, #-<imm_8>]
+		}
+	}else{
+		if (THUMB2_INSN_MATCH (STRW1, insn))
+		{
+			insns[2] = (insn & 0xfffffff0) | 0x0000000d;			// STRx.W Rt, [SP, #+<imm_12>]
+			if (((insn & 0xf000) >> 12) == 15)
+			{
+				insns[2] = (insn & 0xffffffff) | 0xd000;		// STRx.W SP, [SP, #+<imm_12>]
 			}
 		}
 	}
@@ -307,8 +362,13 @@ int arch_check_insn_thumb (struct arch_specific_insn *ainsn)
 		THUMB_INSN_MATCH (BLX2, ainsn->insn[0]) ||
 		THUMB_INSN_MATCH (BX, ainsn->insn[0]) ||
 		THUMB2_INSN_MATCH (BXJ, ainsn->insn[0]) ||
-		(THUMB2_INSN_MATCH (ADR, ainsn->insn[0]) && (ainsn->insn[0] & 0x0f00) == 15) ||
-		(THUMB2_INSN_MATCH (LIO, ainsn->insn[0]) && (ainsn->insn[0] & 0xf000) == 15))
+		(THUMB2_INSN_MATCH (ADR, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LDRW, ainsn->insn[0]) && THUMB2_INSN_REG_RT(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LDRW1, ainsn->insn[0]) && THUMB2_INSN_REG_RT(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LDRHW, ainsn->insn[0]) && THUMB2_INSN_REG_RT(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LDRHW1, ainsn->insn[0]) && THUMB2_INSN_REG_RT(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LDRWL, ainsn->insn[0]) && THUMB2_INSN_REG_RT(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (DP, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15))
 	{
 		DBPRINTF ("Bad insn arch_check_insn_thumb: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
@@ -440,7 +500,6 @@ int arch_prepare_kprobe (struct kprobe *p)
 			free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
 		}
 	}
-
 	return ret;
 }
 
@@ -486,7 +545,9 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 		p->opcode = insn[0];
 		p->ainsn.insn = get_insn_slot(task, atomic);
 		if (!p->ainsn.insn)
+		{
 			return -ENOMEM;
+		}
 
 		p->ainsn.boostable = 1;
 	}
@@ -664,7 +725,6 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 			}
 		}
 	}
-
 	return ret;
 }
 
@@ -673,9 +733,8 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 {
 	int ret = 0;
-	int uregs;
+	int uregs, pc_dep;
 	unsigned int addr;
-
 
 	kprobe_opcode_t insns[UPROBES_TRAMP_LEN * 2];
 
@@ -711,28 +770,46 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 //			p->ainsn.boostable = 1;
 
 			uregs = 0;
+			pc_dep = 0;
 
-			if (	THUMB_INSN_MATCH (APC, insn[0]) || THUMB_INSN_MATCH (LRO3, insn[0]) || THUMB_INSN_MATCH (MOV3, insn[0]) ||
-				THUMB2_INSN_MATCH (ADR, insn[0]) || THUMB2_INSN_MATCH (LIO, insn[0]))
+			if (THUMB_INSN_MATCH (APC, insn[0]) || THUMB_INSN_MATCH (LRO3, insn[0]))
 			{
-				if (THUMB_INSN_MATCH (MOV3, insn[0]) && (((((unsigned char) insn[0]) & 0xff) >> 3) == 15))
+				uregs = 0x0700;		// 8-10
+				pc_dep = 1;
+			}else	if (THUMB_INSN_MATCH (MOV3, insn[0]) && (((((unsigned char) insn[0]) & 0xff) >> 3) == 15))
 				{
-				// MOV Rd, PC
+					// MOV Rd, PC
 					uregs = 0x07;
-				}else{
-					if (THUMB2_INSN_MATCH (ADR, insn[0]))
+					pc_dep = 1;
+				}else	if THUMB2_INSN_MATCH (ADR, insn[0])
 					{
-						uregs = 0x0f00;		// Rd 8-11
-					}else{
-						if (THUMB2_INSN_MATCH (LIO, insn[0]))
+					uregs = 0x0f00;		// Rd 8-11
+					pc_dep = 1;
+					}else	if((	THUMB2_INSN_MATCH (LDRW, insn[0])  || THUMB2_INSN_MATCH (LDRW1, insn[0])  ||
+							THUMB2_INSN_MATCH (LDRBW, insn[0]) || THUMB2_INSN_MATCH (LDRBW1, insn[0]) ||
+							THUMB2_INSN_MATCH (LDRHW, insn[0]) || THUMB2_INSN_MATCH (LDRHW1, insn[0]) ||
+							THUMB2_INSN_MATCH (STRW, insn[0])  || THUMB2_INSN_MATCH (STRW1, insn[0])  ||
+							THUMB2_INSN_MATCH (LDRWL, insn[0])) && (THUMB2_INSN_REG_RN(insn[0]) == 15))
 						{
 							uregs = 0xf000;		// Rt 12-15
-						}else{
-							uregs = 0x0700;		// Rd 8-10
-						}
-					}
-				}
+							pc_dep = 1;
+						}else	if ((THUMB2_INSN_MATCH (LDRD, insn[0]) || THUMB2_INSN_MATCH (LDRD1, insn[0])) && (THUMB2_INSN_REG_RN(insn[0])))
+							{
+								uregs = 0xff00;		// Rt 12-15, Rt2 8-11
+								pc_dep = 1;
+							}else	if (THUMB2_INSN_MATCH (MUL, insn[0]) && THUMB2_INSN_REG_RM(insn[0]))
+								{
+									uregs = 0xf;
+									pc_dep = 1;
+								}else	if (THUMB2_INSN_MATCH (DP, insn[0]) && (THUMB2_INSN_REG_RM(insn[0]) || THUMB2_INSN_REG_RN(insn[0])))
+									{
+										pc_dep = 1;
+										uregs = 0xf;
+									}
 
+
+			if (uregs && pc_dep)
+			{
 				memcpy (insns, pc_dep_insn_execbuf_thumb, 18 * 2);
 				if (prep_pc_dep_insn_execbuf_thumb (insns, insn[0], uregs) != 0)
 				{
@@ -743,7 +820,6 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 				addr = ((unsigned int)p->addr) + 4;
 
 				*((unsigned short*)insns + 13) = 0xffff;
-
 				*((unsigned short*)insns + 14) = addr & 0x0000ffff;
 				*((unsigned short*)insns + 15) = addr >> 16;
 
@@ -778,17 +854,18 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 					*((unsigned short*)insns + 17) = addr >> 16;
 				}
 			}
+		}
 
-			if (!write_proc_vm_atomic (task, (unsigned long) p->ainsn.insn, insns, 18 * 2))
-			{
-				panic("failed to write memory %p!\n", p->ainsn.insn);
-				DBPRINTF ("failed to write insn slot to process memory: insn %p, addr %p, probe %p!", insn, p->ainsn.insn, p->addr);
-				//printk ("failed to write insn slot to process memory: %p/%d insn %lx, addr %p, probe %p!\n", task, task->pid, insn, p->ainsn.insn, p->addr);
-				free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn, 0);
-				return -EINVAL;
-			}
+		if (!write_proc_vm_atomic (task, (unsigned long) p->ainsn.insn, insns, 18 * 2))
+		{
+			panic("failed to write memory %p!\n", p->ainsn.insn);
+			DBPRINTF ("failed to write insn slot to process memory: insn %p, addr %p, probe %p!", insn, p->ainsn.insn, p->addr);
+			//printk ("failed to write insn slot to process memory: %p/%d insn %lx, addr %p, probe %p!\n", task, task->pid, insn, p->ainsn.insn, p->addr);
+			free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn, 0);
+			return -EINVAL;
 		}
 	}
+
 	return ret;
 }
 
@@ -827,13 +904,13 @@ int kprobe_handler (struct pt_regs *regs)
 			{
 				if ((ret = arch_copy_trampoline_thumb_uprobe(my_p[my_pr], my_task[my_pr], my_atomic[my_pr])) != 0)
 				{
-					DBPRINTF(" >>>>> arch_copy_trampoline_thumb_uprobe error");
+					printk(" >>>>> arch_copy_trampoline_thumb_uprobe error\n");
 					return ret;
 				}
 			}else{
 				if ((ret = arch_copy_trampoline_arm_uprobe(my_p[my_pr], my_task[my_pr], my_atomic[my_pr])) != 0)
 				{
-					DBPRINTF(" >>>>> arch_copy_trampoline_arm_uprobe error");
+					printk(" >>>>> arch_copy_trampoline_arm_uprobe error\n");
 					return ret;
 				}
 			}
