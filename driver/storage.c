@@ -854,6 +854,10 @@ int link_bundle()
 	/* Us probes */
 	len = *(u_int32_t *)p; /* App path len */
 	p += sizeof(u_int32_t);
+	if ( len == 0 ) {
+	    us_proc_info.path = NULL;
+	}
+	else {
 	us_proc_info.path = (char *)p;
 	DPRINTF("app path = %s", us_proc_info.path);
 	p += len;
@@ -1104,6 +1108,7 @@ int link_bundle()
 		}
 		kfree (addrs);
 		kfree(s_lib.p_vtps);
+	}
 	}
 
 	/* Conds */

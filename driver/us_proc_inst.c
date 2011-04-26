@@ -228,11 +228,10 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 	}
 
 
-static int us_vtp_event_pre_handler (us_proc_vtp_t * vtp, struct pt_regs *regs)
+static void us_vtp_event_pre_handler (us_proc_vtp_t * vtp, struct pt_regs *regs)
 {
 	__get_cpu_var(gpVtp) = vtp;
 	__get_cpu_var(gpCurVtpRegs) = regs;
-	return 0;
 }
 
 static void us_vtp_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6)
@@ -414,9 +413,9 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							task_inst_info->unres_ips_count--;
 							
 							err = register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
-							if (err != 0) {
+							if (!err) {
 								DPRINTF ("failed to install IP at %lx/%p. Error %d!", task_inst_info->p_libs[i].p_ips[k].offset, 
-										task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr, err);
+										task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr);
 							}
 						}
 					}
@@ -437,9 +436,9 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							task_inst_info->unres_vtps_count--;
 							
 							err = register_ujprobe (task, mm, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
-							if (err != 0) {
+							if (!err) {
 								EPRINTF ("failed to install VTP at %p. Error %d!", 
-										task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr, err);
+										task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr);
 							}
 						}
 					}
@@ -901,6 +900,8 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 #else
 	pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", ip->jprobe.kp.addr, arg1, arg2, arg3, arg4, arg5, arg6);
 #endif
+	// Mr_Nobody: uncomment for valencia
+	//unregister_usprobe(current, ip, 1);
 	uprobe_return ();
 }
 
@@ -918,6 +919,8 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 #else
 	pack_event_info (US_PROBE_ID, RECORD_RET, "pd", ip->retprobe.kp.addr, retval);
 #endif
+	// Mr_Nobody: uncomment for valencia
+	//unregister_usprobe(current, ip, 1);
 	return 0;
 }
 
@@ -957,13 +960,15 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 		DPRINTF ("register_ujprobe() failure %d", ret);
 		return ret;
 	}
-	ip->retprobe.kp.tgid = task->tgid;
+
+	// Mr_Nobody: uncomment for valencia
+	/* ip->retprobe.kp.tgid = task->tgid;
 	//ip->retprobe.kp.addr = (kprobe_opcode_t *) addr;
 	if(!ip->retprobe.handler) {
-		if (uretprobe_event_handler_custom_p != NULL)
-			ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler_custom_p;
-		else {
-			ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler;
+	 	if (uretprobe_event_handler_custom_p != NULL)
+	 		ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler_custom_p;
+	 	else {
+	 		ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler;
 			//DPRINTF("Failed custom uretprobe_event_handler_custom_p");
 		}
 	}
@@ -973,7 +978,7 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	{
 		EPRINTF ("register_uretprobe() failure %d", ret);
 		return ret;
-	}
+	} */
 	return 0;
 }
 
