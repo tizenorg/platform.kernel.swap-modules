@@ -317,6 +317,7 @@ int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 		ARM_INSN_MATCH (BX, ainsn->insn[0]) ||
 		ARM_INSN_MATCH (BXJ, ainsn->insn[0]))
 	{
+		printk ("Bad insn arch_check_insn_arm: %lx\n", ainsn->insn[0]);
 		DBPRINTF ("Bad insn arch_check_insn_arm: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
@@ -330,6 +331,7 @@ int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 			(ARM_INSN_REG_RD (ainsn->insn[0]) == 15))
 	{
 		DBPRINTF ("Bad arch_check_insn_arm: %lx\n", ainsn->insn[0]);
+		printk ("Bad arch_check_insn_arm: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
 #endif // CONFIG_CPU_V7
@@ -340,6 +342,7 @@ int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 			 // store/load with pc update
 			 ((ARM_INSN_REG_RN (ainsn->insn[0]) == 15) && (ainsn->insn[0] & 0x200000))))
 	{
+		printk ("Bad insn arch_check_insn_arm: %lx\n", ainsn->insn[0]);
 		DBPRINTF ("Bad insn arch_check_insn_arm: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
@@ -371,6 +374,7 @@ int arch_check_insn_thumb (struct arch_specific_insn *ainsn)
 		(THUMB2_INSN_MATCH (LDRWL, ainsn->insn[0]) && THUMB2_INSN_REG_RT(ainsn->insn[0]) == 15) ||
 		(THUMB2_INSN_MATCH (DP, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15))
 	{
+		printk ("Bad insn arch_check_insn_thumb: %lx\n", ainsn->insn[0]);
 		DBPRINTF ("Bad insn arch_check_insn_thumb: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
@@ -525,6 +529,8 @@ static unsigned int arch_construct_brunch (unsigned int base, unsigned int addr,
 int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 {
 	int ret = 0;
+
+//	printk ( ">>>>>>>>>>>>>>>arch_prepare_uprobe  task:%s %x\n", task->comm, p->addr );
 
 	if ((unsigned long) p->addr & 0x01)
 	{
@@ -880,10 +886,14 @@ int kprobe_handler (struct pt_regs *regs)
 	int my_pr = 0;
 	int i = 0;
 
+	preempt_disable ();
+
 	if (user_mode(regs))
 	{
 		if (!thumb_mode ( regs )) addr = (kprobe_opcode_t *) (regs->uregs[15] - 4);
 		else addr = (kprobe_opcode_t *) (regs->uregs[15] - 2);
+
+		//printk ("%s %x\n", __FUNCTION__, addr  );
 
 		for(i = 0; i < my_probe; i++)
 		{
@@ -901,17 +911,19 @@ int kprobe_handler (struct pt_regs *regs)
 		{
 			my_handler_lock = 1;
 
-			if (thumb_mode(regs))
+			if (thumb_mode(regs) /*&& addr != 0xad327238 */)
 			{
 				if ((ret = arch_copy_trampoline_thumb_uprobe(my_p[my_pr], my_task[my_pr], my_atomic[my_pr])) != 0)
 				{
 					printk(" >>>>> arch_copy_trampoline_thumb_uprobe error\n");
+					preempt_enable_no_resched ();
 					return ret;
 				}
 			}else{
 				if ((ret = arch_copy_trampoline_arm_uprobe(my_p[my_pr], my_task[my_pr], my_atomic[my_pr])) != 0)
 				{
 					printk(" >>>>> arch_copy_trampoline_arm_uprobe error\n");
+					preempt_enable_no_resched ();
 					return ret;
 				}
 			}
@@ -927,8 +939,6 @@ int kprobe_handler (struct pt_regs *regs)
 
 //	DBPRINTF ("KPROBE: regs->uregs[15] = 0x%lx addr = 0x%p\n", regs->uregs[15], addr);
 	//DBPRINTF("regs->uregs[14] = 0x%lx\n", regs->uregs[14]);
-
-	preempt_disable ();
 
 	kcb = get_kprobe_ctlblk ();
 

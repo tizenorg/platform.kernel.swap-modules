@@ -30,6 +30,7 @@ char *p_buffer = NULL;
 inst_us_proc_t us_proc_info;
 char *deps;
 char *bundle;
+unsigned int inst_pid = 0;
 struct hlist_head kernel_probes;
 int event_mask = 0L;
 struct cond cond_list;
@@ -513,6 +514,19 @@ int SetBufferSize(unsigned int nSize) {
 	return 0;
 }
 
+int SetPid(unsigned int pid)
+{
+	if (GetECState() != EC_STATE_IDLE)
+	{
+		EPRINTF("PID changes are allowed in IDLE state only (%d)!", GetECState());
+		return -1;
+	}
+
+	inst_pid = pid;
+	DPRINTF("SetPid pid:%d\n", pid);
+	return 0;
+}
+
 void ResetSingleBuffer(void) {
 }
 
@@ -840,6 +854,13 @@ int link_bundle()
 	}
 	p += sizeof(u_int32_t);
 
+	/* Pid */
+	if (SetPid(*(u_int32_t *)p) == -1) {
+		EPRINTF("Cannot set pid!\n");
+		return -1;
+	}
+	p += sizeof(u_int32_t);
+
 	/* Kernel probes */
 	nr_kern_probes = *(u_int32_t *)p;
 	p += sizeof(u_int32_t);
@@ -926,6 +947,7 @@ int link_bundle()
 		path_release(&nd);
 #else
 		d_lib->m_f_dentry = nd.path.dentry;
+		d_lib->m_vfs_mount = nd.path.mnt;
 		path_put(&nd.path);
 #endif
 

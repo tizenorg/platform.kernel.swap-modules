@@ -18,6 +18,7 @@
 #if !defined(__STORAGE_H__)
 #define __STORAGE_H__
 
+#include <linux/mount.h>
 #include "picl.h"
 #include "ec_ioctl.h"
 #include "ec_probe.h"
@@ -42,6 +43,8 @@ extern int DisableContinuousRetrieval(void);
 extern unsigned int GetBufferSize(void);
 extern int SetBufferSize(unsigned int nSize);
 extern int ResetBuffer(void);
+
+extern int SetPid(unsigned int pid);
 
 //extern spinlock_t buffer_spinlock;
 
@@ -119,6 +122,9 @@ extern struct hlist_head kernel_probes;
 // event mask
 extern int event_mask;
 
+// process pid to instrument
+extern unsigned int inst_pid;
+
 typedef struct
 {
 	char *name;
@@ -147,11 +153,13 @@ typedef struct
 } us_proc_vtp_data_t;
 
 typedef struct dentry *STRUCT_DENTRY_PTR;
+typedef struct vfsmount *STRUCT_VFSMOUNT_PTR;
 
 typedef struct
 {
 	char *path;
 	STRUCT_DENTRY_PTR m_f_dentry;
+	STRUCT_VFSMOUNT_PTR m_vfs_mount;
 	unsigned ips_count;
 	us_proc_ip_t *p_ips;
 	unsigned vtps_count;

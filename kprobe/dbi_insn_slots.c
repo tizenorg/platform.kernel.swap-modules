@@ -93,18 +93,30 @@ unsigned long alloc_user_pages(struct task_struct *task, unsigned long len, unsi
 	mm = atomic ? task->active_mm : get_task_mm (task);
 	if (mm){
 		if(!atomic)
-			down_write (&mm->mmap_sem);
+		{
+			if ( !down_write_trylock (&mm->mmap_sem) )
+			{
+				rcu_read_lock ();
+
+				up_read (&mm->mmap_sem);
+				down_write (&mm->mmap_sem);
+
+				rcu_read_unlock();
+			}
+		}
 		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily 
 		current_thread_info()->task = task;
 		ret = (unsigned long)do_mmap_pgoff(0, 0, len, prot, flags, 0);
 		current_thread_info()->task = otask;
-		if(!atomic){
-			up_write (&mm->mmap_sem);
+		if(!atomic)
+		{
+			downgrade_write (&mm->mmap_sem);
 			mmput(mm);
 		}
 	}
 	else
 		printk ("proc %d has no mm", task->pid);
+
 	return (unsigned long)ret;
 }
 
@@ -127,11 +139,15 @@ kprobe_opcode_t *get_insn_slot (struct task_struct *task, int atomic)
 	struct hlist_head *page_list = task ? &uprobe_insn_pages : &kprobe_insn_pages;
 	unsigned slots_per_page = INSNS_PER_PAGE, slot_size = MAX_INSN_SIZE;
 
+	printk (">>>>>>>>>>>>>>>>>>>>>>>>>>>> %s %d\n", __FUNCTION__, __LINE__);
+
 	if(task) {
+		printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 		slots_per_page = INSNS_PER_PAGE/UPROBES_TRAMP_LEN;
 		slot_size = UPROBES_TRAMP_LEN;
 	}
 	else {
+		printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 		slots_per_page = INSNS_PER_PAGE/KPROBES_TRAMP_LEN;
 		slot_size = KPROBES_TRAMP_LEN;		
 	}
@@ -139,6 +155,7 @@ kprobe_opcode_t *get_insn_slot (struct task_struct *task, int atomic)
 retry:
 	hlist_for_each_entry (kip, pos, page_list, hlist)
 	{
+		printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 		if (kip->nused < slots_per_page)
 		{
 			int i;
@@ -149,6 +166,7 @@ retry:
 					if(!task || (kip->tgid == task->tgid)){
 						kip->slot_used[i] = SLOT_USED;
 						kip->nused++;
+						printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 						return kip->insns + (i * slot_size);
 					}
 				}
@@ -160,19 +178,23 @@ retry:
 
 	/* If there are any garbage slots, collect it and try again. */
 	if(task) {
+		printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 		if (uprobe_garbage_slots && collect_garbage_slots(page_list, task) == 0)
 			goto retry;
 	}
 	else {
+		printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 		if (kprobe_garbage_slots && collect_garbage_slots(page_list, task) == 0)
 			goto retry;		
 	}
 
+	printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 	/* All out of space.  Need to allocate a new page. Use slot 0. */
 	kip = kmalloc(sizeof(struct kprobe_insn_page), GFP_KERNEL);
 	if (!kip)
 		return NULL;
 
+	printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 	kip->slot_used = kmalloc(sizeof(char)*slots_per_page, GFP_KERNEL);
 	if (!kip->slot_used){
 		kfree(kip);
@@ -180,25 +202,32 @@ retry:
 	}
 
 	if(task) {
+		printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 		kip->insns = (kprobe_opcode_t *)alloc_user_pages(task, PAGE_SIZE, 
 				PROT_EXEC|PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, atomic);
 	}
 	else {
+		printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 		kip->insns = kmalloc(PAGE_SIZE, GFP_KERNEL);
 	}
 	if (!kip->insns)
 	{
+		printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 		kfree (kip->slot_used);
 		kfree (kip);
 		return NULL;
 	}	
+	printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 	INIT_HLIST_NODE (&kip->hlist);
 	hlist_add_head (&kip->hlist, page_list);
+	printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 	memset(kip->slot_used, SLOT_CLEAN, slots_per_page);
+	printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 	kip->slot_used[0] = SLOT_USED;
 	kip->nused = 1;
 	kip->ngarbage = 0;
 	kip->tgid = task ? task->tgid : 0;
+	printk ("=========================== %s %d\n", __FUNCTION__, __LINE__);
 	return kip->insns;
 }
 

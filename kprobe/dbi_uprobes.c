@@ -50,6 +50,8 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 	int ret = 0;
 	struct kprobe *old_p;
 
+//	printk (">>>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s %d\n", __FUNCTION__, __LINE__);
+
 	if (!p->addr)
 		return -EINVAL;
 
@@ -81,24 +83,34 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 		DBPRINTF ("goto out\n", ret);
 		goto out;
 	}
+
+//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
 	if ((ret = arch_prepare_uprobe (p, task, atomic)) != 0)
 	{
-	       	DBPRINTF ("goto out\n", ret);
+//		printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
+       	DBPRINTF ("goto out\n", ret);
 		goto out;
 	}
 
+//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
 	DBPRINTF ("before out ret = 0x%x\n", ret);
 
 	INIT_HLIST_NODE (&p->hlist);
+//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
 	hlist_add_head_rcu (&p->hlist, &kprobe_table[hash_ptr (p->addr, KPROBE_HASH_BITS)]);
 
 	INIT_HLIST_NODE (&p->is_hlist);
+//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
 	hlist_add_head_rcu (&p->is_hlist, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn, KPROBE_HASH_BITS)]);
 
+//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
 	arch_arm_uprobe (p, task);
+//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
+
 out:
 	DBPRINTF ("out ret = 0x%x\n", ret);
 
+//	printk ("<<<<<<<<<<<<<<<<<<<<<<<<<<<<< %s %d\n", __FUNCTION__, __LINE__);
 	return ret;
 }
 

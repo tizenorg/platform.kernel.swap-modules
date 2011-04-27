@@ -370,6 +370,23 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 
 		break;
 	}
+	case EC_IOCTL_SET_PID:
+	{
+		unsigned int _pid;
+
+		result = copy_from_user(&_pid, (void *)arg, sizeof(unsigned int));
+		if (result) {
+			EPRINTF("Cannot copy pid!");
+			result = -1;
+			break;
+		}
+
+		inst_pid = _pid;
+
+		DPRINTF("EC_IOCTL_SET_PID pid:%d", inst_pid);
+
+		break;
+	}
 	case EC_IOCTL_SET_PROFILEBUNDLE:
 	{
 		size_t size;

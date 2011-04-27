@@ -443,17 +443,21 @@ int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 #endif
 }
 
+
 int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write)
 {
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
 	void *old_buf = buf;
+	unsigned long addr1 = addr;
+	unsigned int* inst_buf = (unsigned int*)buf;
+
 
 	mm = get_task_mm(tsk);
 	if (!mm)
 		return 0;
 
-	//down_read(&mm->mmap_sem);
+	down_read(&mm->mmap_sem);
 	/* ignore errors, just check how much was successfully transferred */
 	while (len) {
 		int bytes, ret, offset;
@@ -462,6 +466,7 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 
 		ret = get_user_pages_uprobe(tsk, mm, addr, 1,
 				write, 1, &page, &vma);
+
 		if (ret <= 0) {
 			/*
 			 * Check if this is a VM_IO | VM_PFNMAP VMA, which
@@ -500,8 +505,16 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 		buf += bytes;
 		addr += bytes;
 	}
-	//up_read(&mm->mmap_sem);
+	up_read(&mm->mmap_sem);
 	mmput(mm);
+
+
+	if(addr1 == 0xad327238)
+	{
+			printk(">>>>> %s\n", tsk->comm);
+			printk(">>>>> %x\n", inst_buf[0]);
+	}
+
 
 	return buf - old_buf;
 }
