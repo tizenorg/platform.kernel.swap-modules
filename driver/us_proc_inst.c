@@ -1011,8 +1011,8 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 		return ret;
 	}
 
-	// Mr_Nobody: uncomment for valencia
-	/* ip->retprobe.kp.tgid = task->tgid;
+	// Mr_Nobody: comment for valencia
+	ip->retprobe.kp.tgid = task->tgid;
 	//ip->retprobe.kp.addr = (kprobe_opcode_t *) addr;
 	if(!ip->retprobe.handler) {
 	 	if (uretprobe_event_handler_custom_p != NULL)
@@ -1028,7 +1028,7 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	{
 		EPRINTF ("register_uretprobe() failure %d", ret);
 		return ret;
-	} */
+	}
 	return 0;
 }
 
