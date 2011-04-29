@@ -1232,7 +1232,7 @@ void storage_down (void)
 		EPRINTF ("ec_info.lost_events_count=%d", ec_info.lost_events_count);
 }
 
-static u_int32_t get_probe_func_addr(const char *fmt, va_list args)
+u_int32_t get_probe_func_addr(const char *fmt, va_list args)
 {
 	if (fmt[0] != 'p')
 		return 0;
