@@ -83,13 +83,11 @@ static struct kprobe *my_p[0xffff];
 static struct task_struct *my_task[0xffff];
 static int my_atomic[0xffff];
 static int my_probe = 0;
-static int my_handler_lock = 0;
 
 
 void arch_arm_reinit()
 {
 	my_probe = 0;
-	my_handler_lock = 0;
 }
 
 
@@ -175,6 +173,7 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 	unsigned char mreg = 0;
 	unsigned char reg = 0;
 
+
 	if (THUMB_INSN_MATCH (APC, insn) || THUMB_INSN_MATCH (LRO3, insn))
 	{
 		reg = ((insn & 0xffff) & uregs) >> 8;
@@ -199,19 +198,58 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 					if (reg == 15) return 0;
 				}else{
 // LDRB.W PC, [PC, #immed] => PLD [PC, #immed], so Rt == PC is skipped
-					if (THUMB2_INSN_MATCH (LDRBW, insn) || THUMB2_INSN_MATCH (LDRBW1, insn))
+					if (THUMB2_INSN_MATCH (LDRBW, insn) || THUMB2_INSN_MATCH (LDRBW1, insn) || THUMB2_INSN_MATCH (LDREX, insn))
 					{
 						reg = ((insn >> 16) & uregs) >> 12;
+					}else{
+						if (THUMB2_INSN_MATCH (DP, insn))
+						{
+							reg = ((insn >> 16) & uregs) >> 12;
+							if (reg == 15) return 0;
+						}else{
+							if (THUMB2_INSN_MATCH (RSBW, insn))
+							{
+								reg = ((insn >> 12) & uregs) >> 8;
+								if (reg == 15) return 0;
+							}else{
+								if (THUMB2_INSN_MATCH (RORW, insn))
+								{
+									reg = ((insn >> 12) & uregs) >> 8;
+									if (reg == 15) return 0;
+								}else{
+									if (THUMB2_INSN_MATCH (ROR, insn) || THUMB2_INSN_MATCH (LSLW1, insn) || THUMB2_INSN_MATCH (LSLW2, insn) || THUMB2_INSN_MATCH (LSRW1, insn) || THUMB2_INSN_MATCH (LSRW2, insn))
+									{
+										reg = ((insn >> 12) & uregs) >> 8;
+										if (reg == 15) return 0;
+									}else{
+										if (THUMB2_INSN_MATCH (TEQ1, insn) || THUMB2_INSN_MATCH (TST1, insn))
+										{
+											reg = 15;
+										}else{
+											if (THUMB2_INSN_MATCH (TEQ2, insn) || THUMB2_INSN_MATCH (TST2, insn))
+											{
+												reg = THUMB2_INSN_REG_RM(insn);
+											}
+										}
+									}
+								}
+							}
+						}
 					}
 				}
 			}
 		}
 	}
 
+	if ((	THUMB2_INSN_MATCH (STRW, insn) || THUMB2_INSN_MATCH (STRBW, insn) || THUMB2_INSN_MATCH (STRD, insn) || \
+		THUMB2_INSN_MATCH (STRHT, insn) || THUMB2_INSN_MATCH (STRT, insn) || THUMB2_INSN_MATCH (STRHW1, insn) || \
+		THUMB2_INSN_MATCH (STRHW, insn)) && THUMB2_INSN_REG_RT(insn) == 15)
+	{
+		reg = THUMB2_INSN_REG_RT(insn);
+	}
+
 	if (reg == 6 || reg == 7)
 	{
-		mreg = reg - 2;
-
 		*((unsigned short*)insns + 0) = (*((unsigned short*)insns + 0) & 0x00ff) | ((1 << mreg) | (1 << (mreg + 1)));
 		*((unsigned short*)insns + 1) = (*((unsigned short*)insns + 1) & 0xf8ff) | (mreg << 8);
 		*((unsigned short*)insns + 2) = (*((unsigned short*)insns + 2) & 0xfff8) | (mreg + 1);
@@ -221,6 +259,7 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 		*((unsigned short*)insns + 9) = (*((unsigned short*)insns + 9) & 0xffc7) | ((mreg + 1) << 3);
 		*((unsigned short*)insns + 10) = (*((unsigned short*)insns + 10) & 0x00ff) | (( 1 << mreg) | (1 << (mreg + 1)));
 	}
+
 
 	if (THUMB_INSN_MATCH (APC, insn))
 	{
@@ -252,22 +291,39 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 						insns[2] = (insn & 0xf0fffff0) | 0x0c00000d;		// LDR.W Rt, [SP, #-<imm_8>]
 					}else{
 						if (THUMB2_INSN_MATCH (LDRW1, insn) || THUMB2_INSN_MATCH (LDRBW1, insn) ||
-						    THUMB2_INSN_MATCH (LDRHW1, insn) || THUMB2_INSN_MATCH (LDRD, insn) || THUMB2_INSN_MATCH (LDRD1, insn))
+						    THUMB2_INSN_MATCH (LDRHW1, insn) || THUMB2_INSN_MATCH (LDRD, insn) || THUMB2_INSN_MATCH (LDRD1, insn) ||
+						    THUMB2_INSN_MATCH (LDREX, insn))
 						{
 //							LDRx.W Rt, [PC, #+<imm_12>] -> LDRx.W Rt, [SP, #+<imm_12>] (+/-imm_8 for LDRD Rt, Rt2, [PC, #<imm_8>]
-							insns[2] = (insn & 0xfffffff0) | 0xd;	// LDRx.W Rt, [SP, #+<imm_12>]
+							insns[2] = (insn & 0xfffffff0) | 0xd;													// LDRx.W Rt, [SP, #+<imm_12>]
 						}else{
 							if (THUMB2_INSN_MATCH (MUL, insn))
 							{
-								insns[2] = (insn & 0xfff0ffff) | 0x000d0000;	// MUL Rd, Rn, SP
+								insns[2] = (insn & 0xfff0ffff) | 0x000d0000;											// MUL Rd, Rn, SP
 							}else{	if (THUMB2_INSN_MATCH (DP, insn))
 								{
-									if (THUMB2_INSN_REG_RM(insn) == 15) insns[2] = (insn & 0xfff0ffff) | 0x000d0000;	// DP Rd, Rn, PC
-									else if (THUMB2_INSN_REG_RN(insn) == 15) insns[2] = (insn & 0xfffffff0) | 0xd;		// DP Rd, PC, Rm
+									if (THUMB2_INSN_REG_RM(insn) == 15) insns[2] = (insn & 0xfff0ffff) | 0x000d0000;					// DP Rd, Rn, PC
+									else if (THUMB2_INSN_REG_RN(insn) == 15) insns[2] = (insn & 0xfffffff0) | 0xd;						// DP Rd, PC, Rm
 								}else{	if (THUMB2_INSN_MATCH (LDRWL, insn))
 									{
 //										LDRx.W Rt, [PC, #<imm_12>] -> LDRx.W Rt, [SP, #+<imm_12>] (+/-imm_8 for LDRD Rt, Rt2, [PC, #<imm_8>]
-										insns[2] = (insn & 0xfffffff0) | 0xd;	// LDRx.W Rt, [SP, #+<imm_12>]
+										insns[2] = (insn & 0xfffffff0) | 0xd;										// LDRx.W Rt, [SP, #+<imm_12>]
+									}else{	if (THUMB2_INSN_MATCH (RSBW, insn))
+										{
+											insns[2] = (insn & 0xfffffff0) | 0xd;									// RSB{S}.W Rd, PC, #<const> -> RSB{S}.W Rd, SP, #<const>
+										}else{	if (THUMB2_INSN_MATCH (RORW, insn) || THUMB2_INSN_MATCH (LSLW1, insn) || THUMB2_INSN_MATCH (LSRW1, insn))
+											{
+												if ((THUMB2_INSN_REG_RM(insn) == 15) && (THUMB2_INSN_REG_RN(insn) == 15))
+												{
+													insns[2] = (insn & 0xfffdfffd);								// ROR.W Rd, PC, PC
+												}else if (THUMB2_INSN_REG_RM(insn) == 15) insns[2] = (insn & 0xfff0ffff) | 0xd0000;		// ROR.W Rd, Rn, PC
+													else if (THUMB2_INSN_REG_RN(insn) == 15) insns[2] = (insn & 0xfffffff0) | 0xd;		// ROR.W Rd, PC, Rm
+											}else{	if (THUMB2_INSN_MATCH (ROR, insn) || THUMB2_INSN_MATCH (LSLW2, insn) || THUMB2_INSN_MATCH (LSRW2, insn))
+												{
+													insns[2] = (insn & 0xfff0ffff) | 0xd0000;						// ROR{S} Rd, PC, #<const> -> ROR{S} Rd, SP, #<const>
+												}
+											}
+										}
 									}
 								}
 							}
@@ -278,21 +334,55 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 		}
 	}
 
-	if (THUMB2_INSN_MATCH (STRW, insn))
+	if (THUMB2_INSN_MATCH (STRW, insn) || THUMB2_INSN_MATCH (STRBW, insn))
 	{
-		insns[2] = (insn & 0xf0fffff0) | 0x0c00000d;				// STRx.W Rt, [SP, #-<imm_8>]
-		if (((insn & 0xf000) >> 12) == 15)
-		{
-			insns[2] = (insn & 0xffffffff) | 0xd000;			// STRx.W SP, [SP, #-<imm_8>]
-		}
+		insns[2] = (insn & 0xfff0ffff) | 0x000d0000;								// STRx.W Rt, [Rn, SP]
 	}else{
-		if (THUMB2_INSN_MATCH (STRW1, insn))
+		if (THUMB2_INSN_MATCH (STRD, insn) || THUMB2_INSN_MATCH (STRHT, insn) || THUMB2_INSN_MATCH (STRT, insn) || THUMB2_INSN_MATCH (STRHW1, insn))
 		{
-			insns[2] = (insn & 0xfffffff0) | 0x0000000d;			// STRx.W Rt, [SP, #+<imm_12>]
-			if (((insn & 0xf000) >> 12) == 15)
+			if (THUMB2_INSN_REG_RN(insn) == 15)
 			{
-				insns[2] = (insn & 0xffffffff) | 0xd000;		// STRx.W SP, [SP, #+<imm_12>]
+				insns[2] = (insn & 0xfffffff0) | 0xd;							// STRD/T/HT{.W} Rt, [SP, ...]
+			}else{
+				insns[2] = insn;
 			}
+		}else{
+			if (THUMB2_INSN_MATCH (STRHW, insn) && (THUMB2_INSN_REG_RN(insn) == 15))
+			{
+				if (THUMB2_INSN_REG_RN(insn) == 15)
+				{
+					insns[2] = (insn & 0xf0fffff0) | 0x0c00000d;					// STRH.W Rt, [SP, #-<imm_8>]
+				}else{
+					insns[2] = insn;
+				}
+			}
+		}
+	}
+
+//	 STRx PC, xxx
+	if ((reg == 15) && THUMB2_INSN_MATCH (STRW, insn)   || \
+			   THUMB2_INSN_MATCH (STRBW, insn)  || \
+			   THUMB2_INSN_MATCH (STRD, insn)   || \
+			   THUMB2_INSN_MATCH (STRHT, insn)  || \
+			   THUMB2_INSN_MATCH (STRT, insn)   || \
+			   THUMB2_INSN_MATCH (STRHW1, insn) || \
+			   THUMB2_INSN_MATCH (STRHW, insn) )
+	{
+		insns[2] = (insns[2] & 0x0fffffff) | 0xd0000000;
+	}
+
+
+
+	if (THUMB2_INSN_MATCH (TEQ1, insn) || THUMB2_INSN_MATCH (TST1, insn))
+	{
+		insns[2] = (insn & 0xfffffff0) | 0xd;									// TEQ SP, #<const>
+	}else{	if (THUMB2_INSN_MATCH (TEQ2, insn) || THUMB2_INSN_MATCH (TST2, insn))
+		{
+			if ((THUMB2_INSN_REG_RN(insn) == 15) && (THUMB2_INSN_REG_RM(insn) == 15))
+			{
+				insns[2] = (insn & 0xfffdfffd);								// TEQ/TST PC, PC
+			}else	if (THUMB2_INSN_REG_RM(insn) == 15) insns[2] = (insn & 0xfff0ffff) | 0xd0000;		// TEQ/TST Rn, PC
+				else if (THUMB2_INSN_REG_RN(insn) == 15) insns[2] = (insn & 0xfffffff0) | 0xd;		// TEQ/TST PC, Rm
 		}
 	}
 
@@ -317,7 +407,6 @@ int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 		ARM_INSN_MATCH (BX, ainsn->insn[0]) ||
 		ARM_INSN_MATCH (BXJ, ainsn->insn[0]))
 	{
-		printk ("Bad insn arch_check_insn_arm: %lx\n", ainsn->insn[0]);
 		DBPRINTF ("Bad insn arch_check_insn_arm: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
@@ -331,7 +420,6 @@ int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 			(ARM_INSN_REG_RD (ainsn->insn[0]) == 15))
 	{
 		DBPRINTF ("Bad arch_check_insn_arm: %lx\n", ainsn->insn[0]);
-		printk ("Bad arch_check_insn_arm: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
 #endif // CONFIG_CPU_V7
@@ -342,7 +430,6 @@ int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 			 // store/load with pc update
 			 ((ARM_INSN_REG_RN (ainsn->insn[0]) == 15) && (ainsn->insn[0] & 0x200000))))
 	{
-		printk ("Bad insn arch_check_insn_arm: %lx\n", ainsn->insn[0]);
 		DBPRINTF ("Bad insn arch_check_insn_arm: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
@@ -372,9 +459,28 @@ int arch_check_insn_thumb (struct arch_specific_insn *ainsn)
 		(THUMB2_INSN_MATCH (LDRHW, ainsn->insn[0]) && THUMB2_INSN_REG_RT(ainsn->insn[0]) == 15) ||
 		(THUMB2_INSN_MATCH (LDRHW1, ainsn->insn[0]) && THUMB2_INSN_REG_RT(ainsn->insn[0]) == 15) ||
 		(THUMB2_INSN_MATCH (LDRWL, ainsn->insn[0]) && THUMB2_INSN_REG_RT(ainsn->insn[0]) == 15) ||
-		(THUMB2_INSN_MATCH (DP, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15))
+		THUMB2_INSN_MATCH (LDMIA, ainsn->insn[0]) ||
+		THUMB2_INSN_MATCH (LDMDB, ainsn->insn[0]) ||
+		(THUMB2_INSN_MATCH (DP, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (RSBW, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (RORW, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (ROR, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LSLW1, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LSLW2, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LSRW1, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LSRW2, ainsn->insn[0]) && THUMB2_INSN_REG_RD(ainsn->insn[0]) == 15) ||
+/* skip PC, #-imm12 -> SP, #-imm8 and Tegra-hanging instructions */
+		(THUMB2_INSN_MATCH (STRW1, ainsn->insn[0]) && THUMB2_INSN_REG_RN(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (STRBW1, ainsn->insn[0]) && THUMB2_INSN_REG_RN(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (STRHW1, ainsn->insn[0]) && THUMB2_INSN_REG_RN(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (STRW, ainsn->insn[0]) && THUMB2_INSN_REG_RN(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (STRHW, ainsn->insn[0]) && THUMB2_INSN_REG_RN(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LDRW, ainsn->insn[0]) && THUMB2_INSN_REG_RN(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LDRBW, ainsn->insn[0]) && THUMB2_INSN_REG_RN(ainsn->insn[0]) == 15) ||
+		(THUMB2_INSN_MATCH (LDRHW, ainsn->insn[0]) && THUMB2_INSN_REG_RN(ainsn->insn[0]) == 15) ||
+/* skip STRDx/LDRDx Rt, Rt2, [Rd, ...] */
+		(THUMB2_INSN_MATCH (LDRD, ainsn->insn[0]) || THUMB2_INSN_MATCH (LDRD1, ainsn->insn[0]) || THUMB2_INSN_MATCH (STRD, ainsn->insn[0])) )
 	{
-		printk ("Bad insn arch_check_insn_thumb: %lx\n", ainsn->insn[0]);
 		DBPRINTF ("Bad insn arch_check_insn_thumb: %lx\n", ainsn->insn[0]);
 		ret = -EFAULT;
 	}
@@ -530,8 +636,6 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 {
 	int ret = 0;
 
-//	printk ( ">>>>>>>>>>>>>>>arch_prepare_uprobe  task:%s %x\n", task->comm, p->addr );
-
 	if ((unsigned long) p->addr & 0x01)
 	{
 		DBPRINTF ("Attempt to register kprobe at an unaligned address");
@@ -539,12 +643,6 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 	}
 	if (!ret)
 	{
-		my_p[my_probe] = p;
-		my_task[my_probe] = task;
-		my_atomic[my_probe] = atomic;
-
-		my_probe++;
-
 		kprobe_opcode_t insn[MAX_INSN_SIZE];
 
 		if (!read_proc_vm_atomic (task, (unsigned long) p->addr, &insn, MAX_INSN_SIZE * sizeof(kprobe_opcode_t))) panic ("failed to read memory %p!\n", p->addr);
@@ -557,6 +655,13 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 		}
 
 		p->ainsn.boostable = 1;
+
+		my_p[my_probe] = p;
+		my_task[my_probe] = task;
+		my_atomic[my_probe] = atomic;
+
+		my_probe++;
+
 	}
 	return ret;
 }
@@ -779,6 +884,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 			uregs = 0;
 			pc_dep = 0;
 
+
 			if (THUMB_INSN_MATCH (APC, insn[0]) || THUMB_INSN_MATCH (LRO3, insn[0]))
 			{
 				uregs = 0x0700;		// 8-10
@@ -792,28 +898,59 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 					{
 					uregs = 0x0f00;		// Rd 8-11
 					pc_dep = 1;
-					}else	if((	THUMB2_INSN_MATCH (LDRW, insn[0])  || THUMB2_INSN_MATCH (LDRW1, insn[0])  ||
+					}else	if(	((THUMB2_INSN_MATCH (LDRW, insn[0]) || THUMB2_INSN_MATCH (LDRW1, insn[0])  ||
 							THUMB2_INSN_MATCH (LDRBW, insn[0]) || THUMB2_INSN_MATCH (LDRBW1, insn[0]) ||
 							THUMB2_INSN_MATCH (LDRHW, insn[0]) || THUMB2_INSN_MATCH (LDRHW1, insn[0]) ||
-							THUMB2_INSN_MATCH (STRW, insn[0])  || THUMB2_INSN_MATCH (STRW1, insn[0])  ||
-							THUMB2_INSN_MATCH (LDRWL, insn[0])) && (THUMB2_INSN_REG_RN(insn[0]) == 15))
+							THUMB2_INSN_MATCH (LDRWL, insn[0])) && THUMB2_INSN_REG_RN(insn[0]) == 15) ||
+							THUMB2_INSN_MATCH (LDREX, insn[0]) ||
+							((THUMB2_INSN_MATCH (STRW, insn[0]) || THUMB2_INSN_MATCH (STRBW, insn[0]) || \
+								THUMB2_INSN_MATCH (STRHW, insn[0]) || THUMB2_INSN_MATCH (STRHW1, insn[0])) && (THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RT(insn[0]) == 15)) ||
+							((THUMB2_INSN_MATCH (STRT, insn[0]) || THUMB2_INSN_MATCH (STRHT, insn[0])) && (THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RT(insn[0]) == 15)) )
 						{
 							uregs = 0xf000;		// Rt 12-15
 							pc_dep = 1;
-						}else	if ((THUMB2_INSN_MATCH (LDRD, insn[0]) || THUMB2_INSN_MATCH (LDRD1, insn[0])) && (THUMB2_INSN_REG_RN(insn[0])))
+						}else	if ((THUMB2_INSN_MATCH (LDRD, insn[0]) || THUMB2_INSN_MATCH (LDRD1, insn[0])) && (THUMB2_INSN_REG_RN(insn[0]) == 15))
 							{
 								uregs = 0xff00;		// Rt 12-15, Rt2 8-11
 								pc_dep = 1;
-							}else	if (THUMB2_INSN_MATCH (MUL, insn[0]) && THUMB2_INSN_REG_RM(insn[0]))
+							}else	if (THUMB2_INSN_MATCH (MUL, insn[0]) && THUMB2_INSN_REG_RM(insn[0]) == 15)
 								{
 									uregs = 0xf;
 									pc_dep = 1;
-								}else	if (THUMB2_INSN_MATCH (DP, insn[0]) && (THUMB2_INSN_REG_RM(insn[0]) || THUMB2_INSN_REG_RN(insn[0])))
+								}else	if (THUMB2_INSN_MATCH (DP, insn[0]) && (THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RM(insn[0]) == 15))
 									{
+										uregs = 0xf000;	// Rd 12-15
 										pc_dep = 1;
-										uregs = 0xf;
-									}
-
+									}else	if (THUMB2_INSN_MATCH (STRD, insn[0]) && (THUMB2_INSN_REG_RN(insn[0] == 15) || THUMB2_INSN_REG_RT(insn[0] == 15) || THUMB2_INSN_REG_RT2(insn[0]) == 15))
+										{
+											uregs = 0xff00;		// Rt 12-15, Rt2 8-11
+											pc_dep = 1;
+										}else	if (THUMB2_INSN_MATCH (RSBW, insn[0]) && THUMB2_INSN_REG_RN(insn[0]) == 15)
+											{
+												uregs = 0x0f00;	// Rd 8-11
+												pc_dep = 1;
+											}else	if (THUMB2_INSN_MATCH (RORW, insn[0]) && (THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RM(insn[0]) == 15))
+												{
+													uregs = 0x0f00;
+													pc_dep = 1;
+												}else	if ((THUMB2_INSN_MATCH (ROR, insn[0]) || THUMB2_INSN_MATCH(LSLW2, insn[0]) || THUMB2_INSN_MATCH(LSRW2, insn[0])) && THUMB2_INSN_REG_RM(insn[0]) == 15)
+													{
+														uregs = 0x0f00;	// Rd 8-11
+														pc_dep = 1;
+													}else	if ((THUMB2_INSN_MATCH (LSLW1, insn[0]) || THUMB2_INSN_MATCH (LSRW1, insn[0])) && (THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RM(insn[0]) == 15))
+														{
+															uregs = 0x0f00;	// Rd 8-11
+															pc_dep = 1;
+														}else	if ((THUMB2_INSN_MATCH (TEQ1, insn[0]) || THUMB2_INSN_MATCH (TST1, insn[0])) && THUMB2_INSN_REG_RN(insn[0]) == 15)
+															{
+																uregs = 0xf0000;	//Rn 0-3 (16-19)
+																pc_dep = 1;
+															}else	if ((THUMB2_INSN_MATCH (TEQ2, insn[0]) || THUMB2_INSN_MATCH (TST2, insn[0])) && \
+																	(THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RM(insn[0]) == 15))
+																{
+																	uregs = 0xf0000;	//Rn 0-3 (16-19)
+																	pc_dep = 1;
+																}
 
 			if (uregs && pc_dep)
 			{
@@ -862,7 +999,6 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 				}
 			}
 		}
-
 		if (!write_proc_vm_atomic (task, (unsigned long) p->ainsn.insn, insns, 18 * 2))
 		{
 			panic("failed to write memory %p!\n", p->ainsn.insn);
@@ -883,7 +1019,6 @@ int kprobe_handler (struct pt_regs *regs)
 	int ret = 0, pid = 0, retprobe = 0, reenter = 0;
 	kprobe_opcode_t *addr = NULL, *ssaddr = 0;
 	struct kprobe_ctlblk *kcb;
-	int my_pr = 0;
 	int i = 0;
 
 	preempt_disable ();
@@ -893,38 +1028,52 @@ int kprobe_handler (struct pt_regs *regs)
 		if (!thumb_mode ( regs )) addr = (kprobe_opcode_t *) (regs->uregs[15] - 4);
 		else addr = (kprobe_opcode_t *) (regs->uregs[15] - 2);
 
-		//printk ("%s %x\n", __FUNCTION__, addr  );
-
 		for(i = 0; i < my_probe; i++)
 		{
-			if (my_p[i]->addr == addr)
+			if (my_p[i] != -1)
 			{
-				my_handler_lock = 0;
-				my_pr = i;
-				break;
-			}else{
-				my_handler_lock = 1;
-			}
-		}
-
-		if (0 == my_handler_lock)
-		{
-			my_handler_lock = 1;
-
-			if (thumb_mode(regs) /*&& addr != 0xad327238 */)
-			{
-				if ((ret = arch_copy_trampoline_thumb_uprobe(my_p[my_pr], my_task[my_pr], my_atomic[my_pr])) != 0)
+				if (my_p[i]->addr == addr)
 				{
-					printk(" >>>>> arch_copy_trampoline_thumb_uprobe error\n");
-					preempt_enable_no_resched ();
-					return ret;
-				}
-			}else{
-				if ((ret = arch_copy_trampoline_arm_uprobe(my_p[my_pr], my_task[my_pr], my_atomic[my_pr])) != 0)
-				{
-					printk(" >>>>> arch_copy_trampoline_arm_uprobe error\n");
-					preempt_enable_no_resched ();
-					return ret;
+					if (thumb_mode(regs))
+					{
+						if ((ret = arch_copy_trampoline_thumb_uprobe(my_p[i], my_task[i], my_atomic[i])) != 0)
+						{
+							DBPRINTF("Not instrumentable code has been found by arch_copy_trampoline_thumb_uprobe \n");
+
+							free_insn_slot (&uprobe_insn_pages, my_task[i], my_p[i]->ainsn.insn, my_atomic[i]);
+							arch_disarm_uprobe(my_p[i], my_task[i]);
+							arch_remove_kprobe(my_p[i], my_task[i]);
+
+							my_p[i] = -1;
+							my_task[i] = -1;
+							my_atomic[i] = -1;
+
+							regs->uregs[15] -= 2;
+
+							ret = 1;
+							goto no_kprobe;
+						}
+					}else{
+						if ((ret = arch_copy_trampoline_arm_uprobe(my_p[i], my_task[i], my_atomic[i])) != 0)
+						{
+							DBPRINTF("Not instrumentable code has been found by arch_copy_trampoline_arm_uprobe \n");
+
+							free_insn_slot (&uprobe_insn_pages, my_task[i], my_p[i]->ainsn.insn, my_atomic[i]);
+							arch_disarm_uprobe(my_p[i], my_task[i]);
+							arch_remove_kprobe(my_p[i], my_task[i]);
+
+							my_p[i] = -1;
+							my_task[i] = -1;
+							my_atomic[i] = -1;
+
+							regs->uregs[15] -= 4;
+
+							ret = 1;
+							goto no_kprobe;
+						}
+					}
+
+					break;
 				}
 			}
 		}
@@ -939,6 +1088,8 @@ int kprobe_handler (struct pt_regs *regs)
 
 //	DBPRINTF ("KPROBE: regs->uregs[15] = 0x%lx addr = 0x%p\n", regs->uregs[15], addr);
 	//DBPRINTF("regs->uregs[14] = 0x%lx\n", regs->uregs[14]);
+
+//	preempt_disable ();
 
 	kcb = get_kprobe_ctlblk ();
 
