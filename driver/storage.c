@@ -841,31 +841,39 @@ int link_bundle()
 	p += sizeof(u_int32_t);
 
 	/* Set mode */
-	if (SetECMode(*(u_int32_t *)p) == -1) {
+	if (SetECMode(*(u_int32_t *)p) == -1)
+	{
 		EPRINTF("Cannot set mode!\n");
 		return -1;
 	}
+
 	p += sizeof(u_int32_t);
 
 	/* Buffer size */
-	if (SetBufferSize(*(u_int32_t *)p) == -1) {
+	if (SetBufferSize(*(u_int32_t *)p) == -1)
+	{
 		EPRINTF("Cannot set buffer size!\n");
 		return -1;
 	}
+
 	p += sizeof(u_int32_t);
 
 	/* Pid */
-	if (SetPid(*(u_int32_t *)p) == -1) {
+	if (SetPid(*(u_int32_t *)p) == -1)
+	{
 		EPRINTF("Cannot set pid!\n");
 		return -1;
 	}
+
 	p += sizeof(u_int32_t);
 
 	/* Kernel probes */
 	nr_kern_probes = *(u_int32_t *)p;
 	p += sizeof(u_int32_t);
-	for (i = 0; i < nr_kern_probes; i++) {
-		if (add_probe(*(u_int32_t *)p)) {
+	for (i = 0; i < nr_kern_probes; i++)
+	{
+		if (add_probe(*(u_int32_t *)p))
+		{
 			EPRINTF("Cannot add kernel probe at 0x%x!\n", *(u_int32_t *)p);
 			return -1;
 		}
@@ -875,18 +883,24 @@ int link_bundle()
 	/* Us probes */
 	len = *(u_int32_t *)p; /* App path len */
 	p += sizeof(u_int32_t);
-	if ( len == 0 ) {
+
+	if ( len == 0 )
+	{
 	    us_proc_info.path = NULL;
 	}
-	else {
-	us_proc_info.path = (char *)p;
-	DPRINTF("app path = %s", us_proc_info.path);
-	p += len;
-	if (strcmp(us_proc_info.path, "*")) {
-	    if (path_lookup(us_proc_info.path, LOOKUP_FOLLOW, &nd) != 0) {
-			EPRINTF("failed to lookup dentry for path %s!", us_proc_info.path);
-			return -1;
-		}
+	else
+	{
+		us_proc_info.path = (char *)p;
+		DPRINTF("app path = %s", us_proc_info.path);
+		p += len;
+
+		if (strcmp(us_proc_info.path, "*"))
+		{
+			if (path_lookup(us_proc_info.path, LOOKUP_FOLLOW, &nd) != 0)
+			{
+				EPRINTF("failed to lookup dentry for path %s!", us_proc_info.path);
+				return -1;
+			}
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	    us_proc_info.m_f_dentry = nd.dentry;
 	    path_release(&nd);
@@ -894,244 +908,268 @@ int link_bundle()
 	    us_proc_info.m_f_dentry = nd.path.dentry;
 	    path_put(&nd.path);
 #endif
-	} else {
-	    us_proc_info.m_f_dentry = NULL;
-	}
-	us_proc_info.libs_count = *(u_int32_t *)p;
-	DPRINTF("nr of libs = %d", us_proc_info.libs_count);
-	p += sizeof(u_int32_t);
-	us_proc_info.p_libs =
-		kmalloc(us_proc_info.libs_count * sizeof(us_proc_lib_t), GFP_KERNEL);
-	if (!us_proc_info.p_libs) {
-		EPRINTF("Cannot alloc p_libs!");
-		return -1;
-	}
-	memset(us_proc_info.p_libs, 0,
-		   us_proc_info.libs_count * sizeof(us_proc_lib_t));
-
-	for (i = 0; i < us_proc_info.libs_count; i++) {
-		d_lib = &us_proc_info.p_libs[i];
-		lib_name_len = *(u_int32_t *)p;
-		p += sizeof(u_int32_t);
-		d_lib->path = (char *)p;
-		DPRINTF("d_lib->path = %s", d_lib->path);
-
-		p += lib_name_len;
-		d_lib->ips_count = *(u_int32_t *)p;
-		DPRINTF("d_lib->ips_count = %d", d_lib->ips_count);
-		p += sizeof(u_int32_t);
-
-		/* If there are any probes for "*" app we have to drop them */
-		if (strcmp(d_lib->path, "*") == 0) {
-			p += d_lib->ips_count * 3 * sizeof(u_int32_t);
-			d_lib->ips_count = 0;
-			continue;
 		}
-
-		if (strcmp(us_proc_info.path, d_lib->path) == 0)
-			is_app = 1;
-		else {
-			is_app = 0;
-			DPRINTF("Searching path for lib %s", d_lib->path);
-			d_lib->path = find_lib_path(d_lib->path);
-			if (!d_lib->path) {
-				EPRINTF("Cannot find path!");
-				return -1;
-			}
-		}
-
-		if (path_lookup(d_lib->path, LOOKUP_FOLLOW, &nd) != 0) {
-			EPRINTF ("failed to lookup dentry for path %s!", d_lib->path);
-			p += lib_name_len;
-			p += sizeof(u_int32_t);
-			continue;
-		}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-		d_lib->m_f_dentry = nd.dentry;
-		path_release(&nd);
-#else
-		d_lib->m_f_dentry = nd.path.dentry;
-		d_lib->m_vfs_mount = nd.path.mnt;
-		path_put(&nd.path);
-#endif
-
-		pd_lib = NULL;
-		ptr = strrchr(d_lib->path, '/');
-		if (ptr)
-			ptr++;
 		else
-			ptr = d_lib->path;
-		for (l = 0; l < my_uprobes_info->libs_count; l++) {
-			if ((strcmp(ptr, my_uprobes_info->p_libs[l].path) == 0) ||
-				(is_app && *(my_uprobes_info->p_libs[l].path) == '\0')) {
-				pd_lib = &my_uprobes_info->p_libs[l];
-				break;
-			}
+		{
+			us_proc_info.m_f_dentry = NULL;
 		}
 
-		if (d_lib->ips_count > 0) {
-			us_proc_info.unres_ips_count += d_lib->ips_count;
-			d_lib->p_ips = vmalloc(d_lib->ips_count * sizeof(us_proc_ip_t));
-			DPRINTF("d_lib[%i]->p_ips=%p/%u [%s]", i, d_lib->p_ips,
-					us_proc_info.unres_ips_count, d_lib->path);
-			if (!d_lib->p_ips) {
-				EPRINTF("Cannot alloc p_ips!\n");
-				return -1;
-			}
-			memset (d_lib->p_ips, 0, d_lib->ips_count * sizeof(us_proc_ip_t));
-			for (k = 0; k < d_lib->ips_count; k++) {
-				d_ip = &d_lib->p_ips[k];
-				d_ip->offset = *(u_int32_t *)p;
-				p += sizeof(u_int32_t);
-				p += sizeof(u_int32_t); /* Skip inst type */
-				handler_index = *(u_int32_t *)p;
-				p += sizeof(u_int32_t);
+		us_proc_info.libs_count = *(u_int32_t *)p;
+		DPRINTF("nr of libs = %d", us_proc_info.libs_count);
+		p += sizeof(u_int32_t);
+		us_proc_info.p_libs =
+			kmalloc(us_proc_info.libs_count * sizeof(us_proc_lib_t), GFP_KERNEL);
 
-				DPRINTF("pd_lib = 0x%x", pd_lib);
-				if (pd_lib) {
-					DPRINTF("pd_lib->ips_count = 0x%x", pd_lib->ips_count);
-					if (handler_index != -1) {
-						DPRINTF("found handler for 0x%x", d_ip->offset);
-						d_ip->jprobe.pre_entry =
-							pd_lib->p_ips[handler_index].jprobe.pre_entry;
-						d_ip->jprobe.entry =
-							pd_lib->p_ips[handler_index].jprobe.entry;
-						d_ip->retprobe.handler =
-							pd_lib->p_ips[handler_index].retprobe.handler;
+		if (!us_proc_info.p_libs)
+		{
+			EPRINTF("Cannot alloc p_libs!");
+			return -1;
+		}
+		memset(us_proc_info.p_libs, 0,
+			   us_proc_info.libs_count * sizeof(us_proc_lib_t));
+
+		for (i = 0; i < us_proc_info.libs_count; i++)
+		{
+			d_lib = &us_proc_info.p_libs[i];
+			lib_name_len = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+			d_lib->path = (char *)p;
+			DPRINTF("d_lib->path = %s", d_lib->path);
+
+			p += lib_name_len;
+			d_lib->ips_count = *(u_int32_t *)p;
+			DPRINTF("d_lib->ips_count = %d", d_lib->ips_count);
+			p += sizeof(u_int32_t);
+
+			/* If there are any probes for "*" app we have to drop them */
+			if (strcmp(d_lib->path, "*") == 0)
+			{
+				p += d_lib->ips_count * 3 * sizeof(u_int32_t);
+				d_lib->ips_count = 0;
+				continue;
+			}
+
+			if (strcmp(us_proc_info.path, d_lib->path) == 0)
+				is_app = 1;
+			else
+			{
+				is_app = 0;
+				DPRINTF("Searching path for lib %s", d_lib->path);
+				d_lib->path = find_lib_path(d_lib->path);
+				if (!d_lib->path)
+				{
+					EPRINTF("Cannot find path!");
+					return -1;
+				}
+			}
+
+			if (path_lookup(d_lib->path, LOOKUP_FOLLOW, &nd) != 0)
+			{
+				EPRINTF ("failed to lookup dentry for path %s!", d_lib->path);
+				p += lib_name_len;
+				p += sizeof(u_int32_t);
+				continue;
+			}
+	#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+			d_lib->m_f_dentry = nd.dentry;
+			path_release(&nd);
+	#else
+			d_lib->m_f_dentry = nd.path.dentry;
+			d_lib->m_vfs_mount = nd.path.mnt;
+			path_put(&nd.path);
+	#endif
+
+			pd_lib = NULL;
+			ptr = strrchr(d_lib->path, '/');
+			if (ptr)
+				ptr++;
+			else
+				ptr = d_lib->path;
+			for (l = 0; l < my_uprobes_info->libs_count; l++)
+			{
+				if ((strcmp(ptr, my_uprobes_info->p_libs[l].path) == 0) ||
+					(is_app && *(my_uprobes_info->p_libs[l].path) == '\0'))
+				{
+					pd_lib = &my_uprobes_info->p_libs[l];
+					break;
+				}
+			}
+
+			if (d_lib->ips_count > 0)
+			{
+				us_proc_info.unres_ips_count += d_lib->ips_count;
+				d_lib->p_ips = vmalloc(d_lib->ips_count * sizeof(us_proc_ip_t));
+				DPRINTF("d_lib[%i]->p_ips=%p/%u [%s]", i, d_lib->p_ips,
+						us_proc_info.unres_ips_count, d_lib->path);
+
+				if (!d_lib->p_ips)
+				{
+					EPRINTF("Cannot alloc p_ips!\n");
+					return -1;
+				}
+
+				memset (d_lib->p_ips, 0, d_lib->ips_count * sizeof(us_proc_ip_t));
+				for (k = 0; k < d_lib->ips_count; k++)
+				{
+					d_ip = &d_lib->p_ips[k];
+					d_ip->offset = *(u_int32_t *)p;
+					p += sizeof(u_int32_t);
+					p += sizeof(u_int32_t); /* Skip inst type */
+					handler_index = *(u_int32_t *)p;
+					p += sizeof(u_int32_t);
+
+					DPRINTF("pd_lib = 0x%x", pd_lib);
+					if (pd_lib)
+					{
+						DPRINTF("pd_lib->ips_count = 0x%x", pd_lib->ips_count);
+						if (handler_index != -1)
+						{
+							DPRINTF("found handler for 0x%x", d_ip->offset);
+							d_ip->jprobe.pre_entry =
+								pd_lib->p_ips[handler_index].jprobe.pre_entry;
+							d_ip->jprobe.entry =
+								pd_lib->p_ips[handler_index].jprobe.entry;
+							d_ip->retprobe.handler =
+								pd_lib->p_ips[handler_index].retprobe.handler;
+						}
 					}
 				}
 			}
 		}
-	}
 
-	/* Lib path */
-	int lib_path_len = *(u_int32_t *)p;
-	DPRINTF("lib_path_len = %d", lib_path_len);
-	p += sizeof(u_int32_t);
-	char *lib_path = p;
-	DPRINTF("lib_path = %s", lib_path);
-	p += lib_path_len;
+		/* Lib path */
+		int lib_path_len = *(u_int32_t *)p;
+		DPRINTF("lib_path_len = %d", lib_path_len);
+		p += sizeof(u_int32_t);
+		char *lib_path = p;
+		DPRINTF("lib_path = %s", lib_path);
+		p += lib_path_len;
 
-	/* Link FBI info */
-	d_lib = &us_proc_info.p_libs[0];
-	s_lib.vtps_count = *(u_int32_t *)p;
-	DPRINTF("s_lib.vtps_count = %d", s_lib.vtps_count);
-	p += sizeof(u_int32_t);
-	if (s_lib.vtps_count > 0) {
-		s_lib.p_vtps = kmalloc(s_lib.vtps_count
-							   * sizeof(ioctl_usr_space_vtp_t), GFP_KERNEL);
-		if (!s_lib.p_vtps) {
-			//kfree (addrs);
-			return -1;
-		}
-		for (i = 0; i < s_lib.vtps_count; i++) {
-			int var_name_len = *(u_int32_t *)p;
-			p += sizeof(u_int32_t);
-			s_lib.p_vtps[i].name = p;
-			p += var_name_len;
-			s_lib.p_vtps[i].addr = *(u_int32_t *)p;
-			p += sizeof(u_int32_t);
-			s_lib.p_vtps[i].type = *(u_int32_t *)p;
-			p += sizeof(u_int32_t);
-			s_lib.p_vtps[i].size = *(u_int32_t *)p;
-			p += sizeof(u_int32_t);
-			s_lib.p_vtps[i].reg = *(u_int32_t *)p;
-			p += sizeof(u_int32_t);
-			s_lib.p_vtps[i].off = *(u_int32_t *)p;
-			p += sizeof(u_int32_t);
-		}
-		unsigned long ucount = 1, pre_addr;
-		// array containing elements like (addr, index)
-		unsigned long *addrs = kmalloc (s_lib.vtps_count * 2 * sizeof (unsigned long), GFP_KERNEL);
-//			DPRINTF ("addrs=%p/%u", addrs, s_lib.vtps_count);
-		if (!addrs)
+		/* Link FBI info */
+		d_lib = &us_proc_info.p_libs[0];
+		s_lib.vtps_count = *(u_int32_t *)p;
+		DPRINTF("s_lib.vtps_count = %d", s_lib.vtps_count);
+		p += sizeof(u_int32_t);
+		if (s_lib.vtps_count > 0)
 		{
-			//note: storage will released next time or at clean-up moment
-			return -ENOMEM;
-		}
-		memset (addrs, 0, s_lib.vtps_count * 2 * sizeof (unsigned long));
-		// fill the array in
-		for (k = 0; k < s_lib.vtps_count; k++)
-		{
-			s_vtp = &s_lib.p_vtps[k];
-			addrs[2 * k] = s_vtp->addr;
-			addrs[2 * k + 1] = k;
-		}
-		// sort by VTP addresses, i.e. make VTPs with the same addresses adjacent;
-		// organize them into bundles
-		sort (addrs, s_lib.vtps_count, 2 * sizeof (unsigned long), addr_cmp, generic_swap);
-
-		// calc number of VTPs with unique addresses
-		for (k = 1, pre_addr = addrs[0]; k < s_lib.vtps_count; k++)
-		{
-			if (addrs[2 * k] != pre_addr)
-				ucount++;	// count different only
-			pre_addr = addrs[2 * k];
-		}
-		us_proc_info.unres_vtps_count += ucount;
-		d_lib->vtps_count = ucount;
-		d_lib->p_vtps = kmalloc (ucount * sizeof (us_proc_vtp_t), GFP_KERNEL);
-		DPRINTF ("d_lib[%i]->p_vtps=%p/%lu", i, d_lib->p_vtps, ucount);	//, d_lib->path);
-		if (!d_lib->p_vtps)
-		{
-			//note: storage will released next time or at clean-up moment
-			kfree (addrs);
-			return -ENOMEM;
-		}
-		memset (d_lib->p_vtps, 0, d_lib->vtps_count * sizeof (us_proc_vtp_t));
-		// go through sorted VTPS.
-		for (k = 0, j = 0, pre_addr = 0, mvtp = NULL; k < s_lib.vtps_count; k++)
-		{
-			us_proc_vtp_data_t *vtp_data;
-			// copy VTP data
-			s_vtp = &s_lib.p_vtps[addrs[2 * k + 1]];
-			// if this is the first VTP in bundle (master VTP)
-			if (addrs[2 * k] != pre_addr)
+			s_lib.p_vtps = kmalloc(s_lib.vtps_count
+								   * sizeof(ioctl_usr_space_vtp_t), GFP_KERNEL);
+			if (!s_lib.p_vtps)
 			{
-				// data are in the array of master VTPs
-				mvtp = &d_lib->p_vtps[j++];
-				mvtp->addr = s_vtp->addr;
-				INIT_LIST_HEAD (&mvtp->list);
+				//kfree (addrs);
+				return -1;
 			}
-			// data are in the list of slave VTPs
-			vtp_data = kmalloc (sizeof (us_proc_vtp_data_t), GFP_KERNEL);
-			if (!vtp_data)
+
+			for (i = 0; i < s_lib.vtps_count; i++)
+			{
+				int var_name_len = *(u_int32_t *)p;
+				p += sizeof(u_int32_t);
+				s_lib.p_vtps[i].name = p;
+				p += var_name_len;
+				s_lib.p_vtps[i].addr = *(u_int32_t *)p;
+				p += sizeof(u_int32_t);
+				s_lib.p_vtps[i].type = *(u_int32_t *)p;
+				p += sizeof(u_int32_t);
+				s_lib.p_vtps[i].size = *(u_int32_t *)p;
+				p += sizeof(u_int32_t);
+				s_lib.p_vtps[i].reg = *(u_int32_t *)p;
+				p += sizeof(u_int32_t);
+				s_lib.p_vtps[i].off = *(u_int32_t *)p;
+				p += sizeof(u_int32_t);
+			}
+
+			unsigned long ucount = 1, pre_addr;
+			// array containing elements like (addr, index)
+			unsigned long *addrs = kmalloc (s_lib.vtps_count * 2 * sizeof (unsigned long), GFP_KERNEL);
+	//			DPRINTF ("addrs=%p/%u", addrs, s_lib.vtps_count);
+			if (!addrs)
+			{
+				//note: storage will released next time or at clean-up moment
+				return -ENOMEM;
+			}
+			memset (addrs, 0, s_lib.vtps_count * 2 * sizeof (unsigned long));
+			// fill the array in
+			for (k = 0; k < s_lib.vtps_count; k++)
+			{
+				s_vtp = &s_lib.p_vtps[k];
+				addrs[2 * k] = s_vtp->addr;
+				addrs[2 * k + 1] = k;
+			}
+			// sort by VTP addresses, i.e. make VTPs with the same addresses adjacent;
+			// organize them into bundles
+			sort (addrs, s_lib.vtps_count, 2 * sizeof (unsigned long), addr_cmp, generic_swap);
+
+			// calc number of VTPs with unique addresses
+			for (k = 1, pre_addr = addrs[0]; k < s_lib.vtps_count; k++)
+			{
+				if (addrs[2 * k] != pre_addr)
+					ucount++;	// count different only
+				pre_addr = addrs[2 * k];
+			}
+			us_proc_info.unres_vtps_count += ucount;
+			d_lib->vtps_count = ucount;
+			d_lib->p_vtps = kmalloc (ucount * sizeof (us_proc_vtp_t), GFP_KERNEL);
+			DPRINTF ("d_lib[%i]->p_vtps=%p/%lu", i, d_lib->p_vtps, ucount);	//, d_lib->path);
+			if (!d_lib->p_vtps)
 			{
 				//note: storage will released next time or at clean-up moment
 				kfree (addrs);
 				return -ENOMEM;
 			}
+			memset (d_lib->p_vtps, 0, d_lib->vtps_count * sizeof (us_proc_vtp_t));
+			// go through sorted VTPS.
+			for (k = 0, j = 0, pre_addr = 0, mvtp = NULL; k < s_lib.vtps_count; k++)
+			{
+				us_proc_vtp_data_t *vtp_data;
+				// copy VTP data
+				s_vtp = &s_lib.p_vtps[addrs[2 * k + 1]];
+				// if this is the first VTP in bundle (master VTP)
+				if (addrs[2 * k] != pre_addr)
+				{
+					// data are in the array of master VTPs
+					mvtp = &d_lib->p_vtps[j++];
+					mvtp->addr = s_vtp->addr;
+					INIT_LIST_HEAD (&mvtp->list);
+				}
+				// data are in the list of slave VTPs
+				vtp_data = kmalloc (sizeof (us_proc_vtp_data_t), GFP_KERNEL);
+				if (!vtp_data)
+				{
+					//note: storage will released next time or at clean-up moment
+					kfree (addrs);
+					return -ENOMEM;
+				}
 
-			/*len = strlen_user (s_vtp->name);
-			  vtp_data->name = kmalloc (len, GFP_KERNEL);
-			  if (!vtp_data->name)
-			  {
-			  //note: storage will released next time or at clean-up moment
-			  kfree (vtp_data);
-			  kfree (addrs);
-			  return -ENOMEM;
-			  }
-			  if (strncpy_from_user (vtp_data->name, s_vtp->name, len) != (len-1))
-			  {
-			  //note: storage will released next time or at clean-up moment
-			  EPRINTF ("strncpy_from_user VTP name failed %p (%ld)", vtp_data->name, len);
-			  kfree (vtp_data->name);
-			  kfree (vtp_data);
-			  kfree (addrs);
-			  return -EFAULT;
-			  }
-			  //vtp_data->name[len] = 0;*/
-			vtp_data->type = s_vtp->type;
-			vtp_data->size = s_vtp->size;
-			vtp_data->reg = s_vtp->reg;
-			vtp_data->off = s_vtp->off;
-			list_add_tail_rcu (&vtp_data->list, &mvtp->list);
-			pre_addr = addrs[2 * k];
+				/*len = strlen_user (s_vtp->name);
+				  vtp_data->name = kmalloc (len, GFP_KERNEL);
+				  if (!vtp_data->name)
+				  {
+				  //note: storage will released next time or at clean-up moment
+				  kfree (vtp_data);
+				  kfree (addrs);
+				  return -ENOMEM;
+				  }
+				  if (strncpy_from_user (vtp_data->name, s_vtp->name, len) != (len-1))
+				  {
+				  //note: storage will released next time or at clean-up moment
+				  EPRINTF ("strncpy_from_user VTP name failed %p (%ld)", vtp_data->name, len);
+				  kfree (vtp_data->name);
+				  kfree (vtp_data);
+				  kfree (addrs);
+				  return -EFAULT;
+				  }
+				  //vtp_data->name[len] = 0;*/
+				vtp_data->type = s_vtp->type;
+				vtp_data->size = s_vtp->size;
+				vtp_data->reg = s_vtp->reg;
+				vtp_data->off = s_vtp->off;
+				list_add_tail_rcu (&vtp_data->list, &mvtp->list);
+				pre_addr = addrs[2 * k];
+			}
+			kfree (addrs);
+			kfree(s_lib.p_vtps);
 		}
-		kfree (addrs);
-		kfree(s_lib.p_vtps);
 	}
-
 
 	/* Conds */
 	/* first, delete all the conds */
@@ -1621,13 +1659,17 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 	if (my_uprobes_info == 0)
 		my_uprobes_info = &empty_uprobes_info;
 
-	for(j = 0; j < data->probes_count; j++){
+	for(j = 0; j < data->probes_count; j++)
+	{
 		probe_size = strlen_user(data->p_probes+size);
 		buf = kmalloc(probe_size, GFP_KERNEL);
-		if(!buf){
+
+		if(!buf)
+		{
 			EPRINTF("failed to alloc mem!");
 			return -EFAULT;
-		}		
+		}
+
 		result = strncpy_from_user(buf, data->p_probes+size, probe_size);
 		if (result != (probe_size-1))
 		{
@@ -1637,28 +1679,33 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 		}
 		//DPRINTF("%s", buf);
 		sep1 = strchr(buf, ':');
-		if(!sep1){
+		if(!sep1)
+		{
 			EPRINTF("skipping invalid predefined uprobe string '%s'!", buf);
 			kfree(buf);
 			size += probe_size;
 			continue;
 		}		
 		sep2 = strchr(sep1+1, ':');
-		if(!sep2 || (sep2 == sep1) || (sep2+2 == buf+probe_size)){
+		if(!sep2 || (sep2 == sep1) || (sep2+2 == buf+probe_size))
+		{
 			EPRINTF("skipping invalid predefined uprobe string '%s'!", buf);
 			kfree(buf);
 			size += probe_size;
 			continue;
 		}		
-		for(i = 0; i < my_uprobes_info->libs_count; i++){
+		for(i = 0; i < my_uprobes_info->libs_count; i++)
+		{
 			if(strncmp(buf, my_uprobes_info->p_libs[i].path, sep1-buf) != 0)
 				continue;
-			for(k = 0; k < my_uprobes_info->p_libs[i].ips_count; k++){
+			for(k = 0; k < my_uprobes_info->p_libs[i].ips_count; k++)
+			{
 				if(strncmp(sep1+1, my_uprobes_info->p_libs[i].p_ips[k].name, sep2-sep1-1) != 0)
 					continue;				
 				my_uprobes_info->p_libs[i].p_ips[k].offset = simple_strtoul(sep2+1, NULL, 16);
 			}
 		}
+
 		kfree(buf);
 		size += probe_size;
 	}
@@ -1680,13 +1727,16 @@ int get_predef_uprobes_size(int *size)
 		my_uprobes_info = &empty_uprobes_info;
 
 	*size = 0;
-	for(i = 0; i < my_uprobes_info->libs_count; i++){
+	for(i = 0; i < my_uprobes_info->libs_count; i++)
+	{
 		int lib_size = strlen(my_uprobes_info->p_libs[i].path);
-		for(k = 0; k < my_uprobes_info->p_libs[i].ips_count; k++){
+		for(k = 0; k < my_uprobes_info->p_libs[i].ips_count; k++)
+		{
 			// libc.so.6:printf:
 			*size += lib_size + 1 + strlen(my_uprobes_info->p_libs[i].p_ips[k].name) + 2;
 		}
 	}
+
 	return 0;
 }
 
@@ -1714,9 +1764,11 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 	}
 		
 	size = 0;
-	for(i = 0; i < my_uprobes_info->libs_count; i++){
+	for(i = 0; i < my_uprobes_info->libs_count; i++)
+	{
 		lib_size = strlen(my_uprobes_info->p_libs[i].path);
-		for(k = 0; k < my_uprobes_info->p_libs[i].ips_count; k++){
+		for(k = 0; k < my_uprobes_info->p_libs[i].ips_count; k++)
+		{
 			// libname
 			result = copy_to_user ((void *)(data.p_probes+size), my_uprobes_info->p_libs[i].path, lib_size);
 			if (result)
@@ -1762,5 +1814,8 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 		EPRINTF("failed to copy to user!");
 		return -EFAULT;
 	}
+
 	return 0;
 }
+
+
