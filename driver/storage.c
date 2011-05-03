@@ -1170,6 +1170,7 @@ int link_bundle()
 			kfree(s_lib.p_vtps);
 		}
 	}
+	}
 
 	/* Conds */
 	/* first, delete all the conds */
