@@ -448,12 +448,9 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							task_inst_info->unres_ips_count--;
 							
 							err = register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
-<<<<<<< HEAD
+
 							if (err != 0)
 							{
-=======
-							if (!err) {
->>>>>>> branch 'refs/heads/master' of ssh://lastakhov@106.109.8.71/srv/git/dbi_new_build
 								DPRINTF ("failed to install IP at %lx/%p. Error %d!", task_inst_info->p_libs[i].p_ips[k].offset, 
 										task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr);
 							}
@@ -481,7 +478,8 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							task_inst_info->unres_vtps_count--;
 							
 							err = register_ujprobe (task, mm, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
-							if (!err) {
+
+							if ( err != 0 ) {
 								EPRINTF ("failed to install VTP at %p. Error %d!", 
 										task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr);
 							}
