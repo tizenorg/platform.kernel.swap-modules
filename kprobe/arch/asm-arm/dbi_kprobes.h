@@ -161,14 +161,47 @@ typedef unsigned long kprobe_opcode_t;
 # define PTRN_THUMB_INSN_DP		0x4000			// 010000xxxxxxxxxx
 
 # define MASK_THUMB_INSN_APC		0xF800			// 11111xxxxxxxxxxx
-# define PTRN_THUMB_INSN_APC		0xA000			// 10100xxxxxxxxxxx	ADD Rd, [PC, #<immed_8> * 4]
+# define PTRN_THUMB_INSN_APC		0xA000			// 10100xxxxxxxxxxx	ADD Rd, [PC, #<imm8> * 4]
 
-# define MASK_THUMB2_INSN_DPI		0xFBE08000		// 11111x11111xxxxx1xxxxxxxxxxxxxxx
-//# define PTRN_THUMB2_INSN_DPI		0xF0000000		// 11110x0xxxxxxxxx0xxxxxxxxxxxxxxx				/? A6-19 ARM DDI 0406B
-# define PTRN_THUMB2_INSN_DPI		0xF2000000		// 11110x1xxxxxxxxx0xxxxxxxxxxxxxxx				/? A6-19 ARM DDI 0406B
+# define MASK_THUMB2_INSN_DPI		0xFBE08000		// 11111x11111xxxxx 1xxxxxxxxxxxxxxx
+//# define PTRN_THUMB2_INSN_DPI		0xF0000000		// 11110x0xxxxxxxxx 0xxxxxxxxxxxxxxx				/? A6-19 ARM DDI 0406B
+# define PTRN_THUMB2_INSN_DPI		0xF2000000		// 11110x1xxxxxxxxx 0xxxxxxxxxxxxxxx				/? A6-19 ARM DDI 0406B
 
 # define MASK_THUMB_INSN_MOV3		0xFF00			// 11111111xxxxxxxx
 # define PTRN_THUMB_INSN_MOV3		0x4600			// 01000110xxxxxxxx	MOV Rd, PC
+
+# define MASK_THUMB2_INSN_RSBW		0x8000fbe0		// 1xxxxxxxxxxxxxxx 11111x11111xxxxx	// swapped
+# define PTRN_THUMB2_INSN_RSBW		0x0000f1c0		// 0xxxxxxxxxxxxxxx 11110x01110xxxxx	RSB{S}.W Rd, Rn, #<const> // swapped
+
+# define MASK_THUMB2_INSN_RORW		0xf0f0ffe0		// 1111xxxx1111xxxx 11111111111xxxxx	// swapped
+# define PTRN_THUMB2_INSN_RORW		0xf000fa60		// 1111xxxx0000xxxx 11111010011xxxxx	ROR{S}.W Rd, Rn, Rm // swapped
+
+# define MASK_THUMB2_INSN_ROR		0x0030ffef		// xxxxxxxxxx11xxxx 11111111111x1111	// swapped
+# define PTRN_THUMB2_INSN_ROR		0x0030ea4f		// xxxxxxxxxx11xxxx 11101010010x1111	ROR{S} Rd, Rm, #<imm> // swapped
+
+# define MASK_THUMB2_INSN_LSLW1		0xf0f0ffe0		// 1111xxxx1111xxxx 11111111111xxxxx	// swapped
+# define PTRN_THUMB2_INSN_LSLW1		0xf000fa00		// 1111xxxx0000xxxx 11111010000xxxxx	LSL{S}.W Rd, Rn, Rm // swapped
+
+# define MASK_THUMB2_INSN_LSLW2		0x0030ffef		// xxxxxxxxxx11xxxx 11111111111x1111	// swapped
+# define PTRN_THUMB2_INSN_LSLW2		0x0000ea4f		// xxxxxxxxxx00xxxx 11101010010x1111	LSL{S}.W Rd, Rm, #<imm5> // swapped
+
+# define MASK_THUMB2_INSN_LSRW1		0xf0f0ffe0		// 1111xxxx1111xxxx 11111111111xxxxx	// swapped
+# define PTRN_THUMB2_INSN_LSRW1		0xf000fa20		// 1111xxxx0000xxxx 11111010001xxxxx	LSR{S}.W Rd, Rn, Rm // swapped
+
+# define MASK_THUMB2_INSN_LSRW2		0x0030ffef		// xxxxxxxxxx11xxxx 11111111111x1111	// swapped
+# define PTRN_THUMB2_INSN_LSRW2		0x0010ea4f		// xxxxxxxxxx01xxxx 11101010010x1111	LSR{S}.W Rd, Rm, #<imm5> // swapped
+
+# define MASK_THUMB2_INSN_TEQ1		0x8f00fbf0		// 1xxx1111xxxxxxxx 11111x111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_TEQ1		0x0f00f090		// 0xxx1111xxxxxxxx 11110x001001xxxx	TEQ Rn, #<const> // swapped
+
+# define MASK_THUMB2_INSN_TEQ2		0x0f00fff0		// xxxx1111xxxxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_TEQ2		0x0f00ea90		// xxxx1111xxxxxxxx 111010101001xxxx	TEQ Rn, Rm{,<shift>} // swapped
+
+# define MASK_THUMB2_INSN_TST1		0x8f00fbf0		// 1xxx1111xxxxxxxx 11111x111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_TST1		0x0f00f010		// 0xxx1111xxxxxxxx 11110x000001xxxx	TST Rn, #<const> // swapped
+
+# define MASK_THUMB2_INSN_TST2		0x0f00fff0		// xxxx1111xxxxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_TST2		0x0f00ea10		// xxxx1111xxxxxxxx 111010100001xxxx	TST Rn, Rm{,<shift>} // swapped
 
 
 // Load immediate offset
@@ -214,8 +247,8 @@ typedef unsigned long kprobe_opcode_t;
 # define MASK_THUMB2_INSN_LDRWL		0x0fc0fff0		// xxxx111111xxxxxx 111111111111xxxx	// swapped
 # define PTRN_THUMB2_INSN_LDRWL		0x0000f850		// xxxxxxxxxxxxxxxx 111110000101xxxx	LDR.W Rt, [Rn, Rm, LSL #<imm2>]// swapped
 
-# define MASK_THUMB2_INSN_LDREX		0x0f00fff0		// xxxx1111xxxxxxxx 111111111111xxxx	// swapped
-# define PTRN_THUMB2_INSN_LDREX		0x0f00e850		// xxxx1111xxxxxxxx 111010000101xxxx	LDREX Rt, [PC, #<imm8>]// swapped
+# define MASK_THUMB2_INSN_LDREX		0x0f00ffff		// xxxx1111xxxxxxxx 1111111111111111	// swapped
+# define PTRN_THUMB2_INSN_LDREX		0x0f00e85f		// xxxx1111xxxxxxxx 1110100001011111	LDREX Rt, [PC, #<imm8>]// swapped
 
 # define MASK_THUMB2_INSN_MUL		0xf0f0fff0		// 1111xxxx1111xxxx 111111111111xxxx	// swapped
 # define PTRN_THUMB2_INSN_MUL		0xf000fb00		// 1111xxxx0000xxxx 111110110000xxxx	MUL Rd, Rn, Rm// swapped
@@ -230,26 +263,47 @@ typedef unsigned long kprobe_opcode_t;
 # define MASK_ARM_INSN_SIO		MASK_ARM_INSN_LIO
 # define PTRN_ARM_INSN_SIO		0x04000000
 
-# define MASK_THUMB_INSN_SIO1		MASK_THUMB_INSN_LIO
+# define MASK_THUMB_INSN_SIO1		MASK_THUMB_INSN_LIO1
 # define PTRN_THUMB_INSN_SIO1		0x6000			// 01100xxxxxxxxxxx	STR
 
-# define MASK_THUMB_INSN_SIO2		MASK_THUMB_INSN_LIO
+# define MASK_THUMB_INSN_SIO2		MASK_THUMB_INSN_LIO1
 # define PTRN_THUMB_INSN_SIO2		0x7000			// 01110xxxxxxxxxxx	STRB
 
-# define MASK_THUMB_INSN_SIO3		MASK_THUMB_INSN_LIO
+# define MASK_THUMB_INSN_SIO3		MASK_THUMB_INSN_LIO1
 # define PTRN_THUMB_INSN_SIO3		0x8000			// 10000xxxxxxxxxxx	STRH
 
-# define MASK_THUMB_INSN_SIO4		MASK_THUMB_INSN_LIO
+# define MASK_THUMB_INSN_SIO4		MASK_THUMB_INSN_LIO1
 # define PTRN_THUMB_INSN_SIO4		0x9000			// 10010xxxxxxxxxxx	STR SP relative
 
-# define MASK_THUMB2_INSN_STRW		0x0000fff0		// xxxxxxxxxxxxxxxx 111111111111xxxx	// swapped
-# define PTRN_THUMB2_INSN_STRW		0x0000f840		// xxxxxxxxxxxxxxxx 111110000100xxxx	STR.W Rt, [Rn, #-<imm8>]// swapped
+# define MASK_THUMB2_INSN_STRW		0x0fc0fff0		// xxxx111111xxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_STRW		0x0000f840		// xxxx000000xxxxxx 111110000100xxxx	STR.W Rt, [Rn, Rm, {LSL #<imm2>}]// swapped
 
-# define MASK_THUMB2_INSN_STRW1		MASK_THUMB2_INSN_STRW
-# define PTRN_THUMB2_INSN_STRW1		0x0000f8c0		// xxxxxxxxxxxxxxxx 111110001100xxxx	STR.W Rt, [PC, #<imm12>]// swapped
+# define MASK_THUMB2_INSN_STRW1		0x0000fff0		// xxxxxxxxxxxxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_STRW1		0x0000f8c0		// xxxxxxxxxxxxxxxx 111110001100xxxx	STR.W Rt, [Rn, #imm12]// swapped				// STR.W Rt, [PC, #imm12] shall be skipped, because it hangs on Tegra. WTF
 
+# define MASK_THUMB2_INSN_STRHW		MASK_THUMB2_INSN_STRW
+# define PTRN_THUMB2_INSN_STRHW		0x0000f820		// xxxx000000xxxxxx 111110000010xxxx	STRH.W Rt, [Rn, Rm, {LSL #<imm2>}]// swapped
 
+# define MASK_THUMB2_INSN_STRHW1	0x0000fff0		// xxxxxxxxxxxxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_STRHW1	0x0000f8a0		// xxxxxxxxxxxxxxxx 111110001010xxxx	STRH.W Rt, [Rn, #<imm12>]// swapped
 
+# define MASK_THUMB2_INSN_STRHT		0x0f00fff0		// xxxx1111xxxxxxxx 111111111111xxxx	// swapped							// strht r1, [pc, #imm] illegal instruction on Tegra. WTF
+# define PTRN_THUMB2_INSN_STRHT		0x0e00f820		// xxxx1110xxxxxxxx 111110000010xxxx	STRHT Rt, [Rn, #<imm8>]// swapped
+
+# define MASK_THUMB2_INSN_STRT		0x0f00fff0		// xxxx1111xxxxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_STRT		0x0e00f840		// xxxx1110xxxxxxxx 111110000100xxxx	STRT Rt, [Rn, #<imm8>]// swapped
+
+# define MASK_THUMB2_INSN_STRBW		MASK_THUMB2_INSN_STRW	// xxxx111111xxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_STRBW		0x0000f800		// xxxx000000xxxxxx 111110000100xxxx	STRB.W Rt, [Rn, Rm, {LSL #<imm2>}]// swapped
+
+# define MASK_THUMB2_INSN_STRBW1	0x0000fff0		// xxxxxxxxxxxxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_STRBW1	0x0000f880		// xxxxxxxxxxxxxxxx 111110001000xxxx	STRB.W Rt, [Rn, #<imm12>]// swapped				// STRB.W Rt, [PC, #imm12] shall be skipped, because it hangs on Tegra. WTF
+
+# define MASK_THUMB2_INSN_STRBT		0x0f00fff0		// xxxx1111xxxxxxxx 111111111111xxxx	// swapped
+# define PTRN_THUMB2_INSN_STRBT		0x0e00f800		// xxxx1110xxxxxxxx 111110000000xxxx	STRBT Rt, [Rn, #<imm8>}]// swapped
+
+# define MASK_THUMB2_INSN_STRD		0x0000fe50		// xxxxxxxxxxxxxxxx 1111111xx1x1xxxx	// swapped
+# define PTRN_THUMB2_INSN_STRD		0x0000e840		// xxxxxxxxxxxxxxxx 1110100xx1x0xxxx	STR{D, EX, EXB, EXH, EXD} Rt, Rt2, [Rn, #<imm8>]// swapped
 
 
 // Load register offset
@@ -263,7 +317,7 @@ typedef unsigned long kprobe_opcode_t;
 # define PTRN_THUMB_INSN_LRO2		0x5800			// 0101100xxxxxxxxx	LDR
 
 # define MASK_THUMB_INSN_LRO3		0xf800			// 11111xxxxxxxxxxx
-# define PTRN_THUMB_INSN_LRO3		0x4800			// 01001xxxxxxxxxxx	LDR Rd, [PC, #<immed_8> * 4]
+# define PTRN_THUMB_INSN_LRO3		0x4800			// 01001xxxxxxxxxxx	LDR Rd, [PC, #<imm8> * 4]
 
 # define MASK_THUMB_INSN_LRO4		MASK_THUMB_INSN_LRO1
 # define PTRN_THUMB_INSN_LRO4		0x5A00			// 0101101xxxxxxxxx	LDRH
@@ -283,31 +337,28 @@ typedef unsigned long kprobe_opcode_t;
 # define MASK_ARM_INSN_SRO		MASK_ARM_INSN_LRO
 # define PTRN_ARM_INSN_SRO		0x06000000
 
-# define MASK_THUMB_INSN_SRO1		MASK_THUMB_INSN_LRO
+# define MASK_THUMB_INSN_SRO1		MASK_THUMB_INSN_LRO1
 # define PTRN_THUMB_INSN_SRO1		0x5000			// 0101000xxxxxxxxx	STR
 
-# define MASK_THUMB_INSN_SRO2		MASK_THUMB_INSN_LRO
+# define MASK_THUMB_INSN_SRO2		MASK_THUMB_INSN_LRO1
 # define PTRN_THUMB_INSN_SRO2		0x5200			// 0101001xxxxxxxxx	STRH
 
-# define MASK_THUMB_INSN_SRO3		MASK_THUMB_INSN_LRO
+# define MASK_THUMB_INSN_SRO3		MASK_THUMB_INSN_LRO1
 # define PTRN_THUMB_INSN_SRO3		0x5400			// 0101010xxxxxxxxx	STRB
 
 // Load multiple
 # define MASK_ARM_INSN_LM		0x0E100000
 # define PTRN_ARM_INSN_LM		0x08100000
 
-# define MASK_THUMB2_INSN_LM		0xFE500000		// 1111111xx1x1xxxxxxxxxxxxxxxxxxxx
-# define PTRN_THUMB2_INSN_LM		0xE8100000		// 1110100xx0x1xxxxxxxxxxxxxxxxxxxx
+# define MASK_THUMB2_INSN_LDMIA		0x8000ffd0		// 1xxxxxxxxxxxxxxx 1111111111x1xxxx	// swapped
+# define PTRN_THUMB2_INSN_LDMIA		0x8000e890		// 1xxxxxxxxxxxxxxx 1110100010x1xxxx	LDMIA(.W) Rn(!), {Rx, ..., PC}// swapped
+
+# define MASK_THUMB2_INSN_LDMDB		0x8000ffd0		// 1xxxxxxxxxxxxxxx 1111111111x1xxxx	// swapped
+# define PTRN_THUMB2_INSN_LDMDB		0x8000e910		// 1xxxxxxxxxxxxxxx 1110100100x1xxxx	LDMDB(.W) Rn(!), {Rx, ..., PC}// swapped
 
 // Store multiple
-# define MASK_ARM_INSN_SM		MASK_THUMB2_INSN_LM
+# define MASK_ARM_INSN_SM		MASK_ARM_INSN_LM
 # define PTRN_ARM_INSN_SM		0x08000000
-
-# define MASK_THUMB2_INSN_SM		MASK_THUMB2_INSN_LM
-# define PTRN_THUMB2_INSN_SM		0xE8000000		// 1110100xx0x0xxxxxxxxxxxxxxxxxxxx
-
-
-
 
 
 // Coprocessor load/store and double register transfers
@@ -344,6 +395,7 @@ typedef unsigned long kprobe_opcode_t;
 # define ARM_INSN_REG_CLEAR_MR(insn, nreg)	{insn &= ~(1 << nreg);}
 
 # define THUMB2_INSN_REG_RT(insn)		((insn & 0xf0000000) >> 28)
+# define THUMB2_INSN_REG_RT2(insn)		((insn & 0x0f000000) >> 24)
 # define THUMB2_INSN_REG_RN(insn)		(insn & 0x0000000f)
 # define THUMB2_INSN_REG_RD(insn)		((insn & 0x0f000000) >> 24)
 # define THUMB2_INSN_REG_RM(insn)		((insn & 0x000f0000) >> 16)
