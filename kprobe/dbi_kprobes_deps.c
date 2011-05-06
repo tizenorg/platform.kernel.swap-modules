@@ -41,7 +41,6 @@ unsigned int *fork_addr;
 
 
 #define GUP_FLAGS_WRITE                  0x1
-#define GUP_FLAGS_WRITE                  0x1
 #define GUP_FLAGS_FORCE                  0x2
 #define GUP_FLAGS_IGNORE_VMA_PERMISSIONS 0x4
 #define GUP_FLAGS_IGNORE_SIGKILL         0x8
@@ -53,8 +52,8 @@ struct mm_struct init_mm;
 
 
 DECLARE_MOD_CB_DEP(kallsyms_search, unsigned long, const char *name);
-
 DECLARE_MOD_FUNC_DEP(access_process_vm, int, struct task_struct * tsk, unsigned long addr, void *buf, int len, int write);
+DECLARE_MOD_FUNC_DEP(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len);
 
 DECLARE_MOD_FUNC_DEP(find_extend_vma, struct vm_area_struct *, struct mm_struct * mm, unsigned long addr);
 
@@ -156,6 +155,10 @@ IMP_MOD_DEP_WRAPPER (vm_normal_page, vma, addr, pte)
 			unsigned long uaddr, void *kaddr, unsigned long len, int write)
 IMP_MOD_DEP_WRAPPER (flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
 
+	DECLARE_MOD_DEP_WRAPPER(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len)
+IMP_MOD_DEP_WRAPPER (copy_to_user_page, vma, page, uaddr, dst, src, len)
+
+
 int init_module_dependencies()
 {
 
@@ -196,6 +199,8 @@ int init_module_dependencies()
 #else /*2.6.16 */
 	INIT_MOD_DEP_VAR(put_task_struct, __put_task_struct_cb);
 #endif
+
+	INIT_MOD_DEP_VAR(copy_to_user_page, copy_to_user_page);
 
 	return 0;
 }
@@ -450,7 +455,7 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 	struct vm_area_struct *vma;
 	void *old_buf = buf;
 	unsigned long addr1 = addr;
-	unsigned int* inst_buf = (unsigned int*)buf;
+	unsigned int* inst_buf = (unsigned int*)old_buf;
 
 
 	mm = get_task_mm(tsk);
@@ -507,14 +512,6 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 	}
 	up_read(&mm->mmap_sem);
 	mmput(mm);
-
-
-	if(addr1 == 0xad327238)
-	{
-			printk(">>>>> %s\n", tsk->comm);
-			printk(">>>>> %x\n", inst_buf[0]);
-	}
-
 
 	return buf - old_buf;
 }
