@@ -205,6 +205,7 @@ int init_module_dependencies()
 #endif
 
 
+// for 2.6.32.9-iboot (tegra-froyo)
 #if (LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 32))
 	INIT_MOD_DEP_VAR(copy_to_user_page, copy_to_user_page);
 #endif
