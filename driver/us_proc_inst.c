@@ -366,9 +366,9 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 		if (vma->vm_flags & VM_EXECUTABLE) {
 		    if (!task_inst_info->m_f_dentry) {
 			task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
-			printk("initiate dentry tgid = %d\n", task->tgid, task->comm);
+			DPRINTF("initiate dentry tgid = %d\n", task->tgid, task->comm);
 		    } else if (task_inst_info->m_f_dentry != vma->vm_file->f_dentry) {
-			printk("we have detected that detry was changed tgid = %d\n", task->tgid, task->comm);
+			DPRINTF("we have detected that detry was changed tgid = %d\n", task->tgid, task->comm);
 			for (i = 0; i < task_inst_info->libs_count; i++) {
 			    task_inst_info->p_libs[i].loaded = 0;
 			    for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++) {
