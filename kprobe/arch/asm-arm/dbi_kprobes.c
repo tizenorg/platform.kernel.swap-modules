@@ -28,6 +28,8 @@
 
 #include<linux/module.h>
 
+#include <linux/mm.h>
+
 #include "dbi_kprobes.h"
 #include "../dbi_kprobes.h"
 
@@ -595,6 +597,7 @@ int arch_prepare_kprobe (struct kprobe *p)
 				else
 				{
 					memcpy (insns, gen_insn_execbuf, sizeof (insns));
+					flush_cache_all();
 					insns[KPROBES_TRAMP_INSN_IDX] = insn[0];
 				}
 				//insns[KPROBES_TRAMP_RET_BREAK_IDX] = UNDEF_INSTRUCTION;
