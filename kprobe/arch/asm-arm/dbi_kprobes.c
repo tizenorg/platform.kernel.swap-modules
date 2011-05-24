@@ -597,7 +597,6 @@ int arch_prepare_kprobe (struct kprobe *p)
 				else
 				{
 					memcpy (insns, gen_insn_execbuf, sizeof (insns));
-					flush_cache_all();
 					insns[KPROBES_TRAMP_INSN_IDX] = insn[0];
 				}
 				//insns[KPROBES_TRAMP_RET_BREAK_IDX] = UNDEF_INSTRUCTION;
@@ -607,6 +606,7 @@ int arch_prepare_kprobe (struct kprobe *p)
 						p->ainsn.insn, insns[0], insns[1], insns[2], insns[3], insns[4],
 						insns[5], insns[6], insns[7], insns[8]);
 				memcpy (p->ainsn.insn, insns, sizeof(insns));
+				flush_cache_all();
 			}
 		}
 		else
