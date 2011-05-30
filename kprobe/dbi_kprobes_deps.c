@@ -157,7 +157,7 @@ IMP_MOD_DEP_WRAPPER (vm_normal_page, vma, addr, pte)
 			unsigned long uaddr, void *kaddr, unsigned long len, int write)
 IMP_MOD_DEP_WRAPPER (flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
 
-#if LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 32)
+#if (LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 32) && __ANDROID)
 	DECLARE_MOD_DEP_WRAPPER(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len)
 IMP_MOD_DEP_WRAPPER (copy_to_user_page, vma, page, uaddr, dst, src, len)
 #endif
