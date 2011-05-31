@@ -35,6 +35,7 @@
 
 
 #include <linux/slab.h>
+#include <linux/mm.h>
 
 unsigned int *sched_addr;
 unsigned int *fork_addr;
@@ -262,6 +263,7 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned int foll_flags;
 
 		//vma = find_extend_vma(mm, start);
+		flush_cache_all();
 		vma = find_vma(mm, start);
 		if (!vma && in_gate_area(tsk, start)) {
 			unsigned long pg = start & PAGE_MASK;
