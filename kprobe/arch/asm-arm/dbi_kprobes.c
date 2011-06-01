@@ -606,7 +606,9 @@ int arch_prepare_kprobe (struct kprobe *p)
 						p->ainsn.insn, insns[0], insns[1], insns[2], insns[3], insns[4],
 						insns[5], insns[6], insns[7], insns[8]);
 				memcpy (p->ainsn.insn, insns, sizeof(insns));
+#ifdef BOARD_tegra
 				flush_cache_all();
+#endif
 			}
 		}
 		else

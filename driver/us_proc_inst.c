@@ -440,8 +440,10 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 								addr += vma->vm_start;
 						}
 						flush_cache_all();
-						// Mr_Nobody hack
+#ifdef BOARD_tegra
+						// Andreev S. hack
 						if ( addr < CONFIG_PAGE_OFFSET ) {
+#endif
 						    if (page_present (mm, addr)) {
 							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.", task->pid, task_inst_info->p_libs[i].path, task_inst_info->p_libs[i].p_ips[k].offset, addr);
 							task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
@@ -455,7 +457,9 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 										task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr);
 							}
 						    }
+#ifdef BOARD_tegra
 						}
+#endif
 					}
 				}
 				for (k = 0; k < task_inst_info->p_libs[i].vtps_count; k++)
