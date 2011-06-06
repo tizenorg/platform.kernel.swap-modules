@@ -439,8 +439,9 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							if (addr < vma->vm_start)
 								addr += vma->vm_start;
 						}
-						flush_cache_all();
 #ifdef BOARD_tegra
+						flush_cache_all();
+
 						// Andreev S. hack
 						if ( addr < CONFIG_PAGE_OFFSET ) {
 #endif
@@ -471,7 +472,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 						addr = task_inst_info->p_libs[i].p_vtps[k].addr;
 						if (!(vma->vm_flags & VM_EXECUTABLE))
 							addr += vma->vm_start;
-						flush_cache_all();
+//						flush_cache_all();
 						if (page_present (mm, addr))
 						{
 							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.", task->pid, task_inst_info->p_libs[i].path, task_inst_info->p_libs[i].p_ips[k].offset, addr);
@@ -523,7 +524,7 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 				}
 				task_inst_info->unres_ips_count++;
 				task_inst_info->p_libs[i].p_ips[k].installed = 0;
-				flush_cache_all();
+//				flush_cache_all();
 			}
 		}
 		for (k = 0; k < task_inst_info->p_libs[i].vtps_count; k++)
@@ -533,7 +534,7 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 				unregister_ujprobe (task, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
 				task_inst_info->unres_vtps_count++;
 				task_inst_info->p_libs[i].p_vtps[k].installed = 0;
-				flush_cache_all();
+//				flush_cache_all();
 			}
 		}
 	}
