@@ -137,6 +137,16 @@ int register_ujprobe (struct task_struct *task, struct mm_struct *mm, struct jpr
 void unregister_ujprobe (struct task_struct *task, struct jprobe *jp, int atomic)
 {
 	unregister_uprobe (&jp->kp, task, atomic);
+	/*
+	 * Here is an attempt to unregister even those probes that have not been
+	 * installed (hence not added to the hlist).
+	 * So if we try to delete them from the hlist we will get NULL pointer
+	 * dereference error. That is why we check whether this node
+	 * really belongs to the hlist.
+	 */
+	if (!(hlist_unhashed(&jp->kp.is_hlist))) {
+		hlist_del_rcu(&jp->kp.is_hlist);
+	}
 }
 
 int register_uretprobe (struct task_struct *task, struct mm_struct *mm, struct kretprobe *rp, int atomic)
