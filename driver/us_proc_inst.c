@@ -60,7 +60,7 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 	int unres_ips_count = 0, unres_vtps_count = 0;
 
 
-	copy_info = kmalloc (sizeof (inst_us_proc_t), GFP_KERNEL);
+	copy_info = kmalloc (sizeof (inst_us_proc_t), GFP_ATOMIC);
 	memset ((void *) copy_info, 0, sizeof (inst_us_proc_t));
 
 	copy_info->path = task_inst_info->path;
@@ -68,7 +68,7 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 
 	copy_info->libs_count = task_inst_info->libs_count;
 	copy_info->p_libs = 
-		kmalloc (task_inst_info->libs_count * sizeof (us_proc_lib_t), GFP_KERNEL);
+		kmalloc (task_inst_info->libs_count * sizeof (us_proc_lib_t), GFP_ATOMIC);
 
 	if (!copy_info->p_libs) {
 		DPRINTF ("No enough memory for copy_info->p_libs");
@@ -83,7 +83,7 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 			unres_ips_count += copy_info->p_libs[i].ips_count;
 
 			copy_info->p_libs[i].p_ips = 
-				kmalloc (copy_info->p_libs[i].ips_count * sizeof (us_proc_ip_t), GFP_KERNEL);
+				kmalloc (copy_info->p_libs[i].ips_count * sizeof (us_proc_ip_t), GFP_ATOMIC);
 
 			if (!copy_info->p_libs[i].p_ips) {
 				DPRINTF ("No enough memory for copy_info->p_libs[i].p_ips");
@@ -105,7 +105,7 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 			unres_vtps_count += copy_info->p_libs[i].vtps_count;
 
 			copy_info->p_libs[i].p_vtps = 
-				kmalloc (copy_info->p_libs[i].vtps_count * sizeof (us_proc_vtp_t), GFP_KERNEL);
+				kmalloc (copy_info->p_libs[i].vtps_count * sizeof (us_proc_vtp_t), GFP_ATOMIC);
 
 			if (!copy_info->p_libs[i].p_vtps) {
 				DPRINTF ("No enough memory for copy_info->p_libs[i].p_vtps");
@@ -147,7 +147,7 @@ void put_task_inst_node(struct task_struct *task, inst_us_proc_t *task_inst_info
 {
 	struct task_inst_info_node * node;
 
-	node = kmalloc (sizeof(struct task_inst_info_node), GFP_KERNEL);
+	node = kmalloc (sizeof(struct task_inst_info_node), GFP_ATOMIC);
 
 	node->tgid = task->tgid;
 	node->task_inst_info = task_inst_info;
