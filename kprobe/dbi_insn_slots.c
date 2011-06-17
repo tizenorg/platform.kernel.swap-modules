@@ -182,11 +182,11 @@ retry:
 	}
 
 	/* All out of space.  Need to allocate a new page. Use slot 0. */
-	kip = kmalloc(sizeof(struct kprobe_insn_page), GFP_KERNEL);
+	kip = kmalloc(sizeof(struct kprobe_insn_page), GFP_ATOMIC);
 	if (!kip)
 		return NULL;
 
-	kip->slot_used = kmalloc(sizeof(char)*slots_per_page, GFP_KERNEL);
+	kip->slot_used = kmalloc(sizeof(char)*slots_per_page, GFP_ATOMIC);
 	if (!kip->slot_used){
 		kfree(kip);
 		return NULL;
@@ -197,7 +197,7 @@ retry:
 				PROT_EXEC|PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, atomic);
 	}
 	else {
-		kip->insns = kmalloc(PAGE_SIZE, GFP_KERNEL);
+		kip->insns = kmalloc(PAGE_SIZE, GFP_ATOMIC);
 	}
 	if (!kip->insns)
 	{
