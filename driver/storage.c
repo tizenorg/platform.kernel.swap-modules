@@ -928,6 +928,7 @@ int link_bundle()
 		memset(us_proc_info.p_libs, 0,
 			   us_proc_info.libs_count * sizeof(us_proc_lib_t));
 
+		int abs_handler_idx = 0;
 		for (i = 0; i < us_proc_info.libs_count; i++)
 		{
 			d_lib = &us_proc_info.p_libs[i];
@@ -1026,14 +1027,17 @@ int link_bundle()
 						{
 							DPRINTF("found handler for 0x%x", d_ip->offset);
 							d_ip->jprobe.pre_entry =
-								pd_lib->p_ips[handler_index].jprobe.pre_entry;
+							        pd_lib->p_ips[handler_index - abs_handler_idx].jprobe.pre_entry;
 							d_ip->jprobe.entry =
-								pd_lib->p_ips[handler_index].jprobe.entry;
+								pd_lib->p_ips[handler_index - abs_handler_idx].jprobe.entry;
 							d_ip->retprobe.handler =
-								pd_lib->p_ips[handler_index].retprobe.handler;
+								pd_lib->p_ips[handler_index - abs_handler_idx].retprobe.handler;
 						}
 					}
 				}
+			}
+			if (pd_lib) {
+			     abs_handler_idx += pd_lib->ips_count;
 			}
 		}
 
