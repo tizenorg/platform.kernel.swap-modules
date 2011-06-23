@@ -179,6 +179,26 @@ typedef struct
 	us_proc_lib_t *p_libs;
 } inst_us_proc_t;
 
+typedef struct
+{
+	unsigned int addr;
+	unsigned int inst_type;
+	char *name;
+	char *class_name;
+	char *method_name;
+	char *prototype;
+
+}dex_proc_ip_t;
+
+typedef struct
+{
+	char *path;
+	unsigned ips_count;
+	dex_proc_ip_t *p_ips;
+
+}inst_dex_proc_t;
+
+
 struct cond {
 	/* cond data itself */
 	struct event_tmpl tmpl;
@@ -196,6 +216,6 @@ extern struct cond cond_list;
 #define ET_FIELD_ISSET(flags, field) ((flags & field) != 0)
 
 extern inst_us_proc_t us_proc_info;
-
+extern inst_dex_proc_t dex_proc_info;
 
 #endif /* !defined(__STORAGE_H__) */

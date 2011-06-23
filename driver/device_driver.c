@@ -470,6 +470,7 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 	case EC_IOCTL_ATTACH:
 		result = ec_user_attach ();
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
+		DPRINTF("EC_IOCTL_ATTACH calling notification chain");
 		blocking_notifier_call_chain(&inperfa_notifier_list, EC_IOCTL_ATTACH, (void*)NULL);
 #endif
 		DPRINTF("Attach Probes");
@@ -494,6 +495,7 @@ static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, u
 		result = 0;
 		DPRINTF("Stop and Detach Probes");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
+		DPRINTF("EC_IOCTL_STOP_AND_DETACH calling notification chain");
 		blocking_notifier_call_chain(&inperfa_notifier_list, EC_IOCTL_STOP_AND_DETACH, (void*)&gl_nNotifyTgid);
 #endif
 		break;

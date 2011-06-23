@@ -28,6 +28,7 @@
 
 char *p_buffer = NULL;
 inst_us_proc_t us_proc_info;
+inst_dex_proc_t dex_proc_info;
 char *deps;
 char *bundle;
 unsigned int inst_pid = 0;
@@ -38,6 +39,7 @@ int paused = 0; /* a state after a stop condition (events are not collected) */
 struct timeval last_attach_time = {0, 0};
 
 EXPORT_SYMBOL_GPL(us_proc_info);
+EXPORT_SYMBOL_GPL(dex_proc_info);
 int (*mec_post_event)(char *data, unsigned long len) = NULL;
 
 unsigned copy_into_cyclic_buffer (char *buffer, unsigned dst_offset, char *src, unsigned size)
@@ -816,6 +818,7 @@ int link_bundle()
 	int i, j, l, k;
 	int len;
 	us_proc_lib_t *d_lib, *pd_lib;
+	dex_proc_ip_t *dex_proc;
 	ioctl_usr_space_lib_t s_lib;
 	ioctl_usr_space_vtp_t *s_vtp;
 	us_proc_vtp_t *mvtp;
@@ -1174,6 +1177,81 @@ int link_bundle()
 			kfree(s_lib.p_vtps);
 		}
 	}
+
+	// ================================================================================
+	// DEX Probes
+	// ================================================================================
+	len = *(u_int32_t *)p; /* App path len */
+	p += sizeof(u_int32_t);
+
+	if ( len == 0 )
+	{
+	    dex_proc_info.path = NULL;
+	}
+	else
+	{
+		dex_proc_info.path = p;
+		DPRINTF("dex path = %s", dex_proc_info.path);
+		p += len;
+
+		dex_proc_info.ips_count = *(u_int32_t *)p;
+		DPRINTF("nr of dex probes = %d", dex_proc_info.ips_count);
+		p += sizeof(u_int32_t);
+
+		dex_proc_info.p_ips =
+			kmalloc(dex_proc_info.ips_count * sizeof(dex_proc_ip_t), GFP_KERNEL);
+
+		if (!dex_proc_info.p_ips)
+		{
+			EPRINTF("Cannot alloc dex probes!");
+			return -1;
+		}
+
+		memset(dex_proc_info.p_ips, 0,
+			   dex_proc_info.ips_count * sizeof(dex_proc_ip_t));
+
+		for (i = 0; i < dex_proc_info.ips_count; i++)
+		{
+			dex_proc = &dex_proc_info.p_ips[i];
+
+			// fill up dex proc
+
+			dex_proc->addr = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+
+			dex_proc->inst_type = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+
+			// name
+			lib_name_len = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+			dex_proc->name = (char *)p;
+			p += lib_name_len;
+
+			// class name
+			lib_name_len = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+			dex_proc->class_name = (char *)p;
+			p += lib_name_len;
+
+			// method name
+			lib_name_len = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+			dex_proc->method_name = (char *)p;
+			p += lib_name_len;
+
+			// prototype
+			lib_name_len = *(u_int32_t *)p;
+			p += sizeof(u_int32_t);
+			dex_proc->prototype = (char *)p;
+			p += lib_name_len;
+		}
+
+	}
+	// ================================================================================
+	// END OF DEX Probes
+	// ================================================================================
+
 
 	/* Conds */
 	/* first, delete all the conds */
