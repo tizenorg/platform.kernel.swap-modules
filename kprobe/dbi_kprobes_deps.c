@@ -262,8 +262,6 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		struct vm_area_struct *vma;
 		unsigned int foll_flags;
 
-		//vma = find_extend_vma(mm, start);
-		flush_cache_all();
 		vma = find_vma(mm, start);
 		if (!vma && in_gate_area(tsk, start)) {
 			unsigned long pg = start & PAGE_MASK;
