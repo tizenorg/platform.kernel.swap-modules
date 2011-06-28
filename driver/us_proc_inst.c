@@ -348,9 +348,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 		  !(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
 		  !(vma->vm_flags & (VM_READ | VM_MAYREAD))) {
 #else // __ANDROID
-	  if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file /*|| (vma->vm_flags & VM_ACCOUNT)*/ /*||
-		  !(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
-		  !(vma->vm_flags & (VM_READ | VM_MAYREAD))*/) {
+	  if (vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || !vma->vm_file) {
 #endif // __ANDROID
 			vma = vma->vm_next;
 			continue;
