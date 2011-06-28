@@ -361,23 +361,14 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 		if (vma->vm_flags & VM_EXECUTABLE) {
 		    if (!task_inst_info->m_f_dentry) {
 			task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
-			DPRINTF("initiate dentry tgid = %d\n", task->tgid, task->comm);
+			DPRINTF("initiate dentry tgid = %d, comm = %s", task->tgid, task->comm);
 		    } else if (task_inst_info->m_f_dentry != vma->vm_file->f_dentry) {
-			DPRINTF("we have detected that detry was changed tgid = %d\n", task->tgid, task->comm);
-			for (i = 0; i < task_inst_info->libs_count; i++) {
-			    task_inst_info->p_libs[i].loaded = 0;
-			    for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++) {
-				task_inst_info->p_libs[i].p_ips[k].installed = 0;
-				task_inst_info->unres_ips_count++;
-			    }
-
-			    for (k = 0; k < task_inst_info->p_libs[i].vtps_count; k++) {
-				task_inst_info->p_libs[i].p_vtps[k].installed = 0;
-				task_inst_info->unres_vtps_count++;
-			    }
-
-			    task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
-			}
+				/*
+				 * All the stuff that cancel instrumentation in old address
+				 * space are run when do_execve() occurs.  Here we just update
+				 * dentry because it is changed after do_execve() execution.
+				 */
+				task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
 		    }
 		}
 
@@ -441,7 +432,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 						     task_inst_info->p_libs[i].p_ips[k].retprobe.kp.addr = (kprobe_opcode_t *) addr;
 						     task_inst_info->p_libs[i].p_ips[k].installed = 1;
 						     task_inst_info->unres_ips_count--;
-							
+
 						     err = register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
 						     if (err != 0) {
 							  DPRINTF ("failed to install IP at %lx/%p. Error %d!", task_inst_info->p_libs[i].p_ips[k].offset, 
@@ -630,6 +621,11 @@ int deinst_usr_space_proc (void)
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_exit) result=%d!", iRet);
 
+	iRet = uninstall_kernel_probe (exec_addr, US_PROC_EXEC_INSTLD,
+			0, &exec_probe);
+	if (iRet)
+		EPRINTF ("uninstall_kernel_probe(do_execve) result=%d!", iRet);
+
 	if (!strcmp(us_proc_info.path,"*"))
 	{
 		for_each_process (task)
@@ -777,6 +773,16 @@ int inst_usr_space_proc (void)
 	if (ret != 0)
 	{
 		EPRINTF ("install_kernel_probe(do_exit) result=%d!", ret);
+		return ret;
+	}
+	/*
+	 * When do_execve occurs we need to unregister all the uprobes from
+	 * this address space because VMAs may change.
+	 */
+	ret = install_kernel_probe (exec_addr, US_PROC_EXEC_INSTLD, 0, &exec_probe);
+	if (ret != 0)
+	{
+		EPRINTF ("install_kernel_probe(do_execve) result=%d!", ret);
 		return ret;
 	}
 	return 0;

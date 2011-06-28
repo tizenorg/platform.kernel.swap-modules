@@ -1386,8 +1386,10 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 		if (!find_probe(addr))
 			return;
 		if (((addr == pf_addr) && !(probes_flags & PROBE_FLAG_PF_INSTLD)) ||
-			((addr == exit_addr) && !(probes_flags & PROBE_FLAG_EXIT_INSTLD)))
+			((addr == exit_addr) && !(probes_flags & PROBE_FLAG_EXIT_INSTLD)) ||
+			((addr == exec_addr) && !(probes_flags & PROBE_FLAG_EXEC_INSTLD))) {
 			return;
+		}
 	}
 	if (probe_id == US_PROBE_ID) {
 		va_start(args, fmt);
