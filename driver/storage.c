@@ -1022,7 +1022,6 @@ int link_bundle()
 					handler_index = *(u_int32_t *)p;
 					p += sizeof(u_int32_t);
 
-					DPRINTF("pd_lib = 0x%x", pd_lib);
 					if (pd_lib)
 					{
 						DPRINTF("pd_lib->ips_count = 0x%x", pd_lib->ips_count);
