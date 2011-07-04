@@ -120,7 +120,7 @@ unsigned long GetECMode(void) { return ec_info.m_nMode; }
 unsigned int GetNumOfSubbuffers(unsigned long nBufferSize)
 {
 	if(nBufferSize % ec_info.m_nSubbufSize > 0)
-		EPRINTF("The buffer size is not divisible by a subbuffer size!");
+	     EPRINTF("The buffer size is not divisible by a subbuffer size! (nBufferSize = %d, ec_info.m_nSubbufSize =%d)", nBufferSize ,ec_info.m_nSubbufSize);
 	return nBufferSize / ec_info.m_nSubbufSize;
 };
 
