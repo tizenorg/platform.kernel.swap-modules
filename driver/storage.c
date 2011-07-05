@@ -931,7 +931,6 @@ int link_bundle()
 		memset(us_proc_info.p_libs, 0,
 			   us_proc_info.libs_count * sizeof(us_proc_lib_t));
 
-		int abs_handler_idx = 0;
 		for (i = 0; i < us_proc_info.libs_count; i++)
 		{
 			d_lib = &us_proc_info.p_libs[i];
@@ -989,6 +988,8 @@ int link_bundle()
 				ptr++;
 			else
 				ptr = d_lib->path;
+
+			int abs_handler_idx = 0;
 			for (l = 0; l < my_uprobes_info->libs_count; l++)
 			{
 				if ((strcmp(ptr, my_uprobes_info->p_libs[l].path) == 0) ||
@@ -997,6 +998,7 @@ int link_bundle()
 					pd_lib = &my_uprobes_info->p_libs[l];
 					break;
 				}
+				abs_handler_idx += my_uprobes_info->p_libs[l].ips_count;
 			}
 
 			if (d_lib->ips_count > 0)
@@ -1037,9 +1039,6 @@ int link_bundle()
 						}
 					}
 				}
-			}
-			if (pd_lib) {
-			     abs_handler_idx += pd_lib->ips_count;
 			}
 		}
 
