@@ -9,12 +9,12 @@ gen_insn_execbuf_thumb:
 		nop
 		nop
 		nop
+		sub	sp, sp, #8
+		str	r0, [sp, #0]
+		ldr	r0, [pc, #12]
+		str	r0, [sp, #4]
 		nop
-		push	{r7}
-		ldr	r7, [pc, #12]
-		mov	r9, r7
-		pop	{r7}
-		mov	pc, r9		// ssbreak
+		pop	{r0, pc}	// ssbreak
 		nop			// retbreak
 		nop
 		nop
@@ -31,13 +31,13 @@ pc_dep_insn_execbuf_thumb:
 		mov	sp, r6
 		nop			// PC -> SP
 		nop			// PC -> SP
-		nop
-		ldr	r6, i2
-		mov	r9, r6
 		mov	sp, r7
 		pop	{r6, r7}
+		push	{r0, r1}
+		ldr	r0, i2
 		nop
-		mov	pc, r9		// ssbreak
+		str	r0, [sp, #4]
+		pop	{r0, pc}	// ssbreak
 		nop			// retbreak
 		nop			// stored PC hi
 i1:		nop			// stored PC lo
