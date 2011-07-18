@@ -976,12 +976,12 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 				{
 					addr = ((unsigned int)p->addr) + 2;
 
-					*((unsigned short*)insns + 16) = addr & 0x0000ffff;
+					*((unsigned short*)insns + 16) = addr & 0x0000ffff | 0x1;
 					*((unsigned short*)insns + 17) = addr >> 16;
 				}else{
 					addr = ((unsigned int)p->addr) + 4;
 
-					*((unsigned short*)insns + 16) = addr & 0x0000ffff;
+					*((unsigned short*)insns + 16) = addr & 0x0000ffff | 0x1;
 					*((unsigned short*)insns + 17) = addr >> 16;
 				}
 			}else{
@@ -994,12 +994,12 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 					addr = ((unsigned int)p->addr) + 2;
 
 					*((unsigned short*)insns + 2) = insn[0];
-					*((unsigned short*)insns + 16) = addr & 0x0000ffff;
+					*((unsigned short*)insns + 16) = addr & 0x0000ffff | 0x1;
 					*((unsigned short*)insns + 17) = addr >> 16;
 				}else{
 					addr = ((unsigned int)p->addr) + 4;
 					insns[1] = insn[0];
-					*((unsigned short*)insns + 16) = addr & 0x0000ffff;
+					*((unsigned short*)insns + 16) = addr & 0x0000ffff | 0x1;
 					*((unsigned short*)insns + 17) = addr >> 16;
 				}
 			}
