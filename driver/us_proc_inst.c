@@ -46,6 +46,11 @@ struct task_inst_info_node {
 };
 LIST_HEAD(task_inst_info_list);
 
+#ifdef SLP_APP
+unsigned long launchpad_daemon_vma_start = 0;
+unsigned long launchpad_daemon_vma_end = 0;
+#endif /* SLP_APP */
+
 /**
  * Prepare copy of instrumentation data for task 
  * in case of library only instrumentation 
@@ -171,6 +176,10 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 	struct vm_area_struct *vma;
 	struct mm_struct *mm;
 	struct nameidata nd;
+#ifdef SLP_APP
+	struct nameidata launchpad_daemon_nd;
+	struct vm_area_struct *launchpad_daemon_vma = NULL;
+#endif /* SLP_APP */
 
 	*p_task = 0;
 
@@ -181,6 +190,16 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 		EPRINTF ("failed to lookup dentry for path %s!", path);
 		return -EINVAL;
 	}
+#ifdef SLP_APP
+	if (path_lookup("/usr/bin/launchpad_preloading_preinitializing_daemon",
+					LOOKUP_FOLLOW, &launchpad_daemon_nd) != 0) {
+		EPRINTF("failed to lookup dentry for path %s!",
+				"/usr/bin/launchpad_preloading_preinitializing_daemon");
+		return -EINVAL;
+		launchpad_daemon_vma_start = 0;
+		launchpad_daemon_vma_end = 0;
+	}
+#endif /* SLP_APP */
 
 	rcu_read_lock ();
 	for_each_process (task)	{
@@ -198,38 +217,65 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 				if (vma->vm_file->f_dentry == nd.dentry) {
 #else
-					if (vma->vm_file->f_dentry == nd.path.dentry  ) {
+				if (vma->vm_file->f_dentry == nd.path.dentry  ) {
 #endif
-						if (!*p_task) {
-							*p_task = task;
-							get_task_struct (task);
-						}
+					if (!*p_task) {
+						*p_task = task;
+						get_task_struct (task);
+					}
 						//break;
+				}
+#ifdef SLP_APP
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+				if (vma->vm_file->f_dentry == launchpad_daemon_nd.dentry) {
+#else
+				if (vma->vm_file->f_dentry == launchpad_daemon_nd.path.dentry) {
+#endif
+					launchpad_daemon_vma = vma;
+					while (launchpad_daemon_vma) {
+						if (launchpad_daemon_vma->vm_file) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+						if (vma->vm_file->f_dentry == nd.dentry) {
+#else
+							if (launchpad_daemon_vma->vm_file->f_dentry == nd.path.dentry &&
+								launchpad_daemon_vma->vm_pgoff == 0) {
+#endif
+								launchpad_daemon_vma_start = launchpad_daemon_vma->vm_start;
+								launchpad_daemon_vma_end = launchpad_daemon_vma->vm_end;
+								if (!*p_task) {
+									*p_task = task;
+									get_task_struct (task);
+								}
+							}
+						}
+						launchpad_daemon_vma = launchpad_daemon_vma->vm_next;
 					}
 				}
-				vma = vma->vm_next;
+#endif /* SLP_APP */
 			}
-			up_read (&mm->mmap_sem);
-			mmput (mm);
-			if (found)
-				break;
+			vma = vma->vm_next;
 		}
-		rcu_read_unlock ();
+		up_read (&mm->mmap_sem);
+		mmput (mm);
+		if (found)
+			break;
+	}
+	rcu_read_unlock ();
 
-		if (*p_task) {
-			DPRINTF ("found pid %d for %s.", (*p_task)->pid, path);
-			gl_nNotifyTgid = current->tgid;
-		} else {
-			DPRINTF ("pid for %s not found!", path);
-		}
+	if (*p_task) {
+		DPRINTF ("found pid %d for %s.", (*p_task)->pid, path);
+		gl_nNotifyTgid = current->tgid;
+	} else {
+		DPRINTF ("pid for %s not found!", path);
+	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-		path_release (&nd);
+	path_release (&nd);
 #else
-		path_put (&nd.path);
+	path_put (&nd.path);
 #endif
-		return 0;
-	}
+	return 0;
+}
 
 
 static void us_vtp_event_pre_handler (us_proc_vtp_t * vtp, struct pt_regs *regs)
@@ -936,16 +982,24 @@ unsigned long ujprobe_event_pre_handler (us_proc_ip_t * ip, struct pt_regs *regs
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6)
 {
 	us_proc_ip_t *ip = __get_cpu_var (gpCurIp);
+	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
+
+#ifdef SLP_APP
+	if (ip->jprobe.kp.addr >= launchpad_daemon_vma_start &&
+		ip->jprobe.kp.addr < launchpad_daemon_vma_end) {
+		addr = (unsigned long)ip->jprobe.kp.addr - launchpad_daemon_vma_start;
+	}
+#endif /* SLP_APP */
 
 #if defined(CONFIG_ARM)
 	if (ip->offset & 0x01)
 	{
-		pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", ((unsigned long)ip->jprobe.kp.addr | 0x01), arg1, arg2, arg3, arg4, arg5, arg6);
+		pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", addr | 0x01, arg1, arg2, arg3, arg4, arg5, arg6);
 	}else{
-		pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", ip->jprobe.kp.addr, arg1, arg2, arg3, arg4, arg5, arg6);
+		pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", addr, arg1, arg2, arg3, arg4, arg5, arg6);
 	}
 #else
-	pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", ip->jprobe.kp.addr, arg1, arg2, arg3, arg4, arg5, arg6);
+	pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", addr, arg1, arg2, arg3, arg4, arg5, arg6);
 #endif
 	// Mr_Nobody: uncomment for valencia
 	//unregister_usprobe(current, ip, 1);
@@ -955,16 +1009,24 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, us_proc_ip_t * ip)
 {
 	int retval = regs_return_value(regs);
+	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
+
+#ifdef SLP_APP
+	if (ip->jprobe.kp.addr >= launchpad_daemon_vma_start &&
+		ip->jprobe.kp.addr < launchpad_daemon_vma_end) {
+		addr = (unsigned long)ip->jprobe.kp.addr - launchpad_daemon_vma_start;
+	}
+#endif /* SLP_APP */
 
 #if defined(CONFIG_ARM)
 	if (ip->offset & 0x01)
 	{
-		pack_event_info (US_PROBE_ID, RECORD_RET, "pd", ((unsigned long)ip->retprobe.kp.addr | 0x01), retval);
+		pack_event_info (US_PROBE_ID, RECORD_RET, "pd", addr | 0x01, retval);
 	}else{
-		pack_event_info (US_PROBE_ID, RECORD_RET, "pd", ip->retprobe.kp.addr, retval);
+		pack_event_info (US_PROBE_ID, RECORD_RET, "pd", addr, retval);
 	}
 #else
-	pack_event_info (US_PROBE_ID, RECORD_RET, "pd", ip->retprobe.kp.addr, retval);
+	pack_event_info (US_PROBE_ID, RECORD_RET, "pd", addr, retval);
 #endif
 	// Mr_Nobody: uncomment for valencia
 	//unregister_usprobe(current, ip, 1);

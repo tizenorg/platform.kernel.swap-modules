@@ -11,6 +11,10 @@ android_opt = -D__ANDROID
 android = yes
 endif
 
+if SLP_APP
+slp_opt = -DSLP_APP
+endif
+
 board_opt = -DBOARD_@BOARD@
 
 include Makefile
