@@ -235,7 +235,8 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 					while (launchpad_daemon_vma) {
 						if (launchpad_daemon_vma->vm_file) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-						if (vma->vm_file->f_dentry == nd.dentry) {
+							if (launchpad_daemon_vma->vm_file->f_dentry == nd.dentry &&
+								launchpad_daemon_vma->vm_pgoff == 0) {
 #else
 							if (launchpad_daemon_vma->vm_file->f_dentry == nd.path.dentry &&
 								launchpad_daemon_vma->vm_pgoff == 0) {
