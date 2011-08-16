@@ -30,7 +30,11 @@ DECLARE_WAIT_QUEUE_HEAD (notification_waiters_queue);
 volatile unsigned notification_count;
 
 static int device_mmap (struct file *filp, struct vm_area_struct *vma);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 static int device_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
+#else
+static int device_ioctl (struct file *file, unsigned int cmd, unsigned long arg);
+#endif
 static int device_open(struct inode *, struct file *);
 static int device_release(struct inode *, struct file *);
 static ssize_t device_read(struct file *, char *, size_t, loff_t *);
@@ -40,7 +44,11 @@ static int gl_nDeviceOpened = 0;
 static struct file_operations device_fops = {
 	.owner = THIS_MODULE,
 	.mmap = device_mmap,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 	.ioctl = device_ioctl,
+#else
+	.unlocked_ioctl = device_ioctl,
+#endif
 	.read = device_read,
 	.write = device_write,
 	.open = device_open,
@@ -166,7 +174,11 @@ static ssize_t device_write(struct file *filp, const char *buff, size_t len, lof
 	EPRINTF("Operation <<write>> not supported!");
 	return -1;
 }
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, unsigned int cmd, unsigned long arg)
+#else
+static int device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned long arg)
+#endif
 {
 	unsigned long spinlock_flags = 0L;
 	int result = -1;
