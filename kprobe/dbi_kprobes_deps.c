@@ -54,7 +54,7 @@ struct mm_struct init_mm;
 
 DECLARE_MOD_CB_DEP(kallsyms_search, unsigned long, const char *name);
 DECLARE_MOD_FUNC_DEP(access_process_vm, int, struct task_struct * tsk, unsigned long addr, void *buf, int len, int write);
-#if LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 32)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 DECLARE_MOD_FUNC_DEP(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len);
 #endif
 
@@ -158,12 +158,10 @@ IMP_MOD_DEP_WRAPPER (vm_normal_page, vma, addr, pte)
 			unsigned long uaddr, void *kaddr, unsigned long len, int write)
 IMP_MOD_DEP_WRAPPER (flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
 
-#if (LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 32) && __ANDROID)
-#ifdef BOARD_tegra
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	DECLARE_MOD_DEP_WRAPPER(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len)
 IMP_MOD_DEP_WRAPPER (copy_to_user_page, vma, page, uaddr, dst, src, len)
-#endif /* BOARD_tegra */
-#endif /* KERNEL_VERSION(2, 6, 32) && __ANDROID */
+#endif
 
 
 int init_module_dependencies()
@@ -209,7 +207,7 @@ int init_module_dependencies()
 
 
 // for 2.6.32.9-iboot (tegra-froyo)
-#if (LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 32))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32))
 	INIT_MOD_DEP_VAR(copy_to_user_page, copy_to_user_page);
 #endif
 
