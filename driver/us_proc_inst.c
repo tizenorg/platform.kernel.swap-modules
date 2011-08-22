@@ -876,7 +876,11 @@ void do_page_fault_ret_pre_code (void)
 			vma = mm->mmap;
 			while (vma)
 			{
+#ifdef SLP_APP
+				if (vma->vm_file)
+#else /* SLP_APP */
 				if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file)
+#endif /* SLP_APP */
 				{
 					if (vma->vm_file->f_dentry == task_inst_info->m_f_dentry)
 					{
