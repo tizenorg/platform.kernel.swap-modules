@@ -265,7 +265,7 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 
 	if (*p_task) {
 		DPRINTF ("found pid %d for %s.", (*p_task)->pid, path);
-		gl_nNotifyTgid = current->tgid;
+		gl_nNotifyTgid = (*p_task)->tgid;
 	} else {
 		DPRINTF ("pid for %s not found!", path);
 	}
