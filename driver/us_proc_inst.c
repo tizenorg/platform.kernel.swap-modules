@@ -47,8 +47,9 @@ struct task_inst_info_node {
 LIST_HEAD(task_inst_info_list);
 
 #ifdef SLP_APP
-unsigned long launchpad_daemon_vma_start = 0;
-unsigned long launchpad_daemon_vma_end = 0;
+unsigned long slp_app_vma_start = 0;
+unsigned long slp_app_vma_end = 0;
+struct dentry *launchpad_daemon_dentry = NULL;
 #endif /* SLP_APP */
 
 /**
@@ -169,6 +170,29 @@ void clear_task_inst_info()
 		list_del(node);
 }
 
+static int is_slp_app_with_dentry(struct vm_area_struct *vma,
+								  struct dentry *dentry)
+{
+	struct vm_area_struct *slp_app_vma = NULL;
+
+	if (vma->vm_file->f_dentry == launchpad_daemon_dentry) {
+		slp_app_vma = vma;
+		while (slp_app_vma) {
+			if (slp_app_vma->vm_file) {
+				if (slp_app_vma->vm_file->f_dentry == dentry &&
+					slp_app_vma->vm_pgoff == 0) {
+					slp_app_vma_start = slp_app_vma->vm_start;
+					slp_app_vma_end = slp_app_vma->vm_end;
+					return 1;
+				}
+			}
+			slp_app_vma = slp_app_vma->vm_next;
+		}
+	}
+
+	return 0;
+}
+
 static int find_task_by_path (const char *path, struct task_struct **p_task, struct list_head *tids)
 {
 	int found = 0;
@@ -176,10 +200,6 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 	struct vm_area_struct *vma;
 	struct mm_struct *mm;
 	struct nameidata nd;
-#ifdef SLP_APP
-	struct nameidata launchpad_daemon_nd;
-	struct vm_area_struct *launchpad_daemon_vma = NULL;
-#endif /* SLP_APP */
 
 	*p_task = 0;
 
@@ -190,16 +210,6 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 		EPRINTF ("failed to lookup dentry for path %s!", path);
 		return -EINVAL;
 	}
-#ifdef SLP_APP
-	if (path_lookup("/usr/bin/launchpad_preloading_preinitializing_daemon",
-					LOOKUP_FOLLOW, &launchpad_daemon_nd) != 0) {
-		EPRINTF("failed to lookup dentry for path %s!",
-				"/usr/bin/launchpad_preloading_preinitializing_daemon");
-		return -EINVAL;
-		launchpad_daemon_vma_start = 0;
-		launchpad_daemon_vma_end = 0;
-	}
-#endif /* SLP_APP */
 
 	rcu_read_lock ();
 	for_each_process (task)	{
@@ -226,30 +236,14 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 						//break;
 				}
 #ifdef SLP_APP
+				if (!*p_task) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-				if (vma->vm_file->f_dentry == launchpad_daemon_nd.dentry) {
+					if (is_slp_app_with_dentry(vma, nd.dentry)) {
 #else
-				if (vma->vm_file->f_dentry == launchpad_daemon_nd.path.dentry) {
+					if (is_slp_app_with_dentry(vma, nd.path.dentry)) {
 #endif
-					launchpad_daemon_vma = vma;
-					while (launchpad_daemon_vma) {
-						if (launchpad_daemon_vma->vm_file) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-							if (launchpad_daemon_vma->vm_file->f_dentry == nd.dentry &&
-								launchpad_daemon_vma->vm_pgoff == 0) {
-#else
-							if (launchpad_daemon_vma->vm_file->f_dentry == nd.path.dentry &&
-								launchpad_daemon_vma->vm_pgoff == 0) {
-#endif
-								launchpad_daemon_vma_start = launchpad_daemon_vma->vm_start;
-								launchpad_daemon_vma_end = launchpad_daemon_vma->vm_end;
-								if (!*p_task) {
-									*p_task = task;
-									get_task_struct (task);
-								}
-							}
-						}
-						launchpad_daemon_vma = launchpad_daemon_vma->vm_next;
+						*p_task = task;
+						get_task_struct(task);
 					}
 				}
 #endif /* SLP_APP */
@@ -765,6 +759,22 @@ int inst_usr_space_proc (void)
 
 	DPRINTF("User space instr");
 
+#ifdef SLP_APP
+	struct nameidata launchpad_daemon_nd;
+	if (path_lookup("/usr/bin/launchpad_preloading_preinitializing_daemon",
+					LOOKUP_FOLLOW, &launchpad_daemon_nd) != 0) {
+		EPRINTF("failed to lookup dentry for path %s!",
+				"/usr/bin/launchpad_preloading_preinitializing_daemon");
+		return -EINVAL;
+	}
+	slp_app_vma_start = 0;
+	slp_app_vma_end = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+	launchpad_daemon_dentry = launchpad_daemon_nd.dentry;
+#else
+	launchpad_daemon_dentry = launchpad_daemon_nd.path.dentry;
+#endif
+#endif /* SLP_APP */
 
 	for (i = 0; i < us_proc_info.libs_count; i++)
 		us_proc_info.p_libs[i].loaded = 0;
@@ -876,16 +886,17 @@ void do_page_fault_ret_pre_code (void)
 			vma = mm->mmap;
 			while (vma)
 			{
-#ifdef SLP_APP
-				if (vma->vm_file)
-#else /* SLP_APP */
 				if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file)
-#endif /* SLP_APP */
 				{
 					if (vma->vm_file->f_dentry == task_inst_info->m_f_dentry)
 					{
 						break;
 					}
+#ifdef SLP_APP
+					if (is_slp_app_with_dentry(vma, task_inst_info->m_f_dentry)) {
+						break;
+					}
+#endif /* SLP_APP */
 				}
 				vma = vma->vm_next;
 			}
@@ -990,9 +1001,9 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 
 #ifdef SLP_APP
-	if (ip->jprobe.kp.addr >= launchpad_daemon_vma_start &&
-		ip->jprobe.kp.addr < launchpad_daemon_vma_end) {
-		addr = (unsigned long)ip->jprobe.kp.addr - launchpad_daemon_vma_start;
+	if (ip->jprobe.kp.addr >= slp_app_vma_start &&
+		ip->jprobe.kp.addr < slp_app_vma_end) {
+		addr = (unsigned long)ip->jprobe.kp.addr - slp_app_vma_start;
 	}
 #endif /* SLP_APP */
 
@@ -1017,9 +1028,9 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 
 #ifdef SLP_APP
-	if (ip->jprobe.kp.addr >= launchpad_daemon_vma_start &&
-		ip->jprobe.kp.addr < launchpad_daemon_vma_end) {
-		addr = (unsigned long)ip->jprobe.kp.addr - launchpad_daemon_vma_start;
+	if (ip->jprobe.kp.addr >= slp_app_vma_start &&
+		ip->jprobe.kp.addr < slp_app_vma_end) {
+		addr = (unsigned long)ip->jprobe.kp.addr - slp_app_vma_start;
 	}
 #endif /* SLP_APP */
 
