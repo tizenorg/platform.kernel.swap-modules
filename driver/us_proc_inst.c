@@ -170,6 +170,7 @@ void clear_task_inst_info()
 		list_del(node);
 }
 
+#ifdef SLP_APP
 static int is_slp_app_with_dentry(struct vm_area_struct *vma,
 								  struct dentry *dentry)
 {
@@ -192,6 +193,7 @@ static int is_slp_app_with_dentry(struct vm_area_struct *vma,
 
 	return 0;
 }
+#endif /* SLP_APP */
 
 static int find_task_by_path (const char *path, struct task_struct **p_task, struct list_head *tids)
 {
