@@ -208,14 +208,12 @@ static int is_android_app_with_dentry(struct vm_area_struct *vma,
 	struct vm_area_struct *android_app_vma = NULL;
 
 	if (vma->vm_file->f_dentry == app_process_dentry) {
-		printk("found app_process!\n");
 		android_app_vma = vma;
 		while (android_app_vma) {
 			if (android_app_vma->vm_file) {
 				if (android_app_vma->vm_file->f_dentry == dentry) {
 					android_app_vma_start = android_app_vma->vm_start;
 					android_app_vma_end = android_app_vma->vm_end;
-					printk("found apk!\n");
 					return 1;
 				}
 			}
