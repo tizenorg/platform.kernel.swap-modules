@@ -52,6 +52,12 @@ unsigned long slp_app_vma_end = 0;
 struct dentry *launchpad_daemon_dentry = NULL;
 #endif /* SLP_APP */
 
+#ifdef ANDROID_APP
+unsigned long android_app_vma_start = 0;
+unsigned long android_app_vma_end = 0;
+struct dentry *app_process_dentry = NULL;
+#endif /* ANDROID_APP */
+
 /**
  * Prepare copy of instrumentation data for task 
  * in case of library only instrumentation 
@@ -195,6 +201,32 @@ static int is_slp_app_with_dentry(struct vm_area_struct *vma,
 }
 #endif /* SLP_APP */
 
+#ifdef ANDROID_APP
+static int is_android_app_with_dentry(struct vm_area_struct *vma,
+									  struct dentry *dentry)
+{
+	struct vm_area_struct *android_app_vma = NULL;
+
+	if (vma->vm_file->f_dentry == app_process_dentry) {
+		printk("found app_process!\n");
+		android_app_vma = vma;
+		while (android_app_vma) {
+			if (android_app_vma->vm_file) {
+				if (android_app_vma->vm_file->f_dentry == dentry) {
+					android_app_vma_start = android_app_vma->vm_start;
+					android_app_vma_end = android_app_vma->vm_end;
+					printk("found apk!\n");
+					return 1;
+				}
+			}
+			android_app_vma = android_app_vma->vm_next;
+		}
+	}
+
+	return 0;
+}
+#endif /* ANDROID_APP */
+
 static int find_task_by_path (const char *path, struct task_struct **p_task, struct list_head *tids)
 {
 	int found = 0;
@@ -249,6 +281,18 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 					}
 				}
 #endif /* SLP_APP */
+#ifdef ANDROID_APP
+				if (!*p_task) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+					if (is_android_app_with_dentry(vma, nd.dentry)) {
+#else
+					if (is_android_app_with_dentry(vma, nd.path.dentry)) {
+#endif
+						*p_task = task;
+						get_task_struct(task);
+					}
+				}
+#endif /* ANDROID_APP */
 			}
 			vma = vma->vm_next;
 		}
@@ -778,6 +822,23 @@ int inst_usr_space_proc (void)
 #endif
 #endif /* SLP_APP */
 
+#ifdef ANDROID_APP
+	struct nameidata app_process_nd;
+	if (path_lookup("/system/bin/app_process",
+					LOOKUP_FOLLOW, &app_process_nd) != 0) {
+		EPRINTF("failed to lookup dentry for path %s!",
+				"/system/bin/app_process");
+		return -EINVAL;
+	}
+	android_app_vma_start = 0;
+	android_app_vma_end = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+	app_process_dentry = app_process_nd.dentry;
+#else
+	app_process_dentry = app_process_nd.path.dentry;
+#endif
+#endif /* ANDROID_APP */
+
 	for (i = 0; i < us_proc_info.libs_count; i++)
 		us_proc_info.p_libs[i].loaded = 0;
 	/* check whether process is already running
@@ -899,6 +960,11 @@ void do_page_fault_ret_pre_code (void)
 						break;
 					}
 #endif /* SLP_APP */
+#ifdef ANDROID_APP
+					if (is_android_app_with_dentry(vma, task_inst_info->m_f_dentry)) {
+						break;
+					}
+#endif /* ANDROID_APP */
 				}
 				vma = vma->vm_next;
 			}

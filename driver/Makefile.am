@@ -15,6 +15,10 @@ if SLP_APP
 slp_opt = -DSLP_APP
 endif
 
+if ANDROID_APP
+android_app_opt = -DANDROID_APP
+endif
+
 board_opt = -DBOARD_@BOARD@
 
 include Makefile
