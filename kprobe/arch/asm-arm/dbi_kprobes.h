@@ -38,7 +38,7 @@ typedef unsigned long kprobe_opcode_t;
 #ifdef CONFIG_CPU_S3C2443
 #define BREAKPOINT_INSTRUCTION          0xe1200070
 #else 
-#define BREAKPOINT_INSTRUCTION          0xffffffff
+#define BREAKPOINT_INSTRUCTION          0xffffdeff
 #endif /* CONFIG_CPU_S3C2443 */
 
 #ifndef KPROBES_RET_PROBE_TRAMP
