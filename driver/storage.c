@@ -737,7 +737,7 @@ char *find_lib_path(const char *lib_name)
 		}
 	}
 
-	return p;
+	return NULL;
 }
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
