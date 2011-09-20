@@ -297,11 +297,16 @@ static int device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned lo
 			spin_lock_irqsave (&ec_spinlock, spinlock_flags);
 			if((ec_info_copy.m_nMode & MODEMASK_MULTIPLE_BUFFER) == 0) {
 				// Original buffer
-				if(ec_info.after_last < ec_info.first) {
+				if(ec_info.after_last > ec_info.first) {
 					ec_info.buffer_effect = ec_info.buffer_size;
 				}
-				ec_info.first = ec_info_copy.after_last;
+				if (ec_info.after_last == ec_info.buffer_effect) {
+				     ec_info.first = 0;
+				} else {
+				     ec_info.first = ec_info_copy.after_last;
+				}
 				ec_info.trace_size = ec_info.trace_size - ec_info_copy.trace_size;
+
 			} else {
 				// Relay FS buffer
 #ifndef __DISABLE_RELAYFS
