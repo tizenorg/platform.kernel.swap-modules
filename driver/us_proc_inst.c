@@ -694,7 +694,7 @@ int deinst_usr_space_proc (void)
 
 	//if user-space instrumentation is not set
 	if (!us_proc_info.path)
-	    return;
+	    return 0;
 
 	iRet = uninstall_kernel_probe (pf_addr, US_PROC_PF_INSTLD,
 			0, &pf_probe);
