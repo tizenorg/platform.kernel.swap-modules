@@ -968,7 +968,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 				}
 				addr = ((unsigned int)p->addr) + 4;
 
-				*((unsigned short*)insns + 13) = 0xffff;
+				*((unsigned short*)insns + 13) = 0xdeff;
 				*((unsigned short*)insns + 14) = addr & 0x0000ffff;
 				*((unsigned short*)insns + 15) = addr >> 16;
 
@@ -987,7 +987,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 			}else{
 				memcpy (insns, gen_insn_execbuf_thumb, 18 * 2);
 
-				*((unsigned short*)insns + 13) = 0xffff;
+				*((unsigned short*)insns + 13) = 0xdeff;
 
 				if (!isThumb2(insn[0]))
 				{
