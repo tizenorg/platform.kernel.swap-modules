@@ -406,6 +406,11 @@ void recycle_rp_inst (struct kretprobe_instance *ri, struct hlist_head *head)
 		/* put rp inst back onto the free list */
 		INIT_HLIST_NODE (&ri->uflist);
 		hlist_add_head (&ri->uflist, &ri->rp->free_instances);
+	} else if (!ri->rp2) {
+		/*
+		 * This is __switch_to retprobe instance.  It has neither rp nor rp2.
+		 */
+		hlist_del (&ri->hlist);
 	}
 }
 
