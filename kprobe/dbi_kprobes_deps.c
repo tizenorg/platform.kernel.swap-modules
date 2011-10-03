@@ -158,10 +158,10 @@ IMP_MOD_DEP_WRAPPER (vm_normal_page, vma, addr, pte)
 			unsigned long uaddr, void *kaddr, unsigned long len, int write)
 IMP_MOD_DEP_WRAPPER (flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
-	DECLARE_MOD_DEP_WRAPPER(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len)
-IMP_MOD_DEP_WRAPPER (copy_to_user_page, vma, page, uaddr, dst, src, len)
-#endif
+//#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32)
+//	DECLARE_MOD_DEP_WRAPPER(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len)
+//IMP_MOD_DEP_WRAPPER (copy_to_user_page, vma, page, uaddr, dst, src, len)
+//#endif
 
 
 int init_module_dependencies()
@@ -207,9 +207,9 @@ int init_module_dependencies()
 
 
 // for 2.6.32.9-iboot (tegra-froyo)
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32))
-	INIT_MOD_DEP_VAR(copy_to_user_page, copy_to_user_page);
-#endif
+//#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32))
+//	INIT_MOD_DEP_VAR(copy_to_user_page, copy_to_user_page);
+//#endif
 
 	return 0;
 }
