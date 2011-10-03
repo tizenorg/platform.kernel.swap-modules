@@ -15,8 +15,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////////
 
-#include "module.h"
+#include <linux/module.h>
 #include "us_proc_inst.h"
+#include "storage.h"
+#include "debug.h"
+#include <linux/namei.h>
 
 #include "../kprobe/dbi_kprobes_deps.h"
 #include "../kprobe/dbi_uprobes.h"
@@ -301,12 +304,21 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 	}
 	rcu_read_unlock ();
 
+<<<<<<< HEAD
+		if (*p_task) {
+			DPRINTF ("found pid %d for %s.", (*p_task)->pid, path);
+			/* gl_nNotifyTgid = current->tgid; */
+		} else {
+			DPRINTF ("pid for %s not found!", path);
+		}
+=======
 	if (*p_task) {
 		DPRINTF ("found pid %d for %s.", (*p_task)->pid, path);
 		gl_nNotifyTgid = (*p_task)->tgid;
 	} else {
 		DPRINTF ("pid for %s not found!", path);
 	}
+>>>>>>> dev
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	path_release (&nd);
@@ -839,6 +851,7 @@ int inst_usr_space_proc (void)
 
 	for (i = 0; i < us_proc_info.libs_count; i++)
 		us_proc_info.p_libs[i].loaded = 0;
+
 	/* check whether process is already running
 	 * 1) if process is running - look for the libraries in the process maps 
 	 * 1.1) check if page for symbol does exist
@@ -886,6 +899,7 @@ int inst_usr_space_proc (void)
 		EPRINTF ("install_kernel_probe(do_page_fault) result=%d!", ret);
 		return ret;
 	}
+
 	// enable 'do_exit' probe to detect when user proc exits in order to remove user space probes
 	ret = install_kernel_probe (exit_addr, US_PROC_EXIT_INSTLD, 0, &exit_probe);
 	if (ret != 0)
@@ -893,6 +907,9 @@ int inst_usr_space_proc (void)
 		EPRINTF ("install_kernel_probe(do_exit) result=%d!", ret);
 		return ret;
 	}
+<<<<<<< HEAD
+
+=======
 	/*
 	 * When do_execve occurs we need to unregister all the uprobes from
 	 * this address space because VMAs may change.
@@ -903,6 +920,7 @@ int inst_usr_space_proc (void)
 		EPRINTF ("install_kernel_probe(do_execve) result=%d!", ret);
 		return ret;
 	}
+>>>>>>> dev
 	return 0;
 }
 
@@ -931,7 +949,7 @@ void do_page_fault_ret_pre_code (void)
 	}
 
 	task_inst_info = &us_proc_info;
-	//DPRINTF("do_page_fault from proc %d-%d-%d", current->pid, task_inst_info->tgid, task_inst_info->unres_ips_count);
+	/* DPRINTF("do_page_fault from proc %d-%d-%d", current->pid, task_inst_info->tgid, task_inst_info->unres_ips_count); */
 	if ((task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count) == 0)
 	{
 		//DPRINTF("do_page_fault: there no unresolved IPs");
@@ -975,7 +993,7 @@ void do_page_fault_ret_pre_code (void)
 		{
 			DPRINTF ("do_page_fault found target proc %s(%d)", current->comm, current->pid);
 			task_inst_info->tgid = current->pid;
-			gl_nNotifyTgid = current->tgid;
+			/* gl_nNotifyTgid = current->tgid; */
 		}
 	}
 	if (task_inst_info->tgid == current->tgid)

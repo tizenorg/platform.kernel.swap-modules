@@ -220,7 +220,7 @@ extern void kprobes_inc_nmissed_count (struct kprobe *p);
 /* Get the kprobe at this addr (if any) - called with preemption disabled */
 struct kprobe *get_kprobe (void *addr, int pid, struct task_struct *ctask);
 struct kprobe *get_kprobe_by_insn_slot (void *addr, int tgid, struct task_struct *ctask);
-struct hlist_head *kretprobe_inst_table_head (struct task_struct *tsk);
+struct hlist_head *kretprobe_inst_table_head (void *hash_key);
 
 
 int register_kprobe (struct kprobe *p, int atomic);

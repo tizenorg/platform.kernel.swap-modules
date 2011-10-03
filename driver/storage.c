@@ -737,7 +737,7 @@ char *find_lib_path(const char *lib_name)
 		}
 	}
 
-	return p;
+	return NULL;
 }
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
@@ -961,16 +961,20 @@ int link_bundle()
 				d_lib->path = find_lib_path(d_lib->path);
 				if (!d_lib->path)
 				{
-					EPRINTF("Cannot find path!");
-					return -1;
+					EPRINTF("Cannot find path for lib %s!", d_lib->path);
+					/* Just skip all the IPs and go to next lib */
+					p += d_lib->ips_count * 3 * sizeof(u_int32_t);
+					d_lib->ips_count = 0;
+					continue;
 				}
 			}
 
 			if (path_lookup(d_lib->path, LOOKUP_FOLLOW, &nd) != 0)
 			{
 				EPRINTF ("failed to lookup dentry for path %s!", d_lib->path);
-				p += lib_name_len;
-				p += sizeof(u_int32_t);
+				/* Just skip all the IPs and go to next lib */
+				p += d_lib->ips_count * 3 * sizeof(u_int32_t);
+				d_lib->ips_count = 0;
 				continue;
 			}
 	#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)

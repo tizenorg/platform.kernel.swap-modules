@@ -968,7 +968,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 				}
 				addr = ((unsigned int)p->addr) + 4;
 
-				*((unsigned short*)insns + 13) = 0xffff;
+				*((unsigned short*)insns + 13) = 0xdeff;
 				*((unsigned short*)insns + 14) = addr & 0x0000ffff;
 				*((unsigned short*)insns + 15) = addr >> 16;
 
@@ -987,7 +987,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 			}else{
 				memcpy (insns, gen_insn_execbuf_thumb, 18 * 2);
 
-				*((unsigned short*)insns + 13) = 0xffff;
+				*((unsigned short*)insns + 13) = 0xdeff;
 
 				if (!isThumb2(insn[0]))
 				{
@@ -1448,7 +1448,18 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 
 	INIT_HLIST_HEAD (&empty_rp);
 	spin_lock_irqsave (&kretprobe_lock, flags);
-	head = kretprobe_inst_table_head (current);
+
+	/*
+	 * We are using different hash keys (current and mm) for finding kernel
+	 * space and user space probes.  Kernel space probes can change mm field in
+	 * task_struct.  User space probes can be shared between threads of one
+	 * process so they have different current but same mm.
+	 */
+	if (p && p->tgid) {
+		head = kretprobe_inst_table_head(current->mm);
+	} else {
+		head = kretprobe_inst_table_head(current);
+	}
 
 	/*
 	 * It is possible to have multiple instances associated with a given
@@ -1473,7 +1484,6 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 		}
 
 		orig_ret_address = (unsigned long) ri->ret_addr;
-
 		recycle_rp_inst (ri, &empty_rp);
 		if (orig_ret_address != trampoline_address)
 			/*
@@ -1532,16 +1542,19 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 			// if we are not at the end of the list and current retprobe should be disarmed
 			if (node && ri->rp2)
 			{
+				struct hlist_node *current_node = node;
 				crp = ri->rp2;
 				/*sprintf(die_msg, "deferred disarm p->addr = %p [%lx %lx %lx]\n",
 				  crp->kp.addr, *kaddrs[0], *kaddrs[1], *kaddrs[2]);
 				  DIE(die_msg, regs); */
 				// look for other instances for the same retprobe
-				hlist_for_each_entry_continue (ri, node, hlist)
+				hlist_for_each_entry_safe (ri, node, tmp, head, hlist)
 				{
-					if (ri->task != current)
-						continue;	/* another task is sharing our hash bucket */
-					if (ri->rp2 == crp)	//if instance belong to the same retprobe
+					/*
+					 * Trying to find another retprobe instance associated with
+					 * the same retprobe.
+					 */
+					if (ri->rp2 == crp && node != current_node)
 						break;
 				}
 
@@ -1549,9 +1562,18 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 				{	// if there are no more instances for this retprobe
 					// delete retprobe
 					DBPRINTF ("defered retprobe deletion p->addr = %p", crp->kp.addr);
+					/*
+					  If there is no any retprobe instances of this retprobe
+					  we can free the resources related to the probe.
+					 */
+					struct kprobe *is_p = &crp->kp;
+					if (!(hlist_unhashed(&is_p->is_hlist))) {
+						hlist_del_rcu(&is_p->is_hlist);
+					}
 					unregister_uprobe (&crp->kp, current, 1);
 					kfree (crp);
 				}
+				hlist_del(current_node);
 			}
 		}
 	}

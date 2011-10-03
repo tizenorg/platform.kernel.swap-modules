@@ -378,7 +378,17 @@ void add_rp_inst (struct kretprobe_instance *ri)
 
 	/* Add rp inst onto table */
 	INIT_HLIST_NODE (&ri->hlist);
-	hlist_add_head (&ri->hlist, &kretprobe_inst_table[hash_ptr (ri->task, KPROBE_HASH_BITS)]);
+	/*
+	 * We are using different hash keys (task and mm) for finding kernel
+	 * space and user space probes.  Kernel space probes can change mm field in
+	 * task_struct.  User space probes can be shared between threads of one
+	 * process so they have different task but same mm.
+	 */
+	if (ri->rp->kp.tgid) {
+		hlist_add_head (&ri->hlist, &kretprobe_inst_table[hash_ptr (ri->task->mm, KPROBE_HASH_BITS)]);
+	} else {
+		hlist_add_head (&ri->hlist, &kretprobe_inst_table[hash_ptr (ri->task, KPROBE_HASH_BITS)]);
+	}
 
 	/* Also add this rp inst to the used list. */
 	INIT_HLIST_NODE (&ri->uflist);
@@ -388,24 +398,25 @@ void add_rp_inst (struct kretprobe_instance *ri)
 /* Called with kretprobe_lock held */
 void recycle_rp_inst (struct kretprobe_instance *ri, struct hlist_head *head)
 {
-	/* remove rp inst off the rprobe_inst_table */
-	hlist_del (&ri->hlist);
 	if (ri->rp)
 	{
+		hlist_del (&ri->hlist);
 		/* remove rp inst off the used list */
 		hlist_del (&ri->uflist);
 		/* put rp inst back onto the free list */
 		INIT_HLIST_NODE (&ri->uflist);
 		hlist_add_head (&ri->uflist, &ri->rp->free_instances);
+	} else if (!ri->rp2) {
+		/*
+		 * This is __switch_to retprobe instance.  It has neither rp nor rp2.
+		 */
+		hlist_del (&ri->hlist);
 	}
-	else
-		/* Unregistering */
-		hlist_add_head (&ri->hlist, head);
 }
 
-struct hlist_head  * kretprobe_inst_table_head (struct task_struct *tsk)
+struct hlist_head  * kretprobe_inst_table_head (void *hash_key)
 {
-	return &kretprobe_inst_table[hash_ptr (tsk, KPROBE_HASH_BITS)];
+	return &kretprobe_inst_table[hash_ptr (hash_key, KPROBE_HASH_BITS)];
 }
 
 void free_rp_inst (struct kretprobe *rp)

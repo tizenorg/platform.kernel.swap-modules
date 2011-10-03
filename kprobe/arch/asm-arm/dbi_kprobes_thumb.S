@@ -24,6 +24,7 @@ gen_insn_execbuf_thumb:
 		nop
 
 		.global pc_dep_insn_execbuf_thumb
+		.align 4
 pc_dep_insn_execbuf_thumb:
 		push	{r6, r7}
 		ldr	r6, i1
@@ -39,7 +40,7 @@ pc_dep_insn_execbuf_thumb:
 		str	r0, [sp, #4]
 		pop	{r0, pc}	// ssbreak
 		nop			// retbreak
-		nop			// stored PC hi
-i1:		nop			// stored PC lo
-		nop			// stored PC-4(next insn addr) hi
-i2:		nop			// stored PC-4(next insn addr) lo
+i1:		nop			// stored PC hi
+		nop			// stored PC lo
+i2:		nop			// stored PC-4(next insn addr) hi
+		nop			// stored PC-4(next insn addr) lo

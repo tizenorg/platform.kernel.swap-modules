@@ -78,8 +78,11 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 	if (old_p)
 	{
 		ret = register_aggr_kprobe (old_p, p);
-		if (!ret)
+		if (!ret) {
 			atomic_inc (&kprobe_count);
+			INIT_HLIST_NODE (&p->is_hlist);
+			hlist_add_head_rcu (&p->is_hlist, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn, KPROBE_HASH_BITS)]);
+		}
 		DBPRINTF ("goto out\n", ret);
 		goto out;
 	}
@@ -218,6 +221,10 @@ void unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int a
 	{
 		// if there are no used retprobe instances (i.e. function is not entered) - disarm retprobe
 		arch_disarm_uretprobe (rp, task);//vmas[1], pages[1], kaddrs[1]);
+		struct kprobe *p = &rp->kp;
+		if (!(hlist_unhashed(&p->is_hlist))) {
+			hlist_del_rcu(&p->is_hlist);
+		}
 	}
 	else
 	{
@@ -230,6 +237,17 @@ void unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int a
 			printk ("initiating deferred retprobe deletion addr %p\n", rp->kp.addr);
 			rp2->disarm = 1;
 		}
+		/*
+		 * As we cloned retprobe we have to update the entry in the insn slot
+		 * hash list.
+		 */
+		struct kprobe *p = &rp->kp;
+		if (!(hlist_unhashed(&p->is_hlist))) {
+			hlist_del_rcu(&p->is_hlist);
+		}
+		struct kprobe *new_p = &rp2->kp;
+		INIT_HLIST_NODE (&new_p->is_hlist);
+		hlist_add_head_rcu (&new_p->is_hlist, &uprobe_insn_slot_table[hash_ptr (new_p->ainsn.insn, KPROBE_HASH_BITS)]);
 	}
 
 	while ((ri = get_used_rp_inst (rp)) != NULL)
