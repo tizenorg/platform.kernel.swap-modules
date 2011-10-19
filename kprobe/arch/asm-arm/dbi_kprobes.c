@@ -1291,6 +1291,7 @@ void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 		return;
 	}
 
+	spin_lock_irqsave (&kretprobe_lock, flags);
 	if ((ri = get_free_rp_inst(rp)) != NULL)
 	{
 		ri->rp = rp;
@@ -1305,6 +1306,7 @@ void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 		printk("no ri for %d\n", p->pid);
 		BUG();
 	}
+	spin_unlock_irqrestore (&kretprobe_lock, flags);
 }
 
 int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
