@@ -1579,12 +1579,12 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 		}
 	}
 
-	spin_unlock_irqrestore (&kretprobe_lock, flags);
 	hlist_for_each_entry_safe (ri, node, tmp, &empty_rp, hlist)
 	{
 		hlist_del (&ri->hlist);
 		kfree (ri);
 	}
+	spin_unlock_irqrestore (&kretprobe_lock, flags);
 
 	preempt_enable_no_resched ();
 	/*
