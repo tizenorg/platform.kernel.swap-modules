@@ -303,6 +303,7 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 
 	if (*p_task) {
 		DPRINTF ("found pid %d for %s.", (*p_task)->pid, path);
+		*p_task = (*p_task)->group_leader;
 		gl_nNotifyTgid = (*p_task)->tgid;
 	} else {
 		DPRINTF ("pid for %s not found!", path);
@@ -913,6 +914,8 @@ void do_page_fault_ret_pre_code (void)
 	struct mm_struct *mm;
 	struct vm_area_struct *vma = 0;
 	inst_us_proc_t *task_inst_info = NULL;
+	/* task_struct of task current->group_leader */
+	struct task_struct *task = current->group_leader;
 
 	//if user-space instrumentation is not set
 	if (!us_proc_info.path)
@@ -973,17 +976,17 @@ void do_page_fault_ret_pre_code (void)
 		}
 		if (vma)
 		{
-			DPRINTF ("do_page_fault found target proc %s(%d)", current->comm, current->pid);
-			task_inst_info->tgid = current->pid;
-			gl_nNotifyTgid = current->tgid;
+		     DPRINTF ("do_page_fault found target proc %s(%d)", task->comm, task->pid);
+		     task_inst_info->tgid = task->pid;
+		     gl_nNotifyTgid = task->tgid;
 		}
 	}
-	if (task_inst_info->tgid == current->tgid)
+	if (task_inst_info->tgid == task->tgid)
 	{
 		//DPRINTF("do_page_fault from target proc %d", task_inst_info->tgid);
-		install_mapped_ips (current, &us_proc_info, 1);
+		install_mapped_ips (task, &us_proc_info, 1);
 	}
-	//DPRINTF("do_page_fault from proc %d-%d exit", current->pid, task_inst_info->pid);
+	//DPRINTF("do_page_fault from proc %d-%d exit", task->pid, task_inst_info->pid);
 }
 
 EXPORT_SYMBOL_GPL(do_page_fault_ret_pre_code);
