@@ -598,6 +598,7 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 				task_inst_info->p_libs[i].p_vtps[k].installed = 0;
 			}
 		}
+		task_inst_info->p_libs[i].loaded = 0;
 	}
 	DPRINTF ("Ures IPs  %d.", task_inst_info->unres_ips_count);
 	DPRINTF ("Ures VTPs %d.", task_inst_info->unres_vtps_count);
@@ -706,6 +707,11 @@ int deinst_usr_space_proc (void)
 			0, &exit_probe);
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_exit) result=%d!", iRet);
+
+	iRet = uninstall_kernel_probe (fork_addr, US_PROC_FORK_INSTLD,
+			0, &fork_probe);
+	if (iRet)
+		EPRINTF ("uninstall_kernel_probe(do_fork) result=%d!", iRet);
 
 	iRet = uninstall_kernel_probe (exec_addr, US_PROC_EXEC_INSTLD,
 			0, &exec_probe);
@@ -851,21 +857,24 @@ int inst_usr_space_proc (void)
 	if (!strcmp(us_proc_info.path,"*")) 
 	{
 		clear_task_inst_info();
-		for_each_process (task)
-		{
-			if (task)
-			{
-				task_inst_info = get_task_inst_node(task);
-				if (!task_inst_info) 
-				{
-					task_inst_info = copy_task_inst_info (task, &us_proc_info);
-					put_task_inst_node(task, task_inst_info);
-				}
-				DPRINTF("trying process");
-				install_mapped_ips (task, task_inst_info, 1);
-				//put_task_struct (task);
-				task_inst_info = NULL;
+		for_each_process (task) {
+			if (task->flags & PF_KTHREAD){
+				DPRINTF("ignored kernel thread %d\n",
+					task->pid);
+				continue;
 			}
+
+			task_inst_info = get_task_inst_node(task);
+			if (!task_inst_info) {
+				task_inst_info =
+					copy_task_inst_info(task,
+							    &us_proc_info);
+				put_task_inst_node(task, task_inst_info);
+			}
+			DPRINTF("trying process");
+			install_mapped_ips (task, task_inst_info, 1);
+			//put_task_struct (task);
+			task_inst_info = NULL;
 		}
 	} 
 	else
@@ -894,6 +903,13 @@ int inst_usr_space_proc (void)
 		EPRINTF ("install_kernel_probe(do_exit) result=%d!", ret);
 		return ret;
 	}
+	/* enable 'do_fork' */
+	ret = install_kernel_probe (fork_addr, US_PROC_FORK_INSTLD, 0, &fork_probe);
+	if (ret != 0)
+	{
+		EPRINTF ("instpall_kernel_probe(do_fork) result=%d!", ret);
+		return ret;
+	}
 	/*
 	 * When do_execve occurs we need to unregister all the uprobes from
 	 * this address space because VMAs may change.
@@ -914,22 +930,32 @@ void do_page_fault_ret_pre_code (void)
 	struct mm_struct *mm;
 	struct vm_area_struct *vma = 0;
 	inst_us_proc_t *task_inst_info = NULL;
-	/* task_struct of task current->group_leader */
+	/* 
+	 * Because process threads have same address space
+	 * we instrument only group_leader of all this threads
+	 */
 	struct task_struct *task = current->group_leader;
 
 	//if user-space instrumentation is not set
 	if (!us_proc_info.path)
 		return;
 
+	if (task->flags & PF_KTHREAD) {
+		DPRINTF("ignored kernel thread %d\n", task->pid);
+		return;
+	}
+
+
 	if (!strcmp(us_proc_info.path,"*"))
 	{
-		task_inst_info = get_task_inst_node(current);
+		task_inst_info = get_task_inst_node(task);
 		if (!task_inst_info) 
 		{
-			task_inst_info = copy_task_inst_info (current, &us_proc_info);
-			put_task_inst_node(current, task_inst_info);
+			task_inst_info = copy_task_inst_info(task, 
+							     &us_proc_info);
+			put_task_inst_node(task, task_inst_info);
 		}
-		install_mapped_ips (current, task_inst_info, 1);
+		install_mapped_ips (task, task_inst_info, 1);
 		return;
 	}
 
@@ -943,7 +969,7 @@ void do_page_fault_ret_pre_code (void)
 
 	if (task_inst_info->tgid == 0)
 	{
-		mm = current->active_mm;
+		mm = task->active_mm;
 		if (mm)
 		{
 //			down_read (&mm->mmap_sem);

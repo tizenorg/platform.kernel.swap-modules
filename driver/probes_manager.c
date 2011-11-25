@@ -37,9 +37,11 @@
 
 unsigned long pf_addr;
 unsigned long exit_addr;
+unsigned long fork_addr;
 unsigned long exec_addr;
 kernel_probe_t *pf_probe = NULL;
 kernel_probe_t *exit_probe = NULL;
+kernel_probe_t *fork_probe = NULL;
 kernel_probe_t *exec_probe = NULL;
 unsigned int probes_flags = 0;
 
@@ -59,6 +61,12 @@ probes_manager_init (void)
 	exit_addr = lookup_name("do_exit");
 	if (exit_addr == 0) {
 		EPRINTF("Cannot find address for do_exit function!");
+		return -EINVAL;
+	}
+
+	fork_addr = lookup_name("do_fork");
+	if (exit_addr == 0) {
+		EPRINTF("Cannot find address for do_fork function!");
 		return -EINVAL;
 	}
 
@@ -83,6 +91,8 @@ register_kernel_jprobe (kernel_probe_t * probe)
 {
 	int result;
 	if (((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
+	    ((probe == fork_probe) && (us_proc_probes & US_PROC_FORK_INSTLD)) ||
+	    ((probe == exec_probe) && (us_proc_probes & US_PROC_EXEC_INSTLD)) ||
 	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)))
 	{
 		return 0;	// probe is already registered
@@ -101,6 +111,7 @@ unregister_kernel_jprobe (kernel_probe_t * probe)
 {
 	if (((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
 		((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ||
+		((probe == fork_probe) && (us_proc_probes & US_PROC_FORK_INSTLD)) ||
 		((probe == exec_probe) && (us_proc_probes & US_PROC_EXEC_INSTLD))) {
 		return 0;	// probe is necessary for user space instrumentation
 	}
@@ -114,6 +125,7 @@ register_kernel_retprobe (kernel_probe_t * probe)
 	int result;
 	if (((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
 		((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ||
+		((probe == fork_probe) && (us_proc_probes & US_PROC_FORK_INSTLD)) ||
 		((probe == exec_probe) && (us_proc_probes & US_PROC_EXEC_INSTLD))) {
 		return 0;	// probe is already registered
 	}
@@ -132,6 +144,7 @@ unregister_kernel_retprobe (kernel_probe_t * probe)
 {
 	if (((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
 		((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ||
+		((probe == fork_probe) && (us_proc_probes & US_PROC_FORK_INSTLD)) ||
 		((probe == exec_probe) && (us_proc_probes & US_PROC_EXEC_INSTLD))) {
 		return 0;	// probe is necessary for user space instrumentation
 	}
@@ -218,6 +231,14 @@ add_probe (unsigned long addr)
 		}
 		pprobe = &exit_probe;
 	}
+	else if (addr == fork_addr) {
+		probes_flags |= PROBE_FLAG_FORK_INSTLD;
+		if (us_proc_probes & US_PROC_FORK_INSTLD)
+		{
+			return 0;
+		}
+		pprobe = &fork_probe;
+	}
 	else if (addr == exec_addr) {
 		probes_flags |= PROBE_FLAG_EXEC_INSTLD;
 		if (us_proc_probes & US_PROC_EXEC_INSTLD) {
@@ -232,6 +253,8 @@ add_probe (unsigned long addr)
 			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
 		else if (addr == exit_addr)
 			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
+		else if (addr == fork_addr)
+			probes_flags &= ~PROBE_FLAG_FORK_INSTLD;
 		else if (addr == exec_addr)
 			probes_flags &= ~PROBE_FLAG_EXEC_INSTLD;
 	}
@@ -250,6 +273,9 @@ int reset_probes()
 		} else if (p->addr == exit_addr) {
 			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
 			exit_probe = NULL;
+		} else if (p->addr == fork_addr) {
+			probes_flags &= ~PROBE_FLAG_FORK_INSTLD;
+			fork_probe = NULL;
 		} else if (p->addr == exec_addr) {
 			probes_flags &= ~PROBE_FLAG_EXEC_INSTLD;
 			exec_probe = NULL;
@@ -287,6 +313,14 @@ remove_probe (unsigned long addr)
 			return 0;
 		}
 		exit_probe = NULL;
+	}
+	else if (addr == fork_addr) {
+		probes_flags &= ~PROBE_FLAG_FORK_INSTLD;
+		if (us_proc_probes & US_PROC_FORK_INSTLD)
+		{
+			return 0;
+		}
+		fork_probe = NULL;
 	}
 	else if (addr == exec_addr) {
 		probes_flags &= ~PROBE_FLAG_EXEC_INSTLD;
@@ -334,6 +368,16 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 		if (!(probes_flags & PROBE_FLAG_EXIT_INSTLD))
 			skip = 1;
 	}
+	else if (fork_probe == probe)
+	{
+		if (us_proc_probes & US_PROC_FORK_INSTLD)
+			/*
+			 * TODO: call fork specific *_probe_pre_code() function
+			 */
+			do_exit_probe_pre_code();
+		if (!(probes_flags & PROBE_FLAG_FORK_INSTLD))
+			skip = 1;
+	}
 	else if (exec_probe == probe)
 	{
 		if (us_proc_probes & US_PROC_EXEC_INSTLD)
@@ -362,6 +406,17 @@ def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs,
 		if (us_proc_probes & US_PROC_PF_INSTLD)
 			do_page_fault_ret_pre_code ();
 		if (!(probes_flags & PROBE_FLAG_PF_INSTLD))
+			skip = 1;
+	}
+	if (fork_probe == probe)
+	{
+		if (us_proc_probes & US_PROC_FORK_INSTLD){
+			/*
+			 * TODO: call fork specific *_ret_pre_code() function
+			 */
+			do_page_fault_ret_pre_code();
+		}
+		if (!(probes_flags & PROBE_FLAG_FORK_INSTLD))
 			skip = 1;
 	}
 	else if (exit_probe == probe)

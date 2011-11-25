@@ -50,16 +50,18 @@ int is_pf_installed_by_user(void);
 
 extern unsigned long pf_addr;
 extern unsigned long exit_addr;
+extern unsigned long fork_addr;
 extern unsigned long exec_addr;
 extern kernel_probe_t *pf_probe;
 extern kernel_probe_t *exit_probe;
+extern kernel_probe_t *fork_probe;
 extern kernel_probe_t *exec_probe;
 extern unsigned int probes_flags;
 
 #define PROBE_FLAG_PF_INSTLD	0x1
 #define PROBE_FLAG_EXIT_INSTLD	0x2
 #define PROBE_FLAG_EXEC_INSTLD	0x4
+#define PROBE_FLAG_FORK_INSTLD	0x8
 //#define PROBE_FLAG_SS_INSTLD	0x4
-//#define PROBE_FLAG_FORK_INSTLD	0x8
 
 #endif // !defined(__PROBES_MANAGER_H__)

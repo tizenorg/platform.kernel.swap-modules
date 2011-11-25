@@ -51,8 +51,8 @@ extern pid_t gl_nNotifyTgid;
 #define US_PROC_PF_INSTLD	0x1
 #define US_PROC_EXIT_INSTLD	0x2
 #define US_PROC_EXEC_INSTLD	0x4
+#define US_PROC_FORK_INSTLD	0x8
 //#define US_PROC_SS_INSTLD	0x4
-//#define US_PROC_FORK_INSTLD	0x8
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

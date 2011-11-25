@@ -1038,7 +1038,12 @@ int kprobe_handler (struct pt_regs *regs)
 		{
 			if (my_p[i] != -1)
 			{
-				if (my_p[i]->addr == addr)
+				/*
+				 * Searching occurred probe by
+				 * instruction address and task_struct
+				 */
+				if (my_p[i]->addr == addr &&
+				    my_task[i] == current)
 				{
 					if (thumb_mode(regs))
 					{
