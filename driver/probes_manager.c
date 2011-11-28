@@ -372,9 +372,16 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 	{
 		if (us_proc_probes & US_PROC_FORK_INSTLD)
 			/*
-			 * TODO: call fork specific *_probe_pre_code() function
+			 * Uninstall probes only if fork
+			 * creates process (not thread).
 			 */
-			do_exit_probe_pre_code();
+			if (!(arg1 & CLONE_VM)) {
+				/*
+				 * TODO: call fork specific
+				 * *_probe_pre_code() function
+				 */
+				do_exit_probe_pre_code();
+			}
 		if (!(probes_flags & PROBE_FLAG_FORK_INSTLD))
 			skip = 1;
 	}
@@ -410,6 +417,11 @@ def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs,
 	}
 	if (fork_probe == probe)
 	{
+		/*
+		 * Because we uninstall probes before fork new process
+		 * there is possibility of a situation with
+		 * unhandled events before we put probe.
+		 */
 		if (us_proc_probes & US_PROC_FORK_INSTLD){
 			/*
 			 * TODO: call fork specific *_ret_pre_code() function

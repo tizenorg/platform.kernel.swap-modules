@@ -1043,7 +1043,7 @@ int kprobe_handler (struct pt_regs *regs)
 				 * instruction address and task_struct
 				 */
 				if (my_p[i]->addr == addr &&
-				    my_task[i] == current)
+				    my_task[i]->tgid == current->tgid)
 				{
 					if (thumb_mode(regs))
 					{
