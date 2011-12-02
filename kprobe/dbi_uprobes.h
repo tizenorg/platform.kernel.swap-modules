@@ -31,19 +31,19 @@
 #include "dbi_kprobes.h"
 
 
-int register_ujprobe (struct task_struct *task, struct mm_struct *mm, struct jprobe *jp, int atomic);
-void unregister_ujprobe (struct task_struct *task, struct jprobe *jp, int atomic);
+int dbi_register_ujprobe (struct task_struct *task, struct mm_struct *mm, struct jprobe *jp, int atomic);
+void dbi_unregister_ujprobe (struct task_struct *task, struct jprobe *jp, int atomic);
 
 void unregister_uprobe (struct kprobe *p, struct task_struct *task, int atomic);
 
-int register_uretprobe (struct task_struct *task, struct mm_struct *mm, struct kretprobe *rp, int atomic);
-void unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int atomic);
+int dbi_register_uretprobe (struct task_struct *task, struct mm_struct *mm, struct kretprobe *rp, int atomic);
+void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int atomic);
 
-void unregister_all_uprobes (struct task_struct *task, int atomic);
+void dbi_unregister_all_uprobes (struct task_struct *task, int atomic);
 
 void init_uprobes_insn_slots(int i) ;
 
-void uprobe_return (void);
+void dbi_uprobe_return (void);
 
 
 

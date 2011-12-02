@@ -143,7 +143,7 @@ unsigned long find_rp_handler(unsigned long addr)
 DECLARE_PER_CPU (us_proc_ip_t *, gpCurIp);
 DECLARE_PER_CPU (struct pt_regs *, gpUserRegs);
 
-extern void uprobe_return(void);
+extern void dbi_uprobe_return(void);
 
 #include "dalvik_defs.h"
 
@@ -191,7 +191,7 @@ static inline int IsAndroidEvent ( Method *arg1 )
 
 static int __init handlers_init(void)
 {
-	install_user_handlers();
+	dbi_install_user_handlers();
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
@@ -208,7 +208,7 @@ static void __exit handlers_exit(void)
 	inperfa_unregister_notify(&inperfa_nb);
 #endif
 
-	uninstall_user_handlers();
+	dbi_uninstall_user_handlers();
 }
 
 module_init(handlers_init);

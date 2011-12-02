@@ -399,7 +399,7 @@ static void us_vtp_event_handler (unsigned long arg1, unsigned long arg2, unsign
 				EPRINTF ("unknown variable type '%c'", vtp_data->type);
 		}
 	}
-	uprobe_return ();
+	dbi_uprobe_return ();
 }
 static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_inst_info, int atomic)
 {
@@ -547,7 +547,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							task_inst_info->p_libs[i].p_vtps[k].installed = 1;
 							task_inst_info->unres_vtps_count--;
 							
-							err = register_ujprobe (task, mm, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
+							err = dbi_register_ujprobe (task, mm, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
 
 							if ( err != 0 ) {
 								EPRINTF ("failed to install VTP at %p. Error %d!", 
@@ -593,7 +593,7 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 		{
 			if (task_inst_info->p_libs[i].p_vtps[k].installed)
 			{
-				unregister_ujprobe (task, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
+				dbi_unregister_ujprobe (task, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
 				task_inst_info->unres_vtps_count++;
 				task_inst_info->p_libs[i].p_vtps[k].installed = 0;
 			}
@@ -626,7 +626,7 @@ void send_sig_jprobe_event_handler (int sig, struct siginfo *info, struct task_s
 			iRet = uninstall_mapped_ips (t, task_inst_info, 1);
 			if (iRet != 0)
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
-			unregister_all_uprobes(t, 1);
+			dbi_unregister_all_uprobes(t, 1);
 			return;
 		}
 	} 
@@ -728,7 +728,7 @@ int deinst_usr_space_proc (void)
 				iRet = uninstall_mapped_ips (task, task_inst_info, 1);
 				if (iRet != 0)
 					EPRINTF ("failed to uninstall IPs (%d)!", iRet);
-				unregister_all_uprobes(task, 1);
+				dbi_unregister_all_uprobes(task, 1);
 			}
 		}
 	} 
@@ -755,7 +755,7 @@ int deinst_usr_space_proc (void)
 			if (iRet != 0)
 			EPRINTF ("failed to uninstall IPs %d!", iRet);
 			put_task_struct (task);
-			unregister_all_uprobes(task, 1);
+			dbi_unregister_all_uprobes(task, 1);
 			us_proc_info.tgid = 0;
 			for(i = 0; i < us_proc_info.libs_count; i++)
 				us_proc_info.p_libs[i].loaded = 0;
@@ -1035,7 +1035,7 @@ void do_exit_probe_pre_code (void)
 			iRet = uninstall_mapped_ips (current, task_inst_info, 1);
 			if (iRet != 0)
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
-			unregister_all_uprobes(current, 1);
+			dbi_unregister_all_uprobes(current, 1);
 		}
 		return;
 	} 
@@ -1061,7 +1061,7 @@ void do_exit_probe_pre_code (void)
 			iRet = uninstall_mapped_ips (current, &us_proc_info, 1);
 			if (iRet != 0)
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
-			unregister_all_uprobes(current, 1);
+			dbi_unregister_all_uprobes(current, 1);
 			us_proc_info.tgid = 0;
 			for(i = 0; i < us_proc_info.libs_count; i++)
 				us_proc_info.p_libs[i].loaded = 0;
@@ -1076,12 +1076,12 @@ DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpUserRegs);
 
 // XXX MCPP: introduced custom default handlers defined in (exported from) another kernel module(s)
-unsigned long (* ujprobe_event_pre_handler_custom_p)(us_proc_ip_t *, struct pt_regs *) = NULL;
-EXPORT_SYMBOL(ujprobe_event_pre_handler_custom_p);
-void (* ujprobe_event_handler_custom_p)(void) = NULL;
-EXPORT_SYMBOL(ujprobe_event_handler_custom_p);
-int (* uretprobe_event_handler_custom_p)(struct kretprobe_instance *, struct pt_regs *, us_proc_ip_t *) = NULL;
-EXPORT_SYMBOL(uretprobe_event_handler_custom_p);
+unsigned long (* dbi_ujprobe_event_pre_handler_custom_p)(us_proc_ip_t *, struct pt_regs *) = NULL;
+EXPORT_SYMBOL(dbi_ujprobe_event_pre_handler_custom_p);
+void (* dbi_ujprobe_event_handler_custom_p)(void) = NULL;
+EXPORT_SYMBOL(dbi_ujprobe_event_handler_custom_p);
+int (* dbi_uretprobe_event_handler_custom_p)(struct kretprobe_instance *, struct pt_regs *, us_proc_ip_t *) = NULL;
+EXPORT_SYMBOL(dbi_uretprobe_event_handler_custom_p);
 
 unsigned long ujprobe_event_pre_handler (us_proc_ip_t * ip, struct pt_regs *regs)
 {
@@ -1114,7 +1114,7 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 #endif
 	// Mr_Nobody: uncomment for valencia
 	//unregister_usprobe(current, ip, 1);
-	uprobe_return ();
+	dbi_uprobe_return ();
 }
 
 int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, us_proc_ip_t * ip)
@@ -1150,9 +1150,9 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	ip->jprobe.kp.tgid = task->tgid;
 	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
 	if(!ip->jprobe.entry) {
-		if (ujprobe_event_handler_custom_p != NULL)
+		if (dbi_ujprobe_event_handler_custom_p != NULL)
 		{
-			ip->jprobe.entry = (kprobe_opcode_t *) ujprobe_event_handler_custom_p;
+			ip->jprobe.entry = (kprobe_opcode_t *) dbi_ujprobe_event_handler_custom_p;
 			DPRINTF("Set custom event handler for %x\n", ip->offset);
 		}
 		else 
@@ -1162,9 +1162,9 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 		}
 	}
 	if(!ip->jprobe.pre_entry) {
-		if (ujprobe_event_pre_handler_custom_p != NULL)
+		if (dbi_ujprobe_event_pre_handler_custom_p != NULL)
 		{
-			ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t) ujprobe_event_pre_handler_custom_p;
+			ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t) dbi_ujprobe_event_pre_handler_custom_p;
 			DPRINTF("Set custom pre handler for %x\n", ip->offset);
 		}
 		else 
@@ -1174,10 +1174,10 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 		}
 	}
 	ip->jprobe.priv_arg = ip;
-	ret = register_ujprobe (task, mm, &ip->jprobe, atomic);
+	ret = dbi_register_ujprobe (task, mm, &ip->jprobe, atomic);
 	if (ret)
 	{
-		DPRINTF ("register_ujprobe() failure %d", ret);
+		DPRINTF ("dbi_register_ujprobe() failure %d", ret);
 		return ret;
 	}
 
@@ -1185,18 +1185,18 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	ip->retprobe.kp.tgid = task->tgid;
 	//ip->retprobe.kp.addr = (kprobe_opcode_t *) addr;
 	if(!ip->retprobe.handler) {
-	 	if (uretprobe_event_handler_custom_p != NULL)
-	 		ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler_custom_p;
+	 	if (dbi_uretprobe_event_handler_custom_p != NULL)
+	 		ip->retprobe.handler = (kretprobe_handler_t) dbi_uretprobe_event_handler_custom_p;
 	 	else {
 	 		ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler;
-			//DPRINTF("Failed custom uretprobe_event_handler_custom_p");
+			//DPRINTF("Failed custom dbi_uretprobe_event_handler_custom_p");
 		}
 	}
 	ip->retprobe.priv_arg = ip;
-	ret = register_uretprobe (task, mm, &ip->retprobe, atomic);
+	ret = dbi_register_uretprobe (task, mm, &ip->retprobe, atomic);
 	if (ret)
 	{
-		EPRINTF ("register_uretprobe() failure %d", ret);
+		EPRINTF ("dbi_register_uretprobe() failure %d", ret);
 		return ret;
 	}
 	return 0;
@@ -1204,7 +1204,7 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 
 static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic)
 {
-	unregister_ujprobe (task, &ip->jprobe, atomic);
-	unregister_uretprobe (task, &ip->retprobe, atomic);
+	dbi_unregister_ujprobe (task, &ip->jprobe, atomic);
+	dbi_unregister_uretprobe (task, &ip->retprobe, atomic);
 	return 0;
 }

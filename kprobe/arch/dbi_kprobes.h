@@ -80,9 +80,9 @@ extern void arch_disarm_kretprobe (struct kretprobe *p);
 extern void arch_disarm_uprobe (struct kprobe *p, struct task_struct *tsk);
 extern void arch_disarm_uretprobe (struct kretprobe *p, struct task_struct *tsk);
 extern int arch_init_kprobes (void);
-extern void arch_exit_kprobes (void);
+extern void dbi_arch_exit_kprobes (void);
 
-void arch_uprobe_return (void);
+void dbi_arch_uprobe_return (void);
 
 void arch_remove_kprobe (struct kprobe *p, struct task_struct *task);
 
@@ -95,7 +95,7 @@ int kprobe_handler (struct pt_regs *regs);
 
 int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs);
 
-void jprobe_return (void);
+void dbi_jprobe_return (void);
 
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs);
 

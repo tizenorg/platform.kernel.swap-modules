@@ -547,7 +547,7 @@ int register_aggr_kprobe (struct kprobe *old_p, struct kprobe *p)
 }
 
 static 
-int __register_kprobe (struct kprobe *p, unsigned long called_from, int atomic)
+int __dbi_register_kprobe (struct kprobe *p, unsigned long called_from, int atomic)
 {
 	struct kprobe *old_p;
 	//      struct module *probed_mod;
@@ -638,12 +638,12 @@ out:
 }
 
 
-int register_kprobe (struct kprobe *p, int atomic)
+int dbi_register_kprobe (struct kprobe *p, int atomic)
 {
-	return __register_kprobe (p, (unsigned long) __builtin_return_address (0), atomic);
+	return __dbi_register_kprobe (p, (unsigned long) __builtin_return_address (0), atomic);
 }
 
-void unregister_kprobe (struct kprobe *p, struct task_struct *task, int atomic)
+void dbi_unregister_kprobe (struct kprobe *p, struct task_struct *task, int atomic)
 {
 	//      struct module *mod;
 	struct kprobe *old_p, *list_p;
@@ -654,7 +654,7 @@ void unregister_kprobe (struct kprobe *p, struct task_struct *task, int atomic)
 	pid = p->tgid;
 
 	old_p = get_kprobe (p->addr, pid, NULL);
-	DBPRINTF ("unregister_kprobe p=%p old_p=%p", p, old_p);
+	DBPRINTF ("dbi_unregister_kprobe p=%p old_p=%p", p, old_p);
 	if (unlikely (!old_p))
 	{
 		//              mutex_unlock(&kprobe_mutex);
@@ -670,12 +670,12 @@ void unregister_kprobe (struct kprobe *p, struct task_struct *task, int atomic)
 		return;
 	}
 valid_p:
-	DBPRINTF ("unregister_kprobe valid_p");
+	DBPRINTF ("dbi_unregister_kprobe valid_p");
 	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_handler) && 
 				(p->list.next == &old_p->list) && (p->list.prev == &old_p->list)))
 	{
 		/* Only probe on the hash list */
-		DBPRINTF ("unregister_kprobe disarm pid=%d", pid);
+		DBPRINTF ("dbi_unregister_kprobe disarm pid=%d", pid);
 		if (pid)
 			arch_disarm_uprobe (p, task);//vma, page, kaddr);
 		else
@@ -688,7 +688,7 @@ valid_p:
 		list_del_rcu (&p->list);
 		cleanup_p = 0;
 	}
-	DBPRINTF ("unregister_kprobe cleanup_p=%d", cleanup_p);
+	DBPRINTF ("dbi_unregister_kprobe cleanup_p=%d", cleanup_p);
 	//      mutex_unlock(&kprobe_mutex);
 
 	//      synchronize_sched();
@@ -738,18 +738,18 @@ valid_p:
 	return;
 }
 
-int register_jprobe (struct jprobe *jp, int atomic)
+int dbi_register_jprobe (struct jprobe *jp, int atomic)
 {
 	/* Todo: Verify probepoint is a function entry point */
 	jp->kp.pre_handler = setjmp_pre_handler;
 	jp->kp.break_handler = longjmp_break_handler;
 
-	return __register_kprobe (&jp->kp, (unsigned long) __builtin_return_address (0), atomic);
+	return __dbi_register_kprobe (&jp->kp, (unsigned long) __builtin_return_address (0), atomic);
 }
 
-void unregister_jprobe (struct jprobe *jp, int atomic)
+void dbi_unregister_jprobe (struct jprobe *jp, int atomic)
 {
-	unregister_kprobe (&jp->kp, 0, atomic);
+	dbi_unregister_kprobe (&jp->kp, 0, atomic);
 }
 
 /*
@@ -815,7 +815,7 @@ int alloc_nodes_kretprobe(struct kretprobe *rp)
      return 0;
 }
 
-int register_kretprobe (struct kretprobe *rp, int atomic)
+int dbi_register_kretprobe (struct kretprobe *rp, int atomic)
 {
 	int ret = 0;
 	struct kretprobe_instance *inst;
@@ -858,7 +858,7 @@ int register_kretprobe (struct kretprobe *rp, int atomic)
 	DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
 	rp->nmissed = 0;
 	/* Establish function entry probe point */
-	if ((ret = __register_kprobe (&rp->kp, (unsigned long) __builtin_return_address (0), atomic)) != 0)
+	if ((ret = __dbi_register_kprobe (&rp->kp, (unsigned long) __builtin_return_address (0), atomic)) != 0)
 		free_rp_inst (rp);
 
 	DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
@@ -868,12 +868,12 @@ int register_kretprobe (struct kretprobe *rp, int atomic)
 	return ret;
 }
 
-void unregister_kretprobe (struct kretprobe *rp, int atomic)
+void dbi_unregister_kretprobe (struct kretprobe *rp, int atomic)
 {
 	unsigned long flags;
 	struct kretprobe_instance *ri;
 
-	unregister_kprobe (&rp->kp, 0, atomic);
+	dbi_unregister_kprobe (&rp->kp, 0, atomic);
 
 	if((unsigned int)rp->kp.addr == sched_addr)
 		sched_rp = NULL;
@@ -946,19 +946,19 @@ int __init init_kprobes (void)
 
 void __exit exit_kprobes (void)
 {
-	arch_exit_kprobes ();
+	dbi_arch_exit_kprobes ();
 }
 
 module_init (init_kprobes);
 module_exit (exit_kprobes);
 
-EXPORT_SYMBOL_GPL (register_kprobe);
-EXPORT_SYMBOL_GPL (unregister_kprobe);
-EXPORT_SYMBOL_GPL (register_jprobe);
-EXPORT_SYMBOL_GPL (unregister_jprobe);
-EXPORT_SYMBOL_GPL (jprobe_return);
-EXPORT_SYMBOL_GPL (register_kretprobe);
-EXPORT_SYMBOL_GPL (unregister_kretprobe);
+EXPORT_SYMBOL_GPL (dbi_register_kprobe);
+EXPORT_SYMBOL_GPL (dbi_unregister_kprobe);
+EXPORT_SYMBOL_GPL (dbi_register_jprobe);
+EXPORT_SYMBOL_GPL (dbi_unregister_jprobe);
+EXPORT_SYMBOL_GPL (dbi_jprobe_return);
+EXPORT_SYMBOL_GPL (dbi_register_kretprobe);
+EXPORT_SYMBOL_GPL (dbi_unregister_kretprobe);
 
 MODULE_LICENSE ("Dual BSD/GPL");
 

@@ -119,11 +119,11 @@ out:
 
 void unregister_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 {
-	unregister_kprobe (p, task, atomic);
+	dbi_unregister_kprobe (p, task, atomic);
 }
 
 
-int register_ujprobe (struct task_struct *task, struct mm_struct *mm, struct jprobe *jp, int atomic)
+int dbi_register_ujprobe (struct task_struct *task, struct mm_struct *mm, struct jprobe *jp, int atomic)
 {
 	int ret = 0;
 
@@ -137,7 +137,7 @@ int register_ujprobe (struct task_struct *task, struct mm_struct *mm, struct jpr
 	return ret;
 }
 
-void unregister_ujprobe (struct task_struct *task, struct jprobe *jp, int atomic)
+void dbi_unregister_ujprobe (struct task_struct *task, struct jprobe *jp, int atomic)
 {
 	unregister_uprobe (&jp->kp, task, atomic);
 	/*
@@ -152,7 +152,7 @@ void unregister_ujprobe (struct task_struct *task, struct jprobe *jp, int atomic
 	}
 }
 
-int register_uretprobe (struct task_struct *task, struct mm_struct *mm, struct kretprobe *rp, int atomic)
+int dbi_register_uretprobe (struct task_struct *task, struct mm_struct *mm, struct kretprobe *rp, int atomic)
 {
 	int ret = 0;
 	struct kretprobe_instance *inst;
@@ -210,7 +210,7 @@ out:
 }
 
 
-void unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int atomic)
+void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int atomic)
 {
 	unsigned long flags;
 	struct kretprobe_instance *ri;
@@ -230,7 +230,7 @@ void unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int a
 	{
 		rp2 = clone_kretprobe (rp);
 		if (!rp2)
-			DBPRINTF ("unregister_uretprobe addr %p: failed to clone retprobe!", rp->kp.addr);
+			DBPRINTF ("dbi_unregister_uretprobe addr %p: failed to clone retprobe!", rp->kp.addr);
 		else
 		{
 			DBPRINTF ("initiating deferred retprobe deletion addr %p", rp->kp.addr);
@@ -262,7 +262,7 @@ void unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int a
 	unregister_uprobe (&rp->kp, task, atomic);
 }
 
-void unregister_all_uprobes (struct task_struct *task, int atomic)
+void dbi_unregister_all_uprobes (struct task_struct *task, int atomic)
 {
 	struct hlist_head *head;
 	struct hlist_node *node, *tnode;
@@ -273,7 +273,7 @@ void unregister_all_uprobes (struct task_struct *task, int atomic)
 		head = &kprobe_table[i];
 		hlist_for_each_entry_safe (p, node, tnode, head, hlist){			
 			if(p->tgid == task->tgid){
-				printk("unregister_all_uprobes: delete uprobe at %pf for %s/%d\n", p->addr, task->comm, task->pid);
+				printk("dbi_unregister_all_uprobes: delete uprobe at %pf for %s/%d\n", p->addr, task->comm, task->pid);
 				unregister_uprobe (p, task, atomic);
 			}
 		}
@@ -290,16 +290,16 @@ void init_uprobes_insn_slots(int i)
 	INIT_HLIST_HEAD (&uprobe_insn_slot_table[i]);
 }
 
-void uprobe_return (void)
+void dbi_uprobe_return (void)
 {
-	arch_uprobe_return();
+	dbi_arch_uprobe_return();
 }
 
 
-EXPORT_SYMBOL_GPL (uprobe_return);
-EXPORT_SYMBOL_GPL (register_ujprobe);
-EXPORT_SYMBOL_GPL (unregister_ujprobe);
-EXPORT_SYMBOL_GPL (register_uretprobe);
-EXPORT_SYMBOL_GPL (unregister_uretprobe);
-EXPORT_SYMBOL_GPL (unregister_all_uprobes);
+EXPORT_SYMBOL_GPL (dbi_uprobe_return);
+EXPORT_SYMBOL_GPL (dbi_register_ujprobe);
+EXPORT_SYMBOL_GPL (dbi_unregister_ujprobe);
+EXPORT_SYMBOL_GPL (dbi_register_uretprobe);
+EXPORT_SYMBOL_GPL (dbi_unregister_uretprobe);
+EXPORT_SYMBOL_GPL (dbi_unregister_all_uprobes);
 

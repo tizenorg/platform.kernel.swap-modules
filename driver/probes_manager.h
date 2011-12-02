@@ -44,8 +44,8 @@ extern int unregister_kernel_probe (kernel_probe_t * probe);
 extern unsigned long def_jprobe_event_pre_handler (kernel_probe_t * probe, struct pt_regs *regs);
 extern void def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
 extern int def_retprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, kernel_probe_t * p);
-void install_user_handlers(void);
-void uninstall_user_handlers(void);
+void dbi_install_user_handlers(void);
+void dbi_uninstall_user_handlers(void);
 int is_pf_installed_by_user(void);
 
 extern unsigned long pf_addr;

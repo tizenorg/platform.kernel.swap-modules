@@ -97,7 +97,7 @@ register_kernel_jprobe (kernel_probe_t * probe)
 	{
 		return 0;	// probe is already registered
 	}
-	result = register_jprobe (&probe->jprobe, 0);
+	result = dbi_register_jprobe (&probe->jprobe, 0);
 	if (result)
 	{
 		EPRINTF ("register_kernel_jprobe(0x%lx) failure %d", probe->addr, result);
@@ -115,7 +115,7 @@ unregister_kernel_jprobe (kernel_probe_t * probe)
 		((probe == exec_probe) && (us_proc_probes & US_PROC_EXEC_INSTLD))) {
 		return 0;	// probe is necessary for user space instrumentation
 	}
-	unregister_jprobe (&probe->jprobe, 0);
+	dbi_unregister_jprobe (&probe->jprobe, 0);
 	return 0;
 }
 
@@ -130,7 +130,7 @@ register_kernel_retprobe (kernel_probe_t * probe)
 		return 0;	// probe is already registered
 	}
 
-	result = register_kretprobe (&probe->retprobe, 0);
+	result = dbi_register_kretprobe (&probe->retprobe, 0);
 	if (result)
 	{
 		EPRINTF ("register_kernel_retprobe(0x%lx) failure %d", probe->addr, result);
@@ -148,7 +148,7 @@ unregister_kernel_retprobe (kernel_probe_t * probe)
 		((probe == exec_probe) && (us_proc_probes & US_PROC_EXEC_INSTLD))) {
 		return 0;	// probe is necessary for user space instrumentation
 	}
-	unregister_kretprobe (&probe->retprobe, 0);
+	dbi_unregister_kretprobe (&probe->retprobe, 0);
 	return 0;
 }
 
@@ -400,7 +400,7 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 
 	if (!skip)
 		pack_event_info (KS_PROBE_ID, RECORD_ENTRY, "pxxxxxx", probe->addr, arg1, arg2, arg3, arg4, arg5, arg6);
-	jprobe_return ();
+	dbi_jprobe_return ();
 }
 
 int
@@ -444,7 +444,7 @@ def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs,
 
 /* This is a callback that is called by module 'inperfa_handlers'
  * in order to register user defined handlers */
-void install_user_handlers(void)
+void dbi_install_user_handlers(void)
 {
 	kernel_probe_t *probe;
 	struct hlist_node *node;
@@ -481,9 +481,9 @@ void install_user_handlers(void)
 			probe->retprobe.handler = (kretprobe_handler_t)rp_handler_addr;
 	}
 }
-EXPORT_SYMBOL_GPL(install_user_handlers);
+EXPORT_SYMBOL_GPL(dbi_install_user_handlers);
 
-void uninstall_user_handlers(void)
+void dbi_uninstall_user_handlers(void)
 {
 	kernel_probe_t *probe;
 	struct hlist_node *node;
@@ -495,7 +495,7 @@ void uninstall_user_handlers(void)
 		probe->retprobe.handler = (kretprobe_handler_t)def_retprobe_event_handler;
 	}
 }
-EXPORT_SYMBOL_GPL(uninstall_user_handlers);
+EXPORT_SYMBOL_GPL(dbi_uninstall_user_handlers);
 
 int is_pf_installed_by_user(void)
 {

@@ -699,7 +699,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 				entry (args[0], args[1], args[2], args[3], args[4], args[5]);
 		}
 		else
-			arch_uprobe_return ();
+			dbi_arch_uprobe_return ();
 
 		return 2;
 	}
@@ -728,20 +728,20 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	return 1;
 }
 
-void jprobe_return (void)
+void dbi_jprobe_return (void)
 {
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
 
 	asm volatile("       xchgl   %%ebx,%%esp     \n"
 			"       int3			\n"
-			"       .globl jprobe_return_end	\n"
-			"       jprobe_return_end:	\n"
+			"       .globl dbi_jprobe_return_end	\n"
+			"       dbi_jprobe_return_end:	\n"
 			"       nop			\n"::"b" (kcb->jprobe_saved_esp):"memory");
 }
 
-void arch_uprobe_return (void)
+void dbi_arch_uprobe_return (void)
 {
-	DBPRINTF("arch_uprobe_return (void) is empty");
+	DBPRINTF("dbi_arch_uprobe_return (void) is empty");
 }
 
 /*
@@ -1029,7 +1029,7 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 
 	DBPRINTF ("p = %p\n", p);
 
-	if ((addr > (u8 *) jprobe_return) && (addr < (u8 *) jprobe_return_end))
+	if ((addr > (u8 *) dbi_jprobe_return) && (addr < (u8 *) dbi_jprobe_return_end))
 	{
 		if ((unsigned long *)(&regs->EREG(sp)) != kcb->jprobe_saved_esp)
 		{
@@ -1304,10 +1304,10 @@ int __init arch_init_kprobes (void)
 	return register_die_notifier (&kprobe_exceptions_nb);
 }
 
-void __exit arch_exit_kprobes (void)
+void __exit dbi_arch_exit_kprobes (void)
 {
 	unregister_die_notifier (&kprobe_exceptions_nb);
 }
 
-EXPORT_SYMBOL_GPL (arch_uprobe_return);
-EXPORT_SYMBOL_GPL (arch_exit_kprobes);
+//EXPORT_SYMBOL_GPL (dbi_arch_uprobe_return);
+//EXPORT_SYMBOL_GPL (dbi_arch_exit_kprobes);
