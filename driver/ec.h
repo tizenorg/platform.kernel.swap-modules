@@ -36,6 +36,7 @@ extern int copy_ec_info_to_user_space (ec_info_t * p_user_ec_info);
 extern int copy_ec_probe_info_to_user_space (ec_probe_info_t * p_user_ec_probe_info);
 
 extern ec_state_t GetECState(void);
+extern void reset_ec_info_nolock(void);
 extern void ResetECInfo(void);
 extern void CleanECInfo(void);
 extern int IsECMode(unsigned long nMask);

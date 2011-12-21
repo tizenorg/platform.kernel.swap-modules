@@ -46,10 +46,8 @@ spinlock_t ec_probe_spinlock = SPIN_LOCK_UNLOCKED;	// protects 'ec_probe_info'
 
 ec_state_t GetECState(void) { return ec_info.ec_state; };
 
-void ResetECInfo(void) {
-	unsigned long spinlock_flags = 0L;
-
-	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
+void reset_ec_info_nolock(void)
+{
 	ec_info.trace_size = 0;
 	ec_info.first = 0;
 	ec_info.after_last = 0;
@@ -62,6 +60,13 @@ void ResetECInfo(void) {
 	ec_info.m_nEndSubbufNum = 0;
 	ec_info.m_nEndOffset = 0;
 	ec_info.m_nSubbufSavedEvents = 0;
+}
+
+void ResetECInfo(void) {
+	unsigned long spinlock_flags = 0L;
+
+	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
+	reset_ec_info_nolock();
 	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 }
 
@@ -110,6 +115,7 @@ int SetECMode(unsigned long nECMode) {
 
 	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
 	ec_info.m_nMode = nECMode;
+	reset_ec_info_nolock();
 	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 
 	return 0;
