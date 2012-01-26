@@ -1208,3 +1208,102 @@ static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int 
 	dbi_unregister_uretprobe (task, &ip->retprobe, atomic);
 	return 0;
 }
+
+static unsigned long get_stack_size(struct task_struct *task,
+        struct pt_regs *regs)
+{
+#ifdef CONFIG_ADD_THREAD_STACK_INFO
+    return (task->stack_start - regs->ARM_sp);
+#else
+    struct vm_area_struct *vma = NULL;
+    struct mm_struct *mm = NULL;
+    unsigned long result = 0;
+
+    mm = get_task_mm(task);
+
+    if (mm) {
+        down_read(&mm->mmap_sem);
+        vma = find_vma(mm, regs->ARM_sp);
+
+        if (vma) {
+            result = vma->vm_end - regs->ARM_sp;
+        } else {
+            result = 0;
+        }
+
+        up_read(&mm->mmap_sem);
+        mmput(mm);
+    }
+
+    return result;
+#endif
+}
+EXPORT_SYMBOL_GPL(get_stack_size);
+
+static unsigned long get_stack(struct task_struct *task, struct pt_regs *regs,
+        char *buf, unsigned long sz)
+{
+    unsigned long stack_sz = get_stack_size(task, regs);
+    unsigned long real_sz = (stack_sz > sz ? sz: stack_sz);
+
+    copy_from_user(buf, (__user void *)regs->ARM_sp, real_sz);
+
+    return real_sz;
+}
+EXPORT_SYMBOL_GPL(get_stack);
+
+static int dump_to_trace(void *addr, const char *buf, unsigned long sz)
+{
+    unsigned long rest_sz = sz;
+
+    while (rest_sz >= EVENT_MAX_SIZE) {
+        pack_event_info(US_PROBE_ID, RECORD_ENTRY, "pa", addr, EVENT_MAX_SIZE, buf);
+        rest_sz -= EVENT_MAX_SIZE;
+    }
+
+    if (rest_sz > 0) {
+        pack_event_info(US_PROBE_ID, RECORD_ENTRY, "pa", addr, rest_sz, buf);
+    }
+
+    return 0;
+}
+EXPORT_SYMBOL_GPL(dump_to_trace);
+
+static int dump_backtrace(struct task_struct *task, us_proc_ip_t *ip,
+        struct pt_regs *regs, unsigned long sz)
+{
+    unsigned long real_sz = 0;
+    char *buf = NULL;
+
+    buf = (char *)kmalloc(sz, GFP_KERNEL);
+
+    if (buf != NULL) {
+        real_sz = get_stack(task, regs, buf, sz);
+        dump_to_trace(ip->jprobe.kp.addr, buf, real_sz);
+        kfree(buf);
+        return 0;
+    } else {
+        return -1;
+    }
+}
+EXPORT_SYMBOL_GPL(dump_backtrace);
+
+static void *get_ret_addr(struct task_struct *task, us_proc_ip_t *ip,
+        struct pt_regs *regs)
+{
+    unsigned long retaddr = 0;
+    struct hlist_node *item, *tmp_node;
+    struct kretprobe_instance *ri;
+
+    hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances)
+    {
+        ri = hlist_entry (item, struct kretprobe_instance, uflist);
+
+        if (ri->task->pid == current->pid) {
+            retaddr = (unsigned long)ri->ret_addr;
+        }
+    }
+
+    return ((void *)retaddr);
+}
+EXPORT_SYMBOL_GPL(get_ret_addr);

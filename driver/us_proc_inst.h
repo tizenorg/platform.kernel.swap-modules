@@ -54,6 +54,37 @@ extern pid_t gl_nNotifyTgid;
 #define US_PROC_FORK_INSTLD	0x8
 //#define US_PROC_SS_INSTLD	0x4
 
+#define MAX_STACK_SIZE 2*4096
+
+/* forward declarations */
+struct task_struct;
+struct pt_regs;
+struct us_proc_ip_t;
+
+/* Returns stack_size */
+static unsigned long get_stack_size(struct task_struct *, struct pt_regs *);
+
+/* Copies stack (or part of the stack) to the buffer */
+static unsigned long get_stack(struct task_struct *, struct pt_regs *,
+        char *, unsigned long);
+
+/* Dumps given buffer to the trace */
+static int dump_to_trace(void *, const char *, unsigned long);
+
+/* Dumps stack to the trace */
+static int dump_backtrace(struct task_struct *, us_proc_ip_t *,
+        struct pt_regs *, unsigned long);
+
+/* Gets current function return address */
+static void *get_ret_addr(struct task_struct *, us_proc_ip_t *,
+        struct pt_regs *);
+
+#define user_backtrace(size) \
+    do { \
+        us_proc_ip_t *ip = __get_cpu_var(gpCurIp); \
+        struct pt_regs *regs = __get_cpu_var(gpUserRegs); \
+        dump_backtrace(current, ip, regs, size); \
+    } while (0)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
