@@ -33,6 +33,16 @@ DEFINE_PER_CPU (struct pt_regs *, gpCurVtpRegs) = NULL;
 #	warning ARCH_REG_VAL is not implemented for this architecture. FBI will work improperly or even crash!!!
 #endif // ARCH
 
+unsigned long (*dbi_ujprobe_event_pre_handler_custom_p)
+(us_proc_ip_t *, struct pt_regs *) = NULL;
+EXPORT_SYMBOL(dbi_ujprobe_event_pre_handler_custom_p);
+void (*dbi_ujprobe_event_handler_custom_p)(void) = NULL;
+EXPORT_SYMBOL(dbi_ujprobe_event_handler_custom_p);
+int (*dbi_uretprobe_event_handler_custom_p)
+(struct kretprobe_instance *, struct pt_regs *, us_proc_ip_t *) = NULL;
+EXPORT_SYMBOL(dbi_uretprobe_event_handler_custom_p);
+
+
 
 static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_proc_ip_t * ip, int atomic, kprobe_opcode_t * islot);
 static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic);
@@ -57,6 +67,76 @@ unsigned long android_app_vma_start = 0;
 unsigned long android_app_vma_end = 0;
 struct dentry *app_process_dentry = NULL;
 #endif /* ANDROID_APP */
+
+us_proc_otg_ip_t *find_otg_probe(unsigned long addr)
+{
+	us_proc_otg_ip_t *p;
+	struct hlist_node *node;
+
+	//check if such probe does exist
+
+	list_for_each_entry_rcu (p, &otg_us_proc_info, list)
+		if (p->ip.offset == addr)
+			break;
+
+	return node ? p : NULL;
+}
+
+int add_otg_probe_to_list(unsigned long addr, us_proc_otg_ip_t **pprobe)
+{
+	us_proc_otg_ip_t *new_probe;
+	unsigned long jp_handler_addr, rp_handler_addr, pre_handler_addr;
+
+	us_proc_otg_ip_t *probe;
+
+	if (pprobe) {
+		*pprobe = NULL;
+	}
+	/* check if such probe does already exist */
+	probe = find_otg_probe(addr);
+	if (probe) {
+		return 1;
+	}
+
+	new_probe = kmalloc(sizeof(us_proc_otg_ip_t), GFP_KERNEL);
+	if (!new_probe)	{
+		EPRINTF ("no memory for new probe!");
+		return -ENOMEM;
+	}
+	memset(new_probe,0, sizeof(us_proc_otg_ip_t));
+
+	new_probe->ip.offset = addr;
+	new_probe->ip.jprobe.kp.addr =
+		new_probe->ip.retprobe.kp.addr = (kprobe_opcode_t *)addr;
+	new_probe->ip.jprobe.priv_arg =
+		new_probe->ip.retprobe.priv_arg = new_probe;
+
+	INIT_LIST_HEAD(&new_probe->list);
+	list_add_rcu(&new_probe->list, &otg_us_proc_info);
+
+	if (pprobe) {
+		*pprobe = new_probe;
+	}
+	return 0;
+}
+
+int remove_otg_probe_from_list(unsigned long addr)
+{
+	us_proc_otg_ip_t *p;
+
+	//check if such probe does exist
+	p = find_probe(addr);
+	if (!p) {
+		/* We do not care about it. Nothing bad. */
+		return 0;
+	}
+
+	list_del_rcu(&p->list);
+
+	kfree (p);
+
+	return 0;
+}
 
 /**
  * Prepare copy of instrumentation data for task 
@@ -407,6 +487,9 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 	int i, k, err;
 	unsigned long addr;
 	unsigned int old_ips_count, old_vtps_count;
+	us_proc_otg_ip_t *p;
+	struct hlist_node *node;
+	struct task_struct *t;
 	struct mm_struct *mm;
 
 	char path_buffer[256];
@@ -522,7 +605,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 						     err = register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
 						     if (err != 0) {
 							  DPRINTF ("failed to install IP at %lx/%p. Error %d!", task_inst_info->p_libs[i].p_ips[k].offset, 
-								   task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr);
+								   task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr, err);
 						     }
 						}
 					}
@@ -560,16 +643,126 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 		}
 		vma = vma->vm_next;
 	}
-	if(!atomic){	
+
+	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
+		if (p->ip.installed) {
+			continue;
+		}
+		rcu_read_lock();
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+		t = find_task_by_pid(p->tgid);
+#else
+		t = pid_task(find_pid_ns(p->tgid, &init_pid_ns),
+			     PIDTYPE_PID);
+#endif
+		if (t){
+			get_task_struct(t);
+		}
+		rcu_read_unlock();
+		if (!t) {
+			DPRINTF("task for pid %d not found! Dead probe?",
+				  p->tgid);
+			continue;
+		}
+		if (!t->active_mm) {
+			continue;
+		}
+		if (!page_present(t->active_mm, p->ip.offset)) {
+			DPRINTF("Page isn't present for %p.",
+				p->ip.offset);
+			continue;
+		}
+		p->ip.installed = 1;
+		err = register_usprobe(current, t->active_mm,
+				       &p->ip, atomic, 0);
+
+		if (err != 0) {
+			DPRINTF("failed to install IP at %lx/%p. Error %d!",
+				p->ip.offset,
+				p->ip.jprobe.kp.addr, err);
+			return err;
+		}
+	}
+
+	if (!atomic) {
 		up_read (&mm->mmap_sem);
 		mmput (mm);
 	}
 	return task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count;
 }
 
+static int install_otg_ip(unsigned long addr,
+		      unsigned long pre_handler,
+		      unsigned long jp_handler,
+		      unsigned long rp_handler)
+{
+	int err;
+	us_proc_otg_ip_t *pprobe;
+	struct mm_struct *mm;
+
+	/* Probe preparing */
+	err = add_otg_probe_to_list(addr, &pprobe);
+	if (err) {
+		if (err == 1) {
+			DPRINTF("OTG probe %p already installed.", addr);
+			return 0;
+		} else {
+			DPRINTF("Failed to add new OTG probe, err=%d",err);
+			return err;
+		}
+	}
+	if (pre_handler) {
+		pprobe->ip.jprobe.pre_entry =
+			(kprobe_pre_entry_handler_t)pre_handler;
+	} else {
+		pprobe->ip.jprobe.pre_entry =
+			(kprobe_pre_entry_handler_t)
+			dbi_ujprobe_event_pre_handler_custom_p;
+
+	}
+	if (jp_handler) {
+		pprobe->ip.jprobe.entry =
+			(kprobe_pre_entry_handler_t)jp_handler;
+	} else {
+		pprobe->ip.jprobe.entry =
+			(kprobe_pre_entry_handler_t)
+			dbi_ujprobe_event_handler_custom_p;
+	}
+	if (rp_handler) {
+		pprobe->ip.retprobe.handler =
+			(kprobe_pre_entry_handler_t)rp_handler;
+	} else {
+		pprobe->ip.retprobe.handler =
+			(kprobe_pre_entry_handler_t)
+			dbi_uretprobe_event_handler_custom_p;
+	}
+
+	mm = get_task_mm(current);
+	if (!page_present(mm, addr)) {
+		DPRINTF("Page isn't present for %p.", addr);
+		/* Probe will be installed in do_page_fault handler */
+		return 0;
+	}
+	DPRINTF("Page present for %p.", addr);
+
+	/* Probe installing */
+	pprobe->tgid = current->tgid;
+	pprobe->ip.installed = 1;
+	err = register_usprobe(current, mm, &pprobe->ip, 1, 0);
+	if (err != 0) {
+		DPRINTF("failed to install IP at %lx/%p. Error %d!",
+			 addr, pprobe->ip.jprobe.kp.addr, err);
+		return err;
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(install_otg_ip);
+
+
 static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task_inst_info, int atomic)
 {
 	int i, k, err;
+	us_proc_otg_ip_t *p;
 
 	for (i = 0; i < task_inst_info->libs_count; i++)
 	{
@@ -600,6 +793,20 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 		}
 		task_inst_info->p_libs[i].loaded = 0;
 	}
+	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
+		if (!p->ip.installed) {
+			continue;
+		}
+		DPRINTF("remove OTG IP at %p.",	p->ip.offset);
+		err = unregister_usprobe(task, &p->ip, atomic);
+		if (err != 0) {
+			EPRINTF("failed to uninstall IP at %p. Error %d!",
+				 p->ip.jprobe.kp.addr, err);
+			continue;
+		}
+		p->ip.installed = 0;
+	}
+
 	DPRINTF ("Ures IPs  %d.", task_inst_info->unres_ips_count);
 	DPRINTF ("Ures VTPs %d.", task_inst_info->unres_vtps_count);
 	return 0;
@@ -1075,13 +1282,6 @@ EXPORT_PER_CPU_SYMBOL_GPL(gpCurIp);
 DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpUserRegs);
 
-// XXX MCPP: introduced custom default handlers defined in (exported from) another kernel module(s)
-unsigned long (* dbi_ujprobe_event_pre_handler_custom_p)(us_proc_ip_t *, struct pt_regs *) = NULL;
-EXPORT_SYMBOL(dbi_ujprobe_event_pre_handler_custom_p);
-void (* dbi_ujprobe_event_handler_custom_p)(void) = NULL;
-EXPORT_SYMBOL(dbi_ujprobe_event_handler_custom_p);
-int (* dbi_uretprobe_event_handler_custom_p)(struct kretprobe_instance *, struct pt_regs *, us_proc_ip_t *) = NULL;
-EXPORT_SYMBOL(dbi_uretprobe_event_handler_custom_p);
 
 unsigned long ujprobe_event_pre_handler (us_proc_ip_t * ip, struct pt_regs *regs)
 {

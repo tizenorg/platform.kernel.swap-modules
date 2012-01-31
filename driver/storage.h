@@ -119,6 +119,8 @@ extern char *p_buffer;
 // list of selected non-predefined kernel probes
 extern struct hlist_head kernel_probes;
 
+extern struct list_head otg_us_proc_info;
+
 // event mask
 extern int event_mask;
 
@@ -133,6 +135,13 @@ typedef struct
 	struct kretprobe retprobe;
 	unsigned long offset;
 } us_proc_ip_t;
+
+typedef struct
+{
+	us_proc_ip_t ip;
+	pid_t tgid;
+	struct list_head list;
+} us_proc_otg_ip_t;
 
 typedef struct
 {

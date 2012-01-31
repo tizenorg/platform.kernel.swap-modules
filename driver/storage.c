@@ -28,6 +28,7 @@
 
 char *p_buffer = NULL;
 inst_us_proc_t us_proc_info;
+struct list_head otg_us_proc_info;
 inst_dex_proc_t dex_proc_info;
 char *deps;
 char *bundle;
@@ -750,6 +751,7 @@ void unlink_bundle(void)
 	us_proc_lib_t *d_lib;
 	char *path;
 	struct list_head *pos;	//, *tmp;
+	us_proc_otg_ip_t *p;
 
 	path = us_proc_info.path;
 	us_proc_info.path = 0;
@@ -803,6 +805,11 @@ void unlink_bundle(void)
 	/* } */
 
 	us_proc_info.tgid = 0;
+
+	/* OTG probes list cleaning */
+	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
+		list_del_rcu(&p->list);
+	}
 }
 
 int link_bundle()
@@ -1325,6 +1332,7 @@ int storage_init (void)
 	}
 
 	INIT_HLIST_HEAD (&kernel_probes);
+	INIT_LIST_HEAD(&otg_us_proc_info);
 
 	return 0;
 }
