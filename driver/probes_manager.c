@@ -407,6 +407,7 @@ int
 def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs, kernel_probe_t * probe)
 {
 	int skip = 0;
+	int ret_val;
 
 	if (pf_probe == probe)
 	{
@@ -437,8 +438,11 @@ def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs,
 			skip = 1;
 	}
 
-	if (!skip)
-		pack_event_info (KS_PROBE_ID, RECORD_RET, "p", probe->addr);
+	if (!skip) {
+		ret_val = regs_return_value(regs);
+		pack_event_info (KS_PROBE_ID, RECORD_RET, "pd",
+				 probe->addr, ret_val);
+	}
 	return 0;
 }
 
