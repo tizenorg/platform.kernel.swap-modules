@@ -2,7 +2,7 @@ target_kernel_src = @KERNEL@
 #board = @BOARD@
 target_arch = @ARCH@
 kprobes_module_dir = $(realpath $(top_srcdir)/src/modules/kprobe)
-module_name = inperfa_kprobe
+module_name = swap_kprobe
 cross_compiler = $(subst gcc,,$(CC))
 
 

@@ -21,7 +21,7 @@
 #include <linux/notifier.h>
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
-static BLOCKING_NOTIFIER_HEAD(inperfa_notifier_list);
+static BLOCKING_NOTIFIER_HEAD(swap_notifier_list);
 #endif
 pid_t gl_nNotifyTgid;
 EXPORT_SYMBOL_GPL(gl_nNotifyTgid);
@@ -78,17 +78,17 @@ void device_down (void)
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
-void inperfa_register_notify (struct notifier_block *nb)
+void swap_register_notify (struct notifier_block *nb)
 {
-	blocking_notifier_chain_register(&inperfa_notifier_list, nb);
+	blocking_notifier_chain_register(&swap_notifier_list, nb);
 }
-EXPORT_SYMBOL_GPL(inperfa_register_notify);
+EXPORT_SYMBOL_GPL(swap_register_notify);
 
-void inperfa_unregister_notify (struct notifier_block *nb)
+void swap_unregister_notify (struct notifier_block *nb)
 {
-	blocking_notifier_chain_unregister(&inperfa_notifier_list, nb);
+	blocking_notifier_chain_unregister(&swap_notifier_list, nb);
 }
-EXPORT_SYMBOL_GPL(inperfa_unregister_notify);
+EXPORT_SYMBOL_GPL(swap_unregister_notify);
 #endif
 
 void notify_user (event_id_t event_id)
@@ -488,7 +488,7 @@ static int device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned lo
 		result = ec_user_attach ();
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 		DPRINTF("EC_IOCTL_ATTACH calling notification chain");
-		blocking_notifier_call_chain(&inperfa_notifier_list, EC_IOCTL_ATTACH, (void*)NULL);
+		blocking_notifier_call_chain(&swap_notifier_list, EC_IOCTL_ATTACH, (void*)NULL);
 #endif
 		DPRINTF("Attach Probes");
 		break;
@@ -513,7 +513,7 @@ static int device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned lo
 		DPRINTF("Stop and Detach Probes");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 		DPRINTF("EC_IOCTL_STOP_AND_DETACH calling notification chain");
-		blocking_notifier_call_chain(&inperfa_notifier_list, EC_IOCTL_STOP_AND_DETACH, (void*)&gl_nNotifyTgid);
+		blocking_notifier_call_chain(&swap_notifier_list, EC_IOCTL_STOP_AND_DETACH, (void*)&gl_nNotifyTgid);
 #endif
 		break;
 	}
