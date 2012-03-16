@@ -446,7 +446,7 @@ def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs,
 	return 0;
 }
 
-/* This is a callback that is called by module 'inperfa_handlers'
+/* This is a callback that is called by module 'swap_handlers'
  * in order to register user defined handlers */
 void dbi_install_user_handlers(void)
 {
@@ -456,9 +456,9 @@ void dbi_install_user_handlers(void)
 
 	/* We must perform this lookup whenever this function is called
 	 * because the addresses of find_*_handler functions may differ. */
-	// MCPP inperfa_handlers removed
+	// swap_handlers removed
 	unsigned long (*find_jp_handler)(unsigned long) =
-	// MCPP inperfa_handlers removed
+	// swap_handlers removed
 		(unsigned long (*)(unsigned long))lookup_name("find_jp_handler");
 	unsigned long (*find_rp_handler)(unsigned long) =
 			(unsigned long (*)(unsigned long))lookup_name("find_rp_handler");

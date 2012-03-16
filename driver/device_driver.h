@@ -20,7 +20,7 @@
 #include "ec_info.h"		// ec_info_t
 #include "ec_probe.h"		// probe_id_t
 
-#define DEFAULT_DEVICE_NAME "inperfa_drv"
+#define DEFAULT_DEVICE_NAME "swap_drv"
 #define DEFAULT_DEVICE_MAJOR 250
 #define EVENTS_AGGREGATION_USEC (5 * 1000000UL)
 

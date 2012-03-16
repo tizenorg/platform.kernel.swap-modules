@@ -2,7 +2,7 @@ target_kernel_src = @KERNEL@
 target_arch = @ARCH@
 #board = @BOARD@
 driver_module_dir = $(realpath $(srcdir))
-module_name = inperfa_driver
+module_name = swap_driver
 cross_compiler = $(subst gcc,,$(CC))
 
 all-local:

@@ -19,8 +19,8 @@ MODULE_PARM_DESC(fp_kallsyms_lookup_name,
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
-extern void inperfa_register_notify (struct notifier_block *nb);
-extern void inperfa_unregister_notify (struct notifier_block *nb);
+extern void swap_register_notify (struct notifier_block *nb);
+extern void swap_unregister_notify (struct notifier_block *nb);
 #endif
 
 
@@ -109,7 +109,7 @@ static int start_stop_notify(struct notifier_block *self, unsigned long action, 
 
 }
 
-static struct notifier_block inperfa_nb = {
+static struct notifier_block swap_nb = {
 	.notifier_call = start_stop_notify,
 };
 
@@ -195,7 +195,7 @@ static int __init handlers_init(void)
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
-	inperfa_register_notify(&inperfa_nb);
+	swap_register_notify(&swap_nb);
 #endif
 
 	return 0;
@@ -205,7 +205,7 @@ static void __exit handlers_exit(void)
 {
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
-	inperfa_unregister_notify(&inperfa_nb);
+	swap_unregister_notify(&swap_nb);
 #endif
 
 	dbi_uninstall_user_handlers();

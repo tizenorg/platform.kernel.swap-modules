@@ -2,10 +2,10 @@
 
 
 # name of the file with module
-MODULE_FILE=inperfa_driver
+MODULE_FILE=swap_driver
 
 # device name
-DEVICE=inperfa_drv
+DEVICE=swap_drv
 DEFAULT_MAJOR=249
 
 # name of device visible in /proc/devices
@@ -32,7 +32,7 @@ fi
 
 MAJOR=`sed "/${DEVICE_NAME}/ ! d" /proc/devices | sed "s/ ${DEVICE_NAME}//"`
 if [ "${MAJOR}" != "" ] ; then
-    echo "Inperfa Driver is already loaded!"
+    echo "SWAP Driver is already loaded!"
     exit 1
     rmmod ${MODULE_FILE}
     MAJOR=`sed "/${DEVICE_NAME}/ ! d" /proc/devices | sed "s/ ${DEVICE_NAME}//"`
