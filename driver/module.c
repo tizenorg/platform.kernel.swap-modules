@@ -127,5 +127,5 @@ module_init (InitializeModule);
 module_exit (UninitializeModule);
 MODULE_LICENSE ("GPL");
 MODULE_AUTHOR("Adwanced Software Group (SRC, Moscow)");
-MODULE_DESCRIPTION("InPerfA Device Driver");
+MODULE_DESCRIPTION("SWAP Device Driver");
 MODULE_VERSION("4:1.0");

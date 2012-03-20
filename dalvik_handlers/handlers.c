@@ -215,5 +215,5 @@ module_init(handlers_init);
 module_exit(handlers_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("InPerfA Dalvik VM handlers module");
+MODULE_DESCRIPTION("SWAP Dalvik VM handlers module");
 MODULE_AUTHOR("Leonid Astakhov <l.astakhov@samsung.com>");

@@ -17,9 +17,9 @@
 #if !defined(PICL_h)
 #define PICL_h
 
-#ifdef INPERFA_HOST
+#ifdef SWAP_HOST
 #include <sys/time.h> // struct timeval
-#else // INPERFA_TARGET
+#else // SWAP_TARGET
 #ifdef __KERNEL__
 #include <linux/time.h>		// struct timeval
 #else
