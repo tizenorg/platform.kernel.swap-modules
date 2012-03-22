@@ -1050,7 +1050,7 @@ int inst_usr_space_proc (void)
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	struct nameidata launchpad_daemon_nd;
 	if (path_lookup("/usr/bin/launchpad_preloading_preinitializing_daemon",
-			LOOKUP_FOLLOW, &launchpad_daemon_path) != 0) {
+			LOOKUP_FOLLOW, &launchpad_daemon_nd) != 0) {
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 		EPRINTF("failed to lookup dentry for path %s!",
 				"/usr/bin/launchpad_preloading_preinitializing_daemon");
