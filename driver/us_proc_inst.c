@@ -362,13 +362,13 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 #ifdef SLP_APP
 				if (!*p_task) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 					if (is_slp_app_with_dentry(vma, nd.dentry)) {
+#else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+					if (is_slp_app_with_dentry(vma, s_path.dentry)) {
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 					if (is_slp_app_with_dentry(vma, nd.path.dentry)) {
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#else
-					if (is_slp_app_with_dentry(vma, s_path.dentry)) {
 #endif
 						*p_task = task;
 						get_task_struct(task);
@@ -378,13 +378,13 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 #ifdef ANDROID_APP
 				if (!*p_task) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 					if (is_android_app_with_dentry(vma, nd.dentry)) {
+#else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+					if (is_android_app_with_dentry(vma, s_path.dentry)) {
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 					if (is_android_app_with_dentry(vma, nd.path.dentry)) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */j
-#else
-					if (is_android_app_with_dentry(vma, s_path.dentry)) {
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 #endif
 						*p_task = task;
 						get_task_struct(task);
@@ -1077,7 +1077,7 @@ int inst_usr_space_proc (void)
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	struct nameidata app_process_nd;
 	if (path_lookup("/system/bin/app_process",
-			LOOKUP_FOLLOW, &app_process_path) != 0) {
+			LOOKUP_FOLLOW, &app_process_nd) != 0) {
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 		EPRINTF("failed to lookup dentry for path %s!",
 				"/system/bin/app_process");
