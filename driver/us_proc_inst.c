@@ -311,14 +311,22 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 	struct task_struct *task;
 	struct vm_area_struct *vma;
 	struct mm_struct *mm;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	struct path s_path;
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	struct nameidata nd;
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 	*p_task = 0;
 
 	/* find corresponding dir entry, this is also check for valid path */
 	// TODO: test - try to instrument process with non-existing path
 	// TODO: test - try to instrument process  with existing path and delete file just after start
-	if (path_lookup (path, LOOKUP_FOLLOW, &nd) != 0) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	if (kern_path(us_proc_info.path, LOOKUP_FOLLOW, &s_path) != 0) {
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	if (path_lookup(us_proc_info.path, LOOKUP_FOLLOW, &nd) != 0) {
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 		EPRINTF ("failed to lookup dentry for path %s!", path);
 		return -EINVAL;
 	}
@@ -339,7 +347,11 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 				if (vma->vm_file->f_dentry == nd.dentry) {
 #else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+				if (vma->vm_file->f_dentry == s_path.dentry  ) {
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 				if (vma->vm_file->f_dentry == nd.path.dentry  ) {
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 #endif
 					if (!*p_task) {
 						*p_task = task;
@@ -350,9 +362,13 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 #ifdef SLP_APP
 				if (!*p_task) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 					if (is_slp_app_with_dentry(vma, nd.dentry)) {
-#else
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 					if (is_slp_app_with_dentry(vma, nd.path.dentry)) {
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+#else
+					if (is_slp_app_with_dentry(vma, s_path.dentry)) {
 #endif
 						*p_task = task;
 						get_task_struct(task);
@@ -362,9 +378,13 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 #ifdef ANDROID_APP
 				if (!*p_task) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 					if (is_android_app_with_dentry(vma, nd.dentry)) {
-#else
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 					if (is_android_app_with_dentry(vma, nd.path.dentry)) {
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */j
+#else
+					if (is_android_app_with_dentry(vma, s_path.dentry)) {
 #endif
 						*p_task = task;
 						get_task_struct(task);
@@ -392,7 +412,11 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	path_release (&nd);
 #else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	path_put (&s_path);
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	path_put (&nd.path);
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 #endif
 	return 0;
 }
@@ -1018,9 +1042,16 @@ int inst_usr_space_proc (void)
 	DPRINTF("User space instr");
 
 #ifdef SLP_APP
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	struct path launchpad_daemon_path;
+	if (kern_path("/usr/bin/launchpad_preloading_preinitializing_daemon",
+		      LOOKUP_FOLLOW,
+		      &launchpad_daemon_path) != 0) {
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	struct nameidata launchpad_daemon_nd;
 	if (path_lookup("/usr/bin/launchpad_preloading_preinitializing_daemon",
-					LOOKUP_FOLLOW, &launchpad_daemon_nd) != 0) {
+			LOOKUP_FOLLOW, &launchpad_daemon_path) != 0) {
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 		EPRINTF("failed to lookup dentry for path %s!",
 				"/usr/bin/launchpad_preloading_preinitializing_daemon");
 		return -EINVAL;
@@ -1030,14 +1061,24 @@ int inst_usr_space_proc (void)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	launchpad_daemon_dentry = launchpad_daemon_nd.dentry;
 #else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	launchpad_daemon_dentry = launchpad_daemon_path.dentry;
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	launchpad_daemon_dentry = launchpad_daemon_nd.path.dentry;
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 #endif
 #endif /* SLP_APP */
 
 #ifdef ANDROID_APP
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	struct path app_process_path;
+	if (kern_path("/system/bin/app_process", LOOKUP_FOLLOW,
+			     &app_process_path) != 0) {
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	struct nameidata app_process_nd;
 	if (path_lookup("/system/bin/app_process",
-					LOOKUP_FOLLOW, &app_process_nd) != 0) {
+			LOOKUP_FOLLOW, &app_process_path) != 0) {
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 		EPRINTF("failed to lookup dentry for path %s!",
 				"/system/bin/app_process");
 		return -EINVAL;
@@ -1047,7 +1088,11 @@ int inst_usr_space_proc (void)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	app_process_dentry = app_process_nd.dentry;
 #else
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	app_process_dentry = app_process_path.dentry;
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	app_process_dentry = app_process_nd.path.dentry;
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 #endif
 #endif /* ANDROID_APP */
 

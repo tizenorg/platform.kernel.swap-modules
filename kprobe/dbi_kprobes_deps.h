@@ -88,7 +88,11 @@ int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 #define write_proc_vm_atomic(tsk, addr, buf, len)	access_process_vm_atomic (tsk, addr, buf, len, 1)
 int page_present (struct mm_struct *mm, unsigned long addr);
 
-#define get_user_pages_atomic 	get_user_pages_uprobe
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+#define get_user_pages_atomic 	get_user_pages
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+#define get_user_pages_atomic  get_user_pages_uprobe
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 
 

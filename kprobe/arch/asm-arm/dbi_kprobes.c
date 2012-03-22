@@ -1229,9 +1229,11 @@ int kprobe_handler (struct pt_regs *regs)
 	{
 		if (!isThumb2(p->opcode))
 		{
-			*((unsigned short*)p->addr + 1) = p->opcode >> 16;
+			unsigned long tmp = p->opcode >> 16;
+			write_proc_vm_atomic(current, (unsigned long)((unsigned short*)p->addr + 1), &tmp, 2);
 		}else{
-			*((unsigned int*)p->addr) = p->opcode;
+			unsigned long tmp = p->opcode;
+			write_proc_vm_atomic(current, (unsigned long)((unsigned short*)p->addr), &tmp, 4);
 		}
 		flush_icache_range ((unsigned int) p->addr, (unsigned int) (((unsigned int) p->addr) + (sizeof (kprobe_opcode_t) * 2)));
 	}
@@ -1641,6 +1643,11 @@ int asm_init_module_dependencies()
 	return 0;
 }
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+typedef unsigned long (* in_gate_area_fp_t)(struct mm_struct *, unsigned long);
+in_gate_area_fp_t in_gate_area_fp;
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+
 int __init arch_init_kprobes (void)
 {
 	unsigned int do_bp_handler;
@@ -1656,6 +1663,14 @@ int __init arch_init_kprobes (void)
 		DBPRINTF ("Unable to init module dependencies\n");
 		return -1;
 	}
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	in_gate_area_fp = (in_gate_area_fp_t)kallsyms_search("in_gate_area_no_mm");
+	if (!in_gate_area_fp) {
+		DBPRINTF("no in_gate_area symbol found!");
+                return -1;
+        }
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 	do_bp_handler = (unsigned int) kallsyms_search ("do_undefinstr");
 

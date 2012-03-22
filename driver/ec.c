@@ -32,7 +32,11 @@ ec_info_t ec_info = {
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 
-spinlock_t ec_spinlock = SPIN_LOCK_UNLOCKED;	// protects 'ec_info'
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+spinlock_t ec_spinlock;	// protects 'ec_info'
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+spinlock_t ec_spinlock = SPIN_LOCK_UNLOCKED;
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 ec_probe_info_t ec_probe_info = {
 	.probe_id = -1,
@@ -42,7 +46,11 @@ ec_probe_info_t ec_probe_info = {
 	.address = 0,
 };
 
-spinlock_t ec_probe_spinlock = SPIN_LOCK_UNLOCKED;	// protects 'ec_probe_info'
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+spinlock_t ec_probe_spinlock;	// protects 'ec_probe_info'
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+spinlock_t ec_probe_spinlock = SPIN_LOCK_UNLOCKED;
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 ec_state_t GetECState(void) { return ec_info.ec_state; };
 

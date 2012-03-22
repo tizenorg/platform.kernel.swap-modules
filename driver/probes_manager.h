@@ -57,6 +57,9 @@ extern kernel_probe_t *exit_probe;
 extern kernel_probe_t *fork_probe;
 extern kernel_probe_t *exec_probe;
 extern unsigned int probes_flags;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+extern spinlock_t ec_probe_spinlock;
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 #define PROBE_FLAG_PF_INSTLD	0x1
 #define PROBE_FLAG_EXIT_INSTLD	0x2

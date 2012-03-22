@@ -6,7 +6,7 @@
 
 
 int fp_kallsyms_lookup_name = 0;
-module_param(fp_kallsyms_lookup_name, int, 0);
+module_param(fp_kallsyms_lookup_name, uint, 0);
 MODULE_PARM_DESC(fp_kallsyms_lookup_name,
 				 "address of 'kallsyms_lookup_name' function");
 

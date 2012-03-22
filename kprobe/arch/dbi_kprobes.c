@@ -64,7 +64,8 @@ extern struct hlist_head kprobe_insn_pages;
 extern struct hlist_head uprobe_insn_pages;
 
 static int ksyms = INVALID_VALUE;
-module_param (ksyms, int, 0);
+module_param(ksyms, uint, 0);
+MODULE_PARM_DESC(ksyms, "kallsyms_lookup_name address");
 
 extern unsigned long (*kallsyms_search) (const char *name);
 
