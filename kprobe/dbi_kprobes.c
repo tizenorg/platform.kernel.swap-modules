@@ -146,15 +146,9 @@ struct kprobe *get_kprobe (void *addr, int tgid, struct task_struct *ctask)
 
 	if (ctask && ctask->active_mm)
 	{
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-		ret = get_user_pages(ctask, ctask->active_mm,
-				     (unsigned long)addr, 1, 0, 0,
-				     &tpage, NULL);
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 		ret = get_user_pages_uprobe(ctask, ctask->active_mm,
 					    (unsigned long)addr, 1, 0, 0,
 					    &tpage, NULL);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 		if (ret <= 0)
 			DBPRINTF ("get_user_pages for task %d at %p failed!", current->pid, addr);
 		else
@@ -217,17 +211,10 @@ struct kprobe *get_kprobe (void *addr, int tgid, struct task_struct *ctask)
 				{
 					if (page_present (task->active_mm, (unsigned long) p->addr))
 					{
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-						ret = get_user_pages(task,
-								     task->active_mm,
-								     (unsigned long)p->addr,
-								     1, 0, 0, &page, &vma);
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 						ret = get_user_pages_uprobe(task,
 									    task->active_mm,
 									    (unsigned long)p->addr,
 									    1, 0, 0, &page, &vma);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 						if (ret <= 0)
 							DBPRINTF ("get_user_pages for task %d at %p failed!", p->tgid, p->addr);
 					}

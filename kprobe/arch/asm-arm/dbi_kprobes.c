@@ -1644,7 +1644,7 @@ int asm_init_module_dependencies()
 }
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-typedef unsigned long (* in_gate_area_fp_t)(struct mm_struct *, unsigned long);
+typedef unsigned long (* in_gate_area_fp_t)(unsigned long);
 in_gate_area_fp_t in_gate_area_fp;
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 

@@ -40,12 +40,6 @@
 unsigned int *sched_addr;
 unsigned int *fork_addr;
 
-
-#define GUP_FLAGS_WRITE                  0x1
-#define GUP_FLAGS_FORCE                  0x2
-#define GUP_FLAGS_IGNORE_VMA_PERMISSIONS 0x4
-#define GUP_FLAGS_IGNORE_SIGKILL         0x8
-
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 struct mm_struct* init_mm_ptr;
 struct mm_struct init_mm;
@@ -224,10 +218,12 @@ int init_module_dependencies()
 	return 0;
 }
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 38) /* FIXME: must be < 32 */
 #define GUP_FLAGS_WRITE                  0x1
 #define GUP_FLAGS_FORCE                  0x2
 #define GUP_FLAGS_IGNORE_VMA_PERMISSIONS 0x4
 #define GUP_FLAGS_IGNORE_SIGKILL         0x8
+#endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 38) */
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,18)
 static inline int use_zero_page(struct vm_area_struct *vma)
@@ -250,6 +246,218 @@ static inline int use_zero_page(struct vm_area_struct *vma)
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 extern unsigned long (* in_gate_area_fp)(unsigned long);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+unsigned long zero_pfn __read_mostly;
+
+#ifndef is_zero_pfn
+static inline int is_zero_pfn(unsigned long pfn)
+{
+	return pfn == zero_pfn;
+}
+#endif
+
+static inline int stack_guard_page(struct vm_area_struct *vma, unsigned long addr)
+{
+	return stack_guard_page_start(vma, addr) ||
+	       stack_guard_page_end(vma, addr+PAGE_SIZE);
+}
+
+int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
+		     unsigned long start, int nr_pages, unsigned int gup_flags,
+		     struct page **pages, struct vm_area_struct **vmas,
+		     int *nonblocking)
+{
+	int i;
+	unsigned long vm_flags;
+
+	if (nr_pages <= 0) {
+		return 0;
+	}
+
+	VM_BUG_ON(!!pages != !!(gup_flags & FOLL_GET));
+
+	/* 
+	 * Require read or write permissions.
+	 * If FOLL_FORCE is set, we only require the "MAY" flags.
+	 */
+	vm_flags  = (gup_flags & FOLL_WRITE) ?
+			(VM_WRITE | VM_MAYWRITE) : (VM_READ | VM_MAYREAD);
+	vm_flags &= (gup_flags & FOLL_FORCE) ?
+			(VM_MAYREAD | VM_MAYWRITE) : (VM_READ | VM_WRITE);
+	i = 0;
+
+	do {
+		struct vm_area_struct *vma;
+
+		vma = find_extend_vma(mm, start);
+		if (!vma && in_gate_area_fp(start)) {
+			unsigned long pg = start & PAGE_MASK;
+			pgd_t *pgd;
+			pud_t *pud;
+			pmd_t *pmd;
+			pte_t *pte;
+
+			/* user gate pages are read-only */
+			if (gup_flags & FOLL_WRITE) {
+				return i ? : -EFAULT;
+			}
+			if (pg > TASK_SIZE)
+				pgd = pgd_offset_k(pg);
+			else
+				pgd = pgd_offset_gate(mm, pg);
+			BUG_ON(pgd_none(*pgd));
+			pud = pud_offset(pgd, pg);
+			BUG_ON(pud_none(*pud));
+			pmd = pmd_offset(pud, pg);
+			if (pmd_none(*pmd)) {
+				return i ? : -EFAULT;
+			}
+			VM_BUG_ON(pmd_trans_huge(*pmd));
+			pte = pte_offset_map(pmd, pg);
+			if (pte_none(*pte)) {
+				pte_unmap(pte);
+				return i ? : -EFAULT;
+			}
+			vma = get_gate_vma(mm);
+			if (pages) {
+				struct page *page;
+
+				page = vm_normal_page(vma, start, *pte);
+				if (!page) {
+					if (!(gup_flags & FOLL_DUMP) &&
+					     is_zero_pfn(pte_pfn(*pte)))
+						page = pte_page(*pte);
+					else {
+						pte_unmap(pte);
+						return i ? : -EFAULT;
+					}
+				}
+				pages[i] = page;
+				get_page(page);
+			}
+			pte_unmap(pte);
+			goto next_page;
+		}
+
+		if (!vma ||
+		    (vma->vm_flags & (VM_IO | VM_PFNMAP)) ||
+		    !(vm_flags & vma->vm_flags)) {
+			return i ? : -EFAULT;
+		}
+
+		if (is_vm_hugetlb_page(vma)) {
+			i = follow_hugetlb_page(mm, vma, pages, vmas,
+					&start, &nr_pages, i, gup_flags);
+			continue;
+		}
+
+		do {
+			struct page *page;
+			unsigned int foll_flags = gup_flags;
+
+			/*
+			 * If we have a pending SIGKILL, don't keep faulting
+			 * pages and potentially allocating memory.
+			 */
+			if (unlikely(fatal_signal_pending(current))) {
+				return i ? i : -ERESTARTSYS;
+			}
+
+			/* cond_resched(); */
+			while (!(page = follow_page(vma, start, foll_flags))) {
+				int ret;
+				unsigned int fault_flags = 0;
+
+				/* For mlock, just skip the stack guard page. */
+				if (foll_flags & FOLL_MLOCK) {
+					if (stack_guard_page(vma, start))
+						goto next_page;
+				}
+				if (foll_flags & FOLL_WRITE)
+					fault_flags |= FAULT_FLAG_WRITE;
+				if (nonblocking)
+					fault_flags |= FAULT_FLAG_ALLOW_RETRY;
+				if (foll_flags & FOLL_NOWAIT)
+					fault_flags |= (FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_RETRY_NOWAIT);
+
+				ret = handle_mm_fault(mm, vma, start,
+							fault_flags);
+
+				if (ret & VM_FAULT_ERROR) {
+					if (ret & VM_FAULT_OOM) {
+						return i ? i : -ENOMEM;
+					}
+					if (ret & (VM_FAULT_HWPOISON |
+						   VM_FAULT_HWPOISON_LARGE)) {
+						if (i) {
+							return i;
+						}
+						else if (gup_flags & FOLL_HWPOISON) {
+							return -EHWPOISON;
+						}
+						else {
+							return -EFAULT;
+						}
+					}
+					if (ret & VM_FAULT_SIGBUS) {
+						return i ? i : -EFAULT;
+					}
+					BUG();
+				}
+
+				if (tsk) {
+					if (ret & VM_FAULT_MAJOR)
+						tsk->maj_flt++;
+					else
+						tsk->min_flt++;
+				}
+
+				if (ret & VM_FAULT_RETRY) {
+					if (nonblocking)
+						*nonblocking = 0;
+					return i;
+				}
+
+				/*
+				 * The VM_FAULT_WRITE bit tells us that
+				 * do_wp_page has broken COW when necessary,
+				 * even if maybe_mkwrite decided not to set
+				 * pte_write. We can thus safely do subsequent
+				 * page lookups as if they were reads. But only
+				 * do so when looping for pte_write is futile:
+				 * in some cases userspace may also be wanting
+				 * to write to the gotten user page, which a
+				 * read fault here might prevent (a readonly
+				 * page might get reCOWed by userspace write).
+				 */
+				if ((ret & VM_FAULT_WRITE) &&
+				    !(vma->vm_flags & VM_WRITE))
+					foll_flags &= ~FOLL_WRITE;
+
+				/* cond_resched(); */
+			}
+			if (IS_ERR(page)) {
+				return i ? i : PTR_ERR(page);
+			}
+			if (pages) {
+				pages[i] = page;
+
+				flush_anon_page(vma, page, start);
+				flush_dcache_page(page);
+			}
+next_page:
+			if (vmas)
+				vmas[i] = vma;
+			i++;
+			start += PAGE_SIZE;
+			nr_pages--;
+		} while (nr_pages && start < vma->vm_end);
+	} while (nr_pages);
+
+	return i;
+}
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		     unsigned long start, int len, int flags,
@@ -277,17 +485,9 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned int foll_flags;
 
 		vma = find_vma(mm, start);
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-		if (!vma && in_gate_area_fp(start)) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 		if (!vma && in_gate_area(tsk, start)) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 			unsigned long pg = start & PAGE_MASK;
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-			struct vm_area_struct *gate_vma = get_gate_vma(tsk->mm);
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 			struct vm_area_struct *gate_vma = get_gate_vma(tsk);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 			pgd_t *pgd;
 			pud_t *pud;
 			pmd_t *pmd;
@@ -456,23 +656,38 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 	return i;
 }
 #endif
-
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, int len, int write, int force,
 		struct page **pages, struct vm_area_struct **vmas)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) /* FIXME: must be >= 32! */
+	int flags = FOLL_TOUCH;
+
+	if (pages)
+                flags |= FOLL_GET;
+	if (write)
+		flags |= FOLL_WRITE;
+	if (force)
+		flags |= FOLL_FORCE;
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	int flags = 0;
 
 	if (write)
 		flags |= GUP_FLAGS_WRITE;
 	if (force)
 		flags |= GUP_FLAGS_FORCE;
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 	return __get_user_pages_uprobe(tsk, mm,
 				start, len, flags,
-				pages, vmas);
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+				       pages, vmas, 0);
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+				       pages, vmas);
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 #else
 	return get_user_pages(tsk, mm, start, len, write, force, pages, vmas);
 #endif
@@ -499,13 +714,8 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 		void *maddr;
 		struct page *page = NULL;
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-		ret = get_user_pages(tsk, mm, addr, 1,
-				     write, 1, &page, &vma);
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 		ret = get_user_pages_uprobe(tsk, mm, addr, 1,
 					    write, 1, &page, &vma);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 		if (ret <= 0) {
 			/*
