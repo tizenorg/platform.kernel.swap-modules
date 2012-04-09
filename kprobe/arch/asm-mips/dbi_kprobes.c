@@ -21,8 +21,8 @@
  * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM/MIPS
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user-space and kernel space.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
- *
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * 2012		Stanislav Andreev <s.andreev@samsung.com>: added time debug profiling support; BUG() message fix
  */
 
 #include "dbi_kprobes.h"
@@ -33,6 +33,12 @@
 #include "../../dbi_insn_slots.h"
 #include "../../dbi_kprobes_deps.h"
 #include "../../dbi_uprobes.h"
+
+#ifdef OVERHEAD_DEBUG
+#include <linux/time.h>
+#endif
+
+#define SUPRESS_BUG_MESSAGES
 
 unsigned int *arr_traps_original;
 
@@ -51,13 +57,19 @@ extern void reset_current_kprobe (void);
 
 extern unsigned long (*kallsyms_search) (const char *name);
 
+#ifdef OVERHEAD_DEBUG
+unsigned long swap_sum_time = 0;
+unsigned long swap_sum_hit = 0;
+EXPORT_SYMBOL_GPL (swap_sum_time);
+EXPORT_SYMBOL_GPL (swap_sum_hit);
+#endif
+
 unsigned int arr_traps_template[] = {  0x3c010000,   // lui  a1       [0]
 	0x24210000,   // addiu a1, a1  [1]
 	0x00200008,   // jr a1         [2]
 	0x00000000,   // nop
 	0xffffffff    // end
 };
-
 
 /*
  * Function return probe trampoline:
@@ -300,12 +312,28 @@ int kprobe_handler (struct pt_regs *regs)
 	int ret = 0, pid = 0, retprobe = 0, reenter = 0;
 	kprobe_opcode_t *addr = NULL, *ssaddr = 0;
 	struct kprobe_ctlblk *kcb;
+#ifdef OVERHEAD_DEBUG
+	struct timeval swap_tv1;
+	struct timeval swap_tv2;
+#endif
+#ifdef SUPRESS_BUG_MESSAGES
+	int swap_oops_in_progress;
+#endif
 
 	/* We're in an interrupt, but this is clear and BUG()-safe. */
 
 	addr = (kprobe_opcode_t *) regs->cp0_epc;
 	DBPRINTF ("regs->regs[ 31 ] = 0x%lx\n", regs->regs[31]);
 
+#ifdef SUPRESS_BUG_MESSAGES
+	// oops_in_progress used to avoid BUG() messages that slow down kprobe_handler() execution
+	swap_oops_in_progress = oops_in_progress;
+	oops_in_progress = 1;
+#endif
+#ifdef OVERHEAD_DEBUG
+#define USEC_IN_SEC_NUM				1000000
+	do_gettimeofday(&swap_tv1);
+#endif
 	preempt_disable ();
 
 	kcb = get_kprobe_ctlblk ();
@@ -344,6 +372,15 @@ int kprobe_handler (struct pt_regs *regs)
 				if(!p->ainsn.boostable)
 					kcb->kprobe_status = KPROBE_REENTER;
 				preempt_enable_no_resched ();
+#ifdef OVERHEAD_DEBUG
+				do_gettimeofday(&swap_tv2);
+				swap_sum_hit++;
+				swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM + 
+					(swap_tv2.tv_usec - swap_tv1.tv_usec));
+#endif
+#ifdef SUPRESS_BUG_MESSAGES
+				oops_in_progress = swap_oops_in_progress;
+#endif
 				return 1;
 			}
 		}
@@ -432,13 +469,29 @@ int kprobe_handler (struct pt_regs *regs)
 		ret = p->pre_handler (p, regs);
 		if(!p->ainsn.boostable)
 			kcb->kprobe_status = KPROBE_HIT_SS;
-		else if(p->pre_handler != trampoline_probe_handler)
-			reset_current_kprobe ();			
+		else if(p->pre_handler != trampoline_probe_handler) {
+#ifdef SUPRESS_BUG_MESSAGES
+			preempt_disable();
+#endif
+			reset_current_kprobe ();
+#ifdef SUPRESS_BUG_MESSAGES
+			preempt_enable_no_resched();
+#endif
+		}
 	}
 
 	if (ret)
 	{
 		DBPRINTF ("p->pre_handler[] 1");
+#ifdef OVERHEAD_DEBUG
+		do_gettimeofday(&swap_tv2);
+		swap_sum_hit++;
+		swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM + 
+			(swap_tv2.tv_usec - swap_tv1.tv_usec));
+#endif
+#ifdef SUPRESS_BUG_MESSAGES
+		oops_in_progress = swap_oops_in_progress;
+#endif
 		/* handler has already set things up, so skip ss setup */
 		return 1;
 	}
@@ -446,6 +499,15 @@ int kprobe_handler (struct pt_regs *regs)
 
 no_kprobe:
 	preempt_enable_no_resched ();
+#ifdef OVERHEAD_DEBUG
+	do_gettimeofday(&swap_tv2);
+	swap_sum_hit++;
+	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM + 
+		(swap_tv2.tv_usec - swap_tv1.tv_usec));
+#endif
+#ifdef SUPRESS_BUG_MESSAGES
+	oops_in_progress = swap_oops_in_progress;
+#endif
 	return ret;
 }
 

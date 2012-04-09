@@ -331,16 +331,15 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 		return -EINVAL;
 	}
 
-	rcu_read_lock ();
+	rcu_read_lock();
 	for_each_process (task)	{
 
 		if  ( 0 != inst_pid && ( inst_pid != task->pid ) )
 			continue;
 
-		mm = get_task_mm (task);
+		mm = get_task_mm(task);
 		if (!mm)
 			continue;
-		down_read (&mm->mmap_sem);
 		vma = mm->mmap;
 		while (vma) {
 			if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file) {
@@ -394,12 +393,12 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 			}
 			vma = vma->vm_next;
 		}
-		up_read (&mm->mmap_sem);
-		mmput (mm);
+		// only decrement usage count on mm since we cannot sleep here
+		atomic_dec(&mm->mm_users);
 		if (found)
 			break;
 	}
-	rcu_read_unlock ();
+	rcu_read_unlock();
 
 	if (*p_task) {
 		DPRINTF ("found pid %d for %s.", (*p_task)->pid, path);

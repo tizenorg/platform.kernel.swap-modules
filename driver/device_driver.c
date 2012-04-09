@@ -20,6 +20,11 @@
 #include "CProfile.h"
 #include <linux/notifier.h>
 
+#ifdef OVERHEAD_DEBUG
+extern unsigned long swap_sum_time;
+extern unsigned long swap_sum_hit;
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 static BLOCKING_NOTIFIER_HEAD(swap_notifier_list);
 #endif
@@ -499,6 +504,13 @@ static int device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned lo
 	case EC_IOCTL_STOP_AND_DETACH:
 	{
 		unsigned long nIgnoredBytes = 0;
+
+#ifdef OVERHEAD_DEBUG
+		printk("\nswap_sum_time = %ld in kprobe_handler()\n", swap_sum_time);
+		printk("swap_sum_hit = %ld in kprobe_handler()\n", swap_sum_hit);
+		swap_sum_time = 0;
+		swap_sum_hit = 0;
+#endif
 		if(ec_user_stop() != 0) {
 			result = -1;
 			break;
