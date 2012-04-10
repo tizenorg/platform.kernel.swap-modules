@@ -1500,14 +1500,16 @@ EXPORT_SYMBOL_GPL(get_stack);
 static int dump_to_trace(void *addr, const char *buf, unsigned long sz)
 {
     unsigned long rest_sz = sz;
+    char *data = buf;
 
     while (rest_sz >= EVENT_MAX_SIZE) {
-        pack_event_info(US_PROBE_ID, RECORD_ENTRY, "pa", addr, EVENT_MAX_SIZE, buf);
+        pack_event_info(US_PROBE_ID, RECORD_ENTRY, "pa", addr, EVENT_MAX_SIZE, data);
         rest_sz -= EVENT_MAX_SIZE;
+        data += EVENT_MAX_SIZE;
     }
 
     if (rest_sz > 0) {
-        pack_event_info(US_PROBE_ID, RECORD_ENTRY, "pa", addr, rest_sz, buf);
+        pack_event_info(US_PROBE_ID, RECORD_ENTRY, "pa", addr, rest_sz, data);
     }
 
     return 0;
