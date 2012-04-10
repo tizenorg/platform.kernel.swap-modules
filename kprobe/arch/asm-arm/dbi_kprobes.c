@@ -24,15 +24,14 @@
  * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
  * 2010-2011    Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
+ * 2012		Stanislav Andreev <s.andreev@samsung.com>: added time debug profiling support; BUG() message fix
  */
 
-#include<linux/module.h>
-
+#include <linux/module.h>
 #include <linux/mm.h>
 
 #include "dbi_kprobes.h"
 #include "../dbi_kprobes.h"
-
 
 #include "../../dbi_kdebug.h"
 #include "../../dbi_insn_slots.h"
@@ -40,6 +39,12 @@
 #include "../../dbi_uprobes.h"
 
 #include <asm/cacheflush.h>
+
+#ifdef OVERHEAD_DEBUG
+#include <linux/time.h>
+#endif
+
+#define SUPRESS_BUG_MESSAGES
 
 unsigned int *arr_traps_original;
 
@@ -60,7 +65,12 @@ extern struct kprobe_ctlblk *get_kprobe_ctlblk (void);
 extern void reset_current_kprobe (void);
 extern struct kprobe * current_kprobe;
 
-
+#ifdef OVERHEAD_DEBUG
+unsigned long swap_sum_time = 0;
+unsigned long swap_sum_hit = 0;
+EXPORT_SYMBOL_GPL (swap_sum_time);
+EXPORT_SYMBOL_GPL (swap_sum_hit);
+#endif
 
 unsigned int arr_traps_template[] = {
 		0xe1a0c00d,    // mov          ip, sp
@@ -1026,7 +1036,23 @@ int kprobe_handler (struct pt_regs *regs)
 	kprobe_opcode_t *addr = NULL, *ssaddr = 0;
 	struct kprobe_ctlblk *kcb;
 	int i = 0;
+#ifdef OVERHEAD_DEBUG
+	struct timeval swap_tv1;
+	struct timeval swap_tv2;
+#endif
+#ifdef SUPRESS_BUG_MESSAGES
+	int swap_oops_in_progress;
+#endif
 
+#ifdef SUPRESS_BUG_MESSAGES
+	// oops_in_progress used to avoid BUG() messages that slow down kprobe_handler() execution
+	swap_oops_in_progress = oops_in_progress;
+	oops_in_progress = 1;
+#endif
+#ifdef OVERHEAD_DEBUG
+#define USEC_IN_SEC_NUM				1000000
+	do_gettimeofday(&swap_tv1);
+#endif
 	preempt_disable ();
 
 	if (user_mode(regs))
@@ -1138,6 +1164,15 @@ int kprobe_handler (struct pt_regs *regs)
 				if(!p->ainsn.boostable)
 					kcb->kprobe_status = KPROBE_REENTER;
 				preempt_enable_no_resched ();
+#ifdef OVERHEAD_DEBUG
+				do_gettimeofday(&swap_tv2);
+				swap_sum_hit++;
+				swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM + 
+					(swap_tv2.tv_usec - swap_tv1.tv_usec));
+#endif
+#ifdef SUPRESS_BUG_MESSAGES
+				oops_in_progress = swap_oops_in_progress;
+#endif
 				return 1;
 			}
 		}
@@ -1250,19 +1285,44 @@ int kprobe_handler (struct pt_regs *regs)
 		ret = p->pre_handler (p, regs);
 		if(!p->ainsn.boostable)
 			kcb->kprobe_status = KPROBE_HIT_SS;
-		else if(p->pre_handler != trampoline_probe_handler)
-			reset_current_kprobe ();
+		else if(p->pre_handler != trampoline_probe_handler) {
+#ifdef SUPRESS_BUG_MESSAGES
+			preempt_disable();
+#endif
+			reset_current_kprobe();
+#ifdef SUPRESS_BUG_MESSAGES
+			preempt_enable_no_resched();
+#endif
+		}
 	}
 	if (ret)
 	{
 		DBPRINTF ("p->pre_handler 1");
 		/* handler has already set things up, so skip ss setup */
+#ifdef OVERHEAD_DEBUG
+		do_gettimeofday(&swap_tv2);
+		swap_sum_hit++;
+		swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM + 
+			(swap_tv2.tv_usec - swap_tv1.tv_usec));
+#endif
+#ifdef SUPRESS_BUG_MESSAGES
+		oops_in_progress = swap_oops_in_progress;
+#endif
 		return 1;
 	}
 	DBPRINTF ("p->pre_handler 0");
 
 no_kprobe:
 	preempt_enable_no_resched ();
+#ifdef OVERHEAD_DEBUG
+	do_gettimeofday(&swap_tv2);
+	swap_sum_hit++;
+	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM + 
+		(swap_tv2.tv_usec - swap_tv1.tv_usec));
+#endif
+#ifdef SUPRESS_BUG_MESSAGES
+	oops_in_progress = swap_oops_in_progress;
+#endif
 	return ret;
 }
 
