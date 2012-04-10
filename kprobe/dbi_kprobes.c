@@ -143,22 +143,6 @@ struct kprobe *get_kprobe (void *addr, int tgid, struct task_struct *ctask)
 	struct task_struct *task = 0;
 	void *paddr = 0;
 
-
-	if (ctask && ctask->active_mm)
-	{
-		ret = get_user_pages_uprobe(ctask, ctask->active_mm,
-					    (unsigned long)addr, 1, 0, 0,
-					    &tpage, NULL);
-		if (ret <= 0)
-			DBPRINTF ("get_user_pages for task %d at %p failed!", current->pid, addr);
-		else
-		{
-			paddr = page_address (tpage);
-			page_cache_release (tpage);
-		}
-	}
-
-	//TODO: test - two processes invokes instrumented function
 	head = &kprobe_table[hash_ptr (addr, KPROBE_HASH_BITS)];
 	hlist_for_each_entry_rcu (p, node, head, hlist)
 	{
@@ -180,73 +164,10 @@ struct kprobe *get_kprobe (void *addr, int tgid, struct task_struct *ctask)
 				break;
 			}
 		}
-		else if (tgid != p->tgid)
-		{
-			// if looking for the user space probe and this is user space probe 
-			// with another addr and pid but with the same offset whithin the page
-			// it could be that it is the same probe (with address from other user space)
-			// we should handle it as usual probe but without notification to user 
-			if (paddr && tgid && (((unsigned long) addr & ~PAGE_MASK) == ((unsigned long) p->addr & ~PAGE_MASK))
-					&& p->tgid)
-			{
-				DBPRINTF ("get_kprobe: found user space probe at %p in task %d. possibly for addr %p in task %d", p->addr, p->tgid, addr, tgid);
-				// this probe has the same offset in the page
-				// look in the probes for the other pids                                
-				// get page for user space probe addr
-				rcu_read_lock ();
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-				task = find_task_by_pid (p->tgid);
-#else //lif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
-				task = pid_task(find_pid_ns(p->tgid, &init_pid_ns), PIDTYPE_PID);
-#endif
-				if (task)
-					get_task_struct (task);
-				rcu_read_unlock ();
-				if (!task)
-				{
-					DBPRINTF ("task for pid %d not found! Dead probe?", p->tgid);
-					continue;
-				}
-				if (task->active_mm)
-				{
-					if (page_present (task->active_mm, (unsigned long) p->addr))
-					{
-						ret = get_user_pages_uprobe(task,
-									    task->active_mm,
-									    (unsigned long)p->addr,
-									    1, 0, 0, &page, &vma);
-						if (ret <= 0)
-							DBPRINTF ("get_user_pages for task %d at %p failed!", p->tgid, p->addr);
-					}
-					else
-						ret = -1;
-				}
-				else
-				{
-					DBPRINTF ("task %d has no mm!", task->pid);
-					ret = -1;
-				}
-				//put_task_struct (task);
-
-				if (ret <= 0)
-					continue;
-				if (paddr == page_address (page))
-				{
-					retVal = p;	// we found the probe in other process address space
-					DBPRINTF ("get_kprobe: found user space probe at %p in task %d for addr %p in task %d", p->addr, p->tgid, addr, tgid);
-					panic ("user space probe from another process");
-				}
-				page_cache_release (page);
-				if (retVal)
-					break;
-			}
-		}
 	}
-
 	DBPRINTF ("get_kprobe: probe %p", retVal);
 	return retVal;
 }
-
 
 /*
  * Aggregate handlers for multiple kprobes support - these handlers
