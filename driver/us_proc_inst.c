@@ -1496,27 +1496,29 @@ static unsigned long get_stack(struct task_struct *task, struct pt_regs *regs,
 }
 EXPORT_SYMBOL_GPL(get_stack);
 
-static int dump_to_trace(void *addr, const char *buf, unsigned long sz)
+static int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
+        unsigned long sz)
 {
     unsigned long rest_sz = sz;
     char *data = buf;
 
     while (rest_sz >= EVENT_MAX_SIZE) {
-        pack_event_info(US_PROBE_ID, RECORD_ENTRY, "pa", addr, EVENT_MAX_SIZE, data);
+        pack_event_info(probe_id, RECORD_ENTRY, "pa",
+                addr, EVENT_MAX_SIZE, data);
         rest_sz -= EVENT_MAX_SIZE;
         data += EVENT_MAX_SIZE;
     }
 
     if (rest_sz > 0) {
-        pack_event_info(US_PROBE_ID, RECORD_ENTRY, "pa", addr, rest_sz, data);
+        pack_event_info(probe_id, RECORD_ENTRY, "pa", addr, rest_sz, data);
     }
 
     return 0;
 }
 EXPORT_SYMBOL_GPL(dump_to_trace);
 
-static int dump_backtrace(struct task_struct *task, us_proc_ip_t *ip,
-        struct pt_regs *regs, unsigned long sz)
+static int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
+        void *addr, struct pt_regs *regs, unsigned long sz)
 {
     unsigned long real_sz = 0;
     char *buf = NULL;
@@ -1525,7 +1527,7 @@ static int dump_backtrace(struct task_struct *task, us_proc_ip_t *ip,
 
     if (buf != NULL) {
         real_sz = get_stack(task, regs, buf, sz);
-        dump_to_trace(ip->jprobe.kp.addr, buf, real_sz);
+        dump_to_trace(probe_id, addr, buf, real_sz);
         kfree(buf);
         return 0;
     } else {
