@@ -41,6 +41,7 @@ struct timeval last_attach_time = {0, 0};
 
 EXPORT_SYMBOL_GPL(us_proc_info);
 EXPORT_SYMBOL_GPL(dex_proc_info);
+typedef void *(*get_my_uprobes_info_t)(void);
 int (*mec_post_event)(char *data, unsigned long len) = NULL;
 
 unsigned copy_into_cyclic_buffer (char *buffer, unsigned dst_offset, char *src, unsigned size)
@@ -814,7 +815,8 @@ void unlink_bundle(void)
 
 int link_bundle()
 {
-	inst_us_proc_t *my_uprobes_info;
+	get_my_uprobes_info_t get_uprobes = NULL;
+	inst_us_proc_t *my_uprobes_info = 0;
 	inst_us_proc_t empty_uprobes_info =
 	{
 		.libs_count = 0,
@@ -843,7 +845,10 @@ int link_bundle()
 	int handler_index;
 
 	/* Get user-defined us handlers (if they are provided) */
-	my_uprobes_info = (inst_us_proc_t *)lookup_name("my_uprobes_info");
+	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
+	if (get_uprobes)
+		my_uprobes_info = (inst_us_proc_t *)get_uprobes();
+
 	if (my_uprobes_info == 0)
 		my_uprobes_info = &empty_uprobes_info;
 
@@ -1762,8 +1767,13 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 {
 	int i, k, size = 0, probe_size, result, j;
 	char *buf, *sep1, *sep2;
+	get_my_uprobes_info_t get_uprobes = NULL;
+	inst_us_proc_t *my_uprobes_info = NULL;
 
-	inst_us_proc_t *my_uprobes_info = (inst_us_proc_t *)lookup_name("my_uprobes_info");
+	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
+	if (get_uprobes)
+		my_uprobes_info = (inst_us_proc_t *)get_uprobes();
+
 	DPRINTF("my_uprobes_info lookup result: 0x%p", my_uprobes_info);
 	inst_us_proc_t empty_uprobes_info =
 	{
@@ -1829,8 +1839,13 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 int get_predef_uprobes_size(int *size)
 {
 	int i, k;
+	get_my_uprobes_info_t get_uprobes = NULL;
+	inst_us_proc_t *my_uprobes_info = NULL;
 
-	inst_us_proc_t *my_uprobes_info = (inst_us_proc_t *)lookup_name("my_uprobes_info");
+	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
+	if (get_uprobes)
+		my_uprobes_info = (inst_us_proc_t *)get_uprobes();
+
 	inst_us_proc_t empty_uprobes_info =
 	{
 		.libs_count = 0,
@@ -1860,8 +1875,13 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 	int i, k, size, lib_size, func_size, result;
 	unsigned count = 0;
 	char sep[] = ":";
+	get_my_uprobes_info_t get_uprobes = NULL;
+	inst_us_proc_t *my_uprobes_info = NULL;
 
-	inst_us_proc_t *my_uprobes_info = (inst_us_proc_t *)lookup_name("my_uprobes_info");
+	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
+	if (get_uprobes)
+		my_uprobes_info = (inst_us_proc_t *)get_uprobes();
+
 	inst_us_proc_t empty_uprobes_info =
 	{
 		.libs_count = 0,
