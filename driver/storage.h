@@ -119,6 +119,9 @@ extern char *p_buffer;
 // list of selected non-predefined kernel probes
 extern struct hlist_head kernel_probes;
 
+/* list of on-the-go installed kernel probes */
+extern struct hlist_head otg_kernel_probes;
+
 extern struct list_head otg_us_proc_info;
 
 // event mask

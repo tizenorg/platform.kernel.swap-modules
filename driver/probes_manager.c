@@ -202,6 +202,9 @@ detach_selected_probes (void)
 
 	hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
 		unregister_kernel_probe (p);
+	hlist_for_each_entry_rcu (p, node, &otg_kernel_probes, hlist) {
+		unregister_kernel_probe(p);
+	}
 
 	return 0;
 }
@@ -271,6 +274,24 @@ int reset_probes()
 	kernel_probe_t *p;
 
 	hlist_for_each_entry_safe (p, node, tnode, &kernel_probes, hlist) {
+		if (p->addr == pf_addr) {
+			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
+			pf_probe = NULL;
+		} else if (p->addr == exit_addr) {
+			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
+			exit_probe = NULL;
+		} else if (p->addr == fork_addr) {
+			probes_flags &= ~PROBE_FLAG_FORK_INSTLD;
+			fork_probe = NULL;
+		} else if (p->addr == exec_addr) {
+			probes_flags &= ~PROBE_FLAG_EXEC_INSTLD;
+			exec_probe = NULL;
+		}
+		hlist_del(node);
+		kfree(p);
+	}
+
+	hlist_for_each_entry_safe (p, node, tnode, &otg_kernel_probes, hlist) {
 		if (p->addr == pf_addr) {
 			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
 			pf_probe = NULL;
@@ -510,3 +531,67 @@ int is_pf_installed_by_user(void)
 	return (probes_flags & PROBE_FLAG_PF_INSTLD) ? 1: 0;
 }
 EXPORT_SYMBOL_GPL(is_pf_installed_by_user);
+
+int install_kern_otg_probe(unsigned long addr,
+			   unsigned long pre_handler,
+			   unsigned long jp_handler,
+			   unsigned long rp_handler)
+{
+	kernel_probe_t *new_probe = NULL;
+	kernel_probe_t *probe;
+	int ret = 0;
+
+	probe = find_probe(addr);
+	if (probe) {
+		/* It is not a problem if we have already registered
+		   this probe before */
+		return 0;
+	}
+
+	new_probe = kmalloc(sizeof (kernel_probe_t), GFP_ATOMIC);
+	if (!new_probe) {
+		EPRINTF("No memory for new probe");
+		return -1;
+	}
+	memset(new_probe, 0, sizeof(kernel_probe_t));
+
+	new_probe->addr = addr;
+	new_probe->jprobe.kp.addr = new_probe->retprobe.kp.addr = (kprobe_opcode_t *)addr;
+	new_probe->jprobe.priv_arg = new_probe->retprobe.priv_arg = new_probe;
+
+	if (pre_handler) {
+		new_probe->jprobe.pre_entry = pre_handler;
+	} else {
+		new_probe->jprobe.pre_entry =
+			(kprobe_pre_entry_handler_t)
+			def_jprobe_event_pre_handler;
+	}
+
+	if (jp_handler) {
+		new_probe->jprobe.entry = jp_handler;
+	} else {
+		new_probe->jprobe.entry =
+			(kprobe_opcode_t *)
+			def_jprobe_event_handler;
+	}
+
+	if (rp_handler) {
+		new_probe->retprobe.handler = rp_handler;
+	} else {
+		new_probe->retprobe.handler =
+			(kretprobe_handler_t)
+			def_retprobe_event_handler;
+	}
+
+	INIT_HLIST_NODE (&new_probe->hlist);
+	hlist_add_head_rcu (&new_probe->hlist, &kernel_probes);
+
+	ret = register_kernel_probe(new_probe);
+	if (ret) {
+		EPRINTF("Cannot set kernel probe at addr %p", addr);
+		return -1;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(install_kern_otg_probe);

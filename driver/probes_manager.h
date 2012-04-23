@@ -47,6 +47,10 @@ extern int def_retprobe_event_handler (struct kretprobe_instance *probe, struct 
 void dbi_install_user_handlers(void);
 void dbi_uninstall_user_handlers(void);
 int is_pf_installed_by_user(void);
+int install_kern_otg_probe(unsigned long addr,
+			   unsigned long pre_handler,
+			   unsigned long jp_handler,
+			   unsigned long rp_handler);
 
 extern unsigned long pf_addr;
 extern unsigned long exit_addr;

@@ -34,6 +34,7 @@ char *deps;
 char *bundle;
 unsigned int inst_pid = 0;
 struct hlist_head kernel_probes;
+struct hlist_head otg_kernel_probes;
 int event_mask = 0L;
 struct cond cond_list;
 int paused = 0; /* a state after a stop condition (events are not collected) */
@@ -1356,7 +1357,8 @@ int storage_init (void)
 		return -1;
 	}
 
-	INIT_HLIST_HEAD (&kernel_probes);
+	INIT_HLIST_HEAD(&kernel_probes);
+	INIT_HLIST_HEAD(&otg_kernel_probes);
 	INIT_LIST_HEAD(&otg_us_proc_info);
 
 	return 0;
