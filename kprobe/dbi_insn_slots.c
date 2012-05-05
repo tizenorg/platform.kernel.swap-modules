@@ -186,7 +186,7 @@ retry:
 	if (!kip)
 		return NULL;
 
-	kip->slot_used = kmalloc(sizeof(char)*slots_per_page, GFP_ATOMIC);
+	kip->slot_used = kmalloc(sizeof(char) * slots_per_page, GFP_ATOMIC);
 	if (!kip->slot_used){
 		kfree(kip);
 		return NULL;
@@ -352,7 +352,8 @@ void free_insn_slot (struct hlist_head *page_list, struct task_struct *task, kpr
 	}
 }
 
-struct kprobe *get_kprobe_by_insn_slot (void *addr, int tgid, struct task_struct *ctask)
+#ifdef CONFIG_ARM
+struct kprobe *get_kprobe_by_insn_slot_arm (void *addr, int tgid, struct task_struct *ctask)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
@@ -361,7 +362,7 @@ struct kprobe *get_kprobe_by_insn_slot (void *addr, int tgid, struct task_struct
 
 	//TODO: test - two processes invokes instrumented function
 	head = &uprobe_insn_slot_table[hash_ptr (addr, KPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu (p, node, head, is_hlist)
+	hlist_for_each_entry_rcu (p, node, head, is_hlist_arm)
 	{
 		//if looking for kernel probe and this is kernel probe with the same addr OR
 		//if looking for the user space probe and this is user space probe probe with the same addr and pid
@@ -387,4 +388,74 @@ struct kprobe *get_kprobe_by_insn_slot (void *addr, int tgid, struct task_struct
 	return retVal;
 }
 
+struct kprobe *get_kprobe_by_insn_slot_thumb (void *addr, int tgid, struct task_struct *ctask)
+{
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct kprobe *p, *retVal = NULL;
+	int uprobe_found;
+
+	//TODO: test - two processes invokes instrumented function
+	head = &uprobe_insn_slot_table[hash_ptr (addr, KPROBE_HASH_BITS)];
+	hlist_for_each_entry_rcu (p, node, head, is_hlist_thumb)
+	{
+		//if looking for kernel probe and this is kernel probe with the same addr OR
+		//if looking for the user space probe and this is user space probe probe with the same addr and pid
+		/* printk("get_kprobe: check probe at %p/%p, task %d/%d\n", addr, p->ainsn.insn, tgid, p->tgid); */
+		if (p->ainsn.insn == addr)
+		{
+			uprobe_found = 0;
+			if (tgid == p->tgid)
+				uprobe_found = 1;
+			if (!tgid || uprobe_found)
+			{
+				retVal = p;
+				if (tgid)
+					DBPRINTF ("get_kprobe: found user space probe at %p for task %d", p->addr, p->tgid);
+				else
+					DBPRINTF ("get_kprobe: found kernel probe at %p", p->addr);
+				break;
+			}
+		}
+	}
+
+	DBPRINTF ("get_kprobe: probe %p", retVal);
+	return retVal;
+}
+#else /* CONFIG_ARM */
+struct kprobe *get_kprobe_by_insn_slot (void *addr, int tgid, struct task_struct *ctask)
+{
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct kprobe *p, *retVal = NULL;
+	int uprobe_found;
+
+	//TODO: test - two processes invokes instrumented function
+	head = &uprobe_insn_slot_table[hash_ptr (addr, KPROBE_HASH_BITS)];
+	hlist_for_each_entry_rcu (p, node, head, is_hlist)
+	{
+		//if looking for kernel probe and this is kernel probe with the same addr OR
+		//if looking for the user space probe and this is user space probe probe with the same addr and pid
+		/* printk("get_kprobe: check probe at %p/%p, task %d/%d\n", addr, p->ainsn.insn, tgid, p->tgid); */
+		if (p->ainsn.insn == addr)
+		{
+			uprobe_found = 0;
+			if (tgid == p->tgid)
+				uprobe_found = 1;
+			if (!tgid || uprobe_found)
+			{
+				retVal = p;
+				if (tgid)
+					DBPRINTF ("get_kprobe: found user space probe at %p for task %d", p->addr, p->tgid);
+				else
+					DBPRINTF ("get_kprobe: found kernel probe at %p", p->addr);
+				break;
+			}
+		}
+	}
+
+	DBPRINTF ("get_kprobe: probe %p", retVal);
+	return retVal;
+}
+#endif /* CONFIG_ARM */
 
