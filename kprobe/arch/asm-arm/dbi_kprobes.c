@@ -867,7 +867,7 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 				panic("failed to write memory %p!\n", p->ainsn.insn);
 				DBPRINTF ("failed to write insn slot to process memory: insn %p, addr %p, probe %p!", insn, p->ainsn.insn, p->addr);
 				//printk ("failed to write insn slot to process memory: %p/%d insn %lx, addr %p, probe %p!\n", task, task->pid, insn, p->ainsn.insn, p->addr);
-				free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn, 0);
+				free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_arm, 0);
 				return -EINVAL;
 			}
 		}
