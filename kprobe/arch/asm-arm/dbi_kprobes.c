@@ -855,7 +855,7 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 					memcpy (insns, gen_insn_execbuf, sizeof (insns));
 					insns[UPROBES_TRAMP_INSN_IDX] = insn[0];
 				}
-				insns[UPROBES_TRAMP_RET_BREAK_IDX] = UNDEF_INSTRUCTION;
+				insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
 				insns[7] = (kprobe_opcode_t) (p->addr + 1);
 				DBPRINTF ("arch_prepare_uprobe: to %p - %lx %lx %lx %lx %lx %lx %lx %lx %lx",
 						p->ainsn.insn_arm, insns[0], insns[1], insns[2], insns[3], insns[4],
