@@ -94,7 +94,12 @@ struct kprobe
 	struct hlist_node hlist;
 
 	/*list of probes to search by instruction slot*/
+#ifdef CONFIG_ARM
+	struct hlist_node is_hlist_arm;
+	struct hlist_node is_hlist_thumb;
+#else /* CONFIG_ARM */
 	struct hlist_node is_hlist;
+#endif /* CONFIG_ARM */
 
 	/* list of kprobes for multi-handler support */
 	struct list_head list;
@@ -219,7 +224,12 @@ extern void kprobes_inc_nmissed_count (struct kprobe *p);
 
 /* Get the kprobe at this addr (if any) - called with preemption disabled */
 struct kprobe *get_kprobe (void *addr, int pid, struct task_struct *ctask);
+#ifdef CONFIG_ARM
+struct kprobe *get_kprobe_by_insn_slot_arm(void *addr, int tgid, struct task_struct *ctask);
+struct kprobe *get_kprobe_by_insn_slot_thumb(void *addr, int tgid, struct task_struct *ctask);
+#else /* CONFIG_ARM */
 struct kprobe *get_kprobe_by_insn_slot (void *addr, int tgid, struct task_struct *ctask);
+#endif /* CONFIG_ARM */
 struct hlist_head *kretprobe_inst_table_head (void *hash_key);
 
 

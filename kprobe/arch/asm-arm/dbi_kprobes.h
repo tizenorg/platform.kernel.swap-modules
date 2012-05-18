@@ -53,11 +53,11 @@ typedef unsigned long kprobe_opcode_t;
 
 #define MAX_INSN_SIZE                   1
 
-# define UPROBES_TRAMP_LEN              8
+# define UPROBES_TRAMP_LEN              9
 # define UPROBES_TRAMP_INSN_IDX         2
 # define UPROBES_TRAMP_SS_BREAK_IDX     4
 # define UPROBES_TRAMP_RET_BREAK_IDX    5
-# define KPROBES_TRAMP_LEN              8
+# define KPROBES_TRAMP_LEN              9
 # define KPROBES_TRAMP_INSN_IDX         UPROBES_TRAMP_INSN_IDX
 # define KPROBES_TRAMP_SS_BREAK_IDX     UPROBES_TRAMP_SS_BREAK_IDX
 # define KPROBES_TRAMP_RET_BREAK_IDX	UPROBES_TRAMP_RET_BREAK_IDX
@@ -411,6 +411,8 @@ struct kprobe_ctlblk {
 struct arch_specific_insn {
 	/* copy of the original instruction */
 	kprobe_opcode_t *insn;
+	kprobe_opcode_t *insn_arm;
+	kprobe_opcode_t *insn_thumb;
 	/*
 	 * If this flag is not 0, this kprobe can be boost when its
 	 * post_handler and break_handler is not set.
