@@ -25,6 +25,8 @@
  *
  * 2010-2011    Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
  * 2012		Stanislav Andreev <s.andreev@samsung.com>: added time debug profiling support; BUG() message fix
+ * 2012		Stanislav Andreev <s.andreev@samsung.com>: redesign of kprobe functionality - 
+ *		kprobe_handler() now called via undefined instruction hooks
  */
 
 #include <linux/module.h>
