@@ -44,6 +44,10 @@
 #include <linux/time.h>
 #endif
 
+#include <asm/traps.h>
+#include <asm/ptrace.h>
+#include <linux/list.h>
+
 #define SUPRESS_BUG_MESSAGES
 
 unsigned int *arr_traps_original;
@@ -1074,11 +1078,9 @@ int kprobe_handler (struct pt_regs *regs)
 #endif
 	preempt_disable ();
 
+	addr = (kprobe_opcode_t *) (regs->uregs[15]);
 	if (user_mode(regs))
 	{
-		if (!thumb_mode ( regs )) addr = (kprobe_opcode_t *) (regs->uregs[15] - 4);
-		else addr = (kprobe_opcode_t *) (regs->uregs[15] - 2);
-
 		for(i = 0; i < my_probe; i++)
 		{
 			if (my_p[i] != -1)
@@ -1108,7 +1110,6 @@ int kprobe_handler (struct pt_regs *regs)
 						}
 						my_p[i]->ainsn.insn = my_p[i]->ainsn.insn_arm;
 					}
-
 					break;
 				}
 			}
@@ -1117,15 +1118,8 @@ int kprobe_handler (struct pt_regs *regs)
 
 	/* We're in an interrupt, but this is clear and BUG()-safe. */
 
-	if (!thumb_mode ( regs )) regs->uregs[15] -= 4;
-	else regs->uregs[15] -= 2;
-
-	addr = (kprobe_opcode_t *) regs->uregs[15];
-
 //	DBPRINTF ("KPROBE: regs->uregs[15] = 0x%lx addr = 0x%p\n", regs->uregs[15], addr);
 	//DBPRINTF("regs->uregs[14] = 0x%lx\n", regs->uregs[14]);
-
-//	preempt_disable ();
 
 	kcb = get_kprobe_ctlblk ();
 
@@ -1172,7 +1166,7 @@ int kprobe_handler (struct pt_regs *regs)
 #ifdef SUPRESS_BUG_MESSAGES
 				oops_in_progress = swap_oops_in_progress;
 #endif
-				return 1;
+				return 0;
 			}
 		}
 		else
@@ -1225,9 +1219,6 @@ int kprobe_handler (struct pt_regs *regs)
 			}
 		}
 	}
-	//if(einsn != UNDEF_INSTRUCTION) {
-//	DBPRINTF ("get_kprobe %p-%d", addr, pid);
-
 	if (!p)
 	{
 		p = get_kprobe (addr, pid, current);
@@ -1307,7 +1298,7 @@ int kprobe_handler (struct pt_regs *regs)
 #ifdef SUPRESS_BUG_MESSAGES
 		oops_in_progress = swap_oops_in_progress;
 #endif
-		return 1;
+		return 0;
 	}
 	DBPRINTF ("p->pre_handler 0");
 
@@ -1322,7 +1313,8 @@ no_kprobe:
 #ifdef SUPRESS_BUG_MESSAGES
 	oops_in_progress = swap_oops_in_progress;
 #endif
-	return ret;
+	printk("no_kprobe\n");
+	return 1;		// return with death
 }
 
 
@@ -1710,6 +1702,30 @@ typedef unsigned long (* in_gate_area_fp_t)(unsigned long);
 in_gate_area_fp_t in_gate_area_fp;
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
+#define KPROBE_BREAKPOINT_INSTRUCTION	0xffffdeff
+#define MODE_MASK			0x0000001f
+
+void (* do_kpro)(struct undef_hook *);
+void (* undo_kpro)(struct undef_hook *);
+
+int undef_print(void);
+
+struct undef_hook undef_ho_k = {
+    .instr_mask	= 0xffffffff,
+    .instr_val	= KPROBE_BREAKPOINT_INSTRUCTION,
+    .cpsr_mask	= MODE_MASK,
+    .cpsr_val	= SVC_MODE,
+    .fn		= kprobe_handler,
+};
+
+struct undef_hook undef_ho_u = {
+    .instr_mask	= 0xffffffff,
+    .instr_val	= KPROBE_BREAKPOINT_INSTRUCTION,
+    .cpsr_mask	= MODE_MASK,
+    .cpsr_val	= USR_MODE,
+    .fn		= kprobe_handler,
+};
+
 int __init arch_init_kprobes (void)
 {
 	unsigned int do_bp_handler;
@@ -1752,8 +1768,11 @@ int __init arch_init_kprobes (void)
 	arr_traps_template[NOTIFIER_CALL_CHAIN_INDEX] = arch_construct_brunch ((unsigned int)kprobe_handler, do_bp_handler + NOTIFIER_CALL_CHAIN_INDEX * 4, 1);
 
 	// Insert new code
-	memcpy ((void *) do_bp_handler, arr_traps_template, code_size);
-	flush_icache_range (do_bp_handler, do_bp_handler + code_size);
+	do_kpro = kallsyms_search ("register_undef_hook");
+	undo_kpro = kallsyms_search ("unregister_undef_hook");
+	do_kpro(&undef_ho_k);
+	do_kpro(&undef_ho_u);
+
 	if((ret = dbi_register_kprobe (&trampoline_p, 0)) != 0){
 		//dbi_unregister_jprobe(&do_exit_p, 0);
 		return ret;
