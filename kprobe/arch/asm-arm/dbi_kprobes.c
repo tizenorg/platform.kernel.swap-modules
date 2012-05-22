@@ -52,8 +52,6 @@
 
 #define SUPRESS_BUG_MESSAGES
 
-unsigned int *arr_traps_original;
-
 extern unsigned int *sched_addr;
 extern unsigned int *fork_addr;
 
@@ -1704,17 +1702,12 @@ typedef unsigned long (* in_gate_area_fp_t)(unsigned long);
 in_gate_area_fp_t in_gate_area_fp;
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
-#define KPROBE_BREAKPOINT_INSTRUCTION	0xffffdeff
-#define MODE_MASK			0x0000001f
-
 void (* do_kpro)(struct undef_hook *);
 void (* undo_kpro)(struct undef_hook *);
 
-int undef_print(void);
-
 struct undef_hook undef_ho_k = {
     .instr_mask	= 0xffffffff,
-    .instr_val	= KPROBE_BREAKPOINT_INSTRUCTION,
+    .instr_val	= BREAKPOINT_INSTRUCTION,
     .cpsr_mask	= MODE_MASK,
     .cpsr_val	= SVC_MODE,
     .fn		= kprobe_handler,
@@ -1722,7 +1715,7 @@ struct undef_hook undef_ho_k = {
 
 struct undef_hook undef_ho_u = {
     .instr_mask	= 0xffffffff,
-    .instr_val	= KPROBE_BREAKPOINT_INSTRUCTION,
+    .instr_val	= BREAKPOINT_INSTRUCTION,
     .cpsr_mask	= MODE_MASK,
     .cpsr_val	= USR_MODE,
     .fn		= kprobe_handler,
@@ -1730,12 +1723,7 @@ struct undef_hook undef_ho_u = {
 
 int __init arch_init_kprobes (void)
 {
-	unsigned int do_bp_handler;
-	unsigned int kprobe_handler_addr;
-
-	unsigned int insns_num = 0;
-	unsigned int code_size = 0;
-
+	unsigned int do_bp_handler = 0;
 	int ret = 0;
 
 	if (arch_init_module_dependencies())
@@ -1753,58 +1741,37 @@ int __init arch_init_kprobes (void)
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 	do_bp_handler = (unsigned int) kallsyms_search ("do_undefinstr");
-
-	kprobe_handler_addr = (unsigned int) &kprobe_handler;
-	insns_num = sizeof (arr_traps_template) / sizeof (arr_traps_template[0]);
-	code_size = insns_num * sizeof (unsigned int);
-	DBPRINTF ("insns_num = %d\n", insns_num);
-	// Save original code
-	arr_traps_original = kmalloc (code_size, GFP_KERNEL);
-	if (!arr_traps_original)
-	{
-		DBPRINTF ("Unable to allocate space for original code of <do_bp>!\n");
-		return -1;
-	}
-	memcpy (arr_traps_original, (void *) do_bp_handler, code_size);
-
+	if (do_bp_handler == 0) {
+		DBPRINTF("no do_undefinstr symbol found!");
+                return -1;
+        }
 	arr_traps_template[NOTIFIER_CALL_CHAIN_INDEX] = arch_construct_brunch ((unsigned int)kprobe_handler, do_bp_handler + NOTIFIER_CALL_CHAIN_INDEX * 4, 1);
-
-	// Insert new code
+	// Register hooks (kprobe_handler)
 	do_kpro = kallsyms_search ("register_undef_hook");
-	undo_kpro = kallsyms_search ("unregister_undef_hook");
+	if (do_kpro == 0) {
+		DBPRINTF("no register_undef_hook symbol found!");
+                return -1;
+        }
 	do_kpro(&undef_ho_k);
 	do_kpro(&undef_ho_u);
-
-	if((ret = dbi_register_kprobe (&trampoline_p, 0)) != 0){
+	if ((ret = dbi_register_kprobe (&trampoline_p, 0)) != 0) {
 		//dbi_unregister_jprobe(&do_exit_p, 0);
 		return ret;
 	}
-
 	return ret;
 }
 
 void __exit dbi_arch_exit_kprobes (void)
 {
-	unsigned int do_bp_handler;
-
-	unsigned int insns_num = 0;
-	unsigned int code_size = 0;
-
-	// Get instruction address  
-	do_bp_handler = (unsigned int) kallsyms_search ("do_undefinstr");
-
-	//dbi_unregister_jprobe(&do_exit_p, 0);
-
-	// Replace back the original code
-
-	insns_num = sizeof (arr_traps_template) / sizeof (arr_traps_template[0]);
-	code_size = insns_num * sizeof (unsigned int);
-	memcpy ((void *) do_bp_handler, arr_traps_original, code_size);
-	flush_icache_range (do_bp_handler, do_bp_handler + code_size);
-	kfree (arr_traps_original);
-	arr_traps_original = NULL;
+	// Unregister hooks (kprobe_handler)
+	undo_kpro = kallsyms_search ("unregister_undef_hook");
+	if (undo_kpro == 0) {
+		DBPRINTF("no unregister_undef_hook symbol found!");
+                return -1;
+        }
+	undo_kpro(&undef_ho_u);
+	undo_kpro(&undef_ho_k);
 }
-
 
 //EXPORT_SYMBOL_GPL (dbi_arch_uprobe_return);
 //EXPORT_SYMBOL_GPL (dbi_arch_exit_kprobes);
