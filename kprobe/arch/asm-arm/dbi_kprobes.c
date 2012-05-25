@@ -1100,7 +1100,6 @@ int kprobe_handler (struct pt_regs *regs)
 						{
 							kp->ainsn.insn = my_p[i]->ainsn.insn_thumb;
 						}
-						my_p[i]->ainsn.insn = my_p[i]->ainsn.insn_thumb;
 					}else{
 						my_p[i]->ainsn.insn = my_p[i]->ainsn.insn_arm;
 						struct kprobe *kp;
@@ -1108,7 +1107,6 @@ int kprobe_handler (struct pt_regs *regs)
 						{
 							kp->ainsn.insn = my_p[i]->ainsn.insn_arm;
 						}
-						my_p[i]->ainsn.insn = my_p[i]->ainsn.insn_arm;
 					}
 					break;
 				}
