@@ -429,6 +429,4 @@ typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned
 
 void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp);
 
-void arch_arm_reinit();
-
 #endif /* _DBI_ASM_ARM_KPROBES_H */

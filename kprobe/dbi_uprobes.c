@@ -329,10 +329,6 @@ void dbi_unregister_all_uprobes (struct task_struct *task, int atomic)
 		}
 	}
 	purge_garbage_uslots(task, atomic);
-
-#if defined(CONFIG_ARM)
-	arch_arm_reinit();
-#endif
 }
 
 void init_uprobes_insn_slots(int i) 

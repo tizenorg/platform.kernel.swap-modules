@@ -27,6 +27,7 @@
  * 2012		Stanislav Andreev <s.andreev@samsung.com>: added time debug profiling support; BUG() message fix
  * 2012		Stanislav Andreev <s.andreev@samsung.com>: redesign of kprobe functionality - 
  *		kprobe_handler() now called via undefined instruction hooks
+ * 2012		Stanislav Andreev <s.andreev@samsung.com>: hash tables search implemented for uprobes
  */
 
 #include <linux/module.h>
@@ -49,6 +50,7 @@
 #include <asm/traps.h>
 #include <asm/ptrace.h>
 #include <linux/list.h>
+#include <linux/hash.h>
 
 #define SUPRESS_BUG_MESSAGES
 
@@ -68,6 +70,8 @@ extern struct kprobe *kprobe_running (void);
 extern struct kprobe_ctlblk *get_kprobe_ctlblk (void);
 extern void reset_current_kprobe (void);
 extern struct kprobe * current_kprobe;
+
+extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 
 #ifdef OVERHEAD_DEBUG
 unsigned long swap_sum_time = 0;
@@ -93,19 +97,6 @@ struct kprobe trampoline_p =
 	.addr = (kprobe_opcode_t *) & kretprobe_trampoline,
 	.pre_handler = trampoline_probe_handler
 };
-
-
-static struct kprobe *my_p[0xffff];
-static struct task_struct *my_task[0xffff];
-static int my_atomic[0xffff];
-static int my_probe = 0;
-
-
-void arch_arm_reinit()
-{
-	my_probe = 0;
-}
-
 
 // is instruction Thumb2 and NOT a branch, etc...
 int isThumb2(kprobe_opcode_t insn)
@@ -694,13 +685,6 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 		}
 
 		p->ainsn.boostable = 1;
-
-		my_p[my_probe] = p;
-		my_task[my_probe] = task;
-		my_atomic[my_probe] = atomic;
-
-		my_probe++;
-
 	}
 	return ret;
 }
@@ -1066,6 +1050,10 @@ int kprobe_handler (struct pt_regs *regs)
 #ifdef SUPRESS_BUG_MESSAGES
 	int swap_oops_in_progress;
 #endif
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct kprobe *pop, *retVal = NULL;
+
 
 #ifdef SUPRESS_BUG_MESSAGES
 	// oops_in_progress used to avoid BUG() messages that slow down kprobe_handler() execution
@@ -1079,39 +1067,38 @@ int kprobe_handler (struct pt_regs *regs)
 	preempt_disable ();
 
 	addr = (kprobe_opcode_t *) (regs->uregs[15]);
+
 	if (user_mode(regs))
 	{
-		for(i = 0; i < my_probe; i++)
-		{
-			if (my_p[i] != -1)
-			{
-				/*
-				 * Searching occurred probe by
-				 * instruction address and task_struct
-				 */
-				if (my_p[i]->addr == addr &&
-				    my_task[i]->tgid == current->tgid)
-				{
-					if (thumb_mode(regs))
-					{
-						my_p[i]->ainsn.insn = my_p[i]->ainsn.insn_thumb;
-						struct kprobe *kp;
-						list_for_each_entry_rcu (kp, &my_p[i]->list, list)
-						{
-							kp->ainsn.insn = my_p[i]->ainsn.insn_thumb;
-						}
-					}else{
-						my_p[i]->ainsn.insn = my_p[i]->ainsn.insn_arm;
-						struct kprobe *kp;
-						list_for_each_entry_rcu (kp, &my_p[i]->list, list)
-						{
-							kp->ainsn.insn = my_p[i]->ainsn.insn_arm;
-						}
-					}
-					break;
+		head = &kprobe_table[hash_ptr (addr, KPROBE_HASH_BITS)];
+		hlist_for_each_entry_rcu (pop, node, head, hlist) {
+			/*
+			 * Searching occurred probe by
+			 * instruction address and task_struct
+			 */
+			if (pop->addr == addr) {
+				if (pop->tgid == current->tgid) {
+				    retVal = pop;
+				    break;
 				}
 			}
 		}
+	}
+	if (retVal) {
+	    if (thumb_mode(regs)) {
+		pop->ainsn.insn = pop->ainsn.insn_thumb;
+		struct kprobe *kp;
+		list_for_each_entry_rcu (kp, &pop->list, list) {
+		    kp->ainsn.insn = pop->ainsn.insn_thumb;
+		}
+	    }
+	    else {
+		pop->ainsn.insn = pop->ainsn.insn_arm;
+		struct kprobe *kp;
+		list_for_each_entry_rcu (kp, &pop->list, list) {
+		    kp->ainsn.insn = pop->ainsn.insn_arm;
+		}
+	    }
 	}
 
 	/* We're in an interrupt, but this is clear and BUG()-safe. */
