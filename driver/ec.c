@@ -129,7 +129,22 @@ int SetECMode(unsigned long nECMode) {
 	return 0;
 }
 
-unsigned long GetECMode(void) { return ec_info.m_nMode; }
+unsigned long GetECMode(void)
+{
+	unsigned long ec_mode;
+	unsigned long spinlock_flags = 0L;
+
+	spin_lock_irqsave(&ec_spinlock, spinlock_flags);
+	ec_mode = ec_info.m_nMode;
+	spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
+
+	return ec_mode;
+}
+
+int is_java_inst_enabled(void)
+{
+	return !!(GetECMode() & MODEMASK_JAVA_INST);
+}
 
 unsigned int GetNumOfSubbuffers(unsigned long nBufferSize)
 {

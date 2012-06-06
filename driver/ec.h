@@ -44,6 +44,7 @@ extern int IsMultipleBuffer(void);
 extern int IsContinuousRetrieval(void);
 extern int SetECMode(unsigned long nECMode);
 extern unsigned long GetECMode(void);
+extern int is_java_inst_enabled(void);
 extern unsigned int GetNumOfSubbuffers(unsigned long nBufferSize);
 extern struct timeval last_attach_time;
 extern int paused;

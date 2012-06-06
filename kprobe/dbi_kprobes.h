@@ -165,14 +165,17 @@ typedef unsigned long (*kprobe_pre_entry_handler_t) (void *priv_arg, struct pt_r
 struct jprobe
 {
 	struct kprobe kp;
-	kprobe_opcode_t *entry;	/* probe handling code to jump to */
-	kprobe_pre_entry_handler_t pre_entry;	/*handler whichw willb bec called before 'entry' */
+	// probe handling code to jump to
+	kprobe_opcode_t *entry;
+	// handler whichw willb bec called before 'entry'
+	kprobe_pre_entry_handler_t pre_entry;
 	void *priv_arg;
 };
 
 struct jprobe_instance
 {
-	struct hlist_node uflist;	/* either on free list or used list */
+	// either on free list or used list
+	struct hlist_node uflist;
 	struct hlist_node hlist;
 	struct jprobe *jp;
 	struct task_struct *task;
@@ -206,7 +209,8 @@ struct kretprobe
 
 struct kretprobe_instance
 {
-	struct hlist_node uflist;	/* either on free list or used list */
+	// either on free list or used list
+	struct hlist_node uflist;
 	struct hlist_node hlist;
 	struct kretprobe *rp;
 	kprobe_opcode_t *ret_addr;
@@ -218,7 +222,12 @@ struct kretprobe_instance
 extern void show_registers (struct pt_regs *regs);
 extern void kprobes_inc_nmissed_count (struct kprobe *p);
 
-#define KPROBE_HASH_BITS 6
+//
+// Large value for fast but memory consuming implementation
+// it is good when a lot of probes are instrumented
+//
+//#define KPROBE_HASH_BITS 6
+#define KPROBE_HASH_BITS 16
 #define KPROBE_TABLE_SIZE (1 << KPROBE_HASH_BITS)
 
 
