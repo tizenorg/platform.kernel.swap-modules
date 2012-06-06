@@ -63,30 +63,30 @@ struct us_proc_ip_t;
 
 /* Returns stack_size */
 static unsigned long get_stack_size(struct task_struct *task,
-        struct pt_regs *regs);
+		struct pt_regs *regs);
 
 /* Copies stack (or part of the stack) to the buffer */
 static unsigned long get_stack(struct task_struct *task, struct pt_regs *regs,
-        char *buf, unsigned long sz);
+		char *buf, unsigned long sz);
 
 /* Dumps given buffer to the trace */
 static int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
-        unsigned long sz);
+		unsigned long sz);
 
 /* Dumps stack to the trace */
 static int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
-        void *addr, struct pt_regs *regs, unsigned long sz);
+		void *addr, struct pt_regs *regs, unsigned long sz);
 
 /* Gets current function return address */
 static void *get_ret_addr(struct task_struct *task, us_proc_ip_t *ip,
-        struct pt_regs *regs);
+		struct pt_regs *regs);
 
 #define user_backtrace(size) \
-    do { \
-        us_proc_ip_t *ip = __get_cpu_var(gpCurIp); \
-        struct pt_regs *regs = __get_cpu_var(gpUserRegs); \
-        dump_backtrace(US_PROBE_ID, current, ip->jprobe.kp.addr, regs, size); \
-    } while (0)
+	do { \
+		us_proc_ip_t *ip = __get_cpu_var(gpCurIp); \
+		struct pt_regs *regs = __get_cpu_var(gpUserRegs); \
+		dump_backtrace(US_PROBE_ID, current, ip->jprobe.kp.addr, regs, size); \
+	} while (0)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

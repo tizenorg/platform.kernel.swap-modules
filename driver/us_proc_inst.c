@@ -58,8 +58,11 @@ LIST_HEAD(task_inst_info_list);
 
 #ifdef SLP_APP
 unsigned long slp_app_vma_start = 0;
+EXPORT_SYMBOL_GPL(slp_app_vma_start);
 unsigned long slp_app_vma_end = 0;
+EXPORT_SYMBOL_GPL(slp_app_vma_end);
 struct dentry *launchpad_daemon_dentry = NULL;
+EXPORT_SYMBOL_GPL(launchpad_daemon_dentry);
 #endif /* SLP_APP */
 
 #ifdef ANDROID_APP
@@ -1454,104 +1457,104 @@ static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int 
 }
 
 static unsigned long get_stack_size(struct task_struct *task,
-        struct pt_regs *regs)
+		struct pt_regs *regs)
 {
 #ifdef CONFIG_ADD_THREAD_STACK_INFO
-    return (task->stack_start - regs->ARM_sp);
+	return (task->stack_start - regs->ARM_sp);
 #else
-    struct vm_area_struct *vma = NULL;
-    struct mm_struct *mm = NULL;
-    unsigned long result = 0;
+	struct vm_area_struct *vma = NULL;
+	struct mm_struct *mm = NULL;
+	unsigned long result = 0;
+    int atomic = in_atomic();
 
-    mm = get_task_mm(task);
+	mm = (atomic ? task->active_mm: get_task_mm(task));
 
-    if (mm) {
-        down_read(&mm->mmap_sem);
-        vma = find_vma(mm, regs->ARM_sp);
+	if (mm) {
+		if (!atomic)
+			down_read(&mm->mmap_sem);
 
-        if (vma) {
-            result = vma->vm_end - regs->ARM_sp;
-        } else {
-            result = 0;
-        }
+		vma = find_vma(mm, regs->ARM_sp);
 
-        up_read(&mm->mmap_sem);
-        mmput(mm);
-    }
+		if (vma)
+			result = vma->vm_end - regs->ARM_sp;
+		else
+			result = 0;
 
-    return result;
+		if (!atomic) {
+			up_read(&mm->mmap_sem);
+			mmput(mm);
+		}
+	}
+
+	return result;
 #endif
 }
 EXPORT_SYMBOL_GPL(get_stack_size);
 
 static unsigned long get_stack(struct task_struct *task, struct pt_regs *regs,
-        char *buf, unsigned long sz)
+		char *buf, unsigned long sz)
 {
-    unsigned long stack_sz = get_stack_size(task, regs);
-    unsigned long real_sz = (stack_sz > sz ? sz: stack_sz);
-
-    copy_from_user(buf, (__user void *)regs->ARM_sp, real_sz);
-
-    return real_sz;
+	unsigned long stack_sz = get_stack_size(task, regs);
+	unsigned long real_sz = (stack_sz > sz ? sz: stack_sz);
+	int res = read_proc_vm_atomic(task, regs->ARM_sp, buf, real_sz);
+	return res;
 }
 EXPORT_SYMBOL_GPL(get_stack);
 
 static int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
-        unsigned long sz)
+		unsigned long sz)
 {
-    unsigned long rest_sz = sz;
-    char *data = buf;
+	unsigned long rest_sz = sz;
+	char *data = buf;
 
-    while (rest_sz >= EVENT_MAX_SIZE) {
-        pack_event_info(probe_id, RECORD_ENTRY, "pa",
-                addr, EVENT_MAX_SIZE, data);
-        rest_sz -= EVENT_MAX_SIZE;
-        data += EVENT_MAX_SIZE;
-    }
+	while (rest_sz >= EVENT_MAX_SIZE) {
+		pack_event_info(probe_id, RECORD_ENTRY, "pa",
+				addr, EVENT_MAX_SIZE, data);
+		rest_sz -= EVENT_MAX_SIZE;
+		data += EVENT_MAX_SIZE;
+	}
 
-    if (rest_sz > 0) {
-        pack_event_info(probe_id, RECORD_ENTRY, "pa", addr, rest_sz, data);
-    }
+	if (rest_sz > 0)
+		pack_event_info(probe_id, RECORD_ENTRY, "pa", addr, rest_sz, data);
 
-    return 0;
+	return 0;
 }
 EXPORT_SYMBOL_GPL(dump_to_trace);
 
 static int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
-        void *addr, struct pt_regs *regs, unsigned long sz)
+		void *addr, struct pt_regs *regs, unsigned long sz)
 {
-    unsigned long real_sz = 0;
-    char *buf = NULL;
+	unsigned long real_sz = 0;
+	char *buf = NULL;
 
-    buf = (char *)kmalloc(sz, GFP_KERNEL);
+	buf = (char *)kmalloc(sz, GFP_KERNEL);
 
-    if (buf != NULL) {
-        real_sz = get_stack(task, regs, buf, sz);
-        dump_to_trace(probe_id, addr, buf, real_sz);
-        kfree(buf);
-        return 0;
-    } else {
-        return -1;
-    }
+	if (buf != NULL) {
+		real_sz = get_stack(task, regs, buf, sz);
+		if (real_sz > 0)
+			dump_to_trace(probe_id, addr, buf, real_sz);
+		kfree(buf);
+		return 0;
+	} else {
+		return -1;
+	}
 }
 EXPORT_SYMBOL_GPL(dump_backtrace);
 
 static void *get_ret_addr(struct task_struct *task, us_proc_ip_t *ip,
-        struct pt_regs *regs)
+		struct pt_regs *regs)
 {
-    unsigned long retaddr = 0;
-    struct hlist_node *item, *tmp_node;
-    struct kretprobe_instance *ri;
+	unsigned long retaddr = 0;
+	struct hlist_node *item, *tmp_node;
+	struct kretprobe_instance *ri;
 
-    hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances)
-    {
-        ri = hlist_entry (item, struct kretprobe_instance, uflist);
+	hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances) {
+		ri = hlist_entry (item, struct kretprobe_instance, uflist);
 
-        if (ri->task->pid == current->pid) {
-            retaddr = (unsigned long)ri->ret_addr;
-        }
-    }
+		if (ri->task->pid == current->pid)
+			retaddr = (unsigned long)ri->ret_addr;
+	}
 
-    return ((void *)retaddr);
+	return ((void *)retaddr);
 }
 EXPORT_SYMBOL_GPL(get_ret_addr);
