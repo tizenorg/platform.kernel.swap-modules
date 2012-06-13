@@ -50,6 +50,9 @@ if [ ! -c /dev/${DEVICE_FILE} ] ; then
 	    exit
 	fi
 	chmod a+r /dev/${DEVICE_FILE}
+else
+	# stat is better, but DTV doesn't have stat
+	DEFAULT_MAJOR=`ls -l /dev/swap_drv | awk '{sub(/,/,"",$5); print $5}'`
 fi
 
 # load driver module
