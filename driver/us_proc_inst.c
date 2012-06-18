@@ -1540,9 +1540,7 @@ int handle_java_event(unsigned long addr)
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6)
 {
 	us_proc_ip_t *ip = __get_cpu_var (gpCurIp);
-	struct pt_regs *regs = __get_cpu_var(gpUserRegs);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
-	void *retaddr = get_ret_addr(current, ip, regs);
 
 #ifdef SLP_APP
 	if (ip->jprobe.kp.addr >= slp_app_vma_start &&
@@ -1561,12 +1559,12 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 #if defined(CONFIG_ARM)
 	if (ip->offset & 0x01)
 	{
-		pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppp", addr | 0x01, retaddr, regs->ARM_lr);
+		pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", addr | 0x01, arg1, arg2, arg3, arg4, arg5, arg6);
 	}else{
-		pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppp", addr, retaddr, regs->ARM_lr);
+		pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", addr, arg1, arg2, arg3, arg4, arg5, arg6);
 	}
 #else
-	pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppp", addr, retaddr, regs->ARM_lr);
+	pack_event_info (US_PROBE_ID, RECORD_ENTRY, "ppppppp", addr, arg1, arg2, arg3, arg4, arg5, arg6);
 #endif
 	// Mr_Nobody: uncomment for valencia
 	//unregister_usprobe(current, ip, 1);
@@ -1577,7 +1575,6 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 {
 	int retval = regs_return_value(regs);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
-	void *retaddr = get_ret_addr(current, ip, regs);
 
 #ifdef SLP_APP
 	if (ip->jprobe.kp.addr >= slp_app_vma_start &&
@@ -1589,12 +1586,12 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 #if defined(CONFIG_ARM)
 	if (ip->offset & 0x01)
 	{
-		pack_event_info (US_PROBE_ID, RECORD_RET, "pdpp", addr | 0x01, retval, retaddr, regs->ARM_lr);
+		pack_event_info (US_PROBE_ID, RECORD_RET, "pd", addr | 0x01, retval);
 	}else{
-		pack_event_info (US_PROBE_ID, RECORD_RET, "pdpp", addr, retval, retaddr, regs->ARM_lr);
+		pack_event_info (US_PROBE_ID, RECORD_RET, "pd", addr, retval);
 	}
 #else
-	pack_event_info (US_PROBE_ID, RECORD_RET, "pdpp", addr, retval, retaddr, regs->ARM_lr);
+	pack_event_info (US_PROBE_ID, RECORD_RET, "pd", addr, retval);
 #endif
 	// Mr_Nobody: uncomment for valencia
 	//unregister_usprobe(current, ip, 1);
