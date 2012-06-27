@@ -72,6 +72,7 @@ typedef union tagArgValueType
 #include <linux/types.h>
 #else
 #include <sys/types.h>
+#include <stdint.h>
 #endif
 
 struct common_timeval {
