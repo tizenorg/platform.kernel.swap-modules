@@ -53,7 +53,8 @@ probes_manager_init (void)
 	spin_lock_init(&ec_probe_spinlock);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 #ifdef CONFIG_X86
-	pf_addr = lookup_name("handle_mm_fault");
+	//pf_addr = lookup_name("handle_mm_fault");
+	pf_addr = lookup_name("do_page_fault");
 #else
 	pf_addr = lookup_name("do_page_fault");
 #endif

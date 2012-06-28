@@ -129,7 +129,7 @@ IMP_MOD_DEP_WRAPPER (get_gate_vma, tsk)
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 #ifdef CONFIG_HUGETLB_PAGE
-	DECLARE_MOD_DEP_WRAPPER (follow_hugetlb_page, int, struct mm_struct *mm, struct vm_area_struct *vma, struct page **pages, struct vm_area_struct **vmas, unsigned long *position, int *length, int i, int write)
+	DECLARE_MOD_DEP_WRAPPER (follow_hugetlb_page, int, struct mm_struct *mm, struct vm_area_struct *vma, struct page **pages, struct vm_area_struct **vmas, unsigned long *position, int *length, int i, unsigned int write)
 	IMP_MOD_DEP_WRAPPER (follow_hugetlb_page, mm, vma, pages, vmas, position, length, i, write)
 #endif
 

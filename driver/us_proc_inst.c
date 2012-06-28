@@ -33,6 +33,14 @@ DEFINE_PER_CPU (struct pt_regs *, gpCurVtpRegs) = NULL;
 #	warning ARCH_REG_VAL is not implemented for this architecture. FBI will work improperly or even crash!!!
 #endif // ARCH
 
+#if defined(CONFIG_ARM)
+#define SP(regs) (regs)->ARM_sp
+#elif defined(CONFIG_X86)
+#define SP(regs) (regs)->EREG(sp)
+#else
+#error SP(regs) is not implemented
+#endif /* CONFIG_* */
+
 unsigned long (*dbi_ujprobe_event_pre_handler_custom_p)
 (us_proc_ip_t *, struct pt_regs *) = NULL;
 EXPORT_SYMBOL(dbi_ujprobe_event_pre_handler_custom_p);
@@ -1667,7 +1675,7 @@ static unsigned long get_stack_size(struct task_struct *task,
 		struct pt_regs *regs)
 {
 #ifdef CONFIG_ADD_THREAD_STACK_INFO
-	return (task->stack_start - regs->ARM_sp);
+	return (task->stack_start - SP(regs));
 #else
 	struct vm_area_struct *vma = NULL;
 	struct mm_struct *mm = NULL;
@@ -1680,10 +1688,10 @@ static unsigned long get_stack_size(struct task_struct *task,
 		if (!atomic)
 			down_read(&mm->mmap_sem);
 
-		vma = find_vma(mm, regs->ARM_sp);
+		vma = find_vma(mm, SP(regs));
 
 		if (vma)
-			result = vma->vm_end - regs->ARM_sp;
+			result = vma->vm_end - SP(regs);
 		else
 			result = 0;
 
@@ -1703,7 +1711,7 @@ static unsigned long get_stack(struct task_struct *task, struct pt_regs *regs,
 {
 	unsigned long stack_sz = get_stack_size(task, regs);
 	unsigned long real_sz = (stack_sz > sz ? sz: stack_sz);
-	int res = read_proc_vm_atomic(task, regs->ARM_sp, buf, real_sz);
+	int res = read_proc_vm_atomic(task, SP(regs), buf, real_sz);
 	return res;
 }
 EXPORT_SYMBOL_GPL(get_stack);
