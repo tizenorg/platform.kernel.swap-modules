@@ -72,21 +72,22 @@ typedef union tagArgValueType
 #include <linux/types.h>
 #else
 #include <sys/types.h>
+#include <stdint.h>
 #endif
 
 struct common_timeval {
-	u_int32_t tv_sec;
-	u_int32_t tv_usec;
+	uint32_t tv_sec;
+	uint32_t tv_usec;
 };
 
-typedef u_int32_t TYPEOF_EVENT_LENGTH;
-typedef u_int32_t TYPEOF_EVENT_TYPE;
-typedef u_int32_t TYPEOF_PROBE_ID;
+typedef uint32_t TYPEOF_EVENT_LENGTH;
+typedef uint32_t TYPEOF_EVENT_TYPE;
+typedef uint32_t TYPEOF_PROBE_ID;
 typedef struct common_timeval TYPEOF_TIME;
-typedef u_int32_t TYPEOF_PROCESS_ID;
-typedef u_int32_t TYPEOF_THREAD_ID;
-typedef u_int32_t TYPEOF_CPU_NUMBER;
-typedef u_int32_t TYPEOF_NUMBER_OF_ARGS;
+typedef uint32_t TYPEOF_PROCESS_ID;
+typedef uint32_t TYPEOF_THREAD_ID;
+typedef uint32_t TYPEOF_CPU_NUMBER;
+typedef uint32_t TYPEOF_NUMBER_OF_ARGS;
 
 typedef struct tagEventHeader
 {

@@ -1759,7 +1759,7 @@ EXPORT_SYMBOL_GPL(dump_backtrace);
 static void *get_ret_addr(struct task_struct *task, us_proc_ip_t *ip,
 		struct pt_regs *regs)
 {
-	unsigned long retaddr = 0;
+	/*unsigned long retaddr = 0;
 	struct hlist_node *item, *tmp_node;
 	struct kretprobe_instance *ri;
 
@@ -1770,6 +1770,7 @@ static void *get_ret_addr(struct task_struct *task, us_proc_ip_t *ip,
 			retaddr = (unsigned long)ri->ret_addr;
 	}
 
-	return ((void *)retaddr);
+	return ((void *)retaddr);*/
+	return regs->ARM_lr;
 }
 EXPORT_SYMBOL_GPL(get_ret_addr);
