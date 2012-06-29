@@ -143,32 +143,40 @@ static char *PackArguments (char *pBuffer, unsigned long nLen, const char *szFor
 			}
 			break;
 		case AT_STRING:
-			{
-				const char *s = va_arg (args, const char *);
-				int nLengthOfString = 0, nSizeOfString;
-#ifdef __KERNEL__
-				if((void *)s < (void *)TASK_SIZE) {
-					nLengthOfString = strlen_user (s);
-					if(nFree < nLengthOfString)
-						return NULL; // no space for arg
-					if(strncpy_from_user(pResult, s, nLengthOfString) != (nLengthOfString-1))
-						EPRINTF ("failed to copy string from user %p, bytes %d", s, nLengthOfString);
-				}
-				else
-#endif
-				{
-					nLengthOfString = strlen (s) + 1;
-					if(nFree < nLengthOfString)
-						return NULL; // no space for arg
-					memcpy (pResult, s, nLengthOfString);
-				}
-				nSizeOfString = ALIGN_VALUE (nLengthOfString);
-				if(nFree < nSizeOfString)
-					return NULL; // no space for arg
-				pResult += nSizeOfString;
-				nFree -= nSizeOfString;
+		{
+			const char *s = va_arg (args, const char *);
+			int nLengthOfString = 0, nSizeOfString;
+			if(!s) {
+				/* If string poiner is NULL then */
+				s = "(null)";
 			}
-			break;
+#ifdef __KERNEL__
+			if((void *)s < (void *)TASK_SIZE) {
+				nLengthOfString = strlen_user (s);
+				if(nFree < nLengthOfString)
+					return NULL; // no space for arg
+				if(strncpy_from_user(pResult,
+						     s,
+						     nLengthOfString) != (nLengthOfString-1)) {
+					EPRINTF("failed to copy string from user %p, bytes %d",
+						s, nLengthOfString);
+				}
+			}
+			else
+#endif
+			{
+				nLengthOfString = strlen (s) + 1;
+				if(nFree < nLengthOfString)
+					return NULL; // no space for arg
+				memcpy (pResult, s, nLengthOfString);
+			}
+			nSizeOfString = ALIGN_VALUE (nLengthOfString);
+			if(nFree < nSizeOfString)
+				return NULL; // no space for arg
+			pResult += nSizeOfString;
+			nFree -= nSizeOfString;
+		}
+		break;
 		case AT_ARRAY:
 			{
 				int nLength = va_arg (args, int);
