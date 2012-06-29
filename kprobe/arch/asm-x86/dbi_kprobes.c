@@ -64,6 +64,7 @@
 #define SUPRESS_BUG_MESSAGES
 
 extern unsigned int *sched_addr;
+extern unsigned int *exit_addr;
 extern unsigned int *fork_addr;
 
 extern struct kprobe * per_cpu__current_kprobe;
@@ -756,20 +757,10 @@ void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 	unsigned long flags;
 	int found = 0;
 
-	/* DO NOT patch exiting tasks */
-	/*if ((p->state & TASK_DEAD) || (p->exit_state != 0) || (p->flags & PF_EXITING) || (p->flags & PF_EXITPIDONE))
-		return;*/
-	/*spin_lock_irq(&p->pi_lock);
-	if (unlikely((p->flags & PF_EXITING) || (p->flags & PF_EXITPIDONE))) {
-		spin_unlock_irq(&p->pi_lock);
-		return;
-	}
-	spin_unlock_irq(&p->pi_lock);*/
-
 	spin_lock_irqsave(&kretprobe_lock, flags);
 	head = kretprobe_inst_table_head(p);
 	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
-		if (ri->rp == rp && p == ri->task) {
+		if ((ri->rp == rp) && (p == ri->task)) {
 			found = 1;
 			break;
 		}
@@ -778,9 +769,9 @@ void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 
 	if (found) {
 		/* update PC */
-		if (p->thread.EREG(ip) != &kretprobe_trampoline) {
-			ri->ret_addr = (kprobe_opcode_t *)p->thread.EREG(ip);
-			p->thread.EREG(ip) = &kretprobe_trampoline;
+		if (p->thread.ip != &kretprobe_trampoline) {
+			ri->ret_addr = (kprobe_opcode_t *)p->thread.ip;
+			p->thread.ip = &kretprobe_trampoline;
 		}
 		return;
 	}
@@ -790,8 +781,8 @@ void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 		ri->rp = rp;
 		ri->rp2 = NULL;
 		ri->task = p;
-		ri->ret_addr = (kprobe_opcode_t *)p->thread.EREG(ip);
-		p->thread.EREG(ip) = &kretprobe_trampoline;
+		ri->ret_addr = (kprobe_opcode_t *)p->thread.ip;
+		p->thread.ip = &kretprobe_trampoline;
 		add_rp_inst(ri);
 	} else {
 		printk("no ri for %d\n", p->pid);
@@ -827,10 +818,12 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 				if(current != p)
 					patch_suspended_task_ret_addr(p, sched_rp);
 			} while_each_thread(g, p);
+			/* workaround for do_exit probe on x86 targets */
+			if ((current->flags & PF_EXITING) ||
+					(current->flags & PF_EXITPIDONE))
+				patch_suspended_task_ret_addr(current, sched_rp);
 			rcu_read_unlock();
 		}
-
-		/* TODO handle do_exit probe */
 	}
 
 	if (p->tgid) {

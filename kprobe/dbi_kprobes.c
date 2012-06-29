@@ -93,7 +93,8 @@ atomic_t kprobe_count;
 void kretprobe_assert (struct kretprobe_instance *ri, unsigned long orig_ret_address, unsigned long trampoline_address)
 {
 	if (!orig_ret_address || (orig_ret_address == trampoline_address))
-		panic ("kretprobe BUG!: Processing kretprobe %p @ %p\n", ri->rp, ri->rp->kp.addr);
+		panic ("kretprobe BUG!: Processing kretprobe %p @ %p (%d/%d - %s)\n",
+				ri->rp, ri->rp->kp.addr, ri->task->tgid, ri->task->pid, ri->task->comm);
 }
 
 
