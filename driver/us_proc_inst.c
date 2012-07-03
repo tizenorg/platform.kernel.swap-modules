@@ -1485,6 +1485,39 @@ void do_exit_probe_pre_code (void)
 }
 EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
 
+void do_fork_probe_pre_code(void)
+{
+	int ret = 0;
+	struct task_struct *task;
+	inst_us_proc_t *task_inst_info = NULL;
+
+	/* if user-space instrumentation is not set */
+	if (!us_proc_info.path) {
+	    return;
+	}
+
+	if (!strcmp(us_proc_info.path,"*")) {
+		task_inst_info = get_task_inst_node(current);
+		if (task_inst_info)  {
+			ret = uninstall_mapped_ips (current, task_inst_info, 1);
+			if (ret != 0) {
+				EPRINTF("failed to uninstall IPs (%d)!", ret);
+			}
+			dbi_unregister_all_uprobes(current, 1);
+		}
+		return;
+	} else {
+		if (current->tgid != us_proc_info.tgid) {
+			return;
+		}
+		ret = uninstall_mapped_ips(current->group_leader, &us_proc_info, 1);
+		if (ret != 0) {
+			EPRINTF("failed to uninstall IPs (%d)!", ret);
+		}
+		us_proc_info.tgid = 0;
+	}
+}
+
 DEFINE_PER_CPU (us_proc_ip_t *, gpCurIp) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpCurIp);
 DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;

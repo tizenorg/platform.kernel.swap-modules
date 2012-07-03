@@ -269,6 +269,7 @@ void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, i
 		{
 			DBPRINTF ("initiating deferred retprobe deletion addr %p", rp->kp.addr);
 			printk ("initiating deferred retprobe deletion addr %p\n", rp->kp.addr);
+			arch_disarm_uprobe(&rp->kp, task);
 			rp2->disarm = 1;
 		}
 		/*

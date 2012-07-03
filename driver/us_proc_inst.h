@@ -39,6 +39,8 @@ extern void do_page_fault_ret_pre_code (void);
 */
 extern void do_exit_probe_pre_code (void);
 
+extern void do_fork_probe_pre_code (void);
+
 /*
     Detects when target process is killed and removes IPs.
 */

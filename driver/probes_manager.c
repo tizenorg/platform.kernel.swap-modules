@@ -406,7 +406,7 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 				 * TODO: call fork specific
 				 * *_probe_pre_code() function
 				 */
-				do_exit_probe_pre_code();
+				do_fork_probe_pre_code();
 			}
 		if (!(probes_flags & PROBE_FLAG_FORK_INSTLD))
 			skip = 1;
