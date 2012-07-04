@@ -62,6 +62,82 @@ typedef unsigned long kprobe_opcode_t;
 # define KPROBES_TRAMP_SS_BREAK_IDX     UPROBES_TRAMP_SS_BREAK_IDX
 # define KPROBES_TRAMP_RET_BREAK_IDX	UPROBES_TRAMP_RET_BREAK_IDX
 
+static inline unsigned long dbi_get_stack_ptr(struct pt_regs *regs)
+{
+	return regs->ARM_sp;
+}
+
+static inline unsigned long dbi_get_instr_ptr(struct pt_regs *regs)
+{
+	return regs->ARM_pc;
+}
+
+static inline void dbi_set_instr_ptr(struct pt_regs *regs, unsigned long val)
+{
+	regs->ARM_pc = val;
+}
+
+static inline unsigned long dbi_get_ret_addr(struct pt_regs *regs)
+{
+	return regs->ARM_lr;
+}
+
+static inline unsigned long dbi_get_arg(struct pt_regs *regs, int num)
+{
+	return regs->uregs[num];
+}
+
+static inline void dbi_set_arg(struct pt_regs *regs, int num, unsigned long val)
+{
+	regs->uregs[num] = val;
+}
+
+static inline int dbi_backtrace(struct task_struct *task, unsigned long *buf,
+		int max_cnt)
+{
+	/* not implemented for ARM */
+	//return -EFAULT;
+
+	struct {
+		unsigned long next;
+		unsigned long raddr;
+	} frame;
+
+	struct pt_regs *regs = task_pt_regs(task);
+	int i = 0;
+
+	frame.next = regs->ARM_fp;
+	frame.raddr = dbi_get_ret_addr(regs);
+	buf[i++] = frame.raddr;
+
+	while (frame.next && i < max_cnt) {
+		if (read_proc_vm_atomic(task, frame.next, &frame, sizeof(frame))
+				== sizeof(frame))
+			buf[i++] = frame.raddr;
+		else
+			break;
+	}
+
+	return i;
+
+	/*struct layout {
+		void *next;
+		void *ret;
+	} frame;
+
+	int cnt = 0;
+	void *fp = regs->ARM_fp;
+
+	while (cnt < sz && fp != NULL) {
+		copy_from_user(&frame, (__user void *)(fp - 4), sizeof(frame));
+		EPRINTF("XXX fp = %p, next = %p, ret = %p", fp, frame.next, frame.ret);
+		buf[cnt++] = frame.ret;
+		fp = frame.next;
+	}
+
+	return cnt;*/
+}
+
 #define NOTIFIER_CALL_CHAIN_INDEX       3
 
 // undefined

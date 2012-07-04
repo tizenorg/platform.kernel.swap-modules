@@ -793,7 +793,6 @@ void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 
 int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs) 
 {
-//#if 0
 	struct jprobe *jp = container_of (p, struct jprobe, kp);
 	kprobe_pre_entry_handler_t pre_entry;
 	entry_point_t entry;
@@ -865,7 +864,6 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	}
 
 	return 1;
-//#endif /* 0 */
 
 #if 0 /* initial version */
 	struct jprobe *jp = container_of (p, struct jprobe, kp);

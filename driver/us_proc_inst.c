@@ -33,14 +33,6 @@ DEFINE_PER_CPU (struct pt_regs *, gpCurVtpRegs) = NULL;
 #	warning ARCH_REG_VAL is not implemented for this architecture. FBI will work improperly or even crash!!!
 #endif // ARCH
 
-#if defined(CONFIG_ARM)
-#define SP(regs) (regs)->ARM_sp
-#elif defined(CONFIG_X86)
-#define SP(regs) (regs)->EREG(sp)
-#else
-#error SP(regs) is not implemented
-#endif /* CONFIG_* */
-
 unsigned long (*dbi_ujprobe_event_pre_handler_custom_p)
 (us_proc_ip_t *, struct pt_regs *) = NULL;
 EXPORT_SYMBOL(dbi_ujprobe_event_pre_handler_custom_p);
@@ -1608,6 +1600,8 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 
 static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_proc_ip_t * ip, int atomic, kprobe_opcode_t * islot)
 {
+	printk("register_usprobe %s (%d/%d) --- %p\n",
+			task->comm, task->tgid, task->pid, ip); ////////////////////////////////
 	int ret = 0;
 	ip->jprobe.kp.tgid = task->tgid;
 	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
@@ -1671,12 +1665,12 @@ static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int 
 	return 0;
 }
 
-static unsigned long get_stack_size(struct task_struct *task,
+unsigned long get_stack_size(struct task_struct *task,
 		struct pt_regs *regs)
 {
-#ifdef CONFIG_ADD_THREAD_STACK_INFO
-	return (task->stack_start - SP(regs));
-#else
+//#ifdef CONFIG_ADD_THREAD_STACK_INFO
+	return (task->stack_start - dbi_get_stack_ptr(regs));
+//#else
 	struct vm_area_struct *vma = NULL;
 	struct mm_struct *mm = NULL;
 	unsigned long result = 0;
@@ -1688,10 +1682,10 @@ static unsigned long get_stack_size(struct task_struct *task,
 		if (!atomic)
 			down_read(&mm->mmap_sem);
 
-		vma = find_vma(mm, SP(regs));
+		vma = find_vma(mm, dbi_get_stack_ptr(regs));
 
 		if (vma)
-			result = vma->vm_end - SP(regs);
+			result = vma->vm_end - dbi_get_stack_ptr(regs);
 		else
 			result = 0;
 
@@ -1702,21 +1696,21 @@ static unsigned long get_stack_size(struct task_struct *task,
 	}
 
 	return result;
-#endif
+//#endif
 }
 EXPORT_SYMBOL_GPL(get_stack_size);
 
-static unsigned long get_stack(struct task_struct *task, struct pt_regs *regs,
+unsigned long get_stack(struct task_struct *task, struct pt_regs *regs,
 		char *buf, unsigned long sz)
 {
 	unsigned long stack_sz = get_stack_size(task, regs);
 	unsigned long real_sz = (stack_sz > sz ? sz: stack_sz);
-	int res = read_proc_vm_atomic(task, SP(regs), buf, real_sz);
+	int res = read_proc_vm_atomic(task, dbi_get_stack_ptr(regs), buf, real_sz);
 	return res;
 }
 EXPORT_SYMBOL_GPL(get_stack);
 
-static int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
+int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
 		unsigned long sz)
 {
 	unsigned long rest_sz = sz;
@@ -1736,7 +1730,7 @@ static int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
 }
 EXPORT_SYMBOL_GPL(dump_to_trace);
 
-static int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
+int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 		void *addr, struct pt_regs *regs, unsigned long sz)
 {
 	unsigned long real_sz = 0;
@@ -1756,21 +1750,30 @@ static int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 }
 EXPORT_SYMBOL_GPL(dump_backtrace);
 
-static void *get_ret_addr(struct task_struct *task, us_proc_ip_t *ip,
-		struct pt_regs *regs)
+unsigned long get_ret_addr(struct task_struct *task, us_proc_ip_t *ip)
 {
-	/*unsigned long retaddr = 0;
+	unsigned long retaddr = 0;
+	unsigned long flags = 0;
 	struct hlist_node *item, *tmp_node;
 	struct kretprobe_instance *ri;
+	extern spinlock_t kretprobe_lock;
 
-	hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances) {
-		ri = hlist_entry (item, struct kretprobe_instance, uflist);
+	if (ip) {
+		spin_lock_irqsave(&kretprobe_lock, flags);
 
-		if (ri->task->pid == current->pid)
-			retaddr = (unsigned long)ri->ret_addr;
+		hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances) {
+			ri = hlist_entry (item, struct kretprobe_instance, uflist);
+
+			if (ri->task && ri->task->pid == task->pid)
+				retaddr = (unsigned long)ri->ret_addr;
+		}
+
+		spin_unlock_irqrestore(&kretprobe_lock, flags);
 	}
 
-	return ((void *)retaddr);*/
-	return regs->ARM_lr;
+	if (retaddr)
+		return retaddr;
+	else
+		return dbi_get_ret_addr(task_pt_regs(task));
 }
 EXPORT_SYMBOL_GPL(get_ret_addr);
