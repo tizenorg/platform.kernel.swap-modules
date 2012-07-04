@@ -1600,8 +1600,6 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 
 static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_proc_ip_t * ip, int atomic, kprobe_opcode_t * islot)
 {
-	printk("register_usprobe %s (%d/%d) --- %p\n",
-			task->comm, task->tgid, task->pid, ip); ////////////////////////////////
 	int ret = 0;
 	ip->jprobe.kp.tgid = task->tgid;
 	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
@@ -1668,9 +1666,9 @@ static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int 
 unsigned long get_stack_size(struct task_struct *task,
 		struct pt_regs *regs)
 {
-//#ifdef CONFIG_ADD_THREAD_STACK_INFO
+#ifdef CONFIG_ADD_THREAD_STACK_INFO
 	return (task->stack_start - dbi_get_stack_ptr(regs));
-//#else
+#else
 	struct vm_area_struct *vma = NULL;
 	struct mm_struct *mm = NULL;
 	unsigned long result = 0;
@@ -1696,7 +1694,7 @@ unsigned long get_stack_size(struct task_struct *task,
 	}
 
 	return result;
-//#endif
+#endif
 }
 EXPORT_SYMBOL_GPL(get_stack_size);
 
@@ -1759,7 +1757,7 @@ unsigned long get_ret_addr(struct task_struct *task, us_proc_ip_t *ip)
 	extern spinlock_t kretprobe_lock;
 
 	if (ip) {
-		spin_lock_irqsave(&kretprobe_lock, flags);
+		//spin_lock_irqsave(&kretprobe_lock, flags);
 
 		hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances) {
 			ri = hlist_entry (item, struct kretprobe_instance, uflist);
@@ -1768,7 +1766,7 @@ unsigned long get_ret_addr(struct task_struct *task, us_proc_ip_t *ip)
 				retaddr = (unsigned long)ri->ret_addr;
 		}
 
-		spin_unlock_irqrestore(&kretprobe_lock, flags);
+		//spin_unlock_irqrestore(&kretprobe_lock, flags);
 	}
 
 	if (retaddr)

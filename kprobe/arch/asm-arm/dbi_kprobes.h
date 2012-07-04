@@ -29,6 +29,8 @@
  * 2010-2011    Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
  */
 
+#include <linux/sched.h>
+#include "../../dbi_kprobes_deps.h"
 #include "../dbi_kprobes.h"
 #include "dbi_kprobes_arm.h"
 #include "dbi_kprobes_thumb.h"
@@ -95,9 +97,6 @@ static inline void dbi_set_arg(struct pt_regs *regs, int num, unsigned long val)
 static inline int dbi_backtrace(struct task_struct *task, unsigned long *buf,
 		int max_cnt)
 {
-	/* not implemented for ARM */
-	//return -EFAULT;
-
 	struct {
 		unsigned long next;
 		unsigned long raddr;
@@ -106,12 +105,15 @@ static inline int dbi_backtrace(struct task_struct *task, unsigned long *buf,
 	struct pt_regs *regs = task_pt_regs(task);
 	int i = 0;
 
+	if (regs->ARM_fp == 0)
+		return -EFAULT;
+
 	frame.next = regs->ARM_fp;
 	frame.raddr = dbi_get_ret_addr(regs);
 	buf[i++] = frame.raddr;
 
 	while (frame.next && i < max_cnt) {
-		if (read_proc_vm_atomic(task, frame.next, &frame, sizeof(frame))
+		if (read_proc_vm_atomic(task, frame.next - 4, &frame, sizeof(frame))
 				== sizeof(frame))
 			buf[i++] = frame.raddr;
 		else
@@ -119,23 +121,6 @@ static inline int dbi_backtrace(struct task_struct *task, unsigned long *buf,
 	}
 
 	return i;
-
-	/*struct layout {
-		void *next;
-		void *ret;
-	} frame;
-
-	int cnt = 0;
-	void *fp = regs->ARM_fp;
-
-	while (cnt < sz && fp != NULL) {
-		copy_from_user(&frame, (__user void *)(fp - 4), sizeof(frame));
-		EPRINTF("XXX fp = %p, next = %p, ret = %p", fp, frame.next, frame.ret);
-		buf[cnt++] = frame.ret;
-		fp = frame.next;
-	}
-
-	return cnt;*/
 }
 
 #define NOTIFIER_CALL_CHAIN_INDEX       3

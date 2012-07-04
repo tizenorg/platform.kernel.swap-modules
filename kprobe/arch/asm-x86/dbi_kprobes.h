@@ -144,6 +144,10 @@ static inline int dbi_backtrace(struct task_struct *task, unsigned long *buf,
 	struct pt_regs *regs = task_pt_regs(task);
 	int i = 0;
 
+	/* no frame pointer */
+	if (regs->EREG(bp) == 0)
+		return -EFAULT;
+
 	frame.next = regs->EREG(bp);
 	frame.raddr = dbi_get_ret_addr(regs);
 	buf[i++] = frame.raddr;
