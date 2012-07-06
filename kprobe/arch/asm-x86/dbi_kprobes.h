@@ -91,6 +91,73 @@ typedef u8 kprobe_opcode_t;
 #define KPROBES_TRAMP_LEN		MAX_INSN_SIZE
 #define KPROBES_TRAMP_INSN_IDX          0
 
+static inline unsigned long dbi_get_stack_ptr(struct pt_regs *regs)
+{
+	return regs->EREG(sp);
+}
+
+static inline unsigned long dbi_get_instr_ptr(struct pt_regs *regs)
+{
+	return regs->EREG(ip);
+}
+
+static inline void dbi_set_instr_ptr(struct pt_regs *regs, unsigned long val)
+{
+	regs->EREG(ip) = val;
+}
+
+static inline unsigned long dbi_get_ret_addr(struct pt_regs *regs)
+{
+	unsigned long addr = 0;
+	read_proc_vm_atomic(current, regs->EREG(sp), &addr, sizeof(addr));
+	return addr;
+}
+
+static inline unsigned long dbi_get_arg(struct pt_regs *regs, int num)
+{
+	unsigned long arg = 0;
+	read_proc_vm_atomic(current, regs->EREG(sp) + (1 + num) * 4,
+			&arg, sizeof(arg));
+	return arg;
+}
+
+static inline void dbi_set_arg(struct pt_regs *regs, int num, unsigned long val)
+{
+	write_proc_vm_atomic(current, regs->EREG(sp) + (1 + num) * 4,
+			&val, sizeof(val));
+}
+
+static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
+		int max_cnt)
+{
+	int i = 0;
+
+	struct {
+		unsigned long next;
+		unsigned long raddr;
+	} frame;
+
+	struct pt_regs *regs = task_pt_regs(task);
+
+	/* no frame pointer */
+	if (regs->EREG(bp) == 0)
+		return -EFAULT;
+
+	frame.next = regs->EREG(bp);
+	frame.raddr = dbi_get_ret_addr(regs);
+	buf[i++] = frame.raddr;
+
+	while (frame.next && i < max_cnt) {
+		if (read_proc_vm_atomic(task, frame.next, &frame, sizeof(frame))
+				== sizeof(frame))
+			buf[i++] = frame.raddr;
+		else
+			break;
+	}
+
+	return i;
+}
+
 extern int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, void *data);
 
 static struct notifier_block kprobe_exceptions_nb = {
