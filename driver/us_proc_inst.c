@@ -1336,14 +1336,6 @@ void do_page_fault_ret_pre_code (void)
 	if (!us_proc_info.path)
 		return;
 
-	if (task->flags & PF_FORKNOEXEC)
-		/*
-		 * TODO:
-		 * Call something like do_page_fault_ret_pre_code after exec
-		 */
-		DPRINTF("ignored probe insertion during exec\n");
-		return;
-
 	if (task->flags & PF_KTHREAD) {
 		DPRINTF("ignored kernel thread %d\n", task->pid);
 		return;
@@ -1497,16 +1489,15 @@ void do_fork_probe_pre_code(void)
 	}
 
 	if (!strcmp(us_proc_info.path,"*")) {
-		task_inst_info = get_task_inst_node(current->group_leader);
-		if (!task_inst_info) {
-			return;
+		task_inst_info = get_task_inst_node(current);
+		if (task_inst_info)  {
+			ret = uninstall_mapped_ips (current, task_inst_info, 1);
+			if (ret != 0) {
+				EPRINTF("failed to uninstall IPs (%d)!", ret);
+			}
+			dbi_unregister_all_uprobes(current, 1);
 		}
-		ret = uninstall_mapped_ips(current->group_leader,
-					    task_inst_info, 1);
-		if (ret != 0) {
-			EPRINTF("failed to uninstall IPs (%d)!", ret);
-		}
-		dbi_unregister_all_uprobes(current->group_leader, 1);
+		return;
 	} else {
 		if (current->tgid != us_proc_info.tgid) {
 			return;

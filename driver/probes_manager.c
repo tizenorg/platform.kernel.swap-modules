@@ -415,12 +415,11 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 	{
 		if (us_proc_probes & US_PROC_EXEC_INSTLD)
 			/*
-			 * FIXME: This is not a good choice to call
-			 * do_fork_probe_pre_code() here.  The function should
-			 * have more common name explaining that we deinstall
-			 * all the user space instrumentation from this task.
+			 * FIXME: This is not a good choice to call do_exit_probe_pre_code()
+			 * here.  The function should have more common name explaining that
+			 * we deinstall all the user space instrumentation from this task.
 			 */
-			do_fork_probe_pre_code();
+			do_exit_probe_pre_code ();
 		if (!(probes_flags & PROBE_FLAG_EXEC_INSTLD))
 			skip = 1;
 	}
