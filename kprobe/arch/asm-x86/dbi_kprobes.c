@@ -826,7 +826,8 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	}
 
 	if (p->tgid) {
-		regs->EREG(flags) &= ~IF_MASK;
+		/* FIXME some user space apps crash if we clean interrupt bit */
+		//regs->EREG(flags) &= ~IF_MASK;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
 		trace_hardirqs_off ();
 #endif

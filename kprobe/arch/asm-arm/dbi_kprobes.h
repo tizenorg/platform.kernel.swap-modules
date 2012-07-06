@@ -94,17 +94,19 @@ static inline void dbi_set_arg(struct pt_regs *regs, int num, unsigned long val)
 	regs->uregs[num] = val;
 }
 
-static inline int dbi_backtrace(struct task_struct *task, unsigned long *buf,
+static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
 		int max_cnt)
 {
+	int i = 0;
+
 	struct {
 		unsigned long next;
 		unsigned long raddr;
 	} frame;
 
 	struct pt_regs *regs = task_pt_regs(task);
-	int i = 0;
 
+	/* no frame pointer */
 	if (regs->ARM_fp == 0)
 		return -EFAULT;
 

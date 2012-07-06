@@ -93,26 +93,22 @@ typedef u8 kprobe_opcode_t;
 
 static inline unsigned long dbi_get_stack_ptr(struct pt_regs *regs)
 {
-	regs = task_pt_regs(current);
 	return regs->EREG(sp);
 }
 
 static inline unsigned long dbi_get_instr_ptr(struct pt_regs *regs)
 {
-	regs = task_pt_regs(current);
 	return regs->EREG(ip);
 }
 
 static inline void dbi_set_instr_ptr(struct pt_regs *regs, unsigned long val)
 {
-	regs = task_pt_regs(current);
 	regs->EREG(ip) = val;
 }
 
 static inline unsigned long dbi_get_ret_addr(struct pt_regs *regs)
 {
 	unsigned long addr = 0;
-	regs = task_pt_regs(current);
 	read_proc_vm_atomic(current, regs->EREG(sp), &addr, sizeof(addr));
 	return addr;
 }
@@ -120,7 +116,6 @@ static inline unsigned long dbi_get_ret_addr(struct pt_regs *regs)
 static inline unsigned long dbi_get_arg(struct pt_regs *regs, int num)
 {
 	unsigned long arg = 0;
-	regs = task_pt_regs(current);
 	read_proc_vm_atomic(current, regs->EREG(sp) + (1 + num) * 4,
 			&arg, sizeof(arg));
 	return arg;
@@ -128,21 +123,21 @@ static inline unsigned long dbi_get_arg(struct pt_regs *regs, int num)
 
 static inline void dbi_set_arg(struct pt_regs *regs, int num, unsigned long val)
 {
-	regs = task_pt_regs(current);
 	write_proc_vm_atomic(current, regs->EREG(sp) + (1 + num) * 4,
 			&val, sizeof(val));
 }
 
-static inline int dbi_backtrace(struct task_struct *task, unsigned long *buf,
+static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
 		int max_cnt)
 {
+	int i = 0;
+
 	struct {
 		unsigned long next;
 		unsigned long raddr;
 	} frame;
 
 	struct pt_regs *regs = task_pt_regs(task);
-	int i = 0;
 
 	/* no frame pointer */
 	if (regs->EREG(bp) == 0)
