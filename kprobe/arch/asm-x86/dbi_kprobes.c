@@ -1215,6 +1215,11 @@ int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, vo
 	return ret;
 }
 
+static struct notifier_block kprobe_exceptions_nb = {
+	.notifier_call = kprobe_exceptions_notify,
+	.priority = INT_MAX
+};
+
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 {
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
