@@ -78,6 +78,10 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 	old_p = get_kprobe (p->addr, p->tgid, NULL);
 	if (old_p)
 	{
+#ifdef CONFIG_ARM
+		p->safe_arm = old_p->safe_arm;
+		p->safe_thumb = old_p->safe_thumb;
+#endif
 		ret = register_aggr_kprobe (old_p, p);
 		if (!ret) {
 			atomic_inc (&kprobe_count);
