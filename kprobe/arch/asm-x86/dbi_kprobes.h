@@ -160,11 +160,6 @@ static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
 
 extern int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, void *data);
 
-static struct notifier_block kprobe_exceptions_nb = {
-	.notifier_call = kprobe_exceptions_notify,
-	.priority = INT_MAX
-};
-
 struct prev_kprobe;
 
 /* per-cpu kprobe control block */
@@ -178,11 +173,6 @@ struct kprobe_ctlblk {
 	kprobe_opcode_t jprobes_stack[MAX_STACK_SIZE];
 };
 
-
-static void resume_execution 
-(struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb);
-
-static int post_kprobe_handler (struct pt_regs *regs);
 
 int kprobe_fault_handler (struct pt_regs *regs, int trapnr);
 

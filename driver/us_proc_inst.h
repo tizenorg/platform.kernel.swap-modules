@@ -56,8 +56,6 @@ extern pid_t gl_nNotifyTgid;
 #define US_PROC_FORK_INSTLD	0x8
 //#define US_PROC_SS_INSTLD	0x4
 
-#define MAX_STACK_SIZE 2*4096
-
 /* forward declarations */
 struct task_struct;
 struct pt_regs;
