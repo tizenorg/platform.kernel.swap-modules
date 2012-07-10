@@ -136,8 +136,10 @@ struct kprobe
 	// not supported for X86, not tested for MIPS
 	kprobe_opcode_t					*ss_addr;
 	// safe/unsafe to use probe
+#ifdef CONFIG_ARM
 	int						safe_arm;
 	int						safe_thumb;
+#endif
 };
 
 typedef unsigned long (*kprobe_pre_entry_handler_t) (void *priv_arg, struct pt_regs * regs);
