@@ -1787,19 +1787,15 @@ unsigned long get_ret_addr(struct task_struct *task, us_proc_ip_t *ip)
 	unsigned long flags = 0;
 	struct hlist_node *item, *tmp_node;
 	struct kretprobe_instance *ri;
-	extern spinlock_t kretprobe_lock;
 
 	if (ip) {
-		//spin_lock_irqsave(&kretprobe_lock, flags);
-
 		hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances) {
 			ri = hlist_entry (item, struct kretprobe_instance, uflist);
 
-			if (ri->task && ri->task->pid == task->pid)
+			if (ri->task && ri->task->pid == task->pid &&
+					ri->task->tgid == task->tgid)
 				retaddr = (unsigned long)ri->ret_addr;
 		}
-
-		//spin_unlock_irqrestore(&kretprobe_lock, flags);
 	}
 
 	if (retaddr)
