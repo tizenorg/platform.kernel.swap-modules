@@ -19,6 +19,9 @@
 #define __STORAGE_H__
 
 #include <linux/mount.h>
+#include <linux/module.h>
+#include <linux/list.h>
+#include <linux/spinlock.h>
 #include "picl.h"
 #include "ec_ioctl.h"
 #include "ec_probe.h"
@@ -119,6 +122,23 @@ extern char *p_buffer;
 // list of selected non-predefined kernel probes
 extern struct hlist_head kernel_probes;
 
+// multiple handlers stuff
+/*struct dbi_modules_handlers {
+	struct list_head	modules_handlers;
+	spinlock_t		lock;
+};
+
+struct dbi_modules_handlers_info {
+	struct module		*dbi_module;
+	unsigned long		*dbi_handlers;
+	int			dbi_nr_handlers;
+	struct list_head	dbi_list_head;
+};
+
+extern int dbi_register_handlers_module(struct dbi_modules_handlers_info *dbi_mhi);
+extern int dbi_unregister_handlers_module(struct dbi_modules_handlers_info *dbi_mhi);
+//unsigned long get_dbi_modules_handlers(void);*/
+
 /* list of on-the-go installed kernel probes */
 extern struct hlist_head otg_kernel_probes;
 
@@ -186,7 +206,6 @@ typedef struct
 	pid_t tgid;
 	unsigned unres_ips_count;
 	unsigned unres_vtps_count;
-	unsigned unres_otg_ips_count;
 	//kprobe_opcode_t *mapped_codelets;
 	unsigned libs_count;
 	us_proc_lib_t *p_libs;

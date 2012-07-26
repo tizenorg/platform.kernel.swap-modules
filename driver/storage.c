@@ -6,7 +6,7 @@
 //      This file is C source for SWAP.
 //
 //      SEE ALSO:       storage.h
-//      AUTHOR:         L.Komkov, S.Dianov, A.Gerenkov
+//      AUTHOR:         L.Komkov, S.Dianov, A.Gerenkov, S.Andreev
 //      COMPANY NAME:   Samsung Research Center in Moscow
 //      DEPT NAME:      Advanced Software Group 
 //      CREATED:        2008.02.15
@@ -19,12 +19,14 @@
 #include <linux/hash.h>
 #include <linux/list.h>
 #include <linux/unistd.h>
+#include <linux/spinlock.h>
+#include <linux/kernel.h>
 #include "module.h"
 #include "storage.h"
+#include "handlers_core.h"
 #include "CProfile.h"
 
 #define after_buffer ec_info.buffer_size
-
 
 char *p_buffer = NULL;
 inst_us_proc_t us_proc_info;
@@ -39,6 +41,178 @@ int event_mask = 0L;
 struct cond cond_list;
 int paused = 0; /* a state after a stop condition (events are not collected) */
 struct timeval last_attach_time = {0, 0};
+
+struct dbi_modules_handlers dbi_mh;
+
+//
+// Mr_Nobody: should we use centralized definition of this structure??
+//
+struct handler_map {
+	unsigned long func_addr;
+	unsigned long jp_handler_addr;
+	unsigned long rp_handler_addr;
+};
+
+struct dbi_modules_handlers *get_dbi_modules_handlers(void)
+{
+	return &dbi_mh;
+}
+EXPORT_SYMBOL_GPL(get_dbi_modules_handlers);
+
+inline unsigned long find_dbi_jp_handler(unsigned long p_addr, struct dbi_modules_handlers_info *mhi)
+{
+	int i;
+
+	/* Possibly we can find less expensive way */
+	for (i = 0; i < mhi->dbi_nr_handlers; i++) {
+		if (((struct handler_map *)(mhi->dbi_handlers))[i].func_addr == p_addr) {
+			printk("Found jp_handler for %0lX address of %s module\n", p_addr, mhi->dbi_module->name);
+			return ((struct handler_map *)(mhi->dbi_handlers))[i].jp_handler_addr;
+		}
+	}
+	return 0;
+}
+
+inline unsigned long find_dbi_rp_handler(unsigned long p_addr, struct dbi_modules_handlers_info *mhi)
+{
+	int i;
+
+	/* Possibly we can find less expensive way */
+	for (i = 0; i < mhi->dbi_nr_handlers; i++) {
+		if (((struct handler_map *)(mhi->dbi_handlers))[i].func_addr == p_addr) {
+			printk("Found rp_handler for %0lX address of %s module\n", p_addr, mhi->dbi_module->name);
+			return ((struct handler_map *)(mhi->dbi_handlers))[i].rp_handler_addr;
+		}
+	}
+	return 0;
+}
+
+/**
+ * Search of handler in global list of modules for defined probe
+ */
+void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
+{
+	unsigned long jp_handler_addr, rp_handler_addr, pre_handler_addr;
+	struct dbi_modules_handlers_info *local_mhi;
+	unsigned long dbi_flags;
+	unsigned int local_module_refcount = 0;
+
+        spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
+	list_for_each_entry_rcu(local_mhi, &dbi_mh.modules_handlers, dbi_list_head) {
+		printk("Searching handlers in %s module for %0lX address\n",
+			(local_mhi->dbi_module)->name, p->addr);
+		// XXX: absent code for pre_handlers because we suppose that they are not used
+		if ((jp_handler_addr = find_dbi_jp_handler(p->addr, local_mhi)) != 0) {
+			if (p->jprobe.entry != 0) {
+				printk("Skipping jp_handler for %s module (address %0lX)\n",
+						(local_mhi->dbi_module)->name, p->addr);
+			}
+			else {
+				local_module_refcount = module_refcount(local_mhi->dbi_module);
+				if (local_module_refcount == 0) {
+					if (!try_module_get(local_mhi->dbi_module))
+						printk("Error of try_module_get() for module %s\n",
+								(local_mhi->dbi_module)->name);
+					else
+						printk("Module %s in use now\n",
+								(local_mhi->dbi_module)->name);
+				}
+				p->jprobe.entry = (kprobe_opcode_t *)jp_handler_addr;
+				printk("Set jp_handler for %s module (address %0lX)\n",
+						(local_mhi->dbi_module)->name, p->addr);
+			}
+		}
+		if ((rp_handler_addr = find_dbi_rp_handler(p->addr, local_mhi)) != 0) {
+			if (p->retprobe.handler != 0) {
+				printk("Skipping kretprobe_handler for %s module (address %0lX)\n",
+						(local_mhi->dbi_module)->name, p->addr);
+			}
+			else {
+				local_module_refcount = module_refcount(local_mhi->dbi_module);
+				if (local_module_refcount == 0) {
+					if (!try_module_get(local_mhi->dbi_module))
+						printk("Error of try_module_get() for module %s\n",
+								(local_mhi->dbi_module)->name);
+					else
+						printk("Module %s in use now\n",
+								(local_mhi->dbi_module)->name);
+				}
+				p->retprobe.handler = (kretprobe_handler_t)rp_handler_addr;
+				printk("Set rp_handler for %s module (address %0lX)\n",
+						(local_mhi->dbi_module)->name, p->addr);
+			}
+		}
+	}
+	// not found pre_handler - set default (always true for now since pre_handlers not used)
+	if (p->jprobe.pre_entry == 0) {
+		p->jprobe.pre_entry = (kprobe_pre_entry_handler_t) def_jprobe_event_pre_handler;
+		printk("Set default pre_handler (address %0lX)\n", p->addr);
+	}
+	// not found jp_handler - set default
+	if (p->jprobe.entry == 0) {
+		p->jprobe.entry = (kprobe_opcode_t *) def_jprobe_event_handler;
+		printk("Set default jp_handler (address %0lX)\n", p->addr);
+	}
+	// not found kretprobe_handler - set default
+	if (p->retprobe.handler == 0) {
+		p->retprobe.handler = (kretprobe_handler_t) def_retprobe_event_handler;
+		printk("Set default rp_handler (address %0lX)\n", p->addr);
+	}
+        spin_unlock_irqrestore(&dbi_mh.lock, dbi_flags);
+}
+
+// XXX TODO: possible mess when start-register/unregister-stop operation
+// so we should refuse register/unregister operation while we are in unsafe state
+int dbi_register_handlers_module(struct dbi_modules_handlers_info *dbi_mhi)
+{
+	unsigned long dbi_flags;
+//	struct dbi_modules_handlers_info *local_mhi;
+
+        spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
+//	local_mhi = container_of(&dbi_mhi->dbi_list_head, struct dbi_modules_handlers_info, dbi_list_head);
+	list_add_rcu(&dbi_mhi->dbi_list_head, &dbi_mh.modules_handlers);
+	printk("Added module %s (head is %p)\n", (dbi_mhi->dbi_module)->name, &dbi_mhi->dbi_list_head);
+        spin_unlock_irqrestore(&dbi_mh.lock, dbi_flags);
+        return 0;
+}
+EXPORT_SYMBOL_GPL(dbi_register_handlers_module);
+
+// XXX TODO: possible mess when start-register/unregister-stop operation
+// so we should refuse register/unregister operation while we are in unsafe state
+int dbi_unregister_handlers_module(struct dbi_modules_handlers_info *dbi_mhi)
+{
+	unsigned long dbi_flags;
+	// Next code block is for far future possible usage in case when removing will be implemented for unsafe state
+	// (i.e. between attach and stop)
+	/*kernel_probe_t *p;
+	struct hlist_node *node;
+	unsigned long jp_handler_addr, rp_handler_addr, pre_handler_addr;*/
+
+        spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
+	list_del_rcu(&dbi_mhi->dbi_list_head);
+	// Next code block is for far future possible usage in case when removing will be implemented for unsafe state
+	// (i.e. between attach and stop)
+	/*hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist) {
+		// XXX: absent code for pre_handlers because we suppose that they are not used
+		if ((p->jprobe.entry != ((kprobe_pre_entry_handler_t )def_jprobe_event_pre_handler)) ||
+				(p->retprobe.handler != ((kretprobe_handler_t )def_retprobe_event_handler))) {
+			printk("Searching handlers for %p address for removing in %s registered module...\n",
+					p->addr, (dbi_mhi->dbi_module)->name);
+			jp_handler_addr = find_dbi_jp_handler(p->addr, dbi_mhi);
+			rp_handler_addr = find_dbi_rp_handler(p->addr, dbi_mhi);
+			if ((jp_handler_addr != 0) || (rp_handler_addr != 0)) {
+				// search and set to another handlers or default
+				dbi_find_and_set_handler_for_probe(p);
+				printk("Removed handler(s) for %s module (address %p)\n",
+						(dbi_mhi->dbi_module)->name, p->addr);
+			}
+		}
+	}*/
+	printk("Removed module %s (head was %p)\n", (dbi_mhi->dbi_module)->name, &dbi_mhi->dbi_list_head);
+        spin_unlock_irqrestore(&dbi_mh.lock, dbi_flags);
+        return 0;
+}
+EXPORT_SYMBOL_GPL(dbi_unregister_handlers_module);
 
 EXPORT_SYMBOL_GPL(us_proc_info);
 EXPORT_SYMBOL_GPL(dex_proc_info);
@@ -1360,7 +1534,8 @@ int storage_init (void)
 	INIT_HLIST_HEAD(&kernel_probes);
 	INIT_HLIST_HEAD(&otg_kernel_probes);
 	INIT_LIST_HEAD(&otg_us_proc_info);
-
+	spin_lock_init(&dbi_mh.lock);
+	INIT_LIST_HEAD(&dbi_mh.modules_handlers);
 	return 0;
 }
 
@@ -1557,17 +1732,10 @@ kernel_probe_t* find_probe (unsigned long addr)
 	return node ? p : NULL;
 }
 
+
 int add_probe_to_list (unsigned long addr, kernel_probe_t ** pprobe)
 {
 	kernel_probe_t *new_probe;
-	unsigned long jp_handler_addr, rp_handler_addr, pre_handler_addr;
-	unsigned long (*find_jp_handler)(unsigned long) =
-			(unsigned long (*)(unsigned long))lookup_name("find_jp_handler");
-	unsigned long (*find_rp_handler)(unsigned long) =
-			(unsigned long (*)(unsigned long))lookup_name("find_rp_handler");
-	unsigned long (*find_pre_handler)(unsigned long) =
-			(unsigned long (*)(unsigned long))lookup_name("find_pre_handler");
-
 	kernel_probe_t *probe;
 
 	if (pprobe)
@@ -1579,7 +1747,6 @@ int add_probe_to_list (unsigned long addr, kernel_probe_t ** pprobe)
 		   this probe before */
 		return 0;
 	}
-
 	new_probe = kmalloc (sizeof (kernel_probe_t), GFP_KERNEL);
 	if (!new_probe)
 	{
@@ -1587,37 +1754,15 @@ int add_probe_to_list (unsigned long addr, kernel_probe_t ** pprobe)
 		return -ENOMEM;
 	}
 	memset (new_probe, 0, sizeof (kernel_probe_t));
-
 	new_probe->addr = addr;
 	new_probe->jprobe.kp.addr = new_probe->retprobe.kp.addr = (kprobe_opcode_t *)addr;
 	new_probe->jprobe.priv_arg = new_probe->retprobe.priv_arg = new_probe;
-
 	//new_probe->jprobe.pre_entry = (kprobe_pre_entry_handler_t) def_jprobe_event_pre_handler;
-	if (find_pre_handler == 0 ||
-		(pre_handler_addr = find_pre_handler(new_probe->addr)) == 0)
-		new_probe->jprobe.pre_entry = (kprobe_pre_entry_handler_t) def_jprobe_event_pre_handler;
-	else
-		new_probe->jprobe.pre_entry = (kprobe_pre_entry_handler_t)pre_handler_addr;
-
-	if (find_jp_handler == 0 ||
-		(jp_handler_addr = find_jp_handler(new_probe->addr)) == 0)
-		new_probe->jprobe.entry = (kprobe_opcode_t *) def_jprobe_event_handler;
-	else
-		new_probe->jprobe.entry = (kprobe_opcode_t *)jp_handler_addr;
-
-	if (find_rp_handler == 0 ||
-		(rp_handler_addr = find_rp_handler(new_probe->addr)) == 0)
-		new_probe->retprobe.handler =
-			(kretprobe_handler_t) def_retprobe_event_handler;
-	else
-		new_probe->retprobe.handler = (kretprobe_handler_t)rp_handler_addr;
-
+	dbi_find_and_set_handler_for_probe(new_probe);
 	INIT_HLIST_NODE (&new_probe->hlist);
 	hlist_add_head_rcu (&new_probe->hlist, &kernel_probes);
-
 	if (pprobe)
 		*pprobe = new_probe;
-
 	return 0;
 }
 
@@ -1951,5 +2096,3 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 
 	return 0;
 }
-
-

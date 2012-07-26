@@ -29,5 +29,6 @@ extern void device_down (void);
 extern void notify_user (event_id_t event_id);
 extern char *deps;
 extern char *bundle;
+extern struct dbi_modules_handlers *get_dbi_modules_handlers(void);
 
 #endif /* !defined(device_driver_h) */
