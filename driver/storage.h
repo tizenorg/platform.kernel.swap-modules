@@ -206,6 +206,7 @@ typedef struct
 	pid_t tgid;
 	unsigned unres_ips_count;
 	unsigned unres_vtps_count;
+	unsigned unres_otg_ips_count;
 	//kprobe_opcode_t *mapped_codelets;
 	unsigned libs_count;
 	us_proc_lib_t *p_libs;
