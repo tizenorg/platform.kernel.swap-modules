@@ -68,7 +68,10 @@ int device_init (void)
 		EPRINTF("Cannot register character device! [%s, %d]", device_name, device_major);
 		nReserved = register_chrdev(0, device_name, &device_fops);
 		if(nReserved >= 0)
+		{
+			unregister_chrdev(nReserved, device_name);
 			EPRINTF("Please, create a new device node with major number [%d],\n\tand pass it as module parameter!", nReserved);
+		}
 		return -1;
 	} else if(nRetVal > 0) {
 		EPRINTF("Cannot register this device major number! [%d]\n\tTrying a new one. [%d]", device_major, nRetVal);

@@ -63,7 +63,15 @@
 
 #define SUPRESS_BUG_MESSAGES
 
+extern unsigned int *sched_addr;
+extern unsigned int *exit_addr;
+extern unsigned int *fork_addr;
+
 extern struct kprobe * per_cpu__current_kprobe;
+
+extern struct kprobe * per_cpu__current_kprobe;
+extern spinlock_t kretprobe_lock;
+extern struct kretprobe *sched_rp;
 
 extern struct hlist_head kprobe_insn_pages;
 extern struct hlist_head uprobe_insn_pages;
@@ -124,6 +132,9 @@ EXPORT_SYMBOL_GPL (swap_sum_hit);
 DECLARE_MOD_FUNC_DEP(module_alloc, void *, unsigned long size);
 DECLARE_MOD_FUNC_DEP(module_free, void, struct module *mod, void *module_region);
 DECLARE_MOD_FUNC_DEP(fixup_exception, int, struct pt_regs * regs);
+
+DECLARE_MOD_FUNC_DEP(freeze_processes, int, void);
+DECLARE_MOD_FUNC_DEP(thaw_processes, void, void);
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26))
 DECLARE_MOD_FUNC_DEP(text_poke, void, void *addr, unsigned char *opcode, int len);
@@ -353,7 +364,7 @@ int arch_prepare_kprobe (struct kprobe *p)
 	if ((unsigned long) p->addr & 0x01)
 	{
 		DBPRINTF ("Attempt to register kprobe at an unaligned address\n");
-		ret = -EINVAL;
+		//ret = -EINVAL;
 	}
 
 
@@ -435,7 +446,6 @@ int arch_prepare_uretprobe (struct kretprobe *p, struct task_struct *task)
 
 void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 {
-
 	if(p->ss_addr)
 	{
 		regs->EREG (ip) = (unsigned long)p->ss_addr;
@@ -739,8 +749,124 @@ no_kprobe:
 	return ret;
 }
 
+void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
+{
+	struct kretprobe_instance *ri = NULL;
+	struct hlist_node *node, *tmp;
+	struct hlist_head *head;
+	unsigned long flags;
+	int found = 0;
+
+	spin_lock_irqsave(&kretprobe_lock, flags);
+	head = kretprobe_inst_table_head(p);
+	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
+		if ((ri->rp == rp) && (p == ri->task)) {
+			found = 1;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+
+	if (found) {
+		/* update PC */
+		if (p->thread.ip != &kretprobe_trampoline) {
+			ri->ret_addr = (kprobe_opcode_t *)p->thread.ip;
+			p->thread.ip = &kretprobe_trampoline;
+		}
+		return;
+	}
+
+	spin_lock_irqsave(&kretprobe_lock, flags);
+	if ((ri = get_free_rp_inst(rp)) != NULL) {
+		ri->rp = rp;
+		ri->rp2 = NULL;
+		ri->task = p;
+		ri->ret_addr = (kprobe_opcode_t *)p->thread.ip;
+		p->thread.ip = &kretprobe_trampoline;
+		add_rp_inst(ri);
+	} else {
+		printk("no ri for %d\n", p->pid);
+		BUG();
+	}
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+}
+
 int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs) 
 {
+	struct jprobe *jp = container_of (p, struct jprobe, kp);
+	kprobe_pre_entry_handler_t pre_entry;
+	entry_point_t entry;
+
+	unsigned long addr, args[6];
+	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
+
+	DBPRINTF ("setjmp_pre_handler %p:%d", p->addr, p->tgid);
+	pre_entry = (kprobe_pre_entry_handler_t) jp->pre_entry;
+	entry = (entry_point_t) jp->entry;
+
+	if (!p->tgid || (p->tgid == current->tgid)) {
+		/* handle __switch_to probe */
+		if(!p->tgid && (p->addr == sched_addr) && sched_rp) {
+			struct task_struct *p, *g;
+			rcu_read_lock();
+			//swapper task
+			if(current != &init_task)
+				patch_suspended_task_ret_addr(&init_task, sched_rp);
+			// other tasks
+			do_each_thread(g, p){
+				if(current != p)
+					patch_suspended_task_ret_addr(p, sched_rp);
+			} while_each_thread(g, p);
+			/* workaround for do_exit probe on x86 targets */
+			if ((current->flags & PF_EXITING) ||
+					(current->flags & PF_EXITPIDONE))
+				patch_suspended_task_ret_addr(current, sched_rp);
+			rcu_read_unlock();
+		}
+	}
+
+	if (p->tgid) {
+		/* FIXME some user space apps crash if we clean interrupt bit */
+		//regs->EREG(flags) &= ~IF_MASK;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+		trace_hardirqs_off ();
+#endif
+		if (p->tgid == current->tgid) {
+			// read first 6 args from stack
+			if (!read_proc_vm_atomic (current, regs->EREG(sp) + 4, args, sizeof(args)))
+				panic ("failed to read user space func arguments %lx!\n", regs->EREG(sp)+4);
+			if (pre_entry)
+				p->ss_addr = pre_entry (jp->priv_arg, regs);
+			if (entry)
+				entry (args[0], args[1], args[2], args[3], args[4], args[5]);
+		} else {
+			dbi_arch_uprobe_return();
+		}
+
+		return 2;
+	} else {
+		kcb->jprobe_saved_regs = *regs;
+		kcb->jprobe_saved_esp = &regs->EREG(sp);
+		addr = (unsigned long) (kcb->jprobe_saved_esp);
+
+		/* TBD: As Linus pointed out, gcc assumes that the callee
+		 * owns the argument space and could overwrite it, e.g.
+		 * tailcall optimization. So, to be absolutely safe
+		 * we also save and restore enough stack bytes to cover
+		 * the argument area. */
+		memcpy (kcb->jprobes_stack, (kprobe_opcode_t *)addr, MIN_STACK_SIZE (addr));
+		regs->EREG (flags) &= ~IF_MASK;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+		trace_hardirqs_off ();
+#endif
+		if (pre_entry)
+			p->ss_addr = pre_entry(jp->priv_arg, regs);
+		regs->EREG(ip) = (unsigned long) (jp->entry);
+	}
+
+	return 1;
+
+#if 0 /* initial version */
 	struct jprobe *jp = container_of (p, struct jprobe, kp);
 	kprobe_pre_entry_handler_t pre_entry;
 	entry_point_t entry;
@@ -794,6 +920,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	}
 
 	return 1;
+#endif /* 0 */
 }
 
 void dbi_jprobe_return (void)
@@ -1057,11 +1184,11 @@ int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, vo
 	DBPRINTF ("switch (val) %lu %d %d", val, DIE_INT3, DIE_TRAP);
 	switch (val)
 	{
-		//#ifdef CONFIG_KPROBES
-		//      case DIE_INT3:
-		//#else
+#ifdef CONFIG_KPROBES
+		case DIE_INT3:
+#else
 		case DIE_TRAP:
-			//#endif
+#endif
 			DBPRINTF ("before kprobe_handler ret=%d %p", ret, args->regs);
 			if (kprobe_handler (args->regs))
 				ret = NOTIFY_STOP;
@@ -1087,6 +1214,11 @@ int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, vo
 
 	return ret;
 }
+
+static struct notifier_block kprobe_exceptions_nb = {
+	.notifier_call = kprobe_exceptions_notify,
+	.priority = INT_MAX
+};
 
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 {

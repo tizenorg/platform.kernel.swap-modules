@@ -53,7 +53,8 @@ probes_manager_init (void)
 	spin_lock_init(&ec_probe_spinlock);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 #ifdef CONFIG_X86
-	pf_addr = lookup_name("handle_mm_fault");
+	//pf_addr = lookup_name("handle_mm_fault");
+	pf_addr = lookup_name("do_page_fault");
 #else
 	pf_addr = lookup_name("do_page_fault");
 #endif
@@ -383,8 +384,20 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 
 	if (pf_probe == probe)
 	{
+#ifdef CONFIG_X86
+		/* FIXME on x86 targets do_page_fault instrumentation may lead to
+		 * abnormal termination of some applications (in most cases GUI apps).
+		 * It looks like when do_page_fault probe is hit and the
+		 * def_jprobe_event_handler is executed it tries to write event info
+		 * into the SWAP buffer which seems not to be mapped into the
+		 * process memory yet. Such behaviour causes segmentation faults.
+		 * For now as a workaround we just avoid to write the ENTRY event into
+		 * the buffer in all cases. */
+		skip = 1;
+#else /* CONFIG_X86 */
 		if (!(probes_flags & PROBE_FLAG_PF_INSTLD))
 			skip = 1;
+#endif /* CONFIG_X86 */
 	}
 	else if (exit_probe == probe)
 	{
@@ -405,7 +418,7 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 				 * TODO: call fork specific
 				 * *_probe_pre_code() function
 				 */
-				do_exit_probe_pre_code();
+				do_fork_probe_pre_code();
 			}
 		if (!(probes_flags & PROBE_FLAG_FORK_INSTLD))
 			skip = 1;

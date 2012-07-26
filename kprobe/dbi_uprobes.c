@@ -78,6 +78,10 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 	old_p = get_kprobe (p->addr, p->tgid, NULL);
 	if (old_p)
 	{
+#ifdef CONFIG_ARM
+		p->safe_arm = old_p->safe_arm;
+		p->safe_thumb = old_p->safe_thumb;
+#endif
 		ret = register_aggr_kprobe (old_p, p);
 		if (!ret) {
 			atomic_inc (&kprobe_count);
@@ -269,6 +273,7 @@ void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, i
 		{
 			DBPRINTF ("initiating deferred retprobe deletion addr %p", rp->kp.addr);
 			printk ("initiating deferred retprobe deletion addr %p\n", rp->kp.addr);
+			arch_disarm_uprobe(&rp->kp, task);
 			rp2->disarm = 1;
 		}
 		/*

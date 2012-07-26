@@ -1493,6 +1493,39 @@ void do_exit_probe_pre_code (void)
 }
 EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
 
+void do_fork_probe_pre_code(void)
+{
+	int ret = 0;
+	struct task_struct *task;
+	inst_us_proc_t *task_inst_info = NULL;
+
+	/* if user-space instrumentation is not set */
+	if (!us_proc_info.path) {
+	    return;
+	}
+
+	if (!strcmp(us_proc_info.path,"*")) {
+		task_inst_info = get_task_inst_node(current);
+		if (task_inst_info)  {
+			ret = uninstall_mapped_ips (current, task_inst_info, 1);
+			if (ret != 0) {
+				EPRINTF("failed to uninstall IPs (%d)!", ret);
+			}
+			dbi_unregister_all_uprobes(current, 1);
+		}
+		return;
+	} else {
+		if (current->tgid != us_proc_info.tgid) {
+			return;
+		}
+		ret = uninstall_mapped_ips(current->group_leader, &us_proc_info, 1);
+		if (ret != 0) {
+			EPRINTF("failed to uninstall IPs (%d)!", ret);
+		}
+		us_proc_info.tgid = 0;
+	}
+}
+
 DEFINE_PER_CPU (us_proc_ip_t *, gpCurIp) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpCurIp);
 DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;
@@ -1679,11 +1712,11 @@ static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int 
 	return 0;
 }
 
-static unsigned long get_stack_size(struct task_struct *task,
+unsigned long get_stack_size(struct task_struct *task,
 		struct pt_regs *regs)
 {
 #ifdef CONFIG_ADD_THREAD_STACK_INFO
-	return (task->stack_start - regs->ARM_sp);
+	return (task->stack_start - dbi_get_stack_ptr(regs));
 #else
 	struct vm_area_struct *vma = NULL;
 	struct mm_struct *mm = NULL;
@@ -1696,10 +1729,10 @@ static unsigned long get_stack_size(struct task_struct *task,
 		if (!atomic)
 			down_read(&mm->mmap_sem);
 
-		vma = find_vma(mm, regs->ARM_sp);
+		vma = find_vma(mm, dbi_get_stack_ptr(regs));
 
 		if (vma)
-			result = vma->vm_end - regs->ARM_sp;
+			result = vma->vm_end - dbi_get_stack_ptr(regs);
 		else
 			result = 0;
 
@@ -1714,17 +1747,17 @@ static unsigned long get_stack_size(struct task_struct *task,
 }
 EXPORT_SYMBOL_GPL(get_stack_size);
 
-static unsigned long get_stack(struct task_struct *task, struct pt_regs *regs,
+unsigned long get_stack(struct task_struct *task, struct pt_regs *regs,
 		char *buf, unsigned long sz)
 {
 	unsigned long stack_sz = get_stack_size(task, regs);
 	unsigned long real_sz = (stack_sz > sz ? sz: stack_sz);
-	int res = read_proc_vm_atomic(task, regs->ARM_sp, buf, real_sz);
+	int res = read_proc_vm_atomic(task, dbi_get_stack_ptr(regs), buf, real_sz);
 	return res;
 }
 EXPORT_SYMBOL_GPL(get_stack);
 
-static int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
+int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
 		unsigned long sz)
 {
 	unsigned long rest_sz = sz;
@@ -1744,7 +1777,7 @@ static int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
 }
 EXPORT_SYMBOL_GPL(dump_to_trace);
 
-static int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
+int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 		void *addr, struct pt_regs *regs, unsigned long sz)
 {
 	unsigned long real_sz = 0;
@@ -1764,21 +1797,27 @@ static int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 }
 EXPORT_SYMBOL_GPL(dump_backtrace);
 
-static void *get_ret_addr(struct task_struct *task, us_proc_ip_t *ip,
-		struct pt_regs *regs)
+unsigned long get_ret_addr(struct task_struct *task, us_proc_ip_t *ip)
 {
 	unsigned long retaddr = 0;
+	unsigned long flags = 0;
 	struct hlist_node *item, *tmp_node;
 	struct kretprobe_instance *ri;
 
-	hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances) {
-		ri = hlist_entry (item, struct kretprobe_instance, uflist);
+	if (ip) {
+		hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances) {
+			ri = hlist_entry (item, struct kretprobe_instance, uflist);
 
-		if (ri->task->pid == current->pid)
-			retaddr = (unsigned long)ri->ret_addr;
+			if (ri->task && ri->task->pid == task->pid &&
+					ri->task->tgid == task->tgid)
+				retaddr = (unsigned long)ri->ret_addr;
+		}
 	}
 
-	return ((void *)retaddr);
+	if (retaddr)
+		return retaddr;
+	else
+		return dbi_get_ret_addr(task_pt_regs(task));
 }
 EXPORT_SYMBOL_GPL(get_ret_addr);
 

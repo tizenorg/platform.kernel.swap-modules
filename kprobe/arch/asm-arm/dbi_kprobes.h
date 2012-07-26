@@ -29,6 +29,8 @@
  * 2010-2011    Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
  */
 
+#include <linux/sched.h>
+#include "../../dbi_kprobes_deps.h"
 #include "../dbi_kprobes.h"
 #include "dbi_kprobes_arm.h"
 #include "dbi_kprobes_thumb.h"
@@ -61,6 +63,67 @@ typedef unsigned long kprobe_opcode_t;
 # define KPROBES_TRAMP_INSN_IDX         UPROBES_TRAMP_INSN_IDX
 # define KPROBES_TRAMP_SS_BREAK_IDX     UPROBES_TRAMP_SS_BREAK_IDX
 # define KPROBES_TRAMP_RET_BREAK_IDX	UPROBES_TRAMP_RET_BREAK_IDX
+
+static inline unsigned long dbi_get_stack_ptr(struct pt_regs *regs)
+{
+	return regs->ARM_sp;
+}
+
+static inline unsigned long dbi_get_instr_ptr(struct pt_regs *regs)
+{
+	return regs->ARM_pc;
+}
+
+static inline void dbi_set_instr_ptr(struct pt_regs *regs, unsigned long val)
+{
+	regs->ARM_pc = val;
+}
+
+static inline unsigned long dbi_get_ret_addr(struct pt_regs *regs)
+{
+	return regs->ARM_lr;
+}
+
+static inline unsigned long dbi_get_arg(struct pt_regs *regs, int num)
+{
+	return regs->uregs[num];
+}
+
+static inline void dbi_set_arg(struct pt_regs *regs, int num, unsigned long val)
+{
+	regs->uregs[num] = val;
+}
+
+static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
+		int max_cnt)
+{
+	int i = 0;
+
+	struct {
+		unsigned long next;
+		unsigned long raddr;
+	} frame;
+
+	struct pt_regs *regs = task_pt_regs(task);
+
+	/* no frame pointer */
+	if (regs->ARM_fp == 0)
+		return -EFAULT;
+
+	frame.next = regs->ARM_fp;
+	frame.raddr = dbi_get_ret_addr(regs);
+	buf[i++] = frame.raddr;
+
+	while (frame.next && i < max_cnt) {
+		if (read_proc_vm_atomic(task, frame.next - 4, &frame, sizeof(frame))
+				== sizeof(frame))
+			buf[i++] = frame.raddr;
+		else
+			break;
+	}
+
+	return i;
+}
 
 #define NOTIFIER_CALL_CHAIN_INDEX       3
 

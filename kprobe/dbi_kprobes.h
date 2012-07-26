@@ -91,55 +91,42 @@ typedef int (*kretprobe_handler_t) (struct kretprobe_instance *, struct pt_regs 
 
 struct kprobe
 {
-	struct hlist_node hlist;
-
+	struct hlist_node				hlist;
 	/*list of probes to search by instruction slot*/
 #ifdef CONFIG_ARM
-	struct hlist_node is_hlist_arm;
-	struct hlist_node is_hlist_thumb;
+	struct hlist_node				is_hlist_arm;
+	struct hlist_node				is_hlist_thumb;
 #else /* CONFIG_ARM */
-	struct hlist_node is_hlist;
+	struct hlist_node				is_hlist;
 #endif /* CONFIG_ARM */
-
 	/* list of kprobes for multi-handler support */
-	struct list_head list;
-
+	struct list_head				list;
 	/* Indicates that the corresponding module has been ref counted */
-	unsigned int mod_refcounted;
-
+	unsigned int					mod_refcounted;
 	/*count the number of times this probe was temporarily disarmed */
-	unsigned long nmissed;
-
+	unsigned long					nmissed;
 	/* location of the probe point */
-	kprobe_opcode_t *addr;
-
+	kprobe_opcode_t					*addr;
 	/* Allow user to indicate symbol name of the probe point */
-	char *symbol_name;
-
+	char						*symbol_name;
 	/* Offset into the symbol */
-	unsigned int offset;
-
+	unsigned int					offset;
 	/* Called before addr is executed. */
-	kprobe_pre_handler_t pre_handler;
-
+	kprobe_pre_handler_t				pre_handler;
 	/* Called after addr is executed, unless... */
-	kprobe_post_handler_t post_handler;
-
+	kprobe_post_handler_t				post_handler;
 	/* ... called if executing addr causes a fault (eg. page fault).
 	 * Return 1 if it handled fault, otherwise kernel will see it. */
-	kprobe_fault_handler_t fault_handler;
-
+	kprobe_fault_handler_t				fault_handler;
 	/* ... called if breakpoint trap occurs in probe handler.
 	 * Return 1 if it handled break, otherwise kernel will see it. */
-	kprobe_break_handler_t break_handler;
-
+	kprobe_break_handler_t				break_handler;
 	/* Saved opcode (which has been replaced with breakpoint) */
-	kprobe_opcode_t opcode;
-
+	kprobe_opcode_t					opcode;
 	/* copy of the original instruction */
-	struct arch_specific_insn ainsn;
+	struct arch_specific_insn			ainsn;
 	// TGID to which probe belongs
-	pid_t tgid;
+	pid_t						tgid;
 	// override single-step target address,
 	// may be used to redirect control-flow to arbitrary address after probe point
 	// without invocation of original instruction;
@@ -147,7 +134,12 @@ struct kprobe
 	// if jprobe.entry should return address of function or NULL
 	// if original function should be called
 	// not supported for X86, not tested for MIPS
-	kprobe_opcode_t *ss_addr;
+	kprobe_opcode_t					*ss_addr;
+	// safe/unsafe to use probe
+#ifdef CONFIG_ARM
+	int						safe_arm;
+	int						safe_thumb;
+#endif
 };
 
 typedef unsigned long (*kprobe_pre_entry_handler_t) (void *priv_arg, struct pt_regs * regs);

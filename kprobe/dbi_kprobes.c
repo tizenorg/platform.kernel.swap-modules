@@ -93,7 +93,8 @@ atomic_t kprobe_count;
 void kretprobe_assert (struct kretprobe_instance *ri, unsigned long orig_ret_address, unsigned long trampoline_address)
 {
 	if (!orig_ret_address || (orig_ret_address == trampoline_address))
-		panic ("kretprobe BUG!: Processing kretprobe %p @ %p\n", ri->rp, ri->rp->kp.addr);
+		panic ("kretprobe BUG!: Processing kretprobe %p @ %p (%d/%d - %s)\n",
+				ri->rp, ri->rp->kp.addr, ri->task->tgid, ri->task->pid, ri->task->comm);
 }
 
 
@@ -365,6 +366,10 @@ void copy_kprobe (struct kprobe *old_p, struct kprobe *p)
 	memcpy (&p->ainsn, &old_p->ainsn, sizeof (struct arch_specific_insn));
 	p->tgid = old_p->tgid;
 	p->ss_addr = old_p->ss_addr;
+#ifdef CONFIG_ARM
+	p->safe_arm = old_p->safe_arm;
+	p->safe_thumb = old_p->safe_thumb;
+#endif
 	//p->spid = old_p->spid;
 }
 
