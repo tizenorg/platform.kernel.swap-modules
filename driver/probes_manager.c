@@ -24,11 +24,11 @@
 #include "../kprobe/dbi_kprobes.h"
 #endif /* def EC_ARCH_arm */
 
-#ifdef EC_ARCH_i386
-/* ARCH == i386 */
+#ifdef EC_ARCH_x86
+/* ARCH == x86 */
 //#include <linux/kprobes.h>
 #include "../kprobe/dbi_kprobes.h"
-#endif /* def EC_ARCH_i386 */
+#endif /* def EC_ARCH_x86 */
 
 #ifdef EC_ARCH_mips
 /* ARCH == mips */

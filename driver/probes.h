@@ -26,7 +26,7 @@
 
 #if defined(EC_ARCH_arm)    /* ARCH == arm */
 #define regs_return_value(regs) ((regs)->ARM_r0)
-#elif defined(EC_ARCH_i386) /* ARCH == i386 */
+#elif defined(EC_ARCH_x86) /* ARCH == x86 */
 #define regs_return_value(regs) ((regs)->ax)
 #elif defined(EC_ARCH_mips) /* ARCH == mips */
 #define regs_return_value(regs) ((regs)->regs[2])
