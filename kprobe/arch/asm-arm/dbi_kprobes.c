@@ -80,6 +80,10 @@ EXPORT_SYMBOL_GPL (swap_sum_time);
 EXPORT_SYMBOL_GPL (swap_sum_hit);
 #endif
 
+#define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
+#define branch_displacement(insn) sign_extend(((insn) & 0xffffff) << 2, 25)
+
+
 unsigned int arr_traps_template[] = {
 		0xe1a0c00d,    // mov          ip, sp
 		0xe92dd800,    // stmdb        sp!, {fp, ip, lr, pc}
@@ -1059,11 +1063,9 @@ int kprobe_handler (struct pt_regs *regs)
 			}
 			else {
 				printk("Error in %s at %d: we are in thumb mode (!) and check instruction was fail \
-					(%0X instruction at %p address)!\n", __FILE__, __LINE__, pop->addr, pop->opcode);
+					(%0X instruction at %p address)!\n", __FILE__, __LINE__, pop->opcode, pop->addr);
 				// Test case when we do our actions on already running application
 				arch_disarm_uprobe (pop, current);
-				// up on one instruction
-				regs->uregs[15] -= 2;
 				goto no_kprobe_live;
 			}
 		}
@@ -1076,11 +1078,9 @@ int kprobe_handler (struct pt_regs *regs)
 			}
 			else {
 				printk("Error in %s at %d: we are in arm mode (!) and check instruction was fail \
-					(%0X instruction at %p address)!\n", __FILE__, __LINE__, pop->addr, pop->opcode);
+					(%0X instruction at %p address)!\n", __FILE__, __LINE__, pop->opcode, pop->addr );
 				// Test case when we do our actions on already running application
 				arch_disarm_uprobe (pop, current);
-				// up on one instruction
-				regs->uregs[15] -= 4;
 				goto no_kprobe_live;
 			}
 		}
