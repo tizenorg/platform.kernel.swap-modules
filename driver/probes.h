@@ -7,7 +7,7 @@
 //      SEE ALSO:       probes.c
 //      AUTHOR:         L.Komkov, S.Grekhov, A.Gerenkov
 //      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group 
+//      DEPT NAME:      Advanced Software Group
 //      CREATED:        2008.02.15
 //      VERSION:        1.0
 //      REVISION DATE:  2008.12.03
@@ -24,21 +24,15 @@
 #ifndef regs_return_value
 /* "regs_return_value" is ARCH-dependent. ARCH is passed via "EC_ARCH_*" */
 
-#ifdef EC_ARCH_arm
-/* ARCH == arm */
+#if defined(EC_ARCH_arm)    /* ARCH == arm */
 #define regs_return_value(regs) ((regs)->ARM_r0)
-#endif /* def EC_ARCH_arm */
-
-#ifdef EC_ARCH_i386
-/* ARCH == i386 */
-//#include <linux/kprobes.h>
+#elif defined(EC_ARCH_x86) /* ARCH == x86 */
 #define regs_return_value(regs) ((regs)->ax)
-#endif /* def EC_ARCH_i386 */
-
-#ifdef EC_ARCH_mips
-/* ARCH == mips */
+#elif defined(EC_ARCH_mips) /* ARCH == mips */
 #define regs_return_value(regs) ((regs)->regs[2])
-#endif /* def EC_ARCH_mips */
+#else
+#error "Cannot define -DEC_ARCH_$(ARCH) or architecture no supported"
+#endif
 
 #endif /* ndef regs_return_value */
 

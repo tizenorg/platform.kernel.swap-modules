@@ -789,6 +789,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 				p->ip.jprobe.kp.addr, err);
 			return err;
 		}
+		task_inst_info->unres_otg_ips_count--;
 	}
 
 	if (!atomic) {
@@ -806,6 +807,9 @@ static int install_otg_ip(unsigned long addr,
 	int err;
 	us_proc_otg_ip_t *pprobe;
 	struct mm_struct *mm;
+
+	inst_us_proc_t *task_inst_info = NULL;
+	struct task_struct *task;
 
 	/* Probe preparing */
 	err = add_otg_probe_to_list(addr, &pprobe);
@@ -847,6 +851,17 @@ static int install_otg_ip(unsigned long addr,
 	mm = get_task_mm(current);
 	if (!page_present(mm, addr)) {
 		DPRINTF("Page isn't present for %p.", addr);
+
+		pprobe->tgid = current->tgid;
+		task = current->group_leader;
+
+		task_inst_info = get_task_inst_node(task);
+		if (!task_inst_info)
+		{
+			task_inst_info = copy_task_inst_info(task, &us_proc_info);
+			put_task_inst_node(task, task_inst_info);
+		}
+		us_proc_info.unres_otg_ips_count++;
 		/* Probe will be installed in do_page_fault handler */
 		return 0;
 	}
@@ -1363,7 +1378,8 @@ void do_page_fault_ret_pre_code (void)
 	task_inst_info = &us_proc_info;
 	//DPRINTF("do_page_fault from proc %d-%d-%d", current->pid, task_inst_info->tgid, task_inst_info->unres_ips_count);
 	if (!is_java_inst_enabled()
-	    && (task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count) == 0)
+	    && (task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count 
+		+ task_inst_info->unres_otg_ips_count) == 0)
 	{
 		//DPRINTF("do_page_fault: there no unresolved IPs");
 		return;
@@ -1804,3 +1820,54 @@ unsigned long get_ret_addr(struct task_struct *task, us_proc_ip_t *ip)
 		return dbi_get_ret_addr(task_pt_regs(task));
 }
 EXPORT_SYMBOL_GPL(get_ret_addr);
+
+/*function call removes all OTG-probes installed in library "lib_to_delete"*/
+void otg_probe_list_clean(char* lib_to_delete)
+{
+	struct task_struct *task = current->group_leader;
+	struct mm_struct *mm;
+	struct vm_area_struct *vma = 0;
+	char *filename = "";
+	char *buf = "";
+	unsigned long int addr_max = 0;
+	unsigned long int addr_min = 0;
+	int err;
+	us_proc_otg_ip_t *p;
+
+	mm = task->active_mm;
+/*find in process space map file with name "lib_to_delete" and flag VM_EXEC
+and save address borders of this file*/
+	if (mm) {
+		vma = mm->mmap;
+		while (vma) {
+			if(vma->vm_file) {
+				if(vma->vm_file->f_dentry) {
+					struct path tmppath = {vma->vm_file->f_vfsmnt, vma->vm_file->f_dentry};
+					filename = d_path(&vma->vm_file->f_path, buf, 256);
+					if((strcmp(lib_to_delete, filename) == 0) && (vma->vm_flags & VM_EXEC)) {
+						addr_min = vma->vm_start;
+						addr_max = vma->vm_end;
+						break;
+					}
+				}
+			}
+			vma = vma->vm_next;
+		}
+	}
+/*remove OTG-probe if its address is between addr_min and addr_max*/
+	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
+		if (!p->ip.installed) {
+			continue;
+		}
+		if ((p->ip.jprobe.kp.addr < addr_max)&&(p->ip.jprobe.kp.addr >= addr_min)) {
+			err = unregister_usprobe(task, &p->ip, 1);
+			if (err != 0) {
+				EPRINTF("failed to uninstall IP at %p. Error %d!",
+					 p->ip.jprobe.kp.addr, err);
+				continue;
+			}
+			p->ip.installed = 0;
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(otg_probe_list_clean);

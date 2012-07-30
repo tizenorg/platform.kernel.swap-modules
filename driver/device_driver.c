@@ -17,6 +17,7 @@
 
 #include "module.h"
 #include "device_driver.h"	// device driver
+#include "handlers_core.h"
 #include "CProfile.h"
 #include <linux/notifier.h>
 
@@ -507,6 +508,10 @@ static int device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned lo
 	case EC_IOCTL_STOP_AND_DETACH:
 	{
 		unsigned long nIgnoredBytes = 0;
+		unsigned long dbi_flags;
+		struct dbi_modules_handlers *local_mh;
+		struct dbi_modules_handlers_info *local_mhi;
+		unsigned int local_module_refcount = 0;
 
 #ifdef OVERHEAD_DEBUG
 		printk("\nswap_sum_time = %ld in kprobe_handler()\n", swap_sum_time);
@@ -516,12 +521,12 @@ static int device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned lo
 #endif
 		if(ec_user_stop() != 0) {
 			result = -1;
-			break;
+			goto sad_cleanup;
 		}
 		nIgnoredBytes = copy_ec_info_to_user_space ((ec_info_t*)arg);
 		if(nIgnoredBytes > 0) {
 			result = -1;
-			break;
+			goto sad_cleanup;
 		}
 		vfree(bundle);
 		result = 0;
@@ -530,6 +535,21 @@ static int device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned lo
 		DPRINTF("EC_IOCTL_STOP_AND_DETACH calling notification chain");
 		blocking_notifier_call_chain(&swap_notifier_list, EC_IOCTL_STOP_AND_DETACH, (void*)&gl_nNotifyTgid);
 #endif
+sad_cleanup:
+		local_mh = get_dbi_modules_handlers();
+		spin_lock_irqsave(&local_mh->lock, dbi_flags);
+		list_for_each_entry_rcu(local_mhi, &local_mh->modules_handlers, dbi_list_head) {
+			local_module_refcount = module_refcount(local_mhi->dbi_module);
+			if (local_module_refcount == 1) {
+				module_put(local_mhi->dbi_module);
+			}
+			else if (local_module_refcount > 1) {
+				printk("local_module_refcount too much - force set refcount to zero\n");
+				while (local_module_refcount--)
+					module_put(local_mhi->dbi_module);
+			}
+		}
+		spin_unlock_irqrestore(&local_mh->lock, dbi_flags);
 		break;
 	}
 	case EC_IOCTL_WAIT_NOTIFICATION:
