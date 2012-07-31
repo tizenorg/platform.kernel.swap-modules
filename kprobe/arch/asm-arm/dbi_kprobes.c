@@ -83,6 +83,11 @@ EXPORT_SYMBOL_GPL (swap_sum_hit);
 #define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
 #define branch_displacement(insn) sign_extend(((insn) & 0xffffff) << 2, 25)
 
+static kprobe_opcode_t get_addr_b(kprobe_opcode_t insn, kprobe_opcode_t addr)
+{
+	// real position less then PC by 8
+	return (kprobe_opcode_t)((long)addr + 8 + branch_displacement(insn));
+}
 
 unsigned int arr_traps_template[] = {
 		0xe1a0c00d,    // mov          ip, sp
@@ -412,7 +417,6 @@ int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 		ARM_INSN_MATCH (AUNDEF, ainsn->insn_arm[0]) ||
 		ARM_INSN_MATCH (SWI, ainsn->insn_arm[0]) ||
 		ARM_INSN_MATCH (BREAK, ainsn->insn_arm[0]) ||
-		ARM_INSN_MATCH (B, ainsn->insn_arm[0]) ||
 		ARM_INSN_MATCH (BL, ainsn->insn_arm[0]) ||
 		ARM_INSN_MATCH (BLX1, ainsn->insn_arm[0]) ||
 		ARM_INSN_MATCH (BLX2, ainsn->insn_arm[0]) ||
@@ -836,6 +840,16 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 	}
 	insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
 	insns[7] = (kprobe_opcode_t) (p->addr + 1);
+
+	// B
+	if(ARM_INSN_MATCH (B, ainsn.insn_arm[0]))
+	{
+		memcpy (insns, pc_dep_insn_execbuf, sizeof (insns));
+		insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		insns[6] = (kprobe_opcode_t) (p->addr + 2);
+		insns[7] = get_addr_b(p->opcode, p->addr);
+	}
+
 	DBPRINTF ("arch_prepare_uprobe: to %p - %lx %lx %lx %lx %lx %lx %lx %lx %lx",
 			p->ainsn.insn_arm, insns[0], insns[1], insns[2], insns[3], insns[4],
 			insns[5], insns[6], insns[7], insns[8]);
