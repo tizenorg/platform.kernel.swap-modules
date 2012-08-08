@@ -1783,7 +1783,7 @@ int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 	unsigned long real_sz = 0;
 	char *buf = NULL;
 
-	buf = (char *)kmalloc(sz, GFP_KERNEL);
+	buf = (char *)kmalloc(sz, GFP_ATOMIC);
 
 	if (buf != NULL) {
 		real_sz = get_stack(task, regs, buf, sz);
