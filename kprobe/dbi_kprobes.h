@@ -45,18 +45,13 @@
  * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM and MIPS
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
-
  */
 
 
-
 #include <linux/version.h>	// LINUX_VERSION_CODE, KERNEL_VERSION()
-
-//#include <linux/list.h>
 #include <linux/notifier.h>
-//#include <linux/smp.h>
 #include <linux/percpu.h>
 #include <linux/spinlock.h>
 #include <linux/rcupdate.h>
@@ -234,8 +229,8 @@ struct kprobe *get_kprobe_by_insn_slot (void *addr, int tgid, struct task_struct
 struct hlist_head *kretprobe_inst_table_head (void *hash_key);
 
 
-int dbi_register_kprobe (struct kprobe *p, int atomic);
-void dbi_unregister_kprobe (struct kprobe *p, struct task_struct *task, int atomic);
+int dbi_register_kprobe (struct kprobe *p);
+void dbi_unregister_kprobe (struct kprobe *p, struct task_struct *task);
 
 int register_aggr_kprobe (struct kprobe *old_p, struct kprobe *p);
 int pre_handler_kretprobe (struct kprobe *p, struct pt_regs *regs);
@@ -243,8 +238,8 @@ int pre_handler_kretprobe (struct kprobe *p, struct pt_regs *regs);
 int setjmp_pre_handler (struct kprobe *, struct pt_regs *);
 int longjmp_break_handler (struct kprobe *, struct pt_regs *);
 
-int dbi_register_jprobe (struct jprobe *p, int atomic);
-void dbi_unregister_jprobe (struct jprobe *p, int atomic);
+int dbi_register_jprobe (struct jprobe *p);
+void dbi_unregister_jprobe (struct jprobe *p);
 void dbi_jprobe_return (void);
 void dbi_jprobe_return_end (void);
 
@@ -253,10 +248,10 @@ struct kretprobe_instance * get_used_rp_inst (struct kretprobe *rp);
 
 
 int alloc_nodes_kretprobe(struct kretprobe *rp);
-int dbi_register_kretprobe (struct kretprobe *rp, int atomic);
-void dbi_unregister_kretprobe (struct kretprobe *rp, int atomic);
+int dbi_register_kretprobe (struct kretprobe *rp);
+void dbi_unregister_kretprobe (struct kretprobe *rp);
 
-void kretprobe_assert (struct kretprobe_instance *ri, 
+void kretprobe_assert (struct kretprobe_instance *ri,
 		unsigned long orig_ret_address, unsigned long trampoline_address);
 
 

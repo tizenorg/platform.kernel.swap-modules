@@ -139,7 +139,7 @@ out:
 
 void unregister_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 {
-	dbi_unregister_kprobe (p, task, atomic);
+	dbi_unregister_kprobe (p, task);
 }
 
 

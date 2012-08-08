@@ -841,7 +841,7 @@ int __init arch_init_kprobes (void)
 	// Insert new code
 	memcpy ((void *) do_bp_handler, arr_traps_template, code_size); 
 	flush_icache_range (do_bp_handler, do_bp_handler + code_size); 
-	if((ret = dbi_register_kprobe (&trampoline_p, 0)) != 0){
+	if((ret = dbi_register_kprobe (&trampoline_p)) != 0){
 		//dbi_unregister_jprobe(&do_exit_p, 0);
 		return ret;
 	}

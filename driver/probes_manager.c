@@ -102,7 +102,7 @@ register_kernel_jprobe (kernel_probe_t * probe)
 	{
 		return 0;	// probe is already registered
 	}
-	result = dbi_register_jprobe (&probe->jprobe, 0);
+	result = dbi_register_jprobe (&probe->jprobe);
 	if (result)
 	{
 		EPRINTF ("register_kernel_jprobe(0x%lx) failure %d", probe->addr, result);
@@ -120,7 +120,7 @@ unregister_kernel_jprobe (kernel_probe_t * probe)
 		((probe == exec_probe) && (us_proc_probes & US_PROC_EXEC_INSTLD))) {
 		return 0;	// probe is necessary for user space instrumentation
 	}
-	dbi_unregister_jprobe (&probe->jprobe, 0);
+	dbi_unregister_jprobe (&probe->jprobe);
 	return 0;
 }
 
@@ -135,7 +135,7 @@ register_kernel_retprobe (kernel_probe_t * probe)
 		return 0;	// probe is already registered
 	}
 
-	result = dbi_register_kretprobe (&probe->retprobe, 0);
+	result = dbi_register_kretprobe (&probe->retprobe);
 	if (result)
 	{
 		EPRINTF ("register_kernel_retprobe(0x%lx) failure %d", probe->addr, result);
@@ -153,7 +153,7 @@ unregister_kernel_retprobe (kernel_probe_t * probe)
 		((probe == exec_probe) && (us_proc_probes & US_PROC_EXEC_INSTLD))) {
 		return 0;	// probe is necessary for user space instrumentation
 	}
-	dbi_unregister_kretprobe (&probe->retprobe, 0);
+	dbi_unregister_kretprobe (&probe->retprobe);
 	return 0;
 }
 
@@ -363,14 +363,11 @@ remove_probe (unsigned long addr)
 
 DEFINE_PER_CPU (kernel_probe_t *, gpKernProbe) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpKernProbe);
-DEFINE_PER_CPU(struct pt_regs *, gpKernRegs) = NULL;
-EXPORT_PER_CPU_SYMBOL_GPL(gpKernRegs);
 
 unsigned long
 def_jprobe_event_pre_handler (kernel_probe_t * probe, struct pt_regs *regs)
 {
 	__get_cpu_var (gpKernProbe) = probe;
-	__get_cpu_var (gpKernRegs) = regs;
 
 	return 0;
 }

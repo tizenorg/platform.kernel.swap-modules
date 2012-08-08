@@ -44,9 +44,8 @@
  * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM and MIPS
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
-
  */
 
 #include "dbi_kprobes.h"
@@ -73,7 +72,6 @@
 
 extern unsigned int *sched_addr;
 extern unsigned int *fork_addr;
-
 extern struct hlist_head kprobe_insn_pages;
 
 extern unsigned long (*kallsyms_search) (const char *name);
@@ -99,13 +97,13 @@ void kretprobe_assert (struct kretprobe_instance *ri, unsigned long orig_ret_add
 
 
 /* We have preemption disabled.. so it is safe to use __ versions */
-static inline 
+static inline
 void set_kprobe_instance (struct kprobe *kp)
 {
 	__get_cpu_var (kprobe_instance) = kp;
 }
 
-static inline 
+static inline
 void reset_kprobe_instance (void)
 {
 	__get_cpu_var (kprobe_instance) = NULL;
@@ -174,7 +172,7 @@ struct kprobe *get_kprobe (void *addr, int tgid, struct task_struct *ctask)
  * Aggregate handlers for multiple kprobes support - these handlers
  * take care of invoking the individual kprobe handlers on p->list
  */
-static 
+static
 int aggr_pre_handler (struct kprobe *p, struct pt_regs *regs)
 {
 	struct kprobe *kp;
@@ -194,7 +192,7 @@ int aggr_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-static 
+static
 void aggr_post_handler (struct kprobe *p, struct pt_regs *regs, unsigned long flags)
 {
 	struct kprobe *kp;
@@ -208,10 +206,9 @@ void aggr_post_handler (struct kprobe *p, struct pt_regs *regs, unsigned long fl
 			reset_kprobe_instance ();
 		}
 	}
-	return;
 }
 
-static 
+static
 int aggr_fault_handler (struct kprobe *p, struct pt_regs *regs, int trapnr)
 {
 	struct kprobe *cur = __get_cpu_var (kprobe_instance);
@@ -228,7 +225,7 @@ int aggr_fault_handler (struct kprobe *p, struct pt_regs *regs, int trapnr)
 	return 0;
 }
 
-static 
+static
 int aggr_break_handler (struct kprobe *p, struct pt_regs *regs)
 {
 	struct kprobe *cur = __get_cpu_var (kprobe_instance);
@@ -359,7 +356,7 @@ void free_rp_inst (struct kretprobe *rp)
 /*
  * Keep all fields in the kprobe consistent
  */
-static inline 
+static inline
 void copy_kprobe (struct kprobe *old_p, struct kprobe *p)
 {
 	memcpy (&p->opcode, &old_p->opcode, sizeof (kprobe_opcode_t));
@@ -419,7 +416,7 @@ inline void dbi_hlist_replace_rcu (struct hlist_node *old, struct hlist_node *ne
  * Fill in the required fields of the "manager kprobe". Replace the
  * earlier kprobe in the hlist with the manager kprobe
  */
-static inline 
+static inline
 void add_aggr_kprobe (struct kprobe *ap, struct kprobe *p)
 {
 	copy_kprobe (p, ap);
@@ -477,132 +474,80 @@ int register_aggr_kprobe (struct kprobe *old_p, struct kprobe *p)
 	return ret;
 }
 
-static 
-int __dbi_register_kprobe (struct kprobe *p, unsigned long called_from, int atomic)
+int dbi_register_kprobe (struct kprobe *p)
 {
-	struct kprobe *old_p;
-	//      struct module *probed_mod;
-	int ret = 0;
-	/*
-	 * If we have a symbol_name argument look it up,
-	 * and add it to the address.  That way the addr
-	 * field can either be global or relative to a symbol.
-	 */
-	if (p->symbol_name)
-	{
-		if (p->addr)
-			return -EINVAL;
-		p->addr = (unsigned int) kallsyms_search (p->symbol_name);
-	}
+    struct kprobe *old_p;
+    int ret = 0;
+    /*
+     * If we have a symbol_name argument look it up,
+     * and add it to the address.  That way the addr
+     * field can either be global or relative to a symbol.
+     */
+    if (p->symbol_name)
+    {
+        if (p->addr)
+            return -EINVAL;
+        p->addr = (unsigned int) kallsyms_search (p->symbol_name);
+    }
 
-	if (!p->addr)
-		return -EINVAL;
-	DBPRINTF ("p->addr = 0x%p\n", p->addr);
-	p->addr = (kprobe_opcode_t *) (((char *) p->addr) + p->offset);
-	DBPRINTF ("p->addr = 0x%p p = 0x%p\n", p->addr, p);
-
-	/*	if ((!kernel_text_address((unsigned long) p->addr)) ||
-		in_kprobes_functions((unsigned long) p->addr))
-		return -EINVAL;*/
+    if (!p->addr)
+        return -EINVAL;
+    DBPRINTF ("p->addr = 0x%p\n", p->addr);
+    p->addr = (kprobe_opcode_t *) (((char *) p->addr) + p->offset);
+    DBPRINTF ("p->addr = 0x%p p = 0x%p\n", p->addr, p);
 
 #ifdef KPROBES_PROFILE
-	p->start_tm.tv_sec = p->start_tm.tv_usec = 0;
-	p->hnd_tm_sum.tv_sec = p->hnd_tm_sum.tv_usec = 0;
-	p->count = 0;
+    p->start_tm.tv_sec = p->start_tm.tv_usec = 0;
+    p->hnd_tm_sum.tv_sec = p->hnd_tm_sum.tv_usec = 0;
+    p->count = 0;
 #endif
-	p->mod_refcounted = 0;
-	//p->proc_prio = 0;
-	//p->proc_sched = 0;    
-	//p->spid = -1;
-	//p->irq = 0;
-	//p->task_flags = 0;
-	/*
-	// Check are we probing a module
-	if ((probed_mod = module_text_address((unsigned long) p->addr))) {
-	struct module *calling_mod = module_text_address(called_from);
-	// We must allow modules to probe themself and
-	// in this case avoid incrementing the module refcount,
-	// so as to allow unloading of self probing modules.
-	//
-	if (calling_mod && (calling_mod != probed_mod)) {
-	if (unlikely(!try_module_get(probed_mod)))
-	return -EINVAL;
-	p->mod_refcounted = 1;
-	} else
-	probed_mod = NULL;
-	}
-	 */
-	p->nmissed = 0;
-	//      mutex_lock(&kprobe_mutex);
-	old_p = get_kprobe (p->addr, 0, NULL);
-	if (old_p)
-	{
-		ret = register_aggr_kprobe (old_p, p);
-		if (!ret)
-			atomic_inc (&kprobe_count);
-		goto out;
-	}
+    p->mod_refcounted = 0;
+    p->nmissed = 0;
 
-	if ((ret = arch_prepare_kprobe (p)) != 0)
-		goto out;
+    old_p = get_kprobe (p->addr, 0, NULL);
+    if (old_p)
+    {
+        ret = register_aggr_kprobe (old_p, p);
+        if (!ret)
+            atomic_inc (&kprobe_count);
+        goto out;
+    }
 
-	DBPRINTF ("before out ret = 0x%x\n", ret);
+    if ((ret = arch_prepare_kprobe (p)) != 0)
+        goto out;
 
-	INIT_HLIST_NODE (&p->hlist);
-	hlist_add_head_rcu (&p->hlist, &kprobe_table[hash_ptr (p->addr, KPROBE_HASH_BITS)]);
-
-	/*	if (atomic_add_return(1, &kprobe_count) == \
-		(ARCH_INACTIVE_KPROBE_COUNT + 1))
-		register_page_fault_notifier(&kprobe_page_fault_nb);*/
-
-	arch_arm_kprobe (p);
+    DBPRINTF ("before out ret = 0x%x\n", ret);
+    INIT_HLIST_NODE (&p->hlist);
+    hlist_add_head_rcu (&p->hlist, &kprobe_table[hash_ptr (p->addr, KPROBE_HASH_BITS)]);
+    arch_arm_kprobe (p);
 
 out:
-	//      mutex_unlock(&kprobe_mutex);
-	/*
-	   if (ret && probed_mod)
-	   module_put(probed_mod);
-	 */
-	DBPRINTF ("out ret = 0x%x\n", ret);
-
-	return ret;
+    DBPRINTF ("out ret = 0x%x\n", ret);
+    return ret;
 }
 
-
-int dbi_register_kprobe (struct kprobe *p, int atomic)
+void dbi_unregister_kprobe (struct kprobe *p, struct task_struct *task)
 {
-	return __dbi_register_kprobe (p, (unsigned long) __builtin_return_address (0), atomic);
-}
-
-void dbi_unregister_kprobe (struct kprobe *p, struct task_struct *task, int atomic)
-{
-	//      struct module *mod;
 	struct kprobe *old_p, *list_p;
-	int cleanup_p, pid = 0;
-
-	//      mutex_lock(&kprobe_mutex);
-
-	pid = p->tgid;
+	int cleanup_p, pid = p->tgid;
 
 	old_p = get_kprobe (p->addr, pid, NULL);
 	DBPRINTF ("dbi_unregister_kprobe p=%p old_p=%p", p, old_p);
 	if (unlikely (!old_p))
-	{
-		//              mutex_unlock(&kprobe_mutex);
 		return;
-	}
+
 	if (p != old_p)
 	{
-		list_for_each_entry_rcu (list_p, &old_p->list, list) 
+		list_for_each_entry_rcu (list_p, &old_p->list, list)
 			if (list_p == p)
 				/* kprobe p is a valid probe */
 				goto valid_p;
-		//              mutex_unlock(&kprobe_mutex);
 		return;
 	}
+
 valid_p:
 	DBPRINTF ("dbi_unregister_kprobe valid_p");
-	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_handler) && 
+	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_handler) &&
 				(p->list.next == &old_p->list) && (p->list.prev == &old_p->list)))
 	{
 		/* Only probe on the hash list */
@@ -620,14 +565,7 @@ valid_p:
 		cleanup_p = 0;
 	}
 	DBPRINTF ("dbi_unregister_kprobe cleanup_p=%d", cleanup_p);
-	//      mutex_unlock(&kprobe_mutex);
 
-	//      synchronize_sched();
-	/*
-	   if (p->mod_refcounted &&
-	   (mod = module_text_address((unsigned long)p->addr)))
-	   module_put(mod);
-	 */
 	if (cleanup_p)
 	{
 		if (p != old_p)
@@ -639,7 +577,6 @@ valid_p:
 	}
 	else
 	{
-		///             mutex_lock(&kprobe_mutex);
 		if (p->break_handler)
 			old_p->break_handler = NULL;
 		if (p->post_handler)
@@ -655,32 +592,21 @@ valid_p:
 			if (cleanup_p == 0)
 				old_p->post_handler = NULL;
 		}
-		//              mutex_unlock(&kprobe_mutex);
 	}
-
-	/* Call unregister_page_fault_notifier()
-	 * if no probes are active
-	 */
-	//      mutex_lock(&kprobe_mutex);
-	/*	if (atomic_add_return(-1, &kprobe_count) == \
-		ARCH_INACTIVE_KPROBE_COUNT)
-		unregister_page_fault_notifier(&kprobe_page_fault_nb);*/
-	//      mutex_unlock(&kprobe_mutex);
-	return;
 }
 
-int dbi_register_jprobe (struct jprobe *jp, int atomic)
+int dbi_register_jprobe (struct jprobe *jp)
 {
 	/* Todo: Verify probepoint is a function entry point */
 	jp->kp.pre_handler = setjmp_pre_handler;
 	jp->kp.break_handler = longjmp_break_handler;
 
-	return __dbi_register_kprobe (&jp->kp, (unsigned long) __builtin_return_address (0), atomic);
+	return dbi_register_kprobe (&jp->kp);
 }
 
-void dbi_unregister_jprobe (struct jprobe *jp, int atomic)
+void dbi_unregister_jprobe (struct jprobe *jp)
 {
-	dbi_unregister_kprobe (&jp->kp, 0, atomic);
+	dbi_unregister_kprobe (&jp->kp, 0);
 }
 
 /*
@@ -746,12 +672,11 @@ int alloc_nodes_kretprobe(struct kretprobe *rp)
      return 0;
 }
 
-int dbi_register_kretprobe (struct kretprobe *rp, int atomic)
+int dbi_register_kretprobe (struct kretprobe *rp)
 {
 	int ret = 0;
 	struct kretprobe_instance *inst;
 	int i;
-	int priority = atomic ? GFP_ATOMIC : GFP_KERNEL;
 	DBPRINTF ("START");
 
 	rp->kp.pre_handler = pre_handler_kretprobe;
@@ -776,7 +701,7 @@ int dbi_register_kretprobe (struct kretprobe *rp, int atomic)
 	INIT_HLIST_HEAD (&rp->free_instances);
 	for (i = 0; i < rp->maxactive; i++)
 	{
-		inst = kmalloc (sizeof (struct kretprobe_instance), priority);
+		inst = kmalloc (sizeof (struct kretprobe_instance), GFP_KERNEL);
 		if (inst == NULL)
 		{
 			free_rp_inst (rp);
@@ -789,7 +714,7 @@ int dbi_register_kretprobe (struct kretprobe *rp, int atomic)
 	DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
 	rp->nmissed = 0;
 	/* Establish function entry probe point */
-	if ((ret = __dbi_register_kprobe (&rp->kp, (unsigned long) __builtin_return_address (0), atomic)) != 0)
+	if ((ret = dbi_register_kprobe (&rp->kp)) != 0)
 		free_rp_inst (rp);
 
 	DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
@@ -799,12 +724,12 @@ int dbi_register_kretprobe (struct kretprobe *rp, int atomic)
 	return ret;
 }
 
-void dbi_unregister_kretprobe (struct kretprobe *rp, int atomic)
+void dbi_unregister_kretprobe (struct kretprobe *rp)
 {
 	unsigned long flags;
 	struct kretprobe_instance *ri;
 
-	dbi_unregister_kprobe (&rp->kp, 0, atomic);
+	dbi_unregister_kprobe (&rp->kp, 0);
 
 	if((unsigned int)rp->kp.addr == sched_addr)
 		sched_rp = NULL;

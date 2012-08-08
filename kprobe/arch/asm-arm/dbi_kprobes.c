@@ -22,12 +22,11 @@
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86.
  * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
- *
  * 2010-2011    Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
- * 2012		Stanislav Andreev <s.andreev@samsung.com>: added time debug profiling support; BUG() message fix
- * 2012		Stanislav Andreev <s.andreev@samsung.com>: redesign of kprobe functionality - 
- *		kprobe_handler() now called via undefined instruction hooks
- * 2012		Stanislav Andreev <s.andreev@samsung.com>: hash tables search implemented for uprobes
+ * 2012         Stanislav Andreev <s.andreev@samsung.com>: added time debug profiling support; BUG() message fix
+ * 2012         Stanislav Andreev <s.andreev@samsung.com>: redesign of kprobe functionality -
+ *              kprobe_handler() now called via undefined instruction hooks
+ * 2012         Stanislav Andreev <s.andreev@samsung.com>: hash tables search implemented for uprobes
  */
 
 #include <linux/module.h>
@@ -135,8 +134,6 @@ int prep_pc_dep_insn_execbuf (kprobe_opcode_t * insns, kprobe_opcode_t insn, int
 	{
 		for (i = 0; i < 13; i++)
 		{
-			//              DBPRINTF("prep_pc_dep_insn_execbuf: check R%d/%d, changing regs %x in %x",
-			//                              i, ARM_INSN_REG_RN(insn), uregs, insn);
 			if ((uregs & 0x1) && (ARM_INSN_REG_RN (insn) == i))
 				continue;
 			if ((uregs & 0x2) && (ARM_INSN_REG_RD (insn) == i))
@@ -159,7 +156,7 @@ int prep_pc_dep_insn_execbuf (kprobe_opcode_t * insns, kprobe_opcode_t insn, int
 	ARM_INSN_REG_SET_RD (insns[0], i);
 	// set register to load address to
 	ARM_INSN_REG_SET_RD (insns[1], i);
-	// set instruction to execute and patch it 
+	// set instruction to execute and patch it
 	if (uregs & 0x10)
 	{
 		ARM_INSN_REG_CLEAR_MR (insn, 15);
@@ -198,7 +195,7 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 		{
 			if (((((unsigned char) insn) & 0xff) >> 3) == 15)
 				reg = (insn & 0xffff) & uregs;
-			else	
+			else
 				return 0;
 		}else{
 			if (THUMB2_INSN_MATCH (ADR, insn))
@@ -513,124 +510,110 @@ int arch_prepare_kretprobe (struct kretprobe *p)
 int arch_prepare_kprobe (struct kprobe *p)
 {
 	kprobe_opcode_t insns[KPROBES_TRAMP_LEN];
-	int uregs, pc_dep;
-	int ret = 0;
+	int uregs, pc_dep, ret = 0;
+    kprobe_opcode_t insn[MAX_INSN_SIZE];
+    struct arch_specific_insn ainsn;
 
-	if (!ret)
-	{
-		kprobe_opcode_t insn[MAX_INSN_SIZE];
-		struct arch_specific_insn ainsn;
-		/* insn: must be on special executable page on i386. */
-		p->ainsn.insn = get_insn_slot (NULL, 0);
-		if (!p->ainsn.insn)
-			return -ENOMEM;
-		memcpy (insn, p->addr, MAX_INSN_SIZE * sizeof (kprobe_opcode_t));
-		ainsn.insn_arm = ainsn.insn = insn;
-		ret = arch_check_insn_arm (&ainsn);
-		if (!ret)
-		{
-			p->opcode = *p->addr;
+    /* insn: must be on special executable page on i386. */
+    p->ainsn.insn = get_insn_slot (NULL, 0);
+    if (!p->ainsn.insn)
+        return -ENOMEM;
 
-			p->ainsn.boostable = 1;
-			uregs = pc_dep = 0;
-			// Rn, Rm ,Rd
-			if (ARM_INSN_MATCH (DPIS, insn[0]) || ARM_INSN_MATCH (LRO, insn[0]) ||
-					ARM_INSN_MATCH (SRO, insn[0]))
-			{
+    memcpy (insn, p->addr, MAX_INSN_SIZE * sizeof (kprobe_opcode_t));
+    ainsn.insn_arm = ainsn.insn = insn;
+    ret = arch_check_insn_arm (&ainsn);
+    if (!ret)
+    {
+        p->opcode = *p->addr;
+        p->ainsn.boostable = 1;
+        uregs = pc_dep = 0;
 
-				uregs = 0xb;
-				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) ||
-						(ARM_INSN_MATCH (SRO, insn[0]) && (ARM_INSN_REG_RD (insn[0]) == 15)))
-				{
-
-					DBPRINTF ("Unboostable insn %lx, DPIS/LRO/SRO\n", insn[0]);
-					pc_dep = 1;
-				}
-			}
-			// Rn ,Rd
-			else if (ARM_INSN_MATCH (DPI, insn[0]) || ARM_INSN_MATCH (LIO, insn[0]) ||
-					ARM_INSN_MATCH (SIO, insn[0]))
-			{
-
-				uregs = 0x3;
-				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_MATCH (SIO, insn[0]) &&
-							(ARM_INSN_REG_RD (insn[0]) == 15)))
-				{
-
-					pc_dep = 1;
-					DBPRINTF ("Unboostable insn %lx/%p/%d, DPI/LIO/SIO\n", insn[0], p, p->ainsn.boostable);
-				}
-			}
-			// Rn, Rm, Rs
-			else if (ARM_INSN_MATCH (DPRS, insn[0]))
-			{
-
-				uregs = 0xd;
-				if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) ||
-						(ARM_INSN_REG_RS (insn[0]) == 15))
-				{
-
-					pc_dep = 1;
-					DBPRINTF ("Unboostable insn %lx, DPRS\n", insn[0]);
-				}
-			}
-			// register list
-			else if (ARM_INSN_MATCH (SM, insn[0]))
-			{
-
-				uregs = 0x10;
-				if (ARM_INSN_REG_MR (insn[0], 15))
-				{
-
-					DBPRINTF ("Unboostable insn %lx, SM\n", insn[0]);
-					pc_dep = 1;
-				}
-			}
-			// check instructions that can write result to SP andu uses PC
-			if (pc_dep  && (ARM_INSN_REG_RD (ainsn.insn[0]) == 13))
-			{
-				static int count;
-				count++;
-				//printk ("insn writes result to SP and uses PC: %lx/%d\n", ainsn.insn[0], count);
-				free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
-				ret = -EFAULT;
-			}
-			else {
-				if (uregs && pc_dep)
-				{
-					memcpy (insns, pc_dep_insn_execbuf, sizeof (insns));
-					if (prep_pc_dep_insn_execbuf (insns, insn[0], uregs) != 0)
-					{
-						DBPRINTF ("failed to prepare exec buffer for insn %lx!", insn[0]);
-						free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
-						return -EINVAL;
-					}
-					//insns[KPROBES_TRAMP_SS_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-					insns[6] = (kprobe_opcode_t) (p->addr + 2);
-				}
-				else
-				{
-					memcpy (insns, gen_insn_execbuf, sizeof (insns));
-					insns[KPROBES_TRAMP_INSN_IDX] = insn[0];
-				}
-				//insns[KPROBES_TRAMP_RET_BREAK_IDX] = UNDEF_INSTRUCTION;
-				insns[7] = (kprobe_opcode_t) (p->addr + 1);
-				DBPRINTF ("arch_prepare_kprobe: insn %lx", insn[0]);
-				DBPRINTF ("arch_prepare_kprobe: to %p - %lx %lx %lx %lx %lx %lx %lx %lx %lx",
-						p->ainsn.insn, insns[0], insns[1], insns[2], insns[3], insns[4],
-						insns[5], insns[6], insns[7], insns[8]);
-				memcpy (p->ainsn.insn, insns, sizeof(insns));
-				flush_icache_range(p->ainsn.insn, p->ainsn.insn + sizeof(insns));
+        // Rn, Rm ,Rd
+        if(ARM_INSN_MATCH (DPIS, insn[0]) || ARM_INSN_MATCH (LRO, insn[0]) ||
+           ARM_INSN_MATCH (SRO, insn[0]))
+        {
+            uregs = 0xb;
+            if( (ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) ||
+                (ARM_INSN_MATCH (SRO, insn[0]) && (ARM_INSN_REG_RD (insn[0]) == 15)) )
+            {
+                DBPRINTF ("Unboostable insn %lx, DPIS/LRO/SRO\n", insn[0]);
+                pc_dep = 1;
+            }
+        }
+        // Rn ,Rd
+        else if(ARM_INSN_MATCH (DPI, insn[0]) || ARM_INSN_MATCH (LIO, insn[0]) ||
+                ARM_INSN_MATCH (SIO, insn[0]))
+        {
+            uregs = 0x3;
+            if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_MATCH (SIO, insn[0]) &&
+                        (ARM_INSN_REG_RD (insn[0]) == 15)))
+            {
+                pc_dep = 1;
+                DBPRINTF ("Unboostable insn %lx/%p/%d, DPI/LIO/SIO\n", insn[0], p, p->ainsn.boostable);
+            }
+        }
+        // Rn, Rm, Rs
+        else if(ARM_INSN_MATCH (DPRS, insn[0]))
+        {
+            uregs = 0xd;
+            if ((ARM_INSN_REG_RN (insn[0]) == 15) || (ARM_INSN_REG_RM (insn[0]) == 15) ||
+                (ARM_INSN_REG_RS (insn[0]) == 15))
+            {
+                pc_dep = 1;
+                DBPRINTF ("Unboostable insn %lx, DPRS\n", insn[0]);
+            }
+        }
+        // register list
+        else if(ARM_INSN_MATCH (SM, insn[0]))
+        {
+            uregs = 0x10;
+            if (ARM_INSN_REG_MR (insn[0], 15))
+            {
+                DBPRINTF ("Unboostable insn %lx, SM\n", insn[0]);
+                pc_dep = 1;
+            }
+        }
+        // check instructions that can write result to SP andu uses PC
+        if (pc_dep  && (ARM_INSN_REG_RD (ainsn.insn[0]) == 13))
+        {
+            free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
+            ret = -EFAULT;
+        }
+        else
+        {
+            if (uregs && pc_dep)
+            {
+                memcpy (insns, pc_dep_insn_execbuf, sizeof (insns));
+                if (prep_pc_dep_insn_execbuf (insns, insn[0], uregs) != 0)
+                {
+                    DBPRINTF ("failed to prepare exec buffer for insn %lx!", insn[0]);
+                    free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
+                    return -EINVAL;
+                }
+                insns[6] = (kprobe_opcode_t) (p->addr + 2);
+            }
+            else
+            {
+                memcpy (insns, gen_insn_execbuf, sizeof (insns));
+                insns[KPROBES_TRAMP_INSN_IDX] = insn[0];
+            }
+            insns[7] = (kprobe_opcode_t) (p->addr + 1);
+            DBPRINTF ("arch_prepare_kprobe: insn %lx", insn[0]);
+            DBPRINTF ("arch_prepare_kprobe: to %p - %lx %lx %lx %lx %lx %lx %lx %lx %lx",
+                    p->ainsn.insn, insns[0], insns[1], insns[2], insns[3], insns[4],
+                    insns[5], insns[6], insns[7], insns[8]);
+            memcpy (p->ainsn.insn, insns, sizeof(insns));
+            flush_icache_range(p->ainsn.insn, p->ainsn.insn + sizeof(insns));
 #ifdef BOARD_tegra
-				flush_cache_all();
+            flush_cache_all();
 #endif
-			}
-		}
-		else
-		{
-			free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
-		}
-	}
+        }
+    }
+    else
+    {
+        free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
+    }
+
 	return ret;
 }
 
@@ -823,7 +806,7 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 		memcpy (insns, pc_dep_insn_execbuf, sizeof (insns));
 		if (prep_pc_dep_insn_execbuf (insns, insn[0], uregs) != 0)
 		{
-			printk("Error in %s at %d: failed to prepare exec buffer for insn %lx!", 
+			printk("Error in %s at %d: failed to prepare exec buffer for insn %lx!",
 				insn[0], __FILE__, __LINE__);
 			p->safe_arm = -1;
 			// TODO: move free to later phase
@@ -906,10 +889,10 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 			THUMB2_INSN_MATCH (LDRHW, insn[0]) || THUMB2_INSN_MATCH (LDRHW1, insn[0]) ||
 			THUMB2_INSN_MATCH (LDRWL, insn[0])) && THUMB2_INSN_REG_RN(insn[0]) == 15) ||
 			THUMB2_INSN_MATCH (LDREX, insn[0]) ||
-			((THUMB2_INSN_MATCH (STRW, insn[0]) || THUMB2_INSN_MATCH (STRBW, insn[0]) || 
-				THUMB2_INSN_MATCH (STRHW, insn[0]) || THUMB2_INSN_MATCH (STRHW1, insn[0])) && 
+			((THUMB2_INSN_MATCH (STRW, insn[0]) || THUMB2_INSN_MATCH (STRBW, insn[0]) ||
+				THUMB2_INSN_MATCH (STRHW, insn[0]) || THUMB2_INSN_MATCH (STRHW1, insn[0])) &&
 				(THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RT(insn[0]) == 15)) ||
-			((THUMB2_INSN_MATCH (STRT, insn[0]) || THUMB2_INSN_MATCH (STRHT, insn[0])) && 
+			((THUMB2_INSN_MATCH (STRT, insn[0]) || THUMB2_INSN_MATCH (STRHT, insn[0])) &&
 				(THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RT(insn[0]) == 15)) )
 	{
 		uregs = 0xf000;		// Rt 12-15
@@ -971,7 +954,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 		memcpy (insns, pc_dep_insn_execbuf_thumb, 18 * 2);
 		if (prep_pc_dep_insn_execbuf_thumb (insns, insn[0], uregs) != 0)
 		{
-			printk("Error in %s at %d: failed to prepare exec buffer for insn %lx!", 
+			printk("Error in %s at %d: failed to prepare exec buffer for insn %lx!",
 				insn[0], __FILE__, __LINE__);
 			p->safe_thumb = -1;
 			//free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_thumb, 0);
@@ -1137,7 +1120,7 @@ int kprobe_handler (struct pt_regs *regs)
 #ifdef OVERHEAD_DEBUG
 				do_gettimeofday(&swap_tv2);
 				swap_sum_hit++;
-				swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM + 
+				swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM +
 					(swap_tv2.tv_usec - swap_tv1.tv_usec));
 #endif
 #ifdef SUPRESS_BUG_MESSAGES
@@ -1148,7 +1131,7 @@ int kprobe_handler (struct pt_regs *regs)
 		}
 		else
 		{
-			if(pid) { //we can reenter probe upon uretprobe exception   
+			if(pid) { //we can reenter probe upon uretprobe exception
 				DBPRINTF ("check for UNDEF_INSTRUCTION %p\n", addr);
 				// UNDEF_INSTRUCTION from user space
 
@@ -1171,7 +1154,7 @@ int kprobe_handler (struct pt_regs *regs)
 				/*if (p->break_handler && p->break_handler(p, regs)) {
 				  DBPRINTF("kprobe_running !!! goto ss");
 				  goto ss_probe;
-				  } */			
+				  } */
 				DBPRINTF ("unknown uprobe at %p cur at %p/%p\n", addr, p->addr, p->ainsn.insn);
 				if(pid)
 					ssaddr = p->ainsn.insn + UPROBES_TRAMP_SS_BREAK_IDX;
@@ -1265,7 +1248,7 @@ int kprobe_handler (struct pt_regs *regs)
 #ifdef OVERHEAD_DEBUG
 		do_gettimeofday(&swap_tv2);
 		swap_sum_hit++;
-		swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM + 
+		swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM +
 			(swap_tv2.tv_usec - swap_tv1.tv_usec));
 #endif
 #ifdef SUPRESS_BUG_MESSAGES
@@ -1280,7 +1263,7 @@ no_kprobe:
 #ifdef OVERHEAD_DEBUG
 	do_gettimeofday(&swap_tv2);
 	swap_sum_hit++;
-	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM + 
+	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM +
 		(swap_tv2.tv_usec - swap_tv1.tv_usec));
 #endif
 #ifdef SUPRESS_BUG_MESSAGES
@@ -1293,7 +1276,7 @@ no_kprobe_live:
 #ifdef OVERHEAD_DEBUG
 	do_gettimeofday(&swap_tv2);
 	swap_sum_hit++;
-	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM + 
+	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM +
 		(swap_tv2.tv_usec - swap_tv1.tv_usec));
 #endif
 #ifdef SUPRESS_BUG_MESSAGES
@@ -1371,7 +1354,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 
 	//call handler for all kernel probes and user space ones which belong to current tgid
 	if (!p->tgid || (p->tgid == current->tgid))
-	{		
+	{
 		if(!p->tgid && ((unsigned int)p->addr == sched_addr) && sched_rp){
 			struct task_struct *p, *g;
 			rcu_read_lock();
@@ -1510,7 +1493,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	/*
 	 * It is possible to have multiple instances associated with a given
 	 * task either because an multiple functions in the call path
-	 * have a return probe installed on them, and/or more then one 
+	 * have a return probe installed on them, and/or more then one
 	 * return probe was registered for a target function.
 	 *
 	 * We can handle this because:
@@ -1751,7 +1734,7 @@ int __init arch_init_kprobes (void)
 	do_kpro(&undef_ho_k);
 	do_kpro(&undef_ho_u);
 	do_kpro(&undef_ho_u_t);
-	if ((ret = dbi_register_kprobe (&trampoline_p, 0)) != 0) {
+	if ((ret = dbi_register_kprobe (&trampoline_p)) != 0) {
 		//dbi_unregister_jprobe(&do_exit_p, 0);
 		return ret;
 	}
