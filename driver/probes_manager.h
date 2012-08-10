@@ -7,7 +7,7 @@
 //      SEE ALSO:       probes_manager.c
 //      AUTHOR:         L.Komkov, A.Gerenkov
 //      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group 
+//      DEPT NAME:      Advanced Software Group
 //      CREATED:        2008.02.15
 //      VERSION:        1.0
 //      REVISION DATE:  2008.12.03
@@ -53,22 +53,23 @@ int install_kern_otg_probe(unsigned long addr,
 			   unsigned long rp_handler);
 
 extern unsigned long pf_addr;
+extern unsigned long cp_addr;
 extern unsigned long exit_addr;
-extern unsigned long fork_addr;
 extern unsigned long exec_addr;
 extern kernel_probe_t *pf_probe;
+extern kernel_probe_t *cp_probe;
 extern kernel_probe_t *exit_probe;
-extern kernel_probe_t *fork_probe;
 extern kernel_probe_t *exec_probe;
 extern unsigned int probes_flags;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 extern spinlock_t ec_probe_spinlock;
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
-#define PROBE_FLAG_PF_INSTLD	0x1
-#define PROBE_FLAG_EXIT_INSTLD	0x2
-#define PROBE_FLAG_EXEC_INSTLD	0x4
-#define PROBE_FLAG_FORK_INSTLD	0x8
-//#define PROBE_FLAG_SS_INSTLD	0x4
+enum {
+    PROBE_FLAG_PF_INSTLD   = (1 << 0),
+    PROBE_FLAG_CP_INSTLD   = (1 << 1),
+    PROBE_FLAG_EXIT_INSTLD = (1 << 2),
+    PROBE_FLAG_EXEC_INSTLD = (1 << 3)
+};
 
 #endif // !defined(__PROBES_MANAGER_H__)

@@ -7,7 +7,7 @@
 //      SEE ALSO:       us_proc_inst.c
 //      AUTHOR:         A.Gerenkov
 //      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group 
+//      DEPT NAME:      Advanced Software Group
 //      CREATED:        2008.06.02
 //      VERSION:        1.0
 //      REVISION DATE:	2008.12.03
@@ -23,39 +23,29 @@
 
 #include <linux/signal.h>	// struct sigpending
 
-/*
-    Instruments or schedules pending instrumentation of user space process.
-*/
+/* Instruments or schedules pending instrumentation of user space process. */
 extern int inst_usr_space_proc (void);
 extern int deinst_usr_space_proc (void);
 
-/*
-    Detects when IPs are really loaded into phy mem and installs probes.
-*/
+/* Detects when IPs are really loaded into phy mem and installs probes. */
 extern void do_page_fault_ret_pre_code (void);
 extern void  otg_probe_list_clean(char*);
 
-/*
-    Detects when target process exits and removes IPs.
-*/
+/* Detects when target process exits and removes IPs. */
 extern void do_exit_probe_pre_code (void);
 
-extern void do_fork_probe_pre_code (void);
-
-/*
-    Detects when target process is killed and removes IPs.
-*/
-//extern void send_sig_jprobe_event_handler (int sig, struct siginfo *info, struct task_struct *t, struct sigpending *signals);
+/* Delete uprobs in children at fork */
+extern void do_copy_process_ret_pre_code(struct task_struct *p);
 
 extern int us_proc_probes;
-
 extern pid_t gl_nNotifyTgid;
 
-#define US_PROC_PF_INSTLD	0x1
-#define US_PROC_EXIT_INSTLD	0x2
-#define US_PROC_EXEC_INSTLD	0x4
-#define US_PROC_FORK_INSTLD	0x8
-//#define US_PROC_SS_INSTLD	0x4
+enum {
+    US_PROC_PF_INSTLD   = (1 << 0),
+    US_PROC_CP_INSTLD   = (1 << 1),
+    US_PROC_EXIT_INSTLD = (1 << 2),
+    US_PROC_EXEC_INSTLD = (1 << 3)
+};
 
 /* forward declarations */
 struct task_struct;

@@ -42,7 +42,7 @@
  * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM and MIPS
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
 
  */
@@ -104,6 +104,7 @@ void arch_disarm_uprobe (struct kprobe *p, struct task_struct *tsk)
 	if (!write_proc_vm_atomic (tsk, (unsigned long) p->addr, &p->opcode, sizeof (p->opcode)))
 		panic ("failed to write memory %p!\n", p->addr);
 }
+EXPORT_SYMBOL_GPL(arch_disarm_uprobe);
 
 void arch_disarm_uretprobe (struct kretprobe *p, struct task_struct *tsk)
 {
@@ -112,7 +113,7 @@ void arch_disarm_uretprobe (struct kretprobe *p, struct task_struct *tsk)
 int arch_init_module_dependencies()
 {
 
-	kallsyms_search = (void *) ksyms; 
+	kallsyms_search = (void *) ksyms;
 	DBPRINTF ("kallsyms=0x%08x\n", ksyms);
 
 	sched_addr = (unsigned int *)kallsyms_search("__switch_to");//"schedule");
