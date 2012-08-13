@@ -1518,7 +1518,7 @@ static void rm_uprobs_child(struct task_struct *new_task)
 
 void do_copy_process_ret_pre_code(struct task_struct *p)
 {
-    if(IS_ERR_OR_NULL(p))
+    if(!p || IS_ERR(p))
         return;
 
     if( !(p->flags & CLONE_VM) )
