@@ -35,7 +35,7 @@ extern void  otg_probe_list_clean(char*);
 extern void do_exit_probe_pre_code (void);
 
 /* Delete uprobs in children at fork */
-extern void do_copy_process_ret_pre_code(struct task_struct *p);
+extern void copy_process_ret_pre_code(struct task_struct *p);
 
 extern int us_proc_probes;
 extern pid_t gl_nNotifyTgid;

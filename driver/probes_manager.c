@@ -442,7 +442,7 @@ def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs,
 	if (cp_probe == probe)
 	{
 		if (us_proc_probes & US_PROC_CP_INSTLD)
-			do_copy_process_ret_pre_code((struct task_struct*)(regs_return_value(regs)));
+			copy_process_ret_pre_code((struct task_struct*)(regs_return_value(regs)));
 
 		if (!(probes_flags & PROBE_FLAG_CP_INSTLD))
 			skip = 1;
