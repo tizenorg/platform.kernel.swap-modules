@@ -259,7 +259,7 @@ struct kretprobe_instance *get_free_rp_inst (struct kretprobe *rp);
 struct kretprobe_instance *get_free_rp_inst_no_alloc (struct kretprobe *rp);
 void free_rp_inst (struct kretprobe *rp);
 void add_rp_inst (struct kretprobe_instance *ri);
-void recycle_rp_inst (struct kretprobe_instance *ri, struct hlist_head *head);
+void recycle_rp_inst (struct kretprobe_instance *ri);
 
 //void kretprobe_trampoline_holder (void);
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);

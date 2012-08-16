@@ -1286,55 +1286,6 @@ no_kprobe_live:
 	return 0;		// ok - life is life
 }
 
-void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
-{
-	struct kretprobe_instance *ri = NULL;
-	struct hlist_node *node, *tmp;
-	struct hlist_head *head;
-	unsigned long flags;
-	int found = 0;
-
-	spin_lock_irqsave (&kretprobe_lock, flags);
-	head = kretprobe_inst_table_head (p);
-	hlist_for_each_entry_safe (ri, node, tmp, head, hlist){
-		if ((ri->rp == rp) && (p == ri->task)){
-			found = 1;
-			break;
-		}
-	}
-	spin_unlock_irqrestore (&kretprobe_lock, flags);
-
-#ifndef task_thread_info
-#define task_thread_info(task) (task)->thread_info
-#endif // task_thread_info
-
-	if (found){
-		// update PC
-		if(thread_saved_pc(p) != (unsigned long)&kretprobe_trampoline){
-			ri->ret_addr = (kprobe_opcode_t *)thread_saved_pc(p);
-			task_thread_info(p)->cpu_context.pc = (unsigned long) &kretprobe_trampoline;
-		}
-		return;
-	}
-
-	spin_lock_irqsave (&kretprobe_lock, flags);
-	if ((ri = get_free_rp_inst(rp)) != NULL)
-	{
-		ri->rp = rp;
-		ri->rp2 = NULL;
-		ri->task = p;
-		ri->ret_addr = (kprobe_opcode_t *)thread_saved_pc(p);
-		task_thread_info(p)->cpu_context.pc = (unsigned long) &kretprobe_trampoline;
-		add_rp_inst (ri);
-		//		printk("change2 saved pc %p->%p for %d/%d/%p\n", ri->ret_addr, &kretprobe_trampoline, p->tgid, p->pid, p);
-	}
-	else{
-		printk("no ri for %d\n", p->pid);
-		BUG();
-	}
-	spin_unlock_irqrestore (&kretprobe_lock, flags);
-}
-
 int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 {
 	struct jprobe *jp = container_of (p, struct jprobe, kp);
@@ -1355,19 +1306,8 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	//call handler for all kernel probes and user space ones which belong to current tgid
 	if (!p->tgid || (p->tgid == current->tgid))
 	{
-		if(!p->tgid && ((unsigned int)p->addr == sched_addr) && sched_rp){
-			struct task_struct *p, *g;
-			rcu_read_lock();
-			//swapper task
-			if(current != &init_task)
-				patch_suspended_task_ret_addr(&init_task, sched_rp);
-			// other tasks
-			do_each_thread(g, p){
-				if(p == current)
-					continue;
-				patch_suspended_task_ret_addr(p, sched_rp);
-			} while_each_thread(g, p);
-			rcu_read_unlock();
+		if(!p->tgid && ((unsigned int)p->addr == sched_addr) && sched_rp) {
+		    patch_suspended_all_task_ret_addr(sched_rp);
 		}
 		if (pre_entry)
 			p->ss_addr = (void *)pre_entry (jp->priv_arg, regs);
@@ -1513,7 +1453,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 		}
 
 		orig_ret_address = (unsigned long) ri->ret_addr;
-		recycle_rp_inst (ri, &empty_rp);
+		recycle_rp_inst (ri);
 		if (orig_ret_address != trampoline_address)
 			/*
 			 * This is the real return address. Any other

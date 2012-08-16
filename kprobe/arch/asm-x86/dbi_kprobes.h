@@ -44,7 +44,7 @@
  *
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
 
  */
@@ -73,7 +73,7 @@ typedef u8 kprobe_opcode_t;
 #define XREG(rg)                x##rg
 #define ORIG_EAX_REG            orig_eax
 
-#else 
+#else
 
 #define EREG(rg)                rg
 #define XREG(rg)                rg
@@ -90,6 +90,16 @@ typedef u8 kprobe_opcode_t;
 #define UPROBES_TRAMP_RET_BREAK_IDX     MAX_INSN_SIZE
 #define KPROBES_TRAMP_LEN		MAX_INSN_SIZE
 #define KPROBES_TRAMP_INSN_IDX          0
+
+static inline unsigned long arch_get_task_pc(struct task_struct *p)
+{
+	return p->thread.ip;
+}
+
+static inline void arch_set_task_pc(struct task_struct *p, unsigned long val)
+{
+	p->thread.ip = val;
+}
 
 static inline unsigned long dbi_get_stack_ptr(struct pt_regs *regs)
 {

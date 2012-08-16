@@ -39,7 +39,7 @@ typedef unsigned long kprobe_opcode_t;
 
 #ifdef CONFIG_CPU_S3C2443
 #define BREAKPOINT_INSTRUCTION          0xe1200070
-#else 
+#else
 #define BREAKPOINT_INSTRUCTION          0xffffdeff
 #endif /* CONFIG_CPU_S3C2443 */
 
@@ -47,7 +47,7 @@ typedef unsigned long kprobe_opcode_t;
 
 #ifdef CONFIG_CPU_S3C2443
 #define UNDEF_INSTRUCTION               0xe1200071
-#else 
+#else
 #define UNDEF_INSTRUCTION               0xfffffffe
 #endif /* CONFIG_CPU_S3C2443 */
 
@@ -63,6 +63,16 @@ typedef unsigned long kprobe_opcode_t;
 # define KPROBES_TRAMP_INSN_IDX         UPROBES_TRAMP_INSN_IDX
 # define KPROBES_TRAMP_SS_BREAK_IDX     UPROBES_TRAMP_SS_BREAK_IDX
 # define KPROBES_TRAMP_RET_BREAK_IDX	UPROBES_TRAMP_RET_BREAK_IDX
+
+static inline unsigned long arch_get_task_pc(struct task_struct *p)
+{
+	return task_thread_info(p)->cpu_context.pc;
+}
+
+static inline void arch_set_task_pc(struct task_struct *p, unsigned long val)
+{
+	task_thread_info(p)->cpu_context.pc = val;
+}
 
 static inline unsigned long dbi_get_stack_ptr(struct pt_regs *regs)
 {
@@ -489,7 +499,5 @@ typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned
 //void pc_dep_insn_execbuf (void);
 //void gen_insn_execbuf_holder (void);
 //void pc_dep_insn_execbuf_holder (void);
-
-void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp);
 
 #endif /* _DBI_ASM_ARM_KPROBES_H */

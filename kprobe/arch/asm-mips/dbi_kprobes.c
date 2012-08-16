@@ -676,7 +676,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 		}
 
 		orig_ret_address = (unsigned long) ri->ret_addr; 
-		recycle_rp_inst (ri, &empty_rp); 
+		recycle_rp_inst (ri);
 		if (orig_ret_address != trampoline_address)
 			/*
 			 * This is the real return address. Any other

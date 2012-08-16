@@ -749,48 +749,6 @@ no_kprobe:
 	return ret;
 }
 
-void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
-{
-	struct kretprobe_instance *ri = NULL;
-	struct hlist_node *node, *tmp;
-	struct hlist_head *head;
-	unsigned long flags;
-	int found = 0;
-
-	spin_lock_irqsave(&kretprobe_lock, flags);
-	head = kretprobe_inst_table_head(p);
-	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
-		if ((ri->rp == rp) && (p == ri->task)) {
-			found = 1;
-			break;
-		}
-	}
-	spin_unlock_irqrestore(&kretprobe_lock, flags);
-
-	if (found) {
-		/* update PC */
-		if (p->thread.ip != &kretprobe_trampoline) {
-			ri->ret_addr = (kprobe_opcode_t *)p->thread.ip;
-			p->thread.ip = &kretprobe_trampoline;
-		}
-		return;
-	}
-
-	spin_lock_irqsave(&kretprobe_lock, flags);
-	if ((ri = get_free_rp_inst(rp)) != NULL) {
-		ri->rp = rp;
-		ri->rp2 = NULL;
-		ri->task = p;
-		ri->ret_addr = (kprobe_opcode_t *)p->thread.ip;
-		p->thread.ip = &kretprobe_trampoline;
-		add_rp_inst(ri);
-	} else {
-		printk("no ri for %d\n", p->pid);
-		BUG();
-	}
-	spin_unlock_irqrestore(&kretprobe_lock, flags);
-}
-
 int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs) 
 {
 	struct jprobe *jp = container_of (p, struct jprobe, kp);
@@ -807,21 +765,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	if (!p->tgid || (p->tgid == current->tgid)) {
 		/* handle __switch_to probe */
 		if(!p->tgid && (p->addr == sched_addr) && sched_rp) {
-			struct task_struct *p, *g;
-			rcu_read_lock();
-			//swapper task
-			if(current != &init_task)
-				patch_suspended_task_ret_addr(&init_task, sched_rp);
-			// other tasks
-			do_each_thread(g, p){
-				if(current != p)
-					patch_suspended_task_ret_addr(p, sched_rp);
-			} while_each_thread(g, p);
-			/* workaround for do_exit probe on x86 targets */
-			if ((current->flags & PF_EXITING) ||
-					(current->flags & PF_EXITPIDONE))
-				patch_suspended_task_ret_addr(current, sched_rp);
-			rcu_read_unlock();
+			patch_suspended_all_task_ret_addr(sched_rp);
 		}
 	}
 
@@ -1343,7 +1287,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 		}
 
 		orig_ret_address = (unsigned long) ri->ret_addr; 
-		recycle_rp_inst (ri, &empty_rp); 
+		recycle_rp_inst (ri);
 		if (orig_ret_address != trampoline_address)
 			/*
 			 * This is the real return address. Any other

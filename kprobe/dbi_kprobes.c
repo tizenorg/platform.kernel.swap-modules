@@ -320,7 +320,7 @@ void add_rp_inst (struct kretprobe_instance *ri)
 }
 
 /* Called with kretprobe_lock held */
-void recycle_rp_inst (struct kretprobe_instance *ri, struct hlist_head *head)
+void recycle_rp_inst (struct kretprobe_instance *ri)
 {
 	if (ri->rp)
 	{
@@ -724,6 +724,8 @@ int dbi_register_kretprobe (struct kretprobe *rp)
 	return ret;
 }
 
+static void unpatch_suspended_all_task_ret_addr(struct kretprobe *rp);
+
 void dbi_unregister_kretprobe (struct kretprobe *rp)
 {
 	unsigned long flags;
@@ -731,8 +733,10 @@ void dbi_unregister_kretprobe (struct kretprobe *rp)
 
 	dbi_unregister_kprobe (&rp->kp, 0);
 
-	if((unsigned int)rp->kp.addr == sched_addr)
+	if((unsigned int)rp->kp.addr == sched_addr) {
+		unpatch_suspended_all_task_ret_addr(rp);
 		sched_rp = NULL;
+	}
 
 	/* No race here */
 	spin_lock_irqsave (&kretprobe_lock, flags);
@@ -777,6 +781,118 @@ struct kretprobe * clone_kretprobe (struct kretprobe *rp)
 	return clone;
 }
 
+
+static void inline set_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri, unsigned long tramp_addr)
+{
+	ri->ret_addr = arch_get_task_pc(p);
+	arch_set_task_pc(p, tramp_addr);
+}
+
+static void inline rm_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri)
+{
+	arch_set_task_pc(p, ri->ret_addr);
+}
+
+static struct kretprobe_instance* find_ri_pc_mod(struct task_struct *p, struct kretprobe *rp)
+{
+	struct kretprobe_instance *ri;
+	struct hlist_node *node, *tmp;
+	struct hlist_head *head;
+	unsigned long flags;
+
+	spin_lock_irqsave (&kretprobe_lock, flags);
+	head = kretprobe_inst_table_head (p);
+	hlist_for_each_entry_safe (ri, node, tmp, head, hlist) {
+		if ((ri->rp == rp) && (p == ri->task)) {
+			spin_unlock_irqrestore (&kretprobe_lock, flags);
+			return ri;
+		}
+	}
+	spin_unlock_irqrestore (&kretprobe_lock, flags);
+
+	return NULL;
+}
+
+static void add_ri_pc_mod(struct task_struct *p, struct kretprobe *rp, unsigned long tramp_addr)
+{
+	struct kretprobe_instance *ri;
+	unsigned long flags;
+
+	spin_lock_irqsave(&kretprobe_lock, flags);
+	if ((ri = get_free_rp_inst(rp)) != NULL) {
+		ri->rp = rp;
+		ri->rp2 = NULL;
+		ri->task = p;
+		// set PC
+		set_task_trampoline(p, ri, tramp_addr);
+		add_rp_inst(ri);
+	} else {
+		printk("no ri for %d\n", p->pid);
+		BUG();
+	}
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+}
+
+static void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
+{
+	unsigned long flags;
+	struct kretprobe_instance *ri = find_ri_pc_mod(p, rp);
+
+	if(ri) {
+		// update PC
+		if( arch_get_task_pc(p) != (unsigned long) &kretprobe_trampoline)
+			set_task_trampoline(p, ri, (unsigned long) &kretprobe_trampoline);
+	} else {
+		add_ri_pc_mod(p, rp, (unsigned long) &kretprobe_trampoline);
+	}
+}
+
+static void unpatch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
+{
+	struct kretprobe_instance *ri;
+
+	if( arch_get_task_pc(p) == (unsigned long)&kretprobe_trampoline )
+	{
+		ri = find_ri_pc_mod(p, rp);
+		if(ri) {
+			rm_task_trampoline(p, ri);
+			recycle_rp_inst(ri);
+		}
+	}
+}
+
+void patch_suspended_all_task_ret_addr(struct kretprobe *rp)
+{
+	struct task_struct *p, *g;
+
+	rcu_read_lock();
+	// swapper task
+	if(current != &init_task)
+		patch_suspended_task_ret_addr(&init_task, rp);
+
+	// other tasks
+	do_each_thread(g, p) {
+		if(p == current)
+			continue;
+		patch_suspended_task_ret_addr(p, rp);
+	} while_each_thread(g, p);
+	rcu_read_unlock();
+}
+
+static void unpatch_suspended_all_task_ret_addr(struct kretprobe *rp)
+{
+	struct task_struct *p, *g;
+
+	rcu_read_lock();
+	// swapper task
+	unpatch_suspended_task_ret_addr(&init_task, rp);
+
+	// other tasks
+	do_each_thread(g, p) {
+		unpatch_suspended_task_ret_addr(p, rp);
+	} while_each_thread(g, p);
+	rcu_read_unlock();
+}
 
 int __init init_kprobes (void)
 {

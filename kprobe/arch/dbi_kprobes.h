@@ -45,7 +45,7 @@
  * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM and MIPS
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
  */
 
@@ -81,6 +81,7 @@ extern void arch_disarm_uprobe (struct kprobe *p, struct task_struct *tsk);
 extern void arch_disarm_uretprobe (struct kretprobe *p, struct task_struct *tsk);
 extern int arch_init_kprobes (void);
 extern void dbi_arch_exit_kprobes (void);
+extern void patch_suspended_all_task_ret_addr(struct kretprobe *rp);
 
 void dbi_arch_uprobe_return (void);
 
@@ -105,7 +106,5 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 
 int arch_init_module_dependencies(void);
 int asm_init_module_dependencies(void);
-
-
 
 #endif				/* _DBI_ARCH_KPROBES_H */
