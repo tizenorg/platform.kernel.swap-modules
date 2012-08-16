@@ -1521,8 +1521,11 @@ void do_copy_process_ret_pre_code(struct task_struct *p)
     if(!p || IS_ERR(p))
         return;
 
-    if( !(p->flags & CLONE_VM) )
+    if( !(p->flags & CLONE_VM) ){
         rm_uprobs_child(p);
+        printk("DRIVER[%s:%u:%s] DEBUG: >>>>>>>>>>>rm_uprobs_child\n" , "us_proc_inst.c", __LINE__, __FUNCTION__);
+    }
+
 }
 EXPORT_SYMBOL_GPL(do_copy_process_ret_pre_code);
 
