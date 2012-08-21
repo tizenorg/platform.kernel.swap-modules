@@ -1505,7 +1505,7 @@ static void recover_child(struct task_struct *child_task, inst_us_proc_t *parent
 
         for (k = 0; k < parent_iup->p_libs[i].vtps_count; ++k)
             if (parent_iup->p_libs[i].p_vtps[k].installed)
-                arch_disarm_uprobe (&parent_iup->p_libs[i].p_ips[k].jprobe.kp, child_task);
+                arch_disarm_uprobe (&parent_iup->p_libs[i].p_vtps[k].jprobe.kp, child_task);
     }
 }
 
