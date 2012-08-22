@@ -1596,9 +1596,9 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 		va_start(args, fmt);
 		addr = get_probe_func_addr(fmt, args);
 		va_end(args);
-		if (((addr == pf_addr) && !(probes_flags & PROBE_FLAG_PF_INSTLD)) ||
-			((addr == exit_addr) && !(probes_flags & PROBE_FLAG_EXIT_INSTLD)) ||
-			((addr == exec_addr) && !(probes_flags & PROBE_FLAG_EXEC_INSTLD))) {
+		if( ((addr == pf_addr) && !(probes_flags & PROBE_FLAG_PF_INSTLD)) ||
+		    ((addr == mr_addr) && !(probes_flags & PROBE_FLAG_MR_INSTLD)) ||
+		    ((addr == exit_addr) && !(probes_flags & PROBE_FLAG_EXIT_INSTLD)) ) {
 			return;
 		}
 	}

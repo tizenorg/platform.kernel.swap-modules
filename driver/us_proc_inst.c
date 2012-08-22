@@ -1039,27 +1039,27 @@ int deinst_usr_space_proc (void)
 
 	//if user-space instrumentation is not set
 	if (!us_proc_info.path)
-	    return 0;
+		return 0;
 
 	iRet = uninstall_kernel_probe (pf_addr, US_PROC_PF_INSTLD,
 			0, &pf_probe);
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_page_fault) result=%d!", iRet);
 
-    iRet = uninstall_kernel_probe (cp_addr, US_PROC_CP_INSTLD,
-            0, &cp_probe);
-    if (iRet)
-        EPRINTF ("uninstall_kernel_probe(copy_process) result=%d!", iRet);
+	iRet = uninstall_kernel_probe (cp_addr, US_PROC_CP_INSTLD,
+			0, &cp_probe);
+	if (iRet)
+		EPRINTF ("uninstall_kernel_probe(copy_process) result=%d!", iRet);
+
+        iRet = uninstall_kernel_probe (mr_addr, US_PROC_MR_INSTLD,
+                        0, &mr_probe);
+        if (iRet)
+                EPRINTF ("uninstall_kernel_probe(mm_release) result=%d!", iRet);
 
 	iRet = uninstall_kernel_probe (exit_addr, US_PROC_EXIT_INSTLD,
 			0, &exit_probe);
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_exit) result=%d!", iRet);
-
-	iRet = uninstall_kernel_probe (exec_addr, US_PROC_EXEC_INSTLD,
-			0, &exec_probe);
-	if (iRet)
-		EPRINTF ("uninstall_kernel_probe(do_execve) result=%d!", iRet);
 
 	if (!strcmp(us_proc_info.path,"*"))
 	{
@@ -1307,7 +1307,7 @@ int inst_usr_space_proc (void)
 		EPRINTF ("install_kernel_probe(do_page_fault) result=%d!", ret);
 		return ret;
 	}
-	// enable 'do_exit' probe to detect when user proc exits in order to remove user space probes
+	// enable 'do_exit' probe to detect for remove task_struct
 	ret = install_kernel_probe (exit_addr, US_PROC_EXIT_INSTLD, 0, &exit_probe);
 	if (ret != 0)
 	{
@@ -1321,20 +1321,16 @@ int inst_usr_space_proc (void)
 		EPRINTF ("instpall_kernel_probe(copy_process) result=%d!", ret);
 		return ret;
 	}
-	/*
-	 * When do_execve occurs we need to unregister all the uprobes from
-	 * this address space because VMAs may change.
-	 */
-	ret = install_kernel_probe (exec_addr, US_PROC_EXEC_INSTLD, 0, &exec_probe);
+
+	// enable 'mm_release' probe to detect when for remove user space probes
+	ret = install_kernel_probe (mr_addr, US_PROC_MR_INSTLD, 0, &mr_probe);
 	if (ret != 0)
 	{
-		EPRINTF ("install_kernel_probe(do_execve) result=%d!", ret);
+		EPRINTF ("install_kernel_probe(mm_release) result=%d!", ret);
 		return ret;
 	}
 	return 0;
 }
-
-char expath[512];
 
 void do_page_fault_ret_pre_code (void)
 {
@@ -1440,7 +1436,14 @@ void do_page_fault_ret_pre_code (void)
 
 EXPORT_SYMBOL_GPL(do_page_fault_ret_pre_code);
 
+
 void do_exit_probe_pre_code (void)
+{
+	// TODO: remove task
+}
+EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
+
+void mm_release_probe_pre_code(void)
 {
 	int iRet, del = 0;
 	struct task_struct *task;
@@ -1491,38 +1494,44 @@ void do_exit_probe_pre_code (void)
 		}
 	}
 }
-EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
+EXPORT_SYMBOL_GPL(mm_release_probe_pre_code);
 
 
 static void recover_child(struct task_struct *child_task, inst_us_proc_t *parent_iup)
 {
-    int i, k;
-    for (i = 0; i < parent_iup->libs_count; ++i)
-    {
-        for (k = 0; k < parent_iup->p_libs[i].ips_count; ++k)
-            if (parent_iup->p_libs[i].p_ips[k].installed)
-                arch_disarm_uprobe (&parent_iup->p_libs[i].p_ips[k].jprobe.kp, child_task);
+	int i, k;
+	for(i = 0; i < parent_iup->libs_count; ++i)
+	{
+		for(k = 0; k < parent_iup->p_libs[i].ips_count; ++k)
+			if(parent_iup->p_libs[i].p_ips[k].installed)
+				arch_disarm_uprobe(&parent_iup->p_libs[i].p_ips[k].jprobe.kp, child_task);
 
-        for (k = 0; k < parent_iup->p_libs[i].vtps_count; ++k)
-            if (parent_iup->p_libs[i].p_vtps[k].installed)
-                arch_disarm_uprobe (&parent_iup->p_libs[i].p_vtps[k].jprobe.kp, child_task);
-    }
+		for(k = 0; k < parent_iup->p_libs[i].vtps_count; ++k)
+			if(parent_iup->p_libs[i].p_vtps[k].installed)
+				arch_disarm_uprobe(&parent_iup->p_libs[i].p_vtps[k].jprobe.kp, child_task);
+	}
 }
 
-static void rm_uprobs_child(struct task_struct *new_task)
+static void rm_uprobes_child(struct task_struct *new_task)
 {
-    if(us_proc_info.path && (us_proc_info.tgid == current->tgid)) {
-        recover_child(new_task, &us_proc_info);
-    }
+	if(!strcmp(us_proc_info.path, "*")) {
+		inst_us_proc_t *task_inst_info = get_task_inst_node(current);
+		if(task_inst_info)
+			recover_child(new_task, task_inst_info);
+	} else {
+		if(us_proc_info.tgid == current->tgid) {
+			recover_child(new_task, &us_proc_info);
+		}
+	}
 }
 
 void copy_process_ret_pre_code(struct task_struct *p)
 {
-    if(!p || IS_ERR(p))
-        return;
+	if(!p || IS_ERR(p))
+		return;
 
-    if(p->mm != current->mm)    // check flags CLONE_VM
-        rm_uprobs_child(p);
+	if(p->mm != current->mm)    // check flags CLONE_VM
+		rm_uprobes_child(p);
 }
 
 

@@ -54,22 +54,22 @@ int install_kern_otg_probe(unsigned long addr,
 
 extern unsigned long pf_addr;
 extern unsigned long cp_addr;
+extern unsigned long mr_addr;
 extern unsigned long exit_addr;
-extern unsigned long exec_addr;
 extern kernel_probe_t *pf_probe;
 extern kernel_probe_t *cp_probe;
+extern kernel_probe_t *mr_probe;
 extern kernel_probe_t *exit_probe;
-extern kernel_probe_t *exec_probe;
 extern unsigned int probes_flags;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 extern spinlock_t ec_probe_spinlock;
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 enum {
-    PROBE_FLAG_PF_INSTLD   = (1 << 0),
-    PROBE_FLAG_CP_INSTLD   = (1 << 1),
-    PROBE_FLAG_EXIT_INSTLD = (1 << 2),
-    PROBE_FLAG_EXEC_INSTLD = (1 << 3)
+	PROBE_FLAG_PF_INSTLD   = (1 << 0),
+	PROBE_FLAG_CP_INSTLD   = (1 << 1),
+	PROBE_FLAG_MR_INSTLD   = (1 << 2),
+	PROBE_FLAG_EXIT_INSTLD = (1 << 3)
 };
 
 #endif // !defined(__PROBES_MANAGER_H__)
