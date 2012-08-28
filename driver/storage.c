@@ -1132,12 +1132,21 @@ int link_bundle()
 		for (i = 0; i < us_proc_info.libs_count; i++)
 		{
 			d_lib = &us_proc_info.p_libs[i];
+
 			lib_name_len = *(u_int32_t *)p;
 			p += sizeof(u_int32_t);
 			d_lib->path = (char *)p;
 			DPRINTF("d_lib->path = %s", d_lib->path);
-
 			p += lib_name_len;
+
+			if ( i != 0 ) {
+				lib_name_len = *(u_int32_t *)p;
+				p += sizeof(u_int32_t);
+				d_lib->path_dyn = (char *)p;
+				DPRINTF("d_lib->path_dyn = %s", d_lib->path_dyn);
+				p += lib_name_len;
+			}
+
 			d_lib->ips_count = *(u_int32_t *)p;
 			DPRINTF("d_lib->ips_count = %d", d_lib->ips_count);
 			p += sizeof(u_int32_t);
@@ -1159,11 +1168,17 @@ int link_bundle()
 				d_lib->path = find_lib_path(d_lib->path);
 				if (!d_lib->path)
 				{
-					EPRINTF("Cannot find path for lib %s!", d_lib->path);
-					/* Just skip all the IPs and go to next lib */
-					p += d_lib->ips_count * 3 * sizeof(u_int32_t);
-					d_lib->ips_count = 0;
-					continue;
+					if (strcmp(d_lib->path_dyn, "") == 0) {
+						EPRINTF("Cannot find path for lib %s!", d_lib->path);
+						/* Just skip all the IPs and go to next lib */
+						p += d_lib->ips_count * 3 * sizeof(u_int32_t);
+						d_lib->ips_count = 0;
+						continue;
+					}
+					else {
+						d_lib->path = d_lib->path_dyn;
+						DPRINTF("Assign path for lib as %s (in suggestion of dyn lib", d_lib->path);
+					}
 				}
 			}
 
@@ -1211,7 +1226,6 @@ int link_bundle()
 				}
 				abs_handler_idx += my_uprobes_info->p_libs[l].ips_count;
 			}
-
 			if (d_lib->ips_count > 0)
 			{
 				us_proc_info.unres_ips_count += d_lib->ips_count;
