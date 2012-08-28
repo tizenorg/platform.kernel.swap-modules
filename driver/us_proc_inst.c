@@ -1450,8 +1450,8 @@ void mm_release_probe_pre_code(void)
 	inst_us_proc_t *task_inst_info = NULL;
 
 	//if user-space instrumentation is not set
-	if (!us_proc_info.path)
-	    return;
+	if (!us_proc_info.path || current->tgid != current->pid)
+		return;
 
 	if (!strcmp(us_proc_info.path,"*"))
 	{
@@ -1463,7 +1463,6 @@ void mm_release_probe_pre_code(void)
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
 			dbi_unregister_all_uprobes(current, 1);
 		}
-		return;
 	}
 	else
 	{
