@@ -149,7 +149,7 @@ kprobe_opcode_t *get_insn_slot (struct task_struct *task, int atomic)
 	}
 
 retry:
-	hlist_for_each_entry (kip, pos, page_list, hlist)
+	hlist_for_each_entry_rcu(kip, pos, page_list, hlist)
 	{
 		if( !(!task || (kip->tgid == task->tgid)) )
 			continue;
@@ -211,7 +211,7 @@ retry:
 	kip->ngarbage = 0;
 	kip->tgid = task ? task->tgid : 0;
 	INIT_HLIST_NODE (&kip->hlist);
-	hlist_add_head (&kip->hlist, page_list);
+	hlist_add_head_rcu(&kip->hlist, page_list);
 	return kip->insns;
 }
 
@@ -231,11 +231,11 @@ int collect_one_slot (struct hlist_head *page_list, struct task_struct *task,
 		 * so as not to have to set it up again the
 		 * next time somebody inserts a probe.
 		 */
-		hlist_del (&kip->hlist);
+		hlist_del_rcu(&kip->hlist);
 		if (!task && hlist_empty (page_list))
 		{
 			INIT_HLIST_NODE (&kip->hlist);
-			hlist_add_head (&kip->hlist, page_list);
+			hlist_add_head_rcu(&kip->hlist, page_list);
 		}
 		else
 		{
@@ -272,7 +272,7 @@ int collect_one_slot (struct hlist_head *page_list, struct task_struct *task,
 int collect_garbage_slots (struct hlist_head *page_list, struct task_struct *task)
 {
 	struct kprobe_insn_page *kip;
-	struct hlist_node *pos, *next;
+	struct hlist_node *pos;
 	unsigned slots_per_page = INSNS_PER_PAGE;
 
 	/* Ensure no-one is preepmted on the garbages */
@@ -284,7 +284,7 @@ int collect_garbage_slots (struct hlist_head *page_list, struct task_struct *tas
 	else
 		slots_per_page = INSNS_PER_PAGE/KPROBES_TRAMP_LEN;
 
-	hlist_for_each_entry_safe (kip, pos, next, page_list, hlist)
+	hlist_for_each_entry_rcu(kip, pos, page_list, hlist)
 	{
 		int i;
 		if ((task && (kip->tgid != task->tgid)) || (kip->ngarbage == 0))
@@ -323,7 +323,7 @@ void free_insn_slot (struct hlist_head *page_list, struct task_struct *task, kpr
 	}
 
 	DBPRINTF("free_insn_slot: dirty %d, %p/%d", dirty, task, task?task->pid:0);
-	hlist_for_each_entry (kip, pos, page_list, hlist)
+	hlist_for_each_entry_rcu(kip, pos, page_list, hlist)
 	{
 		DBPRINTF("free_insn_slot: kip->insns=%p slot=%p", kip->insns, slot);
 		if ((kip->insns <= slot) && (slot < kip->insns + (INSNS_PER_PAGE * MAX_INSN_SIZE)))
