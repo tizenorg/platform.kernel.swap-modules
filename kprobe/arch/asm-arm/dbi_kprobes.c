@@ -410,7 +410,8 @@ int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 	kprobe_opcode_t *insn;
 
 	// check instructions that can change PC by nature
-	if (	ARM_INSN_MATCH (UNDEF, ainsn->insn_arm[0]) ||
+	if (
+//		ARM_INSN_MATCH (UNDEF, ainsn->insn_arm[0]) ||
 		ARM_INSN_MATCH (AUNDEF, ainsn->insn_arm[0]) ||
 		ARM_INSN_MATCH (SWI, ainsn->insn_arm[0]) ||
 		ARM_INSN_MATCH (BREAK, ainsn->insn_arm[0]) ||
@@ -612,9 +613,10 @@ int arch_prepare_kprobe (struct kprobe *p)
     else
     {
         free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
+        printk("arch_prepare_kprobe: instruction 0x%x not instrumentation, addr=0x%p\n", insn[0], p->addr);
     }
 
-	return ret;
+    return ret;
 }
 
 static unsigned int arch_construct_brunch (unsigned int base, unsigned int addr, int link)
