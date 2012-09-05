@@ -541,6 +541,7 @@ static void us_vtp_event_handler (unsigned long arg1, unsigned long arg2, unsign
 	}
 	dbi_uprobe_return ();
 }
+
 static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_inst_info, int atomic)
 {
 	struct vm_area_struct *vma;
@@ -551,77 +552,61 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 	struct hlist_node *node;
 	struct task_struct *t;
 	struct mm_struct *mm;
-
 	char path_buffer[256];
 
 	mm = atomic ? task->active_mm : get_task_mm (task);
 	if (!mm) {
 		return task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count;
 	}
-
-//	DPRINTF("installing probes...");
-
 	old_ips_count = task_inst_info->unres_ips_count;
 	old_vtps_count = task_inst_info->unres_vtps_count;
-
 	if(!atomic)
 		down_read (&mm->mmap_sem);
-
-//	DPRINTF("locked for read");
-
 	vma = mm->mmap;
 	while (vma) {
 		// skip non-text section
 #ifndef __ANDROID
-	  if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file || (vma->vm_flags & VM_ACCOUNT) ||
-		  !(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
-		  !(vma->vm_flags & (VM_READ | VM_MAYREAD))) {
+		if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file || (vma->vm_flags & VM_ACCOUNT) ||
+			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
+			!(vma->vm_flags & (VM_READ | VM_MAYREAD))) {
 #else // __ANDROID
-	  if (vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || !vma->vm_file) {
+		if (vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || !vma->vm_file) {
 #endif // __ANDROID
 			vma = vma->vm_next;
 			continue;
 		}
-
 		/**
 		 * After process was forked, some time it inherits parent process environment.
 		 * We need to renew instrumentation when we detect that process gets own environment.
 		 */
 		if (vma->vm_flags & VM_EXECUTABLE) {
-		    if (!task_inst_info->m_f_dentry) {
-			task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
-			DPRINTF("initiate dentry tgid = %d, comm = %s", task->tgid, task->comm);
-		    } else if (task_inst_info->m_f_dentry != vma->vm_file->f_dentry) {
+			if (!task_inst_info->m_f_dentry) {
+				task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
+				DPRINTF("initiate dentry tgid = %d, comm = %s", task->tgid, task->comm);
+			}
+			else if (task_inst_info->m_f_dentry != vma->vm_file->f_dentry) {
 				/*
 				 * All the stuff that cancel instrumentation in old address
 				 * space are run when do_execve() occurs.  Here we just update
 				 * dentry because it is changed after do_execve() execution.
 				 */
 				task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
-		    }
+			}
 		}
-
-//		DPRINTF("Instrumenting libs. libcount:%d", task_inst_info->libs_count );
-
-		for (i = 0; i < task_inst_info->libs_count; i++)
-		{
+		for (i = 0; i < task_inst_info->libs_count; i++) {
 //			struct path tmp_path;
-//
 //			tmp_path.dentry = task_inst_info->p_libs[i].m_f_dentry;
 //			tmp_path.mnt = task_inst_info->p_libs[i].m_vfs_mount;
-//
 //			char* p_path = d_path ( &tmp_path, path_buffer, 255 );
-//
-//			DPRINTF("f_dentry:%x m_f_dentry:%x path:%s", vma->vm_file->f_dentry, task_inst_info->p_libs[i].m_f_dentry, p_path );
+//			DPRINTF("f_dentry:%x m_f_dentry:%x path:%s", vma->vm_file->f_dentry,
+//				task_inst_info->p_libs[i].m_f_dentry, p_path );
 
 			//TODO: test - try to instrument non-existing libs
-			if (vma->vm_file->f_dentry == task_inst_info->p_libs[i].m_f_dentry)
-			{
-//				DPRINTF("vm_flags:%x loaded:%x ips_count:%d vtps_count:%d", vma->vm_flags, task_inst_info->p_libs[i].loaded,
+			if (vma->vm_file->f_dentry == task_inst_info->p_libs[i].m_f_dentry) {
+//				DPRINTF("vm_flags:%x loaded:%x ips_count:%d vtps_count:%d",
+//						vma->vm_flags, task_inst_info->p_libs[i].loaded,
 //						task_inst_info->p_libs[i].ips_count, task_inst_info->p_libs[i].vtps_count );
-
-				if(!(vma->vm_flags & VM_EXECUTABLE) && !task_inst_info->p_libs[i].loaded)
-				{
+				if (!(vma->vm_flags & VM_EXECUTABLE) && !task_inst_info->p_libs[i].loaded) {
 //					DPRINTF("!VM_EXECUTABLE && !loaded");
 					char *p;
 					DPRINTF ("post dyn lib event %s/%s", current->comm, task_inst_info->p_libs[i].path);
@@ -635,16 +620,12 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 					pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspd",
 							task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start);
 				}
-
-				for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++)
-				{
-//					DPRINTF("ips_count current:%d", k);
-					if (!task_inst_info->p_libs[i].p_ips[k].installed)
-					{
-//						DPRINTF("!installed");
+				for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++) {
+					DPRINTF("ips_count current:%d", k);
+					if (!task_inst_info->p_libs[i].p_ips[k].installed) {
+						DPRINTF("!installed");
 						addr = task_inst_info->p_libs[i].p_ips[k].offset;
-						if (!(vma->vm_flags & VM_EXECUTABLE))
-						{
+						if (!(vma->vm_flags & VM_EXECUTABLE)) {
 							/* In the case of prelinking addr is already an
 							 * absolute address so we do not need to add
 							 * library base address to it.  We use a rule of
@@ -654,34 +635,34 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							if (addr < vma->vm_start)
 								addr += vma->vm_start;
 						}
-
 						if (page_present (mm, addr)) {
-						     DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.", task->pid, task_inst_info->p_libs[i].path, task_inst_info->p_libs[i].p_ips[k].offset, addr);
-						     task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
-						     task_inst_info->p_libs[i].p_ips[k].retprobe.kp.addr = (kprobe_opcode_t *) addr;
-						     task_inst_info->p_libs[i].p_ips[k].installed = 1;
-						     task_inst_info->unres_ips_count--;
-
-						     err = register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
-						     if (err != 0) {
-							  DPRINTF ("failed to install IP at %lx/%p. Error %d!", task_inst_info->p_libs[i].p_ips[k].offset,
-								   task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr, err);
-						     }
+							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.",
+								task->pid, task_inst_info->p_libs[i].path,
+								task_inst_info->p_libs[i].p_ips[k].offset, addr);
+							task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
+							task_inst_info->p_libs[i].p_ips[k].retprobe.kp.addr = (kprobe_opcode_t *) addr;
+							task_inst_info->p_libs[i].p_ips[k].installed = 1;
+							task_inst_info->unres_ips_count--;
+							err = register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
+							if (err != 0) {
+								DPRINTF ("failed to install IP at %lx/%p. Error %d!",
+									task_inst_info->p_libs[i].p_ips[k].offset,
+									task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr, err);
+							}
 						}
 					}
 				}
-				for (k = 0; k < task_inst_info->p_libs[i].vtps_count; k++)
-				{
-//					DPRINTF("vtps_count current:%d", k);
-					if (!task_inst_info->p_libs[i].p_vtps[k].installed)
-					{
-//						DPRINTF("!installed");
+				for (k = 0; k < task_inst_info->p_libs[i].vtps_count; k++) {
+					DPRINTF("vtps_count current:%d", k);
+					if (!task_inst_info->p_libs[i].p_vtps[k].installed) {
+						DPRINTF("!installed");
 						addr = task_inst_info->p_libs[i].p_vtps[k].addr;
 						if (!(vma->vm_flags & VM_EXECUTABLE))
 							addr += vma->vm_start;
-						if (page_present (mm, addr))
-						{
-							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.", task->pid, task_inst_info->p_libs[i].path, task_inst_info->p_libs[i].p_ips[k].offset, addr);
+						if (page_present (mm, addr)) {
+							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.",
+								task->pid, task_inst_info->p_libs[i].path,
+								task_inst_info->p_libs[i].p_ips[k].offset, addr);
 							task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.tgid = task_inst_info->tgid;
 							task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
 							task_inst_info->p_libs[i].p_vtps[k].jprobe.entry = (kprobe_opcode_t *) us_vtp_event_handler;
@@ -689,9 +670,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							task_inst_info->p_libs[i].p_vtps[k].jprobe.priv_arg = &task_inst_info->p_libs[i].p_vtps[k];
 							task_inst_info->p_libs[i].p_vtps[k].installed = 1;
 							task_inst_info->unres_vtps_count--;
-
 							err = dbi_register_ujprobe (task, mm, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
-
 							if ( err != 0 ) {
 								EPRINTF ("failed to install VTP at %p. Error %d!",
 										task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr);
@@ -750,7 +729,6 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 #endif /* __ANDROID */
 		vma = vma->vm_next;
 	}
-
 	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
 		if (p->ip.installed) {
 			continue;
@@ -782,7 +760,6 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 		p->ip.installed = 1;
 		err = register_usprobe(current, t->active_mm,
 				       &p->ip, atomic, 0);
-
 		if (err != 0) {
 			DPRINTF("failed to install IP at %lx/%p. Error %d!",
 				p->ip.offset,
@@ -791,7 +768,6 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 		}
 		task_inst_info->unres_otg_ips_count--;
 	}
-
 	if (!atomic) {
 		up_read (&mm->mmap_sem);
 		mmput (mm);
@@ -1039,27 +1015,27 @@ int deinst_usr_space_proc (void)
 
 	//if user-space instrumentation is not set
 	if (!us_proc_info.path)
-	    return 0;
+		return 0;
 
 	iRet = uninstall_kernel_probe (pf_addr, US_PROC_PF_INSTLD,
 			0, &pf_probe);
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_page_fault) result=%d!", iRet);
 
-    iRet = uninstall_kernel_probe (cp_addr, US_PROC_CP_INSTLD,
-            0, &cp_probe);
-    if (iRet)
-        EPRINTF ("uninstall_kernel_probe(copy_process) result=%d!", iRet);
+	iRet = uninstall_kernel_probe (cp_addr, US_PROC_CP_INSTLD,
+			0, &cp_probe);
+	if (iRet)
+		EPRINTF ("uninstall_kernel_probe(copy_process) result=%d!", iRet);
+
+        iRet = uninstall_kernel_probe (mr_addr, US_PROC_MR_INSTLD,
+                        0, &mr_probe);
+        if (iRet)
+                EPRINTF ("uninstall_kernel_probe(mm_release) result=%d!", iRet);
 
 	iRet = uninstall_kernel_probe (exit_addr, US_PROC_EXIT_INSTLD,
 			0, &exit_probe);
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_exit) result=%d!", iRet);
-
-	iRet = uninstall_kernel_probe (exec_addr, US_PROC_EXEC_INSTLD,
-			0, &exec_probe);
-	if (iRet)
-		EPRINTF ("uninstall_kernel_probe(do_execve) result=%d!", iRet);
 
 	if (!strcmp(us_proc_info.path,"*"))
 	{
@@ -1307,7 +1283,7 @@ int inst_usr_space_proc (void)
 		EPRINTF ("install_kernel_probe(do_page_fault) result=%d!", ret);
 		return ret;
 	}
-	// enable 'do_exit' probe to detect when user proc exits in order to remove user space probes
+	// enable 'do_exit' probe to detect for remove task_struct
 	ret = install_kernel_probe (exit_addr, US_PROC_EXIT_INSTLD, 0, &exit_probe);
 	if (ret != 0)
 	{
@@ -1321,20 +1297,16 @@ int inst_usr_space_proc (void)
 		EPRINTF ("instpall_kernel_probe(copy_process) result=%d!", ret);
 		return ret;
 	}
-	/*
-	 * When do_execve occurs we need to unregister all the uprobes from
-	 * this address space because VMAs may change.
-	 */
-	ret = install_kernel_probe (exec_addr, US_PROC_EXEC_INSTLD, 0, &exec_probe);
+
+	// enable 'mm_release' probe to detect when for remove user space probes
+	ret = install_kernel_probe (mr_addr, US_PROC_MR_INSTLD, 0, &mr_probe);
 	if (ret != 0)
 	{
-		EPRINTF ("install_kernel_probe(do_execve) result=%d!", ret);
+		EPRINTF ("install_kernel_probe(mm_release) result=%d!", ret);
 		return ret;
 	}
 	return 0;
 }
-
-char expath[512];
 
 void do_page_fault_ret_pre_code (void)
 {
@@ -1440,15 +1412,22 @@ void do_page_fault_ret_pre_code (void)
 
 EXPORT_SYMBOL_GPL(do_page_fault_ret_pre_code);
 
+
 void do_exit_probe_pre_code (void)
+{
+	// TODO: remove task
+}
+EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
+
+void mm_release_probe_pre_code(void)
 {
 	int iRet, del = 0;
 	struct task_struct *task;
 	inst_us_proc_t *task_inst_info = NULL;
 
 	//if user-space instrumentation is not set
-	if (!us_proc_info.path)
-	    return;
+	if (!us_proc_info.path || current->tgid != current->pid)
+		return;
 
 	if (!strcmp(us_proc_info.path,"*"))
 	{
@@ -1460,7 +1439,6 @@ void do_exit_probe_pre_code (void)
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
 			dbi_unregister_all_uprobes(current, 1);
 		}
-		return;
 	}
 	else
 	{
@@ -1491,38 +1469,44 @@ void do_exit_probe_pre_code (void)
 		}
 	}
 }
-EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
+EXPORT_SYMBOL_GPL(mm_release_probe_pre_code);
 
 
 static void recover_child(struct task_struct *child_task, inst_us_proc_t *parent_iup)
 {
-    int i, k;
-    for (i = 0; i < parent_iup->libs_count; ++i)
-    {
-        for (k = 0; k < parent_iup->p_libs[i].ips_count; ++k)
-            if (parent_iup->p_libs[i].p_ips[k].installed)
-                arch_disarm_uprobe (&parent_iup->p_libs[i].p_ips[k].jprobe.kp, child_task);
+	int i, k;
+	for(i = 0; i < parent_iup->libs_count; ++i)
+	{
+		for(k = 0; k < parent_iup->p_libs[i].ips_count; ++k)
+			if(parent_iup->p_libs[i].p_ips[k].installed)
+				arch_disarm_uprobe(&parent_iup->p_libs[i].p_ips[k].jprobe.kp, child_task);
 
-        for (k = 0; k < parent_iup->p_libs[i].vtps_count; ++k)
-            if (parent_iup->p_libs[i].p_vtps[k].installed)
-                arch_disarm_uprobe (&parent_iup->p_libs[i].p_ips[k].jprobe.kp, child_task);
-    }
+		for(k = 0; k < parent_iup->p_libs[i].vtps_count; ++k)
+			if(parent_iup->p_libs[i].p_vtps[k].installed)
+				arch_disarm_uprobe(&parent_iup->p_libs[i].p_vtps[k].jprobe.kp, child_task);
+	}
 }
 
-static void rm_uprobs_child(struct task_struct *new_task)
+static void rm_uprobes_child(struct task_struct *new_task)
 {
-    if(us_proc_info.path && (us_proc_info.tgid == current->tgid)) {
-        recover_child(new_task, &us_proc_info);
-    }
+	if(!strcmp(us_proc_info.path, "*")) {
+		inst_us_proc_t *task_inst_info = get_task_inst_node(current);
+		if(task_inst_info)
+			recover_child(new_task, task_inst_info);
+	} else {
+		if(us_proc_info.tgid == current->tgid) {
+			recover_child(new_task, &us_proc_info);
+		}
+	}
 }
 
 void copy_process_ret_pre_code(struct task_struct *p)
 {
-    if(!p || IS_ERR(p))
-        return;
+	if(!p || IS_ERR(p))
+		return;
 
-    if(p->mm != current->mm)    // check flags CLONE_VM
-        rm_uprobs_child(p);
+	if(p->mm != current->mm)    // check flags CLONE_VM
+		rm_uprobes_child(p);
 }
 
 

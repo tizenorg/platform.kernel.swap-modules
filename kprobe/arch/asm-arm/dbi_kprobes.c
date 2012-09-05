@@ -410,7 +410,8 @@ int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 	kprobe_opcode_t *insn;
 
 	// check instructions that can change PC by nature
-	if (	ARM_INSN_MATCH (UNDEF, ainsn->insn_arm[0]) ||
+	if (
+//		ARM_INSN_MATCH (UNDEF, ainsn->insn_arm[0]) ||
 		ARM_INSN_MATCH (AUNDEF, ainsn->insn_arm[0]) ||
 		ARM_INSN_MATCH (SWI, ainsn->insn_arm[0]) ||
 		ARM_INSN_MATCH (BREAK, ainsn->insn_arm[0]) ||
@@ -612,9 +613,10 @@ int arch_prepare_kprobe (struct kprobe *p)
     else
     {
         free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
+        printk("arch_prepare_kprobe: instruction 0x%x not instrumentation, addr=0x%p\n", insn[0], p->addr);
     }
 
-	return ret;
+    return ret;
 }
 
 static unsigned int arch_construct_brunch (unsigned int base, unsigned int addr, int link)
@@ -715,7 +717,7 @@ void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
 
 void restore_previous_kprobe (struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var (current_kprobe) = kcb->prev_kprobe.kp;
+	set_current_kprobe(kcb->prev_kprobe.kp, NULL, NULL);
 	kcb->kprobe_status = kcb->prev_kprobe.status;
 	kcb->prev_kprobe.kp = NULL;
 	kcb->prev_kprobe.status = 0;
@@ -1090,7 +1092,8 @@ int kprobe_handler (struct pt_regs *regs)
 		pid = current->tgid;
 	}
 	/* Check we're not actually recursing */
-	if (kprobe_running ())
+	// TODO: handling of recursion is disabled
+	if (0 && kprobe_running ())
 	{
 		DBPRINTF ("lock???");
 		p = get_kprobe (addr, pid, current);
@@ -1149,7 +1152,7 @@ int kprobe_handler (struct pt_regs *regs)
 				}
 			}
 			if(!p) {
-				p = __get_cpu_var (current_kprobe);
+				p = kprobe_running();
 				DBPRINTF ("kprobe_running !!! p = 0x%p p->break_handler = 0x%p", p, p->break_handler);
 				/*if (p->break_handler && p->break_handler(p, regs)) {
 				  DBPRINTF("kprobe_running !!! goto ss");
@@ -1293,7 +1296,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	entry_point_t entry;
 
 # ifdef REENTER
-	p = __get_cpu_var (current_kprobe);
+	p = kprobe_running();
 # endif
 
 	DBPRINTF ("pjp = 0x%p jp->entry = 0x%p", jp, jp->entry);

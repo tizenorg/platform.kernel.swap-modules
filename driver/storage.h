@@ -190,6 +190,7 @@ typedef struct vfsmount *STRUCT_VFSMOUNT_PTR;
 typedef struct
 {
 	char *path;
+	char *path_dyn;
 	STRUCT_DENTRY_PTR m_f_dentry;
 	STRUCT_VFSMOUNT_PTR m_vfs_mount;
 	unsigned ips_count;

@@ -41,9 +41,8 @@
  *
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
-
  */
 
 #include "dbi_insn_slots.h"
@@ -70,7 +69,7 @@ struct kprobe_insn_page
 {
 	struct hlist_node hlist;
 	kprobe_opcode_t *insns;	/* Page of instruction slots */
-	char *slot_used;	
+	char *slot_used;
 	int nused;
 	int ngarbage;
 	int tgid;
@@ -104,7 +103,7 @@ unsigned long alloc_user_pages(struct task_struct *task, unsigned long len, unsi
 				rcu_read_unlock();
 			}
 		}
-		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily 
+		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily
 		current_thread_info()->task = task;
 		ret = (unsigned long)do_mmap_pgoff(0, 0, len, prot, flags, 0);
 		current_thread_info()->task = otask;
@@ -146,12 +145,15 @@ kprobe_opcode_t *get_insn_slot (struct task_struct *task, int atomic)
 	}
 	else {
 		slots_per_page = INSNS_PER_PAGE/KPROBES_TRAMP_LEN;
-		slot_size = KPROBES_TRAMP_LEN;		
+		slot_size = KPROBES_TRAMP_LEN;
 	}
 
 retry:
-	hlist_for_each_entry (kip, pos, page_list, hlist)
+	hlist_for_each_entry_rcu(kip, pos, page_list, hlist)
 	{
+		if( !(!task || (kip->tgid == task->tgid)) )
+			continue;
+
 		if (kip->nused < slots_per_page)
 		{
 			int i;
@@ -166,8 +168,6 @@ retry:
 					}
 				}
 			}
-			/* Surprise!  No unused slots.  Fix kip->nused. */
-			kip->nused = slots_per_page;
 		}
 	}
 
@@ -178,7 +178,7 @@ retry:
 	}
 	else {
 		if (kprobe_garbage_slots && collect_garbage_slots(page_list, task) == 0)
-			goto retry;		
+			goto retry;
 	}
 
 	/* All out of space.  Need to allocate a new page. Use slot 0. */
@@ -193,7 +193,7 @@ retry:
 	}
 
 	if(task) {
-		kip->insns = (kprobe_opcode_t *)alloc_user_pages(task, PAGE_SIZE, 
+		kip->insns = (kprobe_opcode_t *)alloc_user_pages(task, PAGE_SIZE,
 				PROT_EXEC|PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, atomic);
 	}
 	else {
@@ -204,20 +204,20 @@ retry:
 		kfree (kip->slot_used);
 		kfree (kip);
 		return NULL;
-	}	
-	INIT_HLIST_NODE (&kip->hlist);
-	hlist_add_head (&kip->hlist, page_list);
+	}
 	memset(kip->slot_used, SLOT_CLEAN, slots_per_page);
 	kip->slot_used[0] = SLOT_USED;
 	kip->nused = 1;
 	kip->ngarbage = 0;
 	kip->tgid = task ? task->tgid : 0;
+	INIT_HLIST_NODE (&kip->hlist);
+	hlist_add_head_rcu(&kip->hlist, page_list);
 	return kip->insns;
 }
 
 /* Return 1 if all garbages are collected, otherwise 0. */
-static 
-int collect_one_slot (struct hlist_head *page_list, struct task_struct *task, 
+static
+int collect_one_slot (struct hlist_head *page_list, struct task_struct *task,
 		struct kprobe_insn_page *kip, int idx)
 {
 	kip->slot_used[idx] = SLOT_CLEAN;
@@ -231,24 +231,24 @@ int collect_one_slot (struct hlist_head *page_list, struct task_struct *task,
 		 * so as not to have to set it up again the
 		 * next time somebody inserts a probe.
 		 */
-		hlist_del (&kip->hlist);
+		hlist_del_rcu(&kip->hlist);
 		if (!task && hlist_empty (page_list))
 		{
 			INIT_HLIST_NODE (&kip->hlist);
-			hlist_add_head (&kip->hlist, page_list);
+			hlist_add_head_rcu(&kip->hlist, page_list);
 		}
 		else
 		{
 			if(task){
-				//E. G.: This code provides kernel dump because of rescheduling while atomic. 
-				//As workaround, this code was commented. In this case we will have memory leaks 
-				//for instrumented process, but instrumentation process should functionate correctly. 
-				//Planned that good solution for this problem will be done during redesigning KProbe 
+				//E. G.: This code provides kernel dump because of rescheduling while atomic.
+				//As workaround, this code was commented. In this case we will have memory leaks
+				//for instrumented process, but instrumentation process should functionate correctly.
+				//Planned that good solution for this problem will be done during redesigning KProbe
 				//for improving supportability and performance.
 #if 0
 				//printk("collect_one_slot %p/%d\n", task, task->pid);
 				mm = get_task_mm (task);
-				if (mm){			
+				if (mm){
 					down_write (&mm->mmap_sem);
 					do_munmap(mm, (unsigned long)(kip->insns), PAGE_SIZE);
 					up_write (&mm->mmap_sem);
@@ -272,7 +272,7 @@ int collect_one_slot (struct hlist_head *page_list, struct task_struct *task,
 int collect_garbage_slots (struct hlist_head *page_list, struct task_struct *task)
 {
 	struct kprobe_insn_page *kip;
-	struct hlist_node *pos, *next;
+	struct hlist_node *pos;
 	unsigned slots_per_page = INSNS_PER_PAGE;
 
 	/* Ensure no-one is preepmted on the garbages */
@@ -284,7 +284,7 @@ int collect_garbage_slots (struct hlist_head *page_list, struct task_struct *tas
 	else
 		slots_per_page = INSNS_PER_PAGE/KPROBES_TRAMP_LEN;
 
-	hlist_for_each_entry_safe (kip, pos, next, page_list, hlist)
+	hlist_for_each_entry_rcu(kip, pos, page_list, hlist)
 	{
 		int i;
 		if ((task && (kip->tgid != task->tgid)) || (kip->ngarbage == 0))
@@ -313,7 +313,7 @@ void free_insn_slot (struct hlist_head *page_list, struct task_struct *task, kpr
 	struct hlist_node *pos;
 	unsigned slots_per_page = INSNS_PER_PAGE, slot_size = MAX_INSN_SIZE;
 
-	if(task) {	
+	if(task) {
 		slots_per_page = INSNS_PER_PAGE/UPROBES_TRAMP_LEN;
 		slot_size = UPROBES_TRAMP_LEN;
 	}
@@ -323,7 +323,7 @@ void free_insn_slot (struct hlist_head *page_list, struct task_struct *task, kpr
 	}
 
 	DBPRINTF("free_insn_slot: dirty %d, %p/%d", dirty, task, task?task->pid:0);
-	hlist_for_each_entry (kip, pos, page_list, hlist)
+	hlist_for_each_entry_rcu(kip, pos, page_list, hlist)
 	{
 		DBPRINTF("free_insn_slot: kip->insns=%p slot=%p", kip->insns, slot);
 		if ((kip->insns <= slot) && (slot < kip->insns + (INSNS_PER_PAGE * MAX_INSN_SIZE)))
