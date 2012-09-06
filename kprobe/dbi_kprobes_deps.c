@@ -46,11 +46,15 @@ struct mm_struct init_mm;
 #endif
 
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+DECLARE_MOD_FUNC_DEP(do_mmap_pgoff, unsigned long, struct file *file, unsigned long addr, unsigned long len, unsigned long prot, unsigned long flags, unsigned long pgoff);
+DECLARE_MOD_DEP_WRAPPER(do_mmap_pgoff, unsigned long, struct file *file, unsigned long addr, unsigned long len, unsigned long prot, unsigned long flags, unsigned long pgoff)
+IMP_MOD_DEP_WRAPPER(do_mmap_pgoff, file, addr, len, prot, flags, pgoff)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) */
+
+
 DECLARE_MOD_CB_DEP(kallsyms_search, unsigned long, const char *name);
 DECLARE_MOD_FUNC_DEP(access_process_vm, int, struct task_struct * tsk, unsigned long addr, void *buf, int len, int write);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
-DECLARE_MOD_FUNC_DEP(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len);
-#endif
 
 DECLARE_MOD_FUNC_DEP(find_extend_vma, struct vm_area_struct *, struct mm_struct * mm, unsigned long addr);
 
@@ -72,11 +76,21 @@ DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *, struct task_struct *
 DECLARE_MOD_FUNC_DEP(follow_hugetlb_page, int, struct mm_struct *mm, struct vm_area_struct *vma, struct page **pages, struct vm_area_struct **vmas, unsigned long *position, int *length, int i, int write);
 #endif
 
-#ifdef	__HAVE_ARCH_GATE_AREA
-DECLARE_MOD_FUNC_DEP(in_gate_area, int, struct task_struct *tsk,unsigned long addr);
-#else
+#ifdef __HAVE_ARCH_GATE_AREA
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+DECLARE_MOD_FUNC_DEP(in_gate_area, int, struct mm_struct *mm, unsigned long addr);
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+DECLARE_MOD_FUNC_DEP(in_gate_area, int, struct task_struct *task, unsigned long addr);
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+#endif /* __HAVE_ARCH_GATE_AREA */
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+DECLARE_MOD_FUNC_DEP(in_gate_area_no_mm, int, unsigned long addr);
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 DECLARE_MOD_FUNC_DEP(in_gate_area_no_task, int, unsigned long addr);
-#endif
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+
+
 DECLARE_MOD_FUNC_DEP(follow_page, \
 		struct page *, struct vm_area_struct * vma, \
 		unsigned long address, unsigned int foll_flags);
@@ -133,13 +147,30 @@ IMP_MOD_DEP_WRAPPER (get_gate_vma, tsk)
 	IMP_MOD_DEP_WRAPPER (follow_hugetlb_page, mm, vma, pages, vmas, position, length, i, write)
 #endif
 
-#ifdef	__HAVE_ARCH_GATE_AREA
-	DECLARE_MOD_DEP_WRAPPER (in_gate_area, int, struct task_struct *tsk, unsigned long addr)
-	IMP_MOD_DEP_WRAPPER (in_gate_area, tsk, addr)
-#else
-	DECLARE_MOD_DEP_WRAPPER (in_gate_area_no_task, int, unsigned long addr)
-IMP_MOD_DEP_WRAPPER (in_gate_area_no_task, addr)
-#endif
+static inline int dbi_in_gate_area(struct task_struct *task, unsigned long addr)
+{
+#ifdef __HAVE_ARCH_GATE_AREA
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	struct mm_struct *mm = task->mm;
+	IMP_MOD_DEP_WRAPPER (in_gate_area, mm, addr)
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	IMP_MOD_DEP_WRAPPER (in_gate_area, task, addr)
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+#else /*__HAVE_ARCH_GATE_AREA */
+	return in_gate_area(task, addr);
+#endif/*__HAVE_ARCH_GATE_AREA */
+}
+
+
+static inline int dbi_in_gate_area_no_xxx(unsigned long addr)
+{
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	IMP_MOD_DEP_WRAPPER (in_gate_area_no_mm, addr)
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	IMP_MOD_DEP_WRAPPER (in_gate_area_no_task, addr);
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+}
+
 
 #if (LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 11))
 	DECLARE_MOD_DEP_WRAPPER (follow_page, \
@@ -161,11 +192,6 @@ IMP_MOD_DEP_WRAPPER (vm_normal_page, vma, addr, pte)
 			void, struct vm_area_struct *vma, struct page *page, \
 			unsigned long uaddr, void *kaddr, unsigned long len, int write)
 IMP_MOD_DEP_WRAPPER (flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
-	DECLARE_MOD_DEP_WRAPPER(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len)
-	IMP_MOD_DEP_WRAPPER (copy_to_user_page, vma, page, uaddr, dst, src, len)
-#endif
 
 
 int init_module_dependencies()
@@ -190,9 +216,14 @@ int init_module_dependencies()
 
 #ifdef	__HAVE_ARCH_GATE_AREA
 	INIT_MOD_DEP_VAR(in_gate_area, in_gate_area);
-#else
-	INIT_MOD_DEP_VAR(in_gate_area_no_task, in_gate_area_no_task);
 #endif
+
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))
+	INIT_MOD_DEP_VAR(in_gate_area_no_mm, in_gate_area_no_mm);
+#else /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))  */
+	INIT_MOD_DEP_VAR(in_gate_area_no_task, in_gate_area_no_task);
+#endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))  */
+
 	INIT_MOD_DEP_VAR(follow_page, follow_page);
 
 	INIT_MOD_DEP_VAR(__flush_anon_page, __flush_anon_page);
@@ -209,10 +240,8 @@ int init_module_dependencies()
 	INIT_MOD_DEP_VAR(put_task_struct, __put_task_struct_cb);
 #endif
 
-
-// for 2.6.32.9-iboot (tegra-froyo)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34))
-	INIT_MOD_DEP_VAR(copy_to_user_page, copy_to_user_page);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0))
+	INIT_MOD_DEP_VAR(do_mmap_pgoff, do_mmap_pgoff);
 #endif
 
 	return 0;
@@ -243,9 +272,6 @@ static inline int use_zero_page(struct vm_area_struct *vma)
 	return !vma->vm_ops || !vma->vm_ops->fault;
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-extern unsigned long (* in_gate_area_fp)(unsigned long);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 unsigned long zero_pfn __read_mostly;
@@ -291,7 +317,7 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		struct vm_area_struct *vma;
 
 		vma = find_extend_vma(mm, start);
-		if (!vma && in_gate_area_fp(start)) {
+		if (!vma && dbi_in_gate_area_no_xxx(start)) {
 			unsigned long pg = start & PAGE_MASK;
 			pgd_t *pgd;
 			pud_t *pud;
@@ -485,7 +511,7 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned int foll_flags;
 
 		vma = find_vma(mm, start);
-		if (!vma && in_gate_area(tsk, start)) {
+		if (!vma && dbi_in_gate_area(tsk, start)) {
 			unsigned long pg = start & PAGE_MASK;
 			struct vm_area_struct *gate_vma = get_gate_vma(tsk);
 			pgd_t *pgd;

@@ -1608,10 +1608,6 @@ int asm_init_module_dependencies()
 	return 0;
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-typedef unsigned long (* in_gate_area_fp_t)(unsigned long);
-in_gate_area_fp_t in_gate_area_fp;
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 void (* do_kpro)(struct undef_hook *);
 void (* undo_kpro)(struct undef_hook *);
@@ -1653,14 +1649,6 @@ int __init arch_init_kprobes (void)
 		DBPRINTF ("Unable to init module dependencies\n");
 		return -1;
 	}
-
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	in_gate_area_fp = (in_gate_area_fp_t)kallsyms_search("in_gate_area_no_mm");
-	if (!in_gate_area_fp) {
-		DBPRINTF("no in_gate_area symbol found!");
-                return -1;
-        }
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 	do_bp_handler = (unsigned int) kallsyms_search ("do_undefinstr");
 	if (do_bp_handler == 0) {

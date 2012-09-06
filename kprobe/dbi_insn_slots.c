@@ -56,6 +56,9 @@
 #include <linux/slab.h>
 
 
+extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
+                        unsigned long len, unsigned long prot,
+                        unsigned long flags, unsigned long pgoff);
 
 extern struct hlist_head uprobe_insn_slot_table[KPROBE_TABLE_SIZE];
 
