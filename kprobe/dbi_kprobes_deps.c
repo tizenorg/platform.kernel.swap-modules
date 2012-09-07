@@ -20,9 +20,8 @@
  *
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
-
  */
 
 #include <linux/module.h>
@@ -51,6 +50,11 @@ DECLARE_MOD_FUNC_DEP(do_mmap_pgoff, unsigned long, struct file *file, unsigned l
 DECLARE_MOD_DEP_WRAPPER(do_mmap_pgoff, unsigned long, struct file *file, unsigned long addr, unsigned long len, unsigned long prot, unsigned long flags, unsigned long pgoff)
 IMP_MOD_DEP_WRAPPER(do_mmap_pgoff, file, addr, len, prot, flags, pgoff)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) */
+
+// copy_to_user_page
+DECLARE_MOD_FUNC_DEP(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len);
+DECLARE_MOD_DEP_WRAPPER(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len)
+IMP_MOD_DEP_WRAPPER(copy_to_user_page, vma, page, uaddr, dst, src, len)
 
 
 DECLARE_MOD_CB_DEP(kallsyms_search, unsigned long, const char *name);
@@ -109,7 +113,7 @@ DECLARE_MOD_FUNC_DEP(flush_ptrace_access, \
 #if (LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 16))
 DECLARE_MOD_FUNC_DEP(put_task_struct, \
 		void, struct task_struct *tsk);
-#else 
+#else
 DECLARE_MOD_FUNC_DEP(put_task_struct, \
 		void, struct rcu_head * rhp);
 #endif
@@ -206,6 +210,7 @@ int init_module_dependencies()
 	INIT_MOD_DEP_VAR(handle_mm_fault, handle_mm_fault);
 #endif
 
+	INIT_MOD_DEP_VAR(copy_to_user_page, copy_to_user_page);
 	INIT_MOD_DEP_VAR(flush_ptrace_access, flush_ptrace_access);
 	INIT_MOD_DEP_VAR(find_extend_vma, find_extend_vma);
 	INIT_MOD_DEP_VAR(get_gate_vma, get_gate_vma);
@@ -303,7 +308,7 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 
 	VM_BUG_ON(!!pages != !!(gup_flags & FOLL_GET));
 
-	/* 
+	/*
 	 * Require read or write permissions.
 	 * If FOLL_FORCE is set, we only require the "MAY" flags.
 	 */
@@ -498,7 +503,7 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 
 	if (len <= 0)
 		return 0;
-	/* 
+	/*
 	 * Require read or write permissions.
 	 * If 'force' is set, we only require the "MAY" flags.
 	 */
@@ -598,7 +603,7 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 			if (write)
 				foll_flags |= FOLL_WRITE;
 
-			
+
 			//cond_resched();
 
 			DBPRINTF ("pages = %p vma = %p\n", pages, vma);
@@ -610,7 +615,7 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 #if  LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,18)
 				if (ret & VM_FAULT_WRITE)
 				  foll_flags &= ~FOLL_WRITE;
-				
+
 				switch (ret & ~VM_FAULT_WRITE) {
 				case VM_FAULT_MINOR:
 				  tsk->min_flt++;
@@ -625,7 +630,7 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 				default:
 				  BUG();
 				}
-				
+
 #else
 				if (ret & VM_FAULT_ERROR) {
 				  if (ret & VM_FAULT_OOM)
@@ -638,7 +643,7 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 				  tsk->maj_flt++;
 				else
 				  tsk->min_flt++;
-				
+
 				/*
 				 * The VM_FAULT_WRITE bit tells us that
 				 * do_wp_page has broken COW when necessary,
@@ -654,10 +659,10 @@ int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 				if ((ret & VM_FAULT_WRITE) &&
 				    !(vma->vm_flags & VM_WRITE))
 				  foll_flags &= ~FOLL_WRITE;
-				
+
 				//cond_resched();
 #endif
-				
+
 			}
 
 			if (IS_ERR(page))
