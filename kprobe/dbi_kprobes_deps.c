@@ -166,12 +166,20 @@ static inline int dbi_in_gate_area(struct task_struct *task, unsigned long addr)
 }
 
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+DECLARE_MOD_DEP_WRAPPER(in_gate_area_no_mm, int, unsigned long addr)
+IMP_MOD_DEP_WRAPPER(in_gate_area_no_mm, addr)
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+DECLARE_MOD_DEP_WRAPPER(in_gate_area_no_task, int, unsigned long addr)
+IMP_MOD_DEP_WRAPPER(in_gate_area_no_task, addr)
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+
 static inline int dbi_in_gate_area_no_xxx(unsigned long addr)
 {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	IMP_MOD_DEP_WRAPPER (in_gate_area_no_mm, addr)
+	in_gate_area_no_mm(addr);
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	IMP_MOD_DEP_WRAPPER (in_gate_area_no_task, addr);
+	in_gate_area_no_task(addr);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 }
 
