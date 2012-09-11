@@ -51,10 +51,12 @@ DECLARE_MOD_DEP_WRAPPER(do_mmap_pgoff, unsigned long, struct file *file, unsigne
 IMP_MOD_DEP_WRAPPER(do_mmap_pgoff, file, addr, len, prot, flags, pgoff)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) */
 
-// copy_to_user_page
+/* copy_to_user_page */
+#ifndef copy_to_user_page
 DECLARE_MOD_FUNC_DEP(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len);
 DECLARE_MOD_DEP_WRAPPER(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len)
 IMP_MOD_DEP_WRAPPER(copy_to_user_page, vma, page, uaddr, dst, src, len)
+#endif /* copy_to_user_page */
 
 
 DECLARE_MOD_CB_DEP(kallsyms_search, unsigned long, const char *name);
@@ -218,7 +220,10 @@ int init_module_dependencies()
 	INIT_MOD_DEP_VAR(handle_mm_fault, handle_mm_fault);
 #endif
 
+#ifndef copy_to_user_page
 	INIT_MOD_DEP_VAR(copy_to_user_page, copy_to_user_page);
+#endif /* copy_to_user_page */
+
 	INIT_MOD_DEP_VAR(flush_ptrace_access, flush_ptrace_access);
 	INIT_MOD_DEP_VAR(find_extend_vma, find_extend_vma);
 	INIT_MOD_DEP_VAR(get_gate_vma, get_gate_vma);
