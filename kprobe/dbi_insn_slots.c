@@ -54,6 +54,7 @@
 #include <linux/hugetlb.h>
 
 #include <linux/slab.h>
+#include <linux/spinlock.h>
 
 
 extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
@@ -63,296 +64,253 @@ extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
 extern struct hlist_head uprobe_insn_slot_table[KPROBE_TABLE_SIZE];
 
 struct hlist_head kprobe_insn_pages;
-int kprobe_garbage_slots;
 struct hlist_head uprobe_insn_pages;
-int uprobe_garbage_slots;
 
+struct chunk {
+	unsigned long *data;
+	unsigned long first_available;
+	unsigned long count_available;
+
+	spinlock_t    lock;
+	unsigned long size;
+	unsigned long *index;
+};
 
 struct kprobe_insn_page
 {
 	struct hlist_node hlist;
-	kprobe_opcode_t *insns;	/* Page of instruction slots */
-	char *slot_used;
-	int nused;
-	int ngarbage;
-	int tgid;
+
+	struct chunk chunk;
+	struct task_struct *task
 };
 
-enum kprobe_slot_state
+static void chunk_init(struct chunk *chunk, void *data, size_t size, size_t size_block)
 {
-	SLOT_CLEAN = 0,
-	SLOT_DIRTY = 1,
-	SLOT_USED = 2,
-};
+	unsigned long i;
+	unsigned long *p;
 
+	spin_lock_init(&chunk->lock);
+	chunk->data = (unsigned long *)data;
+	chunk->first_available = 0;
+	chunk->count_available = size / size_block;
+	chunk->size = chunk->count_available;
 
-unsigned long alloc_user_pages(struct task_struct *task, unsigned long len, unsigned long prot, unsigned long flags, int atomic)
+	chunk->index = kmalloc(sizeof(*chunk->index)*chunk->count_available, GFP_ATOMIC);
+
+	p = chunk->index;
+	for (i = 0; i != chunk->count_available; ++p) {
+		*p = ++i;
+	}
+}
+
+static void chunk_uninit(struct chunk *chunk)
 {
-	long ret = 0;
+	kfree(chunk->index);
+}
+
+static void* chunk_allocate(struct chunk *chunk, size_t size_block)
+{
+	unsigned long *ret;
+
+	if (!chunk->count_available) {
+		return NULL;
+	}
+
+	spin_lock(&chunk->lock);
+	ret = chunk->data + chunk->first_available*size_block;
+	chunk->first_available = chunk->index[chunk->first_available];
+	--chunk->count_available;
+	spin_unlock(&chunk->lock);
+
+	return ret;
+}
+
+static void chunk_deallocate(struct chunk *chunk, void *p, size_t size_block)
+{
+	unsigned long idx = ((unsigned long *)p - chunk->data)/size_block;
+
+	spin_lock(&chunk->lock);
+	chunk->index[idx] = chunk->first_available;
+	chunk->first_available = idx;
+	++chunk->count_available;
+	spin_unlock(&chunk->lock);
+}
+
+static inline int chunk_check_ptr(struct chunk *chunk, void *p, size_t size)
+{
+	if (( chunk->data                             <= (unsigned long *)p) &&
+	    ((chunk->data + size/sizeof(chunk->data))  > (unsigned long *)p)) {
+		return 1;
+	}
+
+	return 0;
+}
+
+static inline int chunk_free(struct chunk *chunk)
+{
+	return (chunk->count_available == chunk->size);
+}
+
+static unsigned long alloc_user_pages(struct task_struct *task, unsigned long len, unsigned long prot, unsigned long flags, int atomic)
+{
+	unsigned long ret = 0;
 	struct task_struct *otask = current;
 	struct mm_struct *mm;
 
 	mm = atomic ? task->active_mm : get_task_mm (task);
-	if (mm){
-		if(!atomic)
-		{
-			if ( !down_write_trylock (&mm->mmap_sem) )
-			{
-				rcu_read_lock ();
+	if (mm) {
+		if (!atomic) {
+			if (!down_write_trylock(&mm->mmap_sem)) {
+				rcu_read_lock();
 
-				up_read (&mm->mmap_sem);
-				down_write (&mm->mmap_sem);
+				up_read(&mm->mmap_sem);
+				down_write(&mm->mmap_sem);
 
 				rcu_read_unlock();
 			}
 		}
 		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily
 		current_thread_info()->task = task;
-		ret = (unsigned long)do_mmap_pgoff(0, 0, len, prot, flags, 0);
+		ret = do_mmap_pgoff(0, 0, len, prot, flags, 0);
 		current_thread_info()->task = otask;
-		if(!atomic)
-		{
+		if (!atomic) {
 			downgrade_write (&mm->mmap_sem);
 			mmput(mm);
 		}
+	} else {
+		printk("proc %d has no mm", task->tgid);
 	}
-	else
-		printk ("proc %d has no mm", task->pid);
 
-	return (unsigned long)ret;
+	return ret;
 }
 
-	int
-check_safety (void)
+static void *page_new(struct task_struct *task, int atomic)
 {
-	synchronize_sched ();
-	return 0;
+	if (task) {
+		return (void *)alloc_user_pages(task, PAGE_SIZE,
+				PROT_EXEC|PROT_READ|PROT_WRITE,
+				MAP_ANONYMOUS|MAP_SHARED, atomic);
+	} else {
+		return kmalloc(PAGE_SIZE, GFP_ATOMIC);
+	}
 }
 
+static void page_free(void *data, struct task_struct *task)
+{
+	if (task) {
+		//E. G.: This code provides kernel dump because of rescheduling while atomic.
+		//As workaround, this code was commented. In this case we will have memory leaks
+		//for instrumented process, but instrumentation process should functionate correctly.
+		//Planned that good solution for this problem will be done during redesigning KProbe
+		//for improving supportability and performance.
+#if 0
+		mm = get_task_mm (task);
+		if (mm) {
+			down_write (&mm->mmap_sem);
+			do_munmap(mm, (unsigned long)(data), PAGE_SIZE);
+			up_write (&mm->mmap_sem);
+			mmput(mm);
+		}
+#endif
+		// FIXME: implement the removal of memory for task
+	} else {
+		kfree(data);
+	}
+}
+
+static inline size_t slot_size(struct task_struct *task)
+{
+	if (task) {
+		return UPROBES_TRAMP_LEN;
+	} else {
+		return KPROBES_TRAMP_LEN;
+	}
+}
+
+static struct kprobe_insn_page *kip_new(struct task_struct *task, int atomic)
+{
+	void *data;
+	struct kprobe_insn_page *kip;
+
+	kip = kmalloc(sizeof(*kip), GFP_ATOMIC);
+	if (kip == NULL) {
+		return NULL;
+	}
+
+	data = page_new(task, atomic);
+	if(data == NULL) {
+		kfree(kip);
+		return NULL;
+	}
+
+	chunk_init(&kip->chunk, data, PAGE_SIZE/sizeof(unsigned long), slot_size(task));
+	kip->task = task;
+
+	return kip;
+}
+
+static void kip_free(struct kprobe_insn_page * kip)
+{
+	chunk_uninit(&kip->chunk);
+	page_free(kip->chunk.data, kip->task);
+	kfree(kip);
+}
 
 /**
  * get_us_insn_slot() - Find a slot on an executable page for an instruction.
  * We allocate an executable page if there's no room on existing ones.
  */
-kprobe_opcode_t *get_insn_slot (struct task_struct *task, int atomic)
+kprobe_opcode_t *get_insn_slot(struct task_struct *task, int atomic)
 {
+	kprobe_opcode_t * free_slot;
 	struct kprobe_insn_page *kip;
 	struct hlist_node *pos;
 	struct hlist_head *page_list = task ? &uprobe_insn_pages : &kprobe_insn_pages;
-	unsigned slots_per_page = INSNS_PER_PAGE, slot_size = MAX_INSN_SIZE;
 
-
-	if(task) {
-		slots_per_page = INSNS_PER_PAGE/UPROBES_TRAMP_LEN;
-		slot_size = UPROBES_TRAMP_LEN;
-	}
-	else {
-		slots_per_page = INSNS_PER_PAGE/KPROBES_TRAMP_LEN;
-		slot_size = KPROBES_TRAMP_LEN;
-	}
-
-retry:
-	hlist_for_each_entry_rcu(kip, pos, page_list, hlist)
-	{
-		if( !(!task || (kip->tgid == task->tgid)) )
-			continue;
-
-		if (kip->nused < slots_per_page)
-		{
-			int i;
-			for (i = 0; i < slots_per_page; i++)
-			{
-				if (kip->slot_used[i] == SLOT_CLEAN)
-				{
-					if(!task || (kip->tgid == task->tgid)){
-						kip->slot_used[i] = SLOT_USED;
-						kip->nused++;
-						return kip->insns + (i * slot_size);
-					}
-				}
+	hlist_for_each_entry_rcu(kip, pos, page_list, hlist) {
+		if (!task || (kip->task->tgid == task->tgid)) {
+			free_slot = chunk_allocate(&kip->chunk, slot_size(task));
+			if (free_slot == NULL) {
+				break;
 			}
+
+			return free_slot;
 		}
 	}
 
-	/* If there are any garbage slots, collect it and try again. */
-	if(task) {
-		if (uprobe_garbage_slots && collect_garbage_slots(page_list, task) == 0)
-			goto retry;
-	}
-	else {
-		if (kprobe_garbage_slots && collect_garbage_slots(page_list, task) == 0)
-			goto retry;
-	}
-
-	/* All out of space.  Need to allocate a new page. Use slot 0. */
-	kip = kmalloc(sizeof(struct kprobe_insn_page), GFP_ATOMIC);
-	if (!kip)
+	kip = kip_new(task, atomic);
+	if(kip == NULL)
 		return NULL;
 
-	kip->slot_used = kmalloc(sizeof(char) * slots_per_page, GFP_ATOMIC);
-	if (!kip->slot_used){
-		kfree(kip);
-		return NULL;
-	}
-
-	if(task) {
-		kip->insns = (kprobe_opcode_t *)alloc_user_pages(task, PAGE_SIZE,
-				PROT_EXEC|PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, atomic);
-	}
-	else {
-		kip->insns = kmalloc(PAGE_SIZE, GFP_ATOMIC);
-	}
-	if (!kip->insns)
-	{
-		kfree (kip->slot_used);
-		kfree (kip);
-		return NULL;
-	}
-	memset(kip->slot_used, SLOT_CLEAN, slots_per_page);
-	kip->slot_used[0] = SLOT_USED;
-	kip->nused = 1;
-	kip->ngarbage = 0;
-	kip->tgid = task ? task->tgid : 0;
 	INIT_HLIST_NODE (&kip->hlist);
 	hlist_add_head_rcu(&kip->hlist, page_list);
-	return kip->insns;
+	return chunk_allocate(&kip->chunk, slot_size(task));
 }
 
-/* Return 1 if all garbages are collected, otherwise 0. */
-static
-int collect_one_slot (struct hlist_head *page_list, struct task_struct *task,
-		struct kprobe_insn_page *kip, int idx)
-{
-	kip->slot_used[idx] = SLOT_CLEAN;
-	kip->nused--;
-	DBPRINTF("collect_one_slot: nused=%d", kip->nused);
-	if (kip->nused == 0)
-	{
-		/*
-		 * Page is no longer in use.  Free it unless
-		 * it's the last one.  We keep the last one
-		 * so as not to have to set it up again the
-		 * next time somebody inserts a probe.
-		 */
-		hlist_del_rcu(&kip->hlist);
-		if (!task && hlist_empty (page_list))
-		{
-			INIT_HLIST_NODE (&kip->hlist);
-			hlist_add_head_rcu(&kip->hlist, page_list);
-		}
-		else
-		{
-			if(task){
-				//E. G.: This code provides kernel dump because of rescheduling while atomic.
-				//As workaround, this code was commented. In this case we will have memory leaks
-				//for instrumented process, but instrumentation process should functionate correctly.
-				//Planned that good solution for this problem will be done during redesigning KProbe
-				//for improving supportability and performance.
-#if 0
-				//printk("collect_one_slot %p/%d\n", task, task->pid);
-				mm = get_task_mm (task);
-				if (mm){
-					down_write (&mm->mmap_sem);
-					do_munmap(mm, (unsigned long)(kip->insns), PAGE_SIZE);
-					up_write (&mm->mmap_sem);
-					mmput(mm);
-				}
-#endif
-				kip->insns = NULL; //workaround
-				kip->tgid = 0;
-			}
-			else {
-				kfree(kip->insns);
-			}
-			kfree (kip->slot_used);
-			kfree (kip);
-		}
-		return 1;
-	}
-	return 0;
-}
-
-int collect_garbage_slots (struct hlist_head *page_list, struct task_struct *task)
+void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot, int dirty)
 {
 	struct kprobe_insn_page *kip;
 	struct hlist_node *pos;
-	unsigned slots_per_page = INSNS_PER_PAGE;
-
-	/* Ensure no-one is preepmted on the garbages */
-	if (!task && check_safety() != 0)
-		return -EAGAIN;
-
-	if(task)
-		slots_per_page = INSNS_PER_PAGE/UPROBES_TRAMP_LEN;
-	else
-		slots_per_page = INSNS_PER_PAGE/KPROBES_TRAMP_LEN;
 
 	hlist_for_each_entry_rcu(kip, pos, page_list, hlist)
 	{
-		int i;
-		if ((task && (kip->tgid != task->tgid)) || (kip->ngarbage == 0))
+		if (!(!task || (kip->task->tgid == task->tgid)))
 			continue;
-		kip->ngarbage = 0;	/* we will collect all garbages */
-		for (i = 0; i < slots_per_page; i++)
-		{
-			if (kip->slot_used[i] == SLOT_DIRTY && collect_one_slot (page_list, task, kip, i))
-				break;
+
+		if (!chunk_check_ptr(&kip->chunk, slot, PAGE_SIZE))
+			continue;
+
+		chunk_deallocate(&kip->chunk, slot, slot_size(task));
+
+		if (chunk_free(&kip->chunk)) {
+			hlist_del_rcu(&kip->hlist);
+			kip_free(kip);
 		}
-	}
-	if(task)	uprobe_garbage_slots = 0;
-	else		kprobe_garbage_slots = 0;
-	return 0;
-}
 
-void purge_garbage_uslots(struct task_struct *task, int atomic)
-{
-	if(collect_garbage_slots(&uprobe_insn_pages, task))
-		panic("failed to collect garbage slotsfo for task %s/%d/%d", task->comm, task->tgid, task->pid);
-}
-
-void free_insn_slot (struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot, int dirty)
-{
-	struct kprobe_insn_page *kip;
-	struct hlist_node *pos;
-	unsigned slots_per_page = INSNS_PER_PAGE, slot_size = MAX_INSN_SIZE;
-
-	if(task) {
-		slots_per_page = INSNS_PER_PAGE/UPROBES_TRAMP_LEN;
-		slot_size = UPROBES_TRAMP_LEN;
-	}
-	else {
-		slots_per_page = INSNS_PER_PAGE/KPROBES_TRAMP_LEN;
-		slot_size = KPROBES_TRAMP_LEN;
+		return;
 	}
 
-	DBPRINTF("free_insn_slot: dirty %d, %p/%d", dirty, task, task?task->pid:0);
-	hlist_for_each_entry_rcu(kip, pos, page_list, hlist)
-	{
-		DBPRINTF("free_insn_slot: kip->insns=%p slot=%p", kip->insns, slot);
-		if ((kip->insns <= slot) && (slot < kip->insns + (INSNS_PER_PAGE * MAX_INSN_SIZE)))
-		{
-			int i = (slot - kip->insns) / slot_size;
-			if (dirty)
-			{
-				kip->slot_used[i] = SLOT_DIRTY;
-				kip->ngarbage++;
-			}
-			else
-			{
-				collect_one_slot (page_list, task, kip, i);
-			}
-			break;
-		}
-	}
-
-	if (dirty){
-		if(task){
-			if(++uprobe_garbage_slots > slots_per_page)
-				collect_garbage_slots (page_list, task);
-		}
-		else if(++kprobe_garbage_slots > slots_per_page)
-			collect_garbage_slots (page_list, task);
-	}
+	panic("free_insn_slot: slot=%p is not data base\n", slot);
 }
 
 #ifdef CONFIG_ARM

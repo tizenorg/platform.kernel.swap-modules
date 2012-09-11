@@ -44,27 +44,15 @@
  *
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
-
  */
 
 #include "dbi_kprobes.h"
 
 
-#define INSNS_PER_PAGE	(PAGE_SIZE/(MAX_INSN_SIZE * sizeof(kprobe_opcode_t)))
-
-int collect_garbage_slots (struct hlist_head *page_list, struct task_struct *task);
-
-kprobe_opcode_t *get_insn_slot (struct task_struct *task, int atomic);
-void free_insn_slot (struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot, int dirty);
-
-void purge_garbage_uslots(struct task_struct *task, int atomic);
-
-unsigned long alloc_user_pages(struct task_struct *task, unsigned long len, 
-		unsigned long prot, unsigned long flags, int atomic);
-int check_safety (void);
+kprobe_opcode_t *get_insn_slot(struct task_struct *task, int atomic);
+void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot, int dirty);
 
 
-
-#endif /*  _SRC_INSNS_SLOTS_H */ 
+#endif /*  _SRC_INSNS_SLOTS_H */

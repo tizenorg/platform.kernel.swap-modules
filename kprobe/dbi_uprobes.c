@@ -20,9 +20,8 @@
  *
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
-
  */
 
 
@@ -44,7 +43,7 @@ extern struct kretprobe *sched_rp;
 
 struct hlist_head uprobe_insn_slot_table[KPROBE_TABLE_SIZE];
 
-static 
+static
 int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, unsigned long called_from)
 {
 	int ret = 0;
@@ -326,17 +325,16 @@ void dbi_unregister_all_uprobes (struct task_struct *task, int atomic)
 
 	for(i = 0; i < KPROBE_TABLE_SIZE; i++){
 		head = &kprobe_table[i];
-		hlist_for_each_entry_safe (p, node, tnode, head, hlist){			
+		hlist_for_each_entry_safe (p, node, tnode, head, hlist){
 			if(p->tgid == task->tgid){
 				printk("dbi_unregister_all_uprobes: delete uprobe at %pf for %s/%d\n", p->addr, task->comm, task->pid);
 				unregister_uprobe (p, task, atomic);
 			}
 		}
 	}
-	purge_garbage_uslots(task, atomic);
 }
 
-void init_uprobes_insn_slots(int i) 
+void init_uprobes_insn_slots(int i)
 {
 	INIT_HLIST_HEAD (&uprobe_insn_slot_table[i]);
 }
