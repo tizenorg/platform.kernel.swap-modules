@@ -159,11 +159,13 @@ int remove_otg_probe_from_list(unsigned long addr)
 inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * task_inst_info)
 {
 	int i, j, len;
+	kprobe_opcode_t *entry_save;
+	kprobe_pre_entry_handler_t pre_entry_save;
+	kretprobe_handler_t handler_save;
 
 	inst_us_proc_t* copy_info = 0;
 
 	int unres_ips_count = 0, unres_vtps_count = 0;
-
 
 	copy_info = kmalloc (sizeof (inst_us_proc_t), GFP_ATOMIC);
 	memset ((void *) copy_info, 0, sizeof (inst_us_proc_t));
@@ -198,9 +200,19 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 			memcpy (copy_info->p_libs[i].p_ips, task_inst_info->p_libs[i].p_ips,
 					copy_info->p_libs[i].ips_count * sizeof (us_proc_ip_t));
 			for (j = 0; j < copy_info->p_libs[i].ips_count; j++) {
+				// save handlers
+				entry_save = copy_info->p_libs[i].p_ips[j].jprobe.entry;
+				pre_entry_save = copy_info->p_libs[i].p_ips[j].jprobe.pre_entry;
+				handler_save = copy_info->p_libs[i].p_ips[j].retprobe.handler;
+
 				copy_info->p_libs[i].p_ips[j].installed = 0;
-				memset (&copy_info->p_libs[i].p_ips[j].jprobe, 0, sizeof(struct jprobe));
+				memset(&copy_info->p_libs[i].p_ips[j].jprobe, 0, sizeof(struct jprobe));
 				memset(&copy_info->p_libs[i].p_ips[j].retprobe, 0, sizeof(struct kretprobe));
+
+				// restore handlers
+				copy_info->p_libs[i].p_ips[j].jprobe.entry = entry_save;
+				copy_info->p_libs[i].p_ips[j].jprobe.pre_entry = pre_entry_save;
+				copy_info->p_libs[i].p_ips[j].retprobe.handler = handler_save;
 			}
 
 			unres_ips_count += copy_info->p_libs[i].ips_count;
