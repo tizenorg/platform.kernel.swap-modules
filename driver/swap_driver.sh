@@ -47,7 +47,7 @@ if [ ! -c /dev/${DEVICE_FILE} ] ; then
 	mknod /dev/${DEVICE_FILE} c ${DEFAULT_MAJOR} 0
 	if [ $? -ne 0 ]; then
 	    echo "Error: Unable to create device node!"
-	    exit
+	    exit 1
 	fi
 	chmod a+r /dev/${DEVICE_FILE}
 else
@@ -60,6 +60,7 @@ echo "loading module '${MODULE_FILE}'"
 insmod ${MODULE_FILE}.ko fp_kallsyms_lookup_name=${ADDRESS} device_name=${DEVICE_NAME} device_major=${DEFAULT_MAJOR}
 if [ $? -ne 0 ]; then
     echo "Error: Unable to load Swap Driver!"
+    exit 1
 fi
 MAJOR=`sed "/${DEVICE_NAME}/ ! d" /proc/devices | sed "s/ ${DEVICE_NAME}//"`
 
