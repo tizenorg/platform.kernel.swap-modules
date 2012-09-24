@@ -65,12 +65,28 @@ extern struct hlist_head uprobe_insn_pages;
 
 extern unsigned long (*kallsyms_search) (const char *name);
 
-extern struct kprobe *kprobe_running (void);
 extern struct kprobe_ctlblk *get_kprobe_ctlblk (void);
-extern void reset_current_kprobe (void);
 extern struct kprobe * current_kprobe;
 
 extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
+
+static struct kprobe *kprobe_running(struct pt_regs *regs)
+{
+	if (user_mode(regs)) {
+		return 0;
+	}
+
+	return (__get_cpu_var(current_kprobe));
+}
+
+static void reset_current_kprobe(struct pt_regs *regs)
+{
+	if (user_mode(regs)) {
+		return;
+	}
+
+	__get_cpu_var(current_kprobe) = NULL;
+}
 
 #ifdef OVERHEAD_DEBUG
 unsigned long swap_sum_time = 0;
@@ -704,28 +720,35 @@ void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 		regs->uregs[15] = (unsigned long) p->ainsn.insn;
 }
 
-void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
+static void arm_save_previous_kprobe(struct kprobe_ctlblk *kcb, struct pt_regs *regs, struct kprobe *p_run)
 {
-	if (kcb->prev_kprobe.kp != NULL)
-	{
+	if (p_run == NULL) {
+		panic("arm_save_previous_kprobe: p_run == NULL\n");
+	}
+
+	if (kcb->prev_kprobe.kp != NULL) {
 		DBPRINTF ("no space to save new probe[]: task = %d/%s", current->pid, current->comm);
 	}
 
-	kcb->prev_kprobe.kp = kprobe_running ();
+	kcb->prev_kprobe.kp = p_run;
 	kcb->prev_kprobe.status = kcb->kprobe_status;
 }
 
-void restore_previous_kprobe (struct kprobe_ctlblk *kcb)
+static void arm_restore_previous_kprobe(struct kprobe_ctlblk *kcb, struct pt_regs *regs)
 {
-	set_current_kprobe(kcb->prev_kprobe.kp, NULL, NULL);
+	set_current_kprobe(kcb->prev_kprobe.kp, regs, NULL);
 	kcb->kprobe_status = kcb->prev_kprobe.status;
 	kcb->prev_kprobe.kp = NULL;
 	kcb->prev_kprobe.status = 0;
 }
 
-void set_current_kprobe (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
+void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var (current_kprobe) = p;
+	if (user_mode(regs)) {
+		return;
+	}
+
+	__get_cpu_var(current_kprobe) = p;
 	DBPRINTF ("set_current_kprobe: p=%p addr=%p\n", p, p->addr);
 }
 
@@ -1008,7 +1031,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 
 int kprobe_handler (struct pt_regs *regs)
 {
-	struct kprobe *p = 0;
+	struct kprobe *p = NULL, *p_run = NULL;
 	int ret = 0, pid = 0, retprobe = 0, reenter = 0;
 	kprobe_opcode_t *addr = NULL, *ssaddr = 0;
 	struct kprobe_ctlblk *kcb;
@@ -1092,15 +1115,16 @@ int kprobe_handler (struct pt_regs *regs)
 		pid = current->tgid;
 	}
 	/* Check we're not actually recursing */
-	// TODO: handling of recursion is disabled
-	if (0 && kprobe_running ())
+	// TODO: event is not saving in trace
+	p_run = kprobe_running(regs);
+	if (p_run)
 	{
 		DBPRINTF ("lock???");
 		p = get_kprobe (addr, pid, current);
 		if (p)
 		{
 			if(!pid && (addr == (kprobe_opcode_t *)kretprobe_trampoline)){
-				save_previous_kprobe (kcb, p);
+				arm_save_previous_kprobe(kcb, regs, p_run);
 				kcb->kprobe_status = KPROBE_REENTER;
 				reenter = 1;
 			}
@@ -1112,8 +1136,8 @@ int kprobe_handler (struct pt_regs *regs)
 				 * without calling any user handlers.
 				 */
 				if(!p->ainsn.boostable){
-					save_previous_kprobe (kcb, p);
-					set_current_kprobe (p, regs, kcb);
+					arm_save_previous_kprobe(kcb, regs, p_run);
+					set_current_kprobe(p, regs, kcb);
 				}
 				kprobes_inc_nmissed_count (p);
 				prepare_singlestep (p, regs);
@@ -1144,7 +1168,7 @@ int kprobe_handler (struct pt_regs *regs)
 					p = get_kprobe_by_insn_slot_thumb ((unsigned long)addr - 0x1a, pid, current);
 
 				if (p) {
-					save_previous_kprobe (kcb, p);
+					arm_save_previous_kprobe(kcb, regs, p_run);
 					kcb->kprobe_status = KPROBE_REENTER;
 					reenter = 1;
 					retprobe = 1;
@@ -1152,7 +1176,7 @@ int kprobe_handler (struct pt_regs *regs)
 				}
 			}
 			if(!p) {
-				p = kprobe_running();
+				p = p_run;
 				DBPRINTF ("kprobe_running !!! p = 0x%p p->break_handler = 0x%p", p, p->break_handler);
 				/*if (p->break_handler && p->break_handler(p, regs)) {
 				  DBPRINTF("kprobe_running !!! goto ss");
@@ -1168,10 +1192,9 @@ int kprobe_handler (struct pt_regs *regs)
 					regs->uregs[15] = (unsigned long) (p->addr + 1);
 					DBPRINTF ("finish step at %p cur at %p/%p, redirect to %lx\n", addr, p->addr, p->ainsn.insn, regs->uregs[15]);
 					if (kcb->kprobe_status == KPROBE_REENTER) {
-						restore_previous_kprobe (kcb);
-					}
-					else {
-						reset_current_kprobe ();
+						arm_restore_previous_kprobe(kcb, regs);
+					} else {
+						reset_current_kprobe(regs);
 					}
 				}
 				DBPRINTF ("kprobe_running !!! goto no");
@@ -1224,7 +1247,7 @@ int kprobe_handler (struct pt_regs *regs)
 		}
 		flush_icache_range ((unsigned int) p->addr, (unsigned int) (((unsigned int) p->addr) + (sizeof (kprobe_opcode_t) * 2)));
 	}
-	set_current_kprobe (p, regs, kcb);
+	set_current_kprobe(p, regs, kcb);
 	if(!reenter)
 		kcb->kprobe_status = KPROBE_HIT_ACTIVE;
 	if (retprobe)		//(einsn == UNDEF_INSTRUCTION)
@@ -1238,7 +1261,7 @@ int kprobe_handler (struct pt_regs *regs)
 #ifdef SUPRESS_BUG_MESSAGES
 			preempt_disable();
 #endif
-			reset_current_kprobe();
+			reset_current_kprobe(regs);
 #ifdef SUPRESS_BUG_MESSAGES
 			preempt_enable_no_resched();
 #endif
@@ -1296,7 +1319,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	entry_point_t entry;
 
 # ifdef REENTER
-	p = kprobe_running();
+//	p = kprobe_running(regs);
 # endif
 
 	DBPRINTF ("pjp = 0x%p jp->entry = 0x%p", jp, jp->entry);
@@ -1376,7 +1399,7 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 		flush_icache_range ((unsigned int) p->addr, (unsigned int) (((unsigned int) p->addr) + (sizeof (kprobe_opcode_t) * 2)));
 	}
 
-	reset_current_kprobe ();
+	reset_current_kprobe(regs);
 
 #endif //REENTER
 
@@ -1492,9 +1515,9 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 
 	if(p){ // ARM, MIPS, X86 user space
 		if (kcb->kprobe_status == KPROBE_REENTER)
-			restore_previous_kprobe (kcb);
+			arm_restore_previous_kprobe(kcb, regs);
 		else
-			reset_current_kprobe ();
+			reset_current_kprobe(regs);
 
 		if (thumb_mode( regs ) && !(regs->uregs[14] & 0x01))
 		{
