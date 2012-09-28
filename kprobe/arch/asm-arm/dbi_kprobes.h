@@ -486,11 +486,6 @@ struct arch_specific_insn {
 	kprobe_opcode_t *insn;
 	kprobe_opcode_t *insn_arm;
 	kprobe_opcode_t *insn_thumb;
-	/*
-	 * If this flag is not 0, this kprobe can be boost when its
-	 * post_handler and break_handler is not set.
-	 */
-	int boostable;
 };
 
 typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long);

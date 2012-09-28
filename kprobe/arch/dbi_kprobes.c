@@ -71,19 +71,16 @@ extern unsigned long (*kallsyms_search) (const char *name);
 
 void arch_remove_kprobe (struct kprobe *p, struct task_struct *task)
 {
+	// TODO: check boostable for x86 and MIPS
 	if (p->tgid) {
 #ifdef CONFIG_ARM
-		free_insn_slot (&uprobe_insn_pages, task, \
-				p->ainsn.insn_arm, (p->ainsn.boostable == 1));
-		free_insn_slot (&uprobe_insn_pages, task, \
-				p->ainsn.insn_thumb, (p->ainsn.boostable == 1));
+		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
+		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
 #else /* CONFIG_ARM */
-		free_insn_slot (&uprobe_insn_pages, task, \
-				p->ainsn.insn, (p->ainsn.boostable == 1));
+		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn);
 #endif /* CONFIG_ARM */
 	} else {
-		free_insn_slot (&kprobe_insn_pages, NULL, \
-				p->ainsn.insn, (p->ainsn.boostable == 1));
+		free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
 	}
 }
 

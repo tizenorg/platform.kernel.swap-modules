@@ -52,7 +52,7 @@
 
 
 kprobe_opcode_t *get_insn_slot(struct task_struct *task, int atomic);
-void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot, int dirty);
+void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot);
 
 
 #endif /*  _SRC_INSNS_SLOTS_H */

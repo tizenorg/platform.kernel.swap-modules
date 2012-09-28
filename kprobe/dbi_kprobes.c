@@ -131,39 +131,20 @@ struct kprobe_ctlblk *get_kprobe_ctlblk (void)
  * 				OR
  * 	- with preemption disabled - from arch/xxx/kernel/kprobes.c
  */
-struct kprobe *get_kprobe (void *addr, int tgid, struct task_struct *ctask)
+struct kprobe *get_kprobe(kprobe_opcode_t *addr, pid_t tgid)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
 	struct kprobe *p, *retVal = NULL;
-	int ret = 0, uprobe_found;
-	struct page *page = 0, *tpage = 0;
-	struct vm_area_struct *vma = 0;
-	struct task_struct *task = 0;
-	void *paddr = 0;
 
 	head = &kprobe_table[hash_ptr (addr, KPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu (p, node, head, hlist)
-	{
-		//if looking for kernel probe and this is kernel probe with the same addr OR
-		//if looking for the user space probe and this is user space probe probe with the same addr and pid
-		DBPRINTF ("get_kprobe: check probe at %p/%p, task %d/%d", addr, p->addr, tgid, p->tgid);
-		if (p->addr == addr)
-		{
-			uprobe_found = 0;
-			if (tgid == p->tgid)
-				uprobe_found = 1;
-			if (!tgid || uprobe_found)
-			{
-				retVal = p;
-				if (tgid)
-					DBPRINTF ("get_kprobe: found user space probe at %p for task %d", p->addr, p->tgid);
-				else
-					DBPRINTF ("get_kprobe: found kernel probe at %p", p->addr);
-				break;
-			}
+	hlist_for_each_entry_rcu(p, node, head, hlist) {
+		if (p->addr == addr && p->tgid == tgid) {
+			retVal = p;
+			break;
 		}
 	}
+
 	DBPRINTF ("get_kprobe: probe %p", retVal);
 	return retVal;
 }
@@ -504,7 +485,7 @@ int dbi_register_kprobe (struct kprobe *p)
     p->mod_refcounted = 0;
     p->nmissed = 0;
 
-    old_p = get_kprobe (p->addr, 0, NULL);
+    old_p = get_kprobe(p->addr, 0);
     if (old_p)
     {
         ret = register_aggr_kprobe (old_p, p);
@@ -531,7 +512,7 @@ void dbi_unregister_kprobe (struct kprobe *p, struct task_struct *task)
 	struct kprobe *old_p, *list_p;
 	int cleanup_p, pid = p->tgid;
 
-	old_p = get_kprobe (p->addr, pid, NULL);
+	old_p = get_kprobe(p->addr, pid);
 	DBPRINTF ("dbi_unregister_kprobe p=%p old_p=%p", p, old_p);
 	if (unlikely (!old_p))
 		return;
@@ -766,7 +747,7 @@ struct kretprobe * clone_kretprobe (struct kretprobe *rp)
 	clone->kp.post_handler = NULL;
 	clone->kp.fault_handler = NULL;
 	clone->kp.break_handler = NULL;
-	old_p = get_kprobe (rp->kp.addr, rp->kp.tgid, NULL);
+	old_p = get_kprobe(rp->kp.addr, rp->kp.tgid);
 	if (old_p)
 	{
 		ret = register_aggr_kprobe (old_p, &clone->kp);

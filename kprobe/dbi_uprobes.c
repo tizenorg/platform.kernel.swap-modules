@@ -74,7 +74,7 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 #endif
 
 	// get the first item
-	old_p = get_kprobe (p->addr, p->tgid, NULL);
+	old_p = get_kprobe(p->addr, p->tgid);
 	if (old_p)
 	{
 #ifdef CONFIG_ARM

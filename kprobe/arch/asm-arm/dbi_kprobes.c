@@ -542,7 +542,6 @@ int arch_prepare_kprobe (struct kprobe *p)
     if (!ret)
     {
         p->opcode = *p->addr;
-        p->ainsn.boostable = 1;
         uregs = pc_dep = 0;
 
         // Rn, Rm ,Rd
@@ -566,7 +565,7 @@ int arch_prepare_kprobe (struct kprobe *p)
                         (ARM_INSN_REG_RD (insn[0]) == 15)))
             {
                 pc_dep = 1;
-                DBPRINTF ("Unboostable insn %lx/%p/%d, DPI/LIO/SIO\n", insn[0], p, p->ainsn.boostable);
+                DBPRINTF ("Unboostable insn %lx/%p, DPI/LIO/SIO\n", insn[0], p);
             }
         }
         // Rn, Rm, Rs
@@ -593,7 +592,7 @@ int arch_prepare_kprobe (struct kprobe *p)
         // check instructions that can write result to SP andu uses PC
         if (pc_dep  && (ARM_INSN_REG_RD (ainsn.insn[0]) == 13))
         {
-            free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
+            free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
             ret = -EFAULT;
         }
         else
@@ -604,7 +603,7 @@ int arch_prepare_kprobe (struct kprobe *p)
                 if (prep_pc_dep_insn_execbuf (insns, insn[0], uregs) != 0)
                 {
                     DBPRINTF ("failed to prepare exec buffer for insn %lx!", insn[0]);
-                    free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
+                    free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
                     return -EINVAL;
                 }
                 insns[6] = (kprobe_opcode_t) (p->addr + 2);
@@ -628,7 +627,7 @@ int arch_prepare_kprobe (struct kprobe *p)
     }
     else
     {
-        free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
+        free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
         printk("arch_prepare_kprobe: instruction 0x%x not instrumentation, addr=0x%p\n", insn[0], p->addr);
     }
 
@@ -677,7 +676,7 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 	}
 	ret = arch_copy_trampoline_arm_uprobe(p, task, 1);
 	if (ret) {
-		free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_arm, 0);
+		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
 		return -EFAULT;
 	}
 	p->ainsn.insn_thumb = get_insn_slot(task, atomic);
@@ -687,19 +686,18 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 	}
 	ret = arch_copy_trampoline_thumb_uprobe(p, task, 1);
 	if (ret) {
-		free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_arm, 0);
-		free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_thumb, 0);
+		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
+		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
 		return -EFAULT;
 	}
 	if ((p->safe_arm == -1) && (p->safe_thumb == -1)) {
 		printk("Error in %s at %d: failed arch_copy_trampoline_*_uprobe() (both)\n", __FILE__, __LINE__);
 		if (!write_proc_vm_atomic (task, (unsigned long) p->addr, &p->opcode, sizeof (p->opcode)))
 			panic ("Failed to write memory %p!\n", p->addr);
-		free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_arm, 0);
-		free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_thumb, 0);
+		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
+		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
 		return -EFAULT;
 	}
-	p->ainsn.boostable = 1;
 	return ret;
 }
 
@@ -711,13 +709,12 @@ int arch_prepare_uretprobe (struct kretprobe *p, struct task_struct *task)
 
 void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 {
-	if(p->ss_addr)
-	{
-		regs->uregs[15] = (unsigned long) p->ss_addr;
+	if (p->ss_addr) {
+		regs->ARM_pc = (unsigned long)p->ss_addr;
 		p->ss_addr = NULL;
+	} else {
+		regs->ARM_pc = (unsigned long)p->ainsn.insn;
 	}
-	else
-		regs->uregs[15] = (unsigned long) p->ainsn.insn;
 }
 
 static void arm_save_previous_kprobe(struct kprobe_ctlblk *kcb, struct pt_regs *regs, struct kprobe *p_run)
@@ -793,7 +790,7 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 				(ARM_INSN_REG_RD (insn[0]) == 15)))
 		{
 			pc_dep = 1;
-			DBPRINTF ("Unboostable insn %lx/%p/%d, DPI/LIO/SIO\n", insn[0], p, p->ainsn.boostable);
+			DBPRINTF ("Unboostable insn %lx/%p, DPI/LIO/SIO\n", insn[0], p);
 		}
 	}
 	// Rn, Rm, Rs
@@ -1028,145 +1025,109 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 	return 0;
 }
 
-
-int kprobe_handler (struct pt_regs *regs)
+static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct task_struct *task)
 {
-	struct kprobe *p = NULL, *p_run = NULL;
-	int ret = 0, pid = 0, retprobe = 0, reenter = 0;
-	kprobe_opcode_t *addr = NULL, *ssaddr = 0;
-	struct kprobe_ctlblk *kcb;
-	int i = 0;
-#ifdef OVERHEAD_DEBUG
-	struct timeval swap_tv1;
-	struct timeval swap_tv2;
-#endif
-#ifdef SUPRESS_BUG_MESSAGES
-	int swap_oops_in_progress;
-#endif
-	struct hlist_head *head;
-	struct hlist_node *node;
-	struct kprobe *pop, *retVal = NULL;
 	struct kprobe *kp;
 
+	if (unlikely(thumb_mode(regs))) {
+		if (p->safe_thumb != -1) {
+			p->ainsn.insn = p->ainsn.insn_thumb;
+			list_for_each_entry_rcu(kp, &p->list, list) {
+				kp->ainsn.insn = p->ainsn.insn_thumb;
+			}
+		} else {
+			printk("Error in %s at %d: we are in thumb mode (!) and check instruction was fail \
+				(%0X instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
+			// Test case when we do our actions on already running application
+			arch_disarm_uprobe(p, task);
+			return -1;
+		}
+	} else {
+		if (p->safe_arm != -1) {
+			p->ainsn.insn = p->ainsn.insn_arm;
+			list_for_each_entry_rcu(kp, &p->list, list) {
+				kp->ainsn.insn = p->ainsn.insn_arm;
+			}
+		} else {
+			printk("Error in %s at %d: we are in arm mode (!) and check instruction was fail \
+				(%0X instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr );
+			// Test case when we do our actions on already running application
+			arch_disarm_uprobe(p, task);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+int kprobe_handler(struct pt_regs *regs)
+{
+	int err_out = 0;
+	char *msg_out = NULL;
+	unsigned long user_m = user_mode(regs);
+	pid_t tgid = (user_m) ? current->tgid : 0;
+	kprobe_opcode_t *addr = (kprobe_opcode_t *) (regs->ARM_pc);
+
+	struct kprobe *p = NULL, *p_run = NULL;
+	int ret = 0, retprobe = 0, reenter = 0;
+	kprobe_opcode_t *ssaddr = 0;
+	struct kprobe_ctlblk *kcb;
+	int i = 0;
+
 #ifdef SUPRESS_BUG_MESSAGES
+	int swap_oops_in_progress;
 	// oops_in_progress used to avoid BUG() messages that slow down kprobe_handler() execution
 	swap_oops_in_progress = oops_in_progress;
 	oops_in_progress = 1;
 #endif
 #ifdef OVERHEAD_DEBUG
+	struct timeval swap_tv1;
+	struct timeval swap_tv2;
 #define USEC_IN_SEC_NUM				1000000
 	do_gettimeofday(&swap_tv1);
 #endif
 	preempt_disable();
-	addr = (kprobe_opcode_t *) (regs->uregs[15]);
-	if (user_mode(regs))
-	{
-		head = &kprobe_table[hash_ptr (addr, KPROBE_HASH_BITS)];
-		hlist_for_each_entry_rcu (pop, node, head, hlist) {
-			/*
-			 * Searching occurred probe by
-			 * instruction address and task_struct
-			 */
-			if (pop->addr == addr) {
-				if (pop->tgid == current->tgid) {
-				    retVal = pop;
-				    break;
-				}
-			}
-		}
+
+	p = get_kprobe(addr, tgid);
+
+	if (user_m && p && (check_validity_insn(p, regs, current) != 0)) {
+		goto no_kprobe_live;
 	}
-	if (retVal) {
-		if (unlikely(thumb_mode(regs))) {
-			if (pop->safe_thumb != -1) {
-				pop->ainsn.insn = pop->ainsn.insn_thumb;
-				list_for_each_entry_rcu (kp, &pop->list, list) {
-					kp->ainsn.insn = pop->ainsn.insn_thumb;
-				}
-			}
-			else {
-				printk("Error in %s at %d: we are in thumb mode (!) and check instruction was fail \
-					(%0X instruction at %p address)!\n", __FILE__, __LINE__, pop->opcode, pop->addr);
-				// Test case when we do our actions on already running application
-				arch_disarm_uprobe (pop, current);
-				goto no_kprobe_live;
-			}
-		}
-		else {
-			if (pop->safe_arm != -1) {
-				pop->ainsn.insn = pop->ainsn.insn_arm;
-				list_for_each_entry_rcu (kp, &pop->list, list) {
-					kp->ainsn.insn = pop->ainsn.insn_arm;
-				}
-			}
-			else {
-				printk("Error in %s at %d: we are in arm mode (!) and check instruction was fail \
-					(%0X instruction at %p address)!\n", __FILE__, __LINE__, pop->opcode, pop->addr );
-				// Test case when we do our actions on already running application
-				arch_disarm_uprobe (pop, current);
-				goto no_kprobe_live;
-			}
-		}
-	}
+
 	/* We're in an interrupt, but this is clear and BUG()-safe. */
 	kcb = get_kprobe_ctlblk ();
-	if (user_mode (regs))
-	{
-		//DBPRINTF("exception[%lu] from user mode %s/%u addr %p (%lx).", nCount, current->comm, current->pid, addr, regs->uregs[14]);
-		pid = current->tgid;
-	}
+
 	/* Check we're not actually recursing */
 	// TODO: event is not saving in trace
 	p_run = kprobe_running(regs);
 	if (p_run)
 	{
-		DBPRINTF ("lock???");
-		p = get_kprobe (addr, pid, current);
+		DBPRINTF("lock???");
 		if (p)
 		{
-			if(!pid && (addr == (kprobe_opcode_t *)kretprobe_trampoline)){
+			if (!tgid && (addr == (kprobe_opcode_t *)kretprobe_trampoline)) {
 				arm_save_previous_kprobe(kcb, regs, p_run);
 				kcb->kprobe_status = KPROBE_REENTER;
 				reenter = 1;
-			}
-			else {
+			} else {
 				/* We have reentered the kprobe_handler(), since
 				 * another probe was hit while within the handler.
 				 * We here save the original kprobes variables and
 				 * just single step on the instruction of the new probe
 				 * without calling any user handlers.
 				 */
-				if(!p->ainsn.boostable){
-					arm_save_previous_kprobe(kcb, regs, p_run);
-					set_current_kprobe(p, regs, kcb);
-				}
 				kprobes_inc_nmissed_count (p);
 				prepare_singlestep (p, regs);
-				if(!p->ainsn.boostable)
-					kcb->kprobe_status = KPROBE_REENTER;
-				preempt_enable_no_resched ();
-#ifdef OVERHEAD_DEBUG
-				do_gettimeofday(&swap_tv2);
-				swap_sum_hit++;
-				swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM +
-					(swap_tv2.tv_usec - swap_tv1.tv_usec));
-#endif
-#ifdef SUPRESS_BUG_MESSAGES
-				oops_in_progress = swap_oops_in_progress;
-#endif
-				return 0;
+
+				err_out = 0;
+				goto out;
 			}
-		}
-		else
-		{
-			if(pid) { //we can reenter probe upon uretprobe exception
+		} else {
+			if(tgid) { //we can reenter probe upon uretprobe exception
 				DBPRINTF ("check for UNDEF_INSTRUCTION %p\n", addr);
 				// UNDEF_INSTRUCTION from user space
 
-				if (!thumb_mode ( regs ))
-					p = get_kprobe_by_insn_slot_arm (addr-UPROBES_TRAMP_RET_BREAK_IDX, pid, current);
-				else
-					p = get_kprobe_by_insn_slot_thumb ((unsigned long)addr - 0x1a, pid, current);
-
+				p = get_kprobe_by_insn_slot(addr, tgid, regs);
 				if (p) {
 					arm_save_previous_kprobe(kcb, regs, p_run);
 					kcb->kprobe_status = KPROBE_REENTER;
@@ -1183,14 +1144,13 @@ int kprobe_handler (struct pt_regs *regs)
 				  goto ss_probe;
 				  } */
 				DBPRINTF ("unknown uprobe at %p cur at %p/%p\n", addr, p->addr, p->ainsn.insn);
-				if(pid)
+				if (tgid)
 					ssaddr = p->ainsn.insn + UPROBES_TRAMP_SS_BREAK_IDX;
 				else
 					ssaddr = p->ainsn.insn + KPROBES_TRAMP_SS_BREAK_IDX;
-				if (addr == ssaddr)
-				{
-					regs->uregs[15] = (unsigned long) (p->addr + 1);
-					DBPRINTF ("finish step at %p cur at %p/%p, redirect to %lx\n", addr, p->addr, p->ainsn.insn, regs->uregs[15]);
+				if (addr == ssaddr) {
+					regs->ARM_pc = (unsigned long) (p->addr + 1);
+					DBPRINTF ("finish step at %p cur at %p/%p, redirect to %lx\n", addr, p->addr, p->ainsn.insn, regs->ARM_pc);
 					if (kcb->kprobe_status == KPROBE_REENTER) {
 						arm_restore_previous_kprobe(kcb, regs);
 					} else {
@@ -1205,21 +1165,13 @@ int kprobe_handler (struct pt_regs *regs)
 			}
 		}
 	}
-	if (!p)
-	{
-		p = get_kprobe (addr, pid, current);
-	}
-	if (!p)
-	{
-		if(pid) {
+
+	if (!p) {
+		if (tgid) {
 			DBPRINTF ("search UNDEF_INSTRUCTION %p\n", addr);
 			// UNDEF_INSTRUCTION from user space
 
-			if (!thumb_mode ( regs ))
-				p = get_kprobe_by_insn_slot_arm (addr-UPROBES_TRAMP_RET_BREAK_IDX, pid, current);
-			else
-				p = get_kprobe_by_insn_slot_thumb ((unsigned long)addr - 0x1a, pid, current);
-
+			p = get_kprobe_by_insn_slot(addr, tgid, regs);
 			if (!p) {
 				/* Not one of ours: let kernel handle it */
 				DBPRINTF ("no_kprobe");
@@ -1227,21 +1179,18 @@ int kprobe_handler (struct pt_regs *regs)
 			}
 			retprobe = 1;
 			DBPRINTF ("uretprobe %p\n", addr);
-		}
-		else {
+		} else {
 			/* Not one of ours: let kernel handle it */
 			DBPRINTF ("no_kprobe");
 			goto no_kprobe;
 		}
 	}
 	// restore opcode for thumb app
-	if (user_mode( regs ) && thumb_mode( regs ))
-	{
-		if (!isThumb2(p->opcode))
-		{
+	if (user_mode( regs ) && thumb_mode( regs )) {
+		if (!isThumb2(p->opcode)) {
 			unsigned long tmp = p->opcode >> 16;
 			write_proc_vm_atomic(current, (unsigned long)((unsigned short*)p->addr + 1), &tmp, 2);
-		}else{
+		} else {
 			unsigned long tmp = p->opcode;
 			write_proc_vm_atomic(current, (unsigned long)((unsigned short*)p->addr), &tmp, 4);
 		}
@@ -1250,55 +1199,33 @@ int kprobe_handler (struct pt_regs *regs)
 	set_current_kprobe(p, regs, kcb);
 	if(!reenter)
 		kcb->kprobe_status = KPROBE_HIT_ACTIVE;
-	if (retprobe)		//(einsn == UNDEF_INSTRUCTION)
+	if (retprobe) {		//(einsn == UNDEF_INSTRUCTION)
 		ret = trampoline_probe_handler (p, regs);
-	else if (p->pre_handler)
-	{
+	} else if (p->pre_handler) {
 		ret = p->pre_handler (p, regs);
-		if(!p->ainsn.boostable)
-			kcb->kprobe_status = KPROBE_HIT_SS;
-		else if(p->pre_handler != trampoline_probe_handler) {
-#ifdef SUPRESS_BUG_MESSAGES
-			preempt_disable();
-#endif
+		if(p->pre_handler != trampoline_probe_handler) {
 			reset_current_kprobe(regs);
-#ifdef SUPRESS_BUG_MESSAGES
-			preempt_enable_no_resched();
-#endif
 		}
 	}
-	if (ret)
-	{
-		DBPRINTF ("p->pre_handler 1");
+
+	if (ret) {
 		/* handler has already set things up, so skip ss setup */
-#ifdef OVERHEAD_DEBUG
-		do_gettimeofday(&swap_tv2);
-		swap_sum_hit++;
-		swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM +
-			(swap_tv2.tv_usec - swap_tv1.tv_usec));
-#endif
-#ifdef SUPRESS_BUG_MESSAGES
-		oops_in_progress = swap_oops_in_progress;
-#endif
-		return 0;
+		err_out = 0;
+		goto out;
 	}
-	DBPRINTF ("p->pre_handler 0");
 
 no_kprobe:
-	preempt_enable_no_resched ();
-#ifdef OVERHEAD_DEBUG
-	do_gettimeofday(&swap_tv2);
-	swap_sum_hit++;
-	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM +
-		(swap_tv2.tv_usec - swap_tv1.tv_usec));
-#endif
-#ifdef SUPRESS_BUG_MESSAGES
-	oops_in_progress = swap_oops_in_progress;
-#endif
-	printk("no_kprobe\n");
-	return 1;		// return with death
+	msg_out = "no_kprobe\n";
+	err_out = 1; 		// return with death
+	goto out;
+
 no_kprobe_live:
-	preempt_enable_no_resched ();
+	msg_out = "no_kprobe live\n";
+	err_out = 0; 		// ok - life is life
+	goto out;
+
+out:
+	preempt_enable_no_resched();
 #ifdef OVERHEAD_DEBUG
 	do_gettimeofday(&swap_tv2);
 	swap_sum_hit++;
@@ -1308,8 +1235,12 @@ no_kprobe_live:
 #ifdef SUPRESS_BUG_MESSAGES
 	oops_in_progress = swap_oops_in_progress;
 #endif
-	printk("no_kprobe live\n");
-	return 0;		// ok - life is life
+
+	if(msg_out) {
+		printk(msg_out);
+	}
+
+	return err_out;
 }
 
 int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
@@ -1357,12 +1288,10 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 
 void dbi_jprobe_return (void)
 {
-	preempt_enable_no_resched();
 }
 
 void dbi_arch_uprobe_return (void)
 {
-	preempt_enable_no_resched();
 }
 
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
@@ -1583,7 +1512,6 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	}
 	spin_unlock_irqrestore (&kretprobe_lock, flags);
 
-	preempt_enable_no_resched ();
 	/*
 	 * By returning a non-zero value, we are telling
 	 * kprobe_handler() that we don't want the post_handler
