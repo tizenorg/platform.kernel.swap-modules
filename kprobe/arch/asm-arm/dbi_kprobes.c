@@ -1332,7 +1332,7 @@ void arch_disarm_kprobe (struct kprobe *p)
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 {
 	struct kretprobe_instance *ri = NULL;
-	struct hlist_head *head, empty_rp;
+	struct hlist_head *head;
 	struct hlist_node *node, *tmp;
 	unsigned long flags, orig_ret_address = 0;
 	unsigned long trampoline_address = (unsigned long) &kretprobe_trampoline;
@@ -1350,7 +1350,6 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 			trampoline_address = (unsigned long)(p->ainsn.insn) + 0x1b;
 	}
 
-	INIT_HLIST_HEAD (&empty_rp);
 	spin_lock_irqsave (&kretprobe_lock, flags);
 
 	/*
@@ -1423,11 +1422,6 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);
 
 	if(p){ // ARM, MIPS, X86 user space
-		if (kcb->kprobe_status == KPROBE_REENTER)
-			restore_previous_kprobe(kcb);
-		else
-			reset_current_kprobe();
-
 		if (thumb_mode( regs ) && !(regs->uregs[14] & 0x01))
 		{
 			regs->ARM_cpsr &= 0xFFFFFFDF;
@@ -1483,13 +1477,14 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 				hlist_del(current_node);
 			}
 		}
+
+		if (kcb->kprobe_status == KPROBE_REENTER) {
+			restore_previous_kprobe(kcb);
+		} else {
+			reset_current_kprobe();
+		}
 	}
 
-	hlist_for_each_entry_safe (ri, node, tmp, &empty_rp, hlist)
-	{
-		hlist_del (&ri->hlist);
-		kfree (ri);
-	}
 	spin_unlock_irqrestore (&kretprobe_lock, flags);
 
 	/*
