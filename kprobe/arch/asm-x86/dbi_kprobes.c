@@ -41,8 +41,8 @@
  *
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
- * 2012		Stanislav Andreev <s.andreev@samsung.com>: added time debug profiling support; BUG() message fix
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * 2012         Stanislav Andreev <s.andreev@samsung.com>: added time debug profiling support; BUG() message fix
  */
 
 #include<linux/module.h>
@@ -172,7 +172,7 @@ IMP_MOD_DEP_WRAPPER(show_registers, regs)
  */
 void kretprobe_trampoline_holder (void)
 {
-	asm volatile (".global kretprobe_trampoline\n" 
+	asm volatile (".global kretprobe_trampoline\n"
 			"kretprobe_trampoline:\n"
 			"	pushf\n"
 			/* skip cs, eip, orig_eax */
@@ -239,7 +239,7 @@ static void set_user_jmp_op (void *from, void *to)
 	jop.raddr = (long) (to) - ((long) (from) + 5);
 	jop.op = RELATIVEJUMP_INSTRUCTION;
 	if (!write_proc_vm_atomic (current, (unsigned long)from, &jop, sizeof(jop)))
-		panic ("failed to write jump opcode to user space %p!\n", from);	
+		panic ("failed to write jump opcode to user space %p!\n", from);
 }
 
 /*
@@ -392,7 +392,7 @@ int arch_prepare_kprobe (struct kprobe *p)
 	}
 	else
 	{
-		free_insn_slot (&kprobe_insn_pages, NULL, p->ainsn.insn, 0);
+		free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
 	}
 
 	return ret;
@@ -429,7 +429,7 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 			{
 				panic("failed to write memory %p!\n", p->ainsn.insn);
 				DBPRINTF ("failed to write insn slot to process memory: insn %p, addr %p, probe %p!", insn, p->ainsn.insn, p->addr);
-				free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn, 0);
+				free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn);
 				return -EINVAL;
 			}
 		}
@@ -462,7 +462,7 @@ void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 		}
 		else
 			regs->EREG (ip) = (unsigned long) p->ainsn.insn;
-	} 
+	}
 }
 
 
@@ -471,7 +471,7 @@ void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
 	if (kcb->prev_kprobe.kp != NULL)
 	{
 		panic ("no space to save new probe[]: task = %d/%s, prev %d/%p, current %d/%p, new %d/%p,",
-				current->pid, current->comm, kcb->prev_kprobe.kp->tgid, kcb->prev_kprobe.kp->addr, 
+				current->pid, current->comm, kcb->prev_kprobe.kp->tgid, kcb->prev_kprobe.kp->addr,
 				kprobe_running()->tgid, kprobe_running()->addr, cur_p->tgid, cur_p->addr);
 	}
 
@@ -503,7 +503,7 @@ int kprobe_handler (struct pt_regs *regs)
 	struct kprobe *p = 0;
 	int ret = 0, pid = 0, retprobe = 0, reenter = 0;
 	kprobe_opcode_t *addr = NULL;
-	struct kprobe_ctlblk *kcb;	
+	struct kprobe_ctlblk *kcb;
 #ifdef OVERHEAD_DEBUG
 	struct timeval swap_tv1;
 	struct timeval swap_tv2;
@@ -538,7 +538,7 @@ int kprobe_handler (struct pt_regs *regs)
 	if (kprobe_running ())
 	{
 		DBPRINTF ("lock???");
-		p = get_kprobe (addr, pid, current);
+		p = get_kprobe(addr, pid);
 		if (p)
 		{
 			DBPRINTF ("reenter p = %p", p);
@@ -551,7 +551,7 @@ int kprobe_handler (struct pt_regs *regs)
 				}
 			}
 			else {
-				//#warning BREAKPOINT_INSTRUCTION user mode handling is missed!!! 
+				//#warning BREAKPOINT_INSTRUCTION user mode handling is missed!!!
 			}
 
 			/* We have reentered the kprobe_handler(), since
@@ -570,7 +570,7 @@ int kprobe_handler (struct pt_regs *regs)
 #ifdef OVERHEAD_DEBUG
 			do_gettimeofday(&swap_tv2);
 			swap_sum_hit++;
-			swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM + 
+			swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM +
 				(swap_tv2.tv_usec - swap_tv1.tv_usec));
 #endif
 #ifdef SUPRESS_BUG_MESSAGES
@@ -593,8 +593,8 @@ int kprobe_handler (struct pt_regs *regs)
 				}
 			}
 			else {
-				//#warning BREAKPOINT_INSTRUCTION user mode handling is missed!!! 
-				//we can reenter probe upon uretprobe exception   
+				//#warning BREAKPOINT_INSTRUCTION user mode handling is missed!!!
+				//we can reenter probe upon uretprobe exception
 				DBPRINTF ("check for UNDEF_INSTRUCTION %p\n", addr);
 				// UNDEF_INSTRUCTION from user space
 				p = get_kprobe_by_insn_slot (addr-UPROBES_TRAMP_RET_BREAK_IDX, pid, current);
@@ -625,7 +625,7 @@ int kprobe_handler (struct pt_regs *regs)
 
 	DBPRINTF ("get_kprobe %p", addr);
 	if (!p)
-		p = get_kprobe (addr, pid, current);
+		p = get_kprobe(addr, pid);
 	if (!p)
 	{
 		if(!pid){
@@ -645,7 +645,7 @@ int kprobe_handler (struct pt_regs *regs)
 			}
 		}
 		else {
-			//#warning BREAKPOINT_INSTRUCTION user mode handling is missed!!! 
+			//#warning BREAKPOINT_INSTRUCTION user mode handling is missed!!!
 			DBPRINTF ("search UNDEF_INSTRUCTION %p\n", addr);
 			// UNDEF_INSTRUCTION from user space
 			p = get_kprobe_by_insn_slot (addr-UPROBES_TRAMP_RET_BREAK_IDX, pid, current);
@@ -685,7 +685,7 @@ int kprobe_handler (struct pt_regs *regs)
 #ifdef OVERHEAD_DEBUG
 		do_gettimeofday(&swap_tv2);
 		swap_sum_hit++;
-		swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM + 
+		swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM +
 			(swap_tv2.tv_usec - swap_tv1.tv_usec));
 #endif
 #ifdef SUPRESS_BUG_MESSAGES
@@ -710,7 +710,7 @@ ss_probe:
 #ifdef OVERHEAD_DEBUG
 		do_gettimeofday(&swap_tv2);
 		swap_sum_hit++;
-		swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM + 
+		swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM +
 			(swap_tv2.tv_usec - swap_tv1.tv_usec));
 #endif
 #ifdef SUPRESS_BUG_MESSAGES
@@ -726,7 +726,7 @@ ss_probe:
 #ifdef OVERHEAD_DEBUG
 	do_gettimeofday(&swap_tv2);
 	swap_sum_hit++;
-	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM + 
+	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM +
 		(swap_tv2.tv_usec - swap_tv1.tv_usec));
 #endif
 #ifdef SUPRESS_BUG_MESSAGES
@@ -740,7 +740,7 @@ no_kprobe:
 #ifdef OVERHEAD_DEBUG
 	do_gettimeofday(&swap_tv2);
 	swap_sum_hit++;
-	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM + 
+	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM +
 		(swap_tv2.tv_usec - swap_tv1.tv_usec));
 #endif
 #ifdef SUPRESS_BUG_MESSAGES
@@ -749,7 +749,7 @@ no_kprobe:
 	return ret;
 }
 
-int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs) 
+int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 {
 	struct jprobe *jp = container_of (p, struct jprobe, kp);
 	kprobe_pre_entry_handler_t pre_entry;
@@ -815,7 +815,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	kprobe_pre_entry_handler_t pre_entry;
 	entry_point_t entry;
 
-	unsigned long addr, args[6];	
+	unsigned long addr, args[6];
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
 
 	DBPRINTF ("setjmp_pre_handler %p:%d", p->addr, p->tgid);
@@ -992,9 +992,9 @@ static void resume_execution (struct kprobe *p, struct pt_regs *regs, struct kpr
 			/*
 			 * These instructions can be executed directly if it
 			 * jumps back to correct address.
-			 */			
+			 */
 			if(p->tgid)
-				set_user_jmp_op ((void *) regs->EREG (ip), (void *) orig_eip + (regs->EREG (ip) - copy_eip));				
+				set_user_jmp_op ((void *) regs->EREG (ip), (void *) orig_eip + (regs->EREG (ip) - copy_eip));
 			else
 				set_jmp_op ((void *) regs->EREG (ip), (void *) orig_eip + (regs->EREG (ip) - copy_eip));
 			p->ainsn.boostable = 1;
@@ -1184,7 +1184,7 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 			printk ("Current registers\n");
 			show_registers (regs);
 			panic("BUG");
-			//BUG ();			
+			//BUG ();
 		}
 		*regs = kcb->jprobe_saved_regs;
 		memcpy ((kprobe_opcode_t *) stack_addr, kcb->jprobes_stack, MIN_STACK_SIZE (stack_addr));
@@ -1217,23 +1217,23 @@ void * trampoline_probe_handler_x86 (struct pt_regs *regs)
  */
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 {
-	struct kretprobe_instance *ri = NULL; 
-	struct hlist_head *head, empty_rp; 
-	struct hlist_node *node, *tmp; 
+	struct kretprobe_instance *ri = NULL;
+	struct hlist_head *head, empty_rp;
+	struct hlist_node *node, *tmp;
 	unsigned long flags, orig_ret_address = 0;
 	unsigned long trampoline_address = (unsigned long) &kretprobe_trampoline;
-	struct kretprobe *crp = NULL; 
+	struct kretprobe *crp = NULL;
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
 
 	DBPRINTF ("start");
 
 	if (p && p->tgid){
-		// in case of user space retprobe trampoline is at the Nth instruction of US tramp 
+		// in case of user space retprobe trampoline is at the Nth instruction of US tramp
 		trampoline_address = (unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
 	}
 
-	INIT_HLIST_HEAD (&empty_rp); 
-	spin_lock_irqsave (&kretprobe_lock, flags); 
+	INIT_HLIST_HEAD (&empty_rp);
+	spin_lock_irqsave (&kretprobe_lock, flags);
 	/*
 	 * We are using different hash keys (current and mm) for finding kernel
 	 * space and user space probes.  Kernel space probes can change mm field in
@@ -1249,15 +1249,15 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	if(!p){ // X86 kernel space
 		DBPRINTF ("regs %p", regs);
 		/* fixup registers */
-		regs->XREG (cs) = __KERNEL_CS | get_kernel_rpl (); 
-		regs->EREG (ip) = trampoline_address; 
+		regs->XREG (cs) = __KERNEL_CS | get_kernel_rpl ();
+		regs->EREG (ip) = trampoline_address;
 		regs->ORIG_EAX_REG = 0xffffffff;
 	}
 
 	/*
 	 * It is possible to have multiple instances associated with a given
 	 * task either because an multiple functions in the call path
-	 * have a return probe installed on them, and/or more then one 
+	 * have a return probe installed on them, and/or more then one
 	 * return probe was registered for a target function.
 	 *
 	 * We can handle this because:
@@ -1271,11 +1271,11 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	{
 		if (ri->task != current)
 			/* another task is sharing our hash bucket */
-			continue; 
+			continue;
 		if (ri->rp && ri->rp->handler){
 
 			if(!p){ // X86 kernel space
-				__get_cpu_var (current_kprobe) = &ri->rp->kp; 
+				__get_cpu_var (current_kprobe) = &ri->rp->kp;
 				get_kprobe_ctlblk ()->kprobe_status = KPROBE_HIT_ACTIVE;
 			}
 
@@ -1286,7 +1286,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 
 		}
 
-		orig_ret_address = (unsigned long) ri->ret_addr; 
+		orig_ret_address = (unsigned long) ri->ret_addr;
 		recycle_rp_inst (ri);
 		if (orig_ret_address != trampoline_address)
 			/*
@@ -1303,11 +1303,11 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 		if (ri->rp) BUG_ON (ri->rp->kp.tgid == 0);
 		else if (ri->rp2) BUG_ON (ri->rp2->kp.tgid == 0);
 	}
-	if ((ri->rp && ri->rp->kp.tgid) || (ri->rp2 && ri->rp2->kp.tgid)) 
+	if ((ri->rp && ri->rp->kp.tgid) || (ri->rp2 && ri->rp2->kp.tgid))
 		BUG_ON (trampoline_address == (unsigned long) &kretprobe_trampoline);
 
 	if(p){ // X86 user space
-		regs->EREG(ip) = orig_ret_address; 
+		regs->EREG(ip) = orig_ret_address;
 		//printk (" uretprobe regs->eip = 0x%lx\n", regs->EREG(ip));
 	}
 
@@ -1317,16 +1317,16 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 		else
 			reset_current_kprobe ();
 
-		//TODO: test - enter function, delete us retprobe, exit function 
+		//TODO: test - enter function, delete us retprobe, exit function
 		// for user space retprobes only - deferred deletion
 		if (trampoline_address != (unsigned long) &kretprobe_trampoline)
 		{
-			// if we are not at the end of the list and current retprobe should be disarmed 
+			// if we are not at the end of the list and current retprobe should be disarmed
 			if (node && ri->rp2)
 			{
 				struct hlist_node *current_node = node;
 				crp = ri->rp2;
-				/*sprintf(die_msg, "deferred disarm p->addr = %p [%lx %lx %lx]\n", 
+				/*sprintf(die_msg, "deferred disarm p->addr = %p [%lx %lx %lx]\n",
 				  crp->kp.addr, *kaddrs[0], *kaddrs[1], *kaddrs[2]);
 				  DIE(die_msg, regs); */
 				// look for other instances for the same retprobe
@@ -1361,7 +1361,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 
 	hlist_for_each_entry_safe (ri, node, tmp, &empty_rp, hlist)
 	{
-		hlist_del (&ri->hlist); 
+		hlist_del (&ri->hlist);
 		kfree (ri);
 	}
 	spin_unlock_irqrestore (&kretprobe_lock, flags);
@@ -1386,8 +1386,8 @@ void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 	//TODO: test - remove retprobe after func entry but before its exit
 	if ((ri = get_free_rp_inst (rp)) != NULL)
 	{
-		ri->rp = rp; 
-		ri->rp2 = NULL; 
+		ri->rp = rp;
+		ri->rp2 = NULL;
 		ri->task = current;
 
 		/* Replace the return addr with trampoline addr */
@@ -1441,7 +1441,7 @@ int __init arch_init_kprobes (void)
 {
 	if (arch_init_module_dependencies())
 	{
-		DBPRINTF ("Unable to init module dependencies\n"); 
+		DBPRINTF ("Unable to init module dependencies\n");
 		return -1;
 	}
 

@@ -219,10 +219,9 @@ extern void kprobes_inc_nmissed_count (struct kprobe *p);
 
 
 /* Get the kprobe at this addr (if any) - called with preemption disabled */
-struct kprobe *get_kprobe (void *addr, int pid, struct task_struct *ctask);
+struct kprobe *get_kprobe(kprobe_opcode_t *addr, pid_t tgid);
 #ifdef CONFIG_ARM
-struct kprobe *get_kprobe_by_insn_slot_arm(void *addr, int tgid, struct task_struct *ctask);
-struct kprobe *get_kprobe_by_insn_slot_thumb(void *addr, int tgid, struct task_struct *ctask);
+struct kprobe *get_kprobe_by_insn_slot(kprobe_opcode_t *addr, pid_t tgid, struct pt_regs *regs);
 #else /* CONFIG_ARM */
 struct kprobe *get_kprobe_by_insn_slot (void *addr, int tgid, struct task_struct *ctask);
 #endif /* CONFIG_ARM */
