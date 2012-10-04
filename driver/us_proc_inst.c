@@ -564,7 +564,9 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 	struct hlist_node *node;
 	struct task_struct *t;
 	struct mm_struct *mm;
-	char path_buffer[256];
+//	char path_buffer[256];
+
+	printk("### install_mapped_ips:\n");
 
 	mm = atomic ? task->active_mm : get_task_mm (task);
 	if (!mm) {
@@ -1320,6 +1322,161 @@ int inst_usr_space_proc (void)
 	return 0;
 }
 
+#include "../../tools/gpmu/probes/entry_data.h"
+
+extern storage_arg_t sa_dpf;
+
+void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
+{
+	swap_put_entry_data((void *)addr, &sa_dpf);
+
+	unsigned long addr_page_0 = (addr / PAGE_SIZE) * PAGE_SIZE;
+	unsigned long addr_page_1 = (addr >> PAGE_SHIFT) << PAGE_SHIFT;
+	unsigned long addr_page_2 = addr & PAGE_MASK;
+
+//	printk("\n### do_page_fault_j_pre_code: addr=%x, addr_page_0=%x, addr_page_1=%x, addr_page_2=%x\n",
+//			addr, addr_page_0, addr_page_1, addr_page_2);
+}
+EXPORT_SYMBOL_GPL(do_page_fault_j_pre_code);
+
+
+unsigned long imi_sum_time = 0;
+unsigned long imi_sum_hit = 0;
+EXPORT_SYMBOL_GPL (imi_sum_time);
+EXPORT_SYMBOL_GPL (imi_sum_hit);
+
+
+
+
+#include "new_dpf.h"
+
+
+static void install_page_probes(unsigned long page, struct task_struct *task, struct proc_probes *pp, unsigned long addr)
+{
+	int i;
+	struct vm_area_struct *vma;
+	struct mm_struct *mm = get_task_mm(task);
+
+	printk("### install_page_probes: addr=%x\n", addr);
+	if (mm == NULL) {
+		printk("#### ERRR install_page_probes\n");
+		return;
+	}
+
+//	printk("### for 1\n");
+	down_read(&mm->mmap_sem);
+	for (vma = mm->mmap; vma; vma = vma->vm_next) {
+//		printk("### vma: start=%x, end=%x\n", vma->vm_start, vma->vm_end);
+
+
+		// skip non-text section
+#ifndef __ANDROID
+		if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file || (vma->vm_flags & VM_ACCOUNT) ||
+			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
+			!(vma->vm_flags & (VM_READ | VM_MAYREAD))) {
+#else // __ANDROID
+		if (vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || !vma->vm_file) {
+#endif // __ANDROID
+//			vma = vma->vm_next;
+			continue;
+		}
+
+
+
+//		/**
+//		 * After process was forked, some time it inherits parent process environment.
+//		 * We need to renew instrumentation when we detect that process gets own environment.
+//		 */
+//		if (vma->vm_flags & VM_EXECUTABLE) {
+//			if (!task_inst_info->m_f_dentry) {
+//				task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
+//				DPRINTF("initiate dentry tgid = %d, comm = %s", task->tgid, task->comm);
+//			}
+//			else if (task_inst_info->m_f_dentry != vma->vm_file->f_dentry) {
+//				/*
+//				 * All the stuff that cancel instrumentation in old address
+//				 * space are run when do_execve() occurs.  Here we just update
+//				 * dentry because it is changed after do_execve() execution.
+//				 */
+//				task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
+//			}
+//		}
+
+
+
+
+		for (i = 0; i < pp->cnt; ++i) {
+			struct page_probes *page_p = NULL;
+
+			//TODO: test - try to instrument non-existing libs
+//			printk("vma: start=%x, name=%s, name_2=%s\n",
+//					vma->vm_start,
+//					vma->vm_file->f_dentry->d_iname,
+//					vma->vm_file->f_dentry->d_name.name);
+			if (vma->vm_file->f_dentry != pp->fp[i]->dentry) {
+				continue;
+			}
+
+//			if (!(vma->vm_flags & VM_EXECUTABLE) {
+//			}
+//			if (page >= vma->vm_start) {
+//				page -= vma->vm_start;
+//			}
+
+			page_p = fp_find_pp(pp->fp[i], page, vma->vm_start);
+
+			if (page_p) {
+				printk("### vma: start=%x, addr=%x, name=%s, name_2=%s\n",
+						vma->vm_start, addr,
+						vma->vm_file->f_dentry->d_iname,
+						vma->vm_file->f_dentry->d_name.name);
+				print_page_probes(page_p);
+			}
+
+
+//			for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++) {
+//				DPRINTF("ips_count current:%d", k);
+//				if (!task_inst_info->p_libs[i].p_ips[k].installed) {
+//					DPRINTF("!installed");
+//					addr = task_inst_info->p_libs[i].p_ips[k].offset;
+//					if (!(vma->vm_flags & VM_EXECUTABLE)) {
+//						/* In the case of prelinking addr is already an
+//						 * absolute address so we do not need to add
+//						 * library base address to it.  We use a rule of
+//						 * thumb here: if addr is greater than library base
+//						 * address than there is prelinking.
+//						 */
+//						if (addr < vma->vm_start)
+//							addr += vma->vm_start;
+//					}
+//					if (page_present (mm, addr)) {
+//						DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.",
+//							task->pid, task_inst_info->p_libs[i].path,
+//							task_inst_info->p_libs[i].p_ips[k].offset, addr);
+//						task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
+//						task_inst_info->p_libs[i].p_ips[k].retprobe.kp.addr = (kprobe_opcode_t *) addr;
+//						task_inst_info->p_libs[i].p_ips[k].installed = 1;
+//						task_inst_info->unres_ips_count--;
+//						err = register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
+//						if (err != 0) {
+//							DPRINTF ("failed to install IP at %lx/%p. Error %d!",
+//								task_inst_info->p_libs[i].p_ips[k].offset,
+//								task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr, err);
+//						}
+//					}
+//				}
+//			}
+
+
+		}
+	}
+
+	up_read(&mm->mmap_sem);
+	mmput(mm);
+//	printk("### for 2\n");
+
+}
+
 void do_page_fault_ret_pre_code (void)
 {
 	struct mm_struct *mm;
@@ -1331,6 +1488,18 @@ void do_page_fault_ret_pre_code (void)
 	 */
 	struct task_struct *task = current->group_leader;
 
+	unsigned long addr = 0, page = 0;
+
+
+	// overhead
+	struct timeval imi_tv1;
+	struct timeval imi_tv2;
+#define USEC_IN_SEC_NUM				1000000
+
+
+//	struct proc_probes * pp = get_file_probes(&us_proc_info);
+//	print_proc_probes(us_proc_info.pp);
+
 	//if user-space instrumentation is not set
 	if (!us_proc_info.path)
 		return;
@@ -1339,6 +1508,10 @@ void do_page_fault_ret_pre_code (void)
 		DPRINTF("ignored kernel thread %d\n", task->pid);
 		return;
 	}
+
+	addr = (unsigned long)swap_get_entry_data(&sa_dpf);
+	page = addr & PAGE_MASK;
+//	printk("### do_page_fault_ret_pre_code: addr=%x\n", addr);
 
 
 	if (!strcmp(us_proc_info.path,"*"))
@@ -1355,7 +1528,15 @@ void do_page_fault_ret_pre_code (void)
 			}
 #endif /* __ANDROID */
 		}
+
+		// overhead
+		do_gettimeofday(&imi_tv1);
+		install_page_probes(page, task, us_proc_info.pp, addr);
 		install_mapped_ips (task, task_inst_info, 1);
+		do_gettimeofday(&imi_tv2);
+		imi_sum_hit++;
+		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
+			(imi_tv2.tv_usec - imi_tv1.tv_usec));
 		return;
 	}
 
@@ -1417,7 +1598,14 @@ void do_page_fault_ret_pre_code (void)
 			find_libdvm_for_task(task, &us_proc_info);
 		}
 #endif /* __ANDROID */
+
+		do_gettimeofday(&imi_tv1);
+		install_page_probes(page, task, us_proc_info.pp, addr);
 		install_mapped_ips (task, &us_proc_info, 1);
+		do_gettimeofday(&imi_tv2);
+		imi_sum_hit++;
+		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
+			(imi_tv2.tv_usec - imi_tv1.tv_usec));
 	}
 	//DPRINTF("do_page_fault from proc %d-%d exit", task->pid, task_inst_info->pid);
 }
@@ -1648,6 +1836,10 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	int ret = 0;
 	ip->jprobe.kp.tgid = task->tgid;
 	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
+
+	printk("### register_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
+			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
+
 	if(!ip->jprobe.entry) {
 		if (dbi_ujprobe_event_handler_custom_p != NULL)
 		{

@@ -8,7 +8,7 @@
 //      SEE ALSO:       storage.c
 //      AUTHOR:         L.Komkov, S.Dianov, A.Gerenkov
 //      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group 
+//      DEPT NAME:      Advanced Software Group
 //      CREATED:        2008.02.15
 //      VERSION:        1.0
 //      REVISION DATE:  2008.12.03
@@ -179,7 +179,7 @@ typedef struct
 	//char *name;
 	char type;
 	unsigned long size;
-	signed char reg;	// -1 - memory, 0..127 - register number  
+	signed char reg;	// -1 - memory, 0..127 - register number
 	long off;
 	struct list_head list;
 } us_proc_vtp_data_t;
@@ -200,6 +200,9 @@ typedef struct
 	int loaded;
 } us_proc_lib_t;
 
+
+//#include "new_dpf.h"
+
 typedef struct
 {
 	char *path;
@@ -217,6 +220,9 @@ typedef struct
 	us_proc_ip_t libdvm_entry_ip;
 	us_proc_ip_t libdvm_return_ip;
 #endif /* __ANDROID */
+
+	// new_dpf
+	struct proc_probes *pp;
 } inst_us_proc_t;
 
 typedef struct

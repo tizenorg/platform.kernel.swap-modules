@@ -8,7 +8,7 @@
 //      SEE ALSO:       storage.h
 //      AUTHOR:         L.Komkov, S.Dianov, A.Gerenkov, S.Andreev
 //      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group 
+//      DEPT NAME:      Advanced Software Group
 //      CREATED:        2008.02.15
 //      VERSION:        1.0
 //      REVISION DATE:  2008.12.03
@@ -403,7 +403,7 @@ static int remove_buf (struct dentry *dentry)
         dput (dentry);
         remove_proc_entry (pde->name, pde->parent);
     }
-    
+
     return 0;
 }
 
@@ -482,7 +482,7 @@ int RelayCallbackSubbufStart(struct rchan_buf *buf,
 	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 	return 1;
 }
- 
+
 	/*
           * buf_mapped - relay buffer mmap notification
           * @buf: the channel buffer
@@ -544,7 +544,7 @@ struct dentry * RelayCallbackCreateBufFile(const char *filename,
 	return debugfs_create_file(filename, (mode_t)mode, parent, buf, &relay_file_operations);
 #endif // __USE_PROCFS
 }
- 
+
 	/*
           * remove_buf_file - remove file representing a relay channel buffer
           * @dentry: the dentry of the file to remove
@@ -987,6 +987,8 @@ void unlink_bundle(void)
 		list_del_rcu(&p->list);
 	}
 }
+
+struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info);
 
 int link_bundle()
 {
@@ -1508,6 +1510,9 @@ int link_bundle()
 
 	p += sizeof(u_int32_t);
 
+
+	us_proc_info.pp = get_file_probes(&us_proc_info);
+
 	return 0;
 }
 
@@ -1803,20 +1808,20 @@ int put_us_event (char *data, unsigned long len)
 {
 	unsigned long spinlock_flags = 0L;
 
-	SWAP_TYPE_EVENT_HEADER *pEventHeader = (SWAP_TYPE_EVENT_HEADER *)data;	
-	char *cur = data + sizeof(TYPEOF_EVENT_LENGTH) + sizeof(TYPEOF_EVENT_TYPE) 
+	SWAP_TYPE_EVENT_HEADER *pEventHeader = (SWAP_TYPE_EVENT_HEADER *)data;
+	char *cur = data + sizeof(TYPEOF_EVENT_LENGTH) + sizeof(TYPEOF_EVENT_TYPE)
 				+ sizeof(TYPEOF_PROBE_ID);
 	TYPEOF_NUMBER_OF_ARGS nArgs = pEventHeader->m_nNumberOfArgs;
 	TYPEOF_PROBE_ID probe_id = pEventHeader->m_nProbeID;
 	//int i;
-	
+
 	/*if(probe_id == US_PROBE_ID){
 		printk("esrc %p/%d[", data, len);
 		for(i = 0; i < len; i++)
 			printk("%02x ", data[i]);
 		printk("]\n");
 	}*/
-	
+
 	// set pid/tid/cpu/time	i
 	//pEventHeader->m_time.tv_sec = tv.tv_sec;
 	//pEventHeader->m_time.tv_usec = tv.tv_usec;
@@ -1859,19 +1864,19 @@ int put_us_event (char *data, unsigned long len)
 		cur += sizeof(TYPEOF_TIME);
 	}
 	//pEventHeader->m_nProcessID = current_tgid;
-	if((probe_id == EVENT_FMT_PROBE_ID) || !(event_mask & IOCTL_EMASK_PID)){		
+	if((probe_id == EVENT_FMT_PROBE_ID) || !(event_mask & IOCTL_EMASK_PID)){
 		//TYPEOF_PROCESS_ID current_tgid = current->tgid;
 		(*(TYPEOF_PROCESS_ID *)cur) = current->tgid;
 		cur += sizeof(TYPEOF_PROCESS_ID);
 	}
 	//pEventHeader->m_nThreadID = current_pid;
-	if((probe_id == EVENT_FMT_PROBE_ID) || !(event_mask & IOCTL_EMASK_TID)){		
+	if((probe_id == EVENT_FMT_PROBE_ID) || !(event_mask & IOCTL_EMASK_TID)){
 		//TYPEOF_THREAD_ID current_pid = current->pid;
 		(*(TYPEOF_THREAD_ID *)cur) = current->pid;
 		cur += sizeof(TYPEOF_THREAD_ID);
 	}
 	//pEventHeader->m_nCPU = current_cpu;
-	if((probe_id == EVENT_FMT_PROBE_ID) || !(event_mask & IOCTL_EMASK_CPU)){		
+	if((probe_id == EVENT_FMT_PROBE_ID) || !(event_mask & IOCTL_EMASK_CPU)){
 		//TYPEOF_CPU_NUMBER current_cpu = task_cpu(current);
 		(*(TYPEOF_CPU_NUMBER *)cur) = task_cpu(current);
 		cur += sizeof(TYPEOF_CPU_NUMBER);
@@ -1879,9 +1884,9 @@ int put_us_event (char *data, unsigned long len)
 	//printk("%d %x", probe_id, event_mask);
 	// dyn lib event should have all args, it is for internal use and not visible to user
 	if((probe_id == EVENT_FMT_PROBE_ID) || (probe_id == DYN_LIB_PROBE_ID) || !(event_mask & IOCTL_EMASK_ARGS)){
-		// move only if any of prev fields has been skipped 
+		// move only if any of prev fields has been skipped
 		if(event_mask & (IOCTL_EMASK_TIME|IOCTL_EMASK_PID|IOCTL_EMASK_TID|IOCTL_EMASK_CPU)){
-			memmove(cur, data+sizeof(SWAP_TYPE_EVENT_HEADER)-sizeof(TYPEOF_NUMBER_OF_ARGS), 
+			memmove(cur, data+sizeof(SWAP_TYPE_EVENT_HEADER)-sizeof(TYPEOF_NUMBER_OF_ARGS),
 					len-sizeof(SWAP_TYPE_EVENT_HEADER)+sizeof(TYPEOF_NUMBER_OF_ARGS)
 					-sizeof(TYPEOF_EVENT_LENGTH));
 		}
@@ -1889,7 +1894,7 @@ int put_us_event (char *data, unsigned long len)
 				-sizeof(TYPEOF_EVENT_LENGTH);
 	}
 	else{
-		// user space probes should have at least one argument to identify them 
+		// user space probes should have at least one argument to identify them
 		if((probe_id == US_PROBE_ID) || (probe_id == VTP_PROBE_ID)){
 			char *pArg1;
 			(*(TYPEOF_NUMBER_OF_ARGS *)cur) = 1;
@@ -1906,11 +1911,11 @@ int put_us_event (char *data, unsigned long len)
 			(*(TYPEOF_NUMBER_OF_ARGS *)cur) = 0;
 			cur += sizeof(TYPEOF_NUMBER_OF_ARGS);
 		}
-	}	
+	}
 	pEventHeader->m_nLength = cur - data + sizeof(TYPEOF_EVENT_LENGTH);
 	*((TYPEOF_EVENT_LENGTH *)cur) = pEventHeader->m_nLength;
 	len = pEventHeader->m_nLength;
-	
+
 	if(WriteEventIntoBuffer(data, len) == -1) {
 		EPRINTF("Cannot write event into buffer!");
 
@@ -1968,7 +1973,7 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 			kfree(buf);
 			size += probe_size;
 			continue;
-		}		
+		}
 		sep2 = strchr(sep1+1, ':');
 		if(!sep2 || (sep2 == sep1) || (sep2+2 == buf+probe_size))
 		{
@@ -1976,7 +1981,7 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 			kfree(buf);
 			size += probe_size;
 			continue;
-		}		
+		}
 		for(i = 0; i < my_uprobes_info->libs_count; i++)
 		{
 			if(strncmp(buf, my_uprobes_info->p_libs[i].path, sep1-buf) != 0)
@@ -1984,7 +1989,7 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 			for(k = 0; k < my_uprobes_info->p_libs[i].ips_count; k++)
 			{
 				if(strncmp(sep1+1, my_uprobes_info->p_libs[i].p_ips[k].name, sep2-sep1-1) != 0)
-					continue;				
+					continue;
 				my_uprobes_info->p_libs[i].p_ips[k].offset = simple_strtoul(sep2+1, NULL, 16);
 			}
 		}
@@ -2055,7 +2060,7 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 		EPRINTF("failed to copy from user!");
 		return -EFAULT;
 	}
-		
+
 	size = 0;
 	for(i = 0; i < my_uprobes_info->libs_count; i++)
 	{

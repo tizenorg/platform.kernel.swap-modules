@@ -28,6 +28,7 @@ extern int inst_usr_space_proc (void);
 extern int deinst_usr_space_proc (void);
 
 /* Detects when IPs are really loaded into phy mem and installs probes. */
+extern void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_regs *regs);
 extern void do_page_fault_ret_pre_code (void);
 extern void  otg_probe_list_clean(char*);
 
