@@ -1357,12 +1357,7 @@ static void register_us_page_probe(const struct page_probes *page_p,
 		const struct vm_area_struct *vma)
 {
 	int err;
-	size_t ii;
-
-//	// overhead
-//	struct timeval imi_tv1;
-//	struct timeval imi_tv2;
-//#define USEC_IN_SEC_NUM				1000000
+	size_t i;
 
 	if (!(vma->vm_flags & VM_EXECUTABLE) && !fp->loaded) {
 		char *p;
@@ -1381,13 +1376,8 @@ static void register_us_page_probe(const struct page_probes *page_p,
 //	print_page_probes(page_p);
 	pp_set_all_kp_addr(page_p);
 
-	for (ii = 0; ii < page_p->cnt_ip; ++ii) {
-//		do_gettimeofday(&imi_tv1);
-		err = register_usprobe_my(task, mm, &page_p->ip[ii]);
-//		do_gettimeofday(&imi_tv2);
-//		imi_sum_hit++;
-//		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
-//			(imi_tv2.tv_usec - imi_tv1.tv_usec));
+	for (i = 0; i < page_p->cnt_ip; ++i) {
+		err = register_usprobe_my(task, mm, &page_p->ip[i]);
 		if (err != 0) {
 			//TODO: ERROR
 		}
@@ -1406,126 +1396,31 @@ static int check_vma(struct vm_area_struct *vma)
 }
 
 
-static void install_page_probes(unsigned long page, struct task_struct *task, struct proc_probes *pp, unsigned long addr)
+static void install_page_probes(unsigned long page, struct task_struct *task, struct proc_probes *proc_p, unsigned long addr)
 {
-	int i;
 	struct vm_area_struct *vma;
 	struct mm_struct *mm = get_task_mm(task);
 
-
-	// overhead
-	struct timeval imi_tv1;
-	struct timeval imi_tv2;
-#define USEC_IN_SEC_NUM				1000000
-
-
-//	printk("### install_page_probes: addr=%x\n", addr);
 	if (mm == NULL) {
 		printk("#### ERRR install_page_probes\n");
 		return;
 	}
 
-//	printk("### for 1\n");
 	down_read(&mm->mmap_sem);
 
-//	do_gettimeofday(&imi_tv1);
 	vma = find_vma(mm, page);
-//	printk("### vma=%p\n", vma);
-
-
-
 	if (vma && check_vma(vma)) {
-		for (i = 0; i < pp->cnt; ++i) {
-			struct page_probes *page_p;
-			struct file_probes *fp = pp->fp[i];
-
-			//TODO: test - try to instrument non-existing libs
-			if (vma->vm_file->f_dentry != fp->dentry) {
-				continue;
-			}
-
-			page_p = fp_find_pp(fp, page, vma->vm_start);
-
+		struct file_probes *file_p = proc_p_find_file_p(proc_p, vma);
+		if(file_p) {
+			struct page_probes *page_p = fp_find_pp(file_p, page, vma->vm_start);
 			if (page_p) {
-				register_us_page_probe(page_p, fp, task, mm, vma);
+				register_us_page_probe(page_p, file_p, task, mm, vma);
 			}
 		}
 	}
 
-//	do_gettimeofday(&imi_tv2);
-//	imi_sum_hit++;
-//	imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
-//		(imi_tv2.tv_usec - imi_tv1.tv_usec));
-
-	goto out;
-
-
-
-
-
-
-
-
-
-	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-//		printk("### vma: start=%x, end=%x\n", vma->vm_start, vma->vm_end);
-
-
-		// skip non-text section
-#ifndef __ANDROID
-		if (!(vma->vm_flags & VM_EXEC) || !vma->vm_file || (vma->vm_flags & VM_ACCOUNT) ||
-			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
-			!(vma->vm_flags & (VM_READ | VM_MAYREAD))) {
-#else // __ANDROID
-		if (vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || !vma->vm_file) {
-#endif // __ANDROID
-//			vma = vma->vm_next;
-			continue;
-		}
-
-
-
-//		/**
-//		 * After process was forked, some time it inherits parent process environment.
-//		 * We need to renew instrumentation when we detect that process gets own environment.
-//		 */
-//		if (vma->vm_flags & VM_EXECUTABLE) {
-//			if (!task_inst_info->m_f_dentry) {
-//				task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
-//				DPRINTF("initiate dentry tgid = %d, comm = %s", task->tgid, task->comm);
-//			}
-//			else if (task_inst_info->m_f_dentry != vma->vm_file->f_dentry) {
-//				/*
-//				 * All the stuff that cancel instrumentation in old address
-//				 * space are run when do_execve() occurs.  Here we just update
-//				 * dentry because it is changed after do_execve() execution.
-//				 */
-//				task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
-//			}
-//		}
-
-		for (i = 0; i < pp->cnt; ++i) {
-			struct page_probes *page_p;
-			struct file_probes *fp = pp->fp[i];
-
-			//TODO: test - try to instrument non-existing libs
-			if (vma->vm_file->f_dentry != fp->dentry) {
-				continue;
-			}
-
-			page_p = fp_find_pp(fp, page, vma->vm_start);
-
-			if (page_p) {
-				register_us_page_probe(page_p, fp, task, mm, vma);
-			}
-		}
-	}
-
-out:
 	up_read(&mm->mmap_sem);
 	mmput(mm);
-//	printk("### for 2\n");
-
 }
 
 void do_page_fault_ret_pre_code (void)

@@ -62,14 +62,14 @@ static void pp_del(struct page_probes *pp)
 }
 // page_probes
 
-static void pp_set_all_kp_addr(struct page_probes *pp)
+static void pp_set_all_kp_addr(struct page_probes *page_p)
 {
 	struct us_proc_ip *ip;
 	unsigned long addr;
 	size_t i;
-	for (i = 0; i < pp->cnt_ip; ++i) {
-		ip = &pp->ip[i];
-		addr = ip->addr + pp->offset;
+	for (i = 0; i < page_p->cnt_ip; ++i) {
+		ip = &page_p->ip[i];
+		addr = ip->addr + page_p->offset;
 		ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
 //		printk("###       pp_set_all_kp_addr: addr=%x\n", addr);
 	}
@@ -225,6 +225,21 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 	}
 
 	return proc_p;
+}
+
+struct file_probes *proc_p_find_file_p(struct proc_probes *pp, struct vm_area_struct *vma)
+{
+	struct file_probes *fp;
+	size_t i;
+	for (i = 0; i < pp->cnt; ++i) {
+		fp = pp->fp[i];
+
+		if (vma->vm_file->f_dentry == fp->dentry) {
+			return fp;
+		}
+	}
+
+	return NULL;
 }
 
 static int register_usprobe_my(struct task_struct *task, struct mm_struct *mm, struct us_proc_ip *ip)
