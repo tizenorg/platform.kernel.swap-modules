@@ -1374,7 +1374,7 @@ static void register_us_page_probe(const struct page_probes *page_p,
 	}
 
 //	print_page_probes(page_p);
-	pp_set_all_kp_addr(page_p);
+	page_p_set_all_kp_addr(page_p);
 
 	for (i = 0; i < page_p->cnt_ip; ++i) {
 		err = register_usprobe_my(task, mm, &page_p->ip[i]);
@@ -1412,7 +1412,7 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 	if (vma && check_vma(vma)) {
 		struct file_probes *file_p = proc_p_find_file_p(proc_p, vma);
 		if(file_p) {
-			struct page_probes *page_p = fp_find_pp(file_p, page, vma->vm_start);
+			struct page_probes *page_p = file_p_find_page_p(file_p, page, vma->vm_start);
 			if (page_p) {
 				register_us_page_probe(page_p, file_p, task, mm, vma);
 			}

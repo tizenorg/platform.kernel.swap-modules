@@ -28,12 +28,12 @@ struct file_probes {
 
 struct proc_probes {
 	size_t cnt;
-	struct file_probes **fp;
+	struct file_probes **file_p;
 };
 
 
 // page_probes
-static struct page_probes *pp_new(unsigned long page, struct us_proc_ip *ip, size_t cnt)
+static struct page_probes *page_p_new(unsigned long page, struct us_proc_ip *ip, size_t cnt)
 {
 	struct page_probes *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 	printk("##### pp_new: page=%x, cnt_addr=%u\n", page, cnt);
@@ -56,13 +56,13 @@ static struct page_probes *pp_new(unsigned long page, struct us_proc_ip *ip, siz
 	return obj;
 }
 
-static void pp_del(struct page_probes *pp)
+static void page_p_del(struct page_probes *page_p)
 {
 	// TODO: del
 }
 // page_probes
 
-static void pp_set_all_kp_addr(struct page_probes *page_p)
+static void page_p_set_all_kp_addr(struct page_probes *page_p)
 {
 	struct us_proc_ip *ip;
 	unsigned long addr;
@@ -76,7 +76,7 @@ static void pp_set_all_kp_addr(struct page_probes *page_p)
 }
 
 // file_probes
-static struct file_probes *fp_new(us_proc_lib_t *lib)
+static struct file_probes *file_p_new(us_proc_lib_t *lib)
 {
 	struct file_probes *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 
@@ -90,21 +90,21 @@ static struct file_probes *fp_new(us_proc_lib_t *lib)
 	return obj;
 }
 
-static void fp_del(struct file_probes *fp)
+static void file_p_del(struct file_probes *file_p)
 {
 	// TODO: del
 }
 
-static void fp_add_pp(struct file_probes *fp, struct page_probes *pp)
+static void file_p_add_page_p(struct file_probes *file_p, struct page_probes *page_p)
 {
-	hlist_add_head(&pp->node, &fp->head);
+	hlist_add_head(&page_p->node, &file_p->head);
 }
 
-static struct page_probes *fp_find_pp(struct file_probes *fp, unsigned long page, unsigned long start_addr)
+static struct page_probes *file_p_find_page_p(struct file_probes *file_p, unsigned long page, unsigned long start_addr)
 {
 	struct page_probes *pp = NULL;
 	struct hlist_node *node = NULL;
-	struct hlist_head *head = &fp->head;
+	struct hlist_head *head = &file_p->head;
 	unsigned long pp_page;
 
 	hlist_for_each_entry(pp, node, head, node) {
@@ -158,9 +158,9 @@ static void sort_libs(us_proc_lib_t *p_libs)
 
 #include "storage.h"
 
-static struct page_probes *get_pp_of_ips(unsigned long page, unsigned long min_index, unsigned long max_index, us_proc_ip_t *p_ips)
+static struct page_probes *get_page_p_of_ips(unsigned long page, unsigned long min_index, unsigned long max_index, us_proc_ip_t *p_ips)
 {
-	struct page_probes *pp;
+	struct page_probes *page_p;
 	unsigned long idx;
 	unsigned long cnt = max_index - min_index;
 	struct us_proc_ip *ip = kmalloc(sizeof(*ip)*cnt, GFP_ATOMIC);
@@ -172,9 +172,9 @@ static struct page_probes *get_pp_of_ips(unsigned long page, unsigned long min_i
 		ip[idx - min_index].retprobe = p_ips[idx].retprobe;
 	}
 
-	pp = pp_new(page, ip, cnt);
+	page_p = page_p_new(page, ip, cnt);
 	kfree(ip);
-	return pp;
+	return page_p;
 }
 
 struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
@@ -184,13 +184,13 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 	if (proc_p) {
 		int i;
 		proc_p->cnt = task_inst_info->libs_count;
-		proc_p->fp = kmalloc(sizeof(*proc_p->fp)*proc_p->cnt, GFP_ATOMIC);
+		proc_p->file_p = kmalloc(sizeof(*proc_p->file_p)*proc_p->cnt, GFP_ATOMIC);
 
 		for (i = 0; i < task_inst_info->libs_count; ++i) {
 			us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
-			struct file_probes *fp = fp_new(p_libs);
+			struct file_probes *file_p = file_p_new(p_libs);
 			unsigned long page = 0, min_index = 0, max_index = 0, cnt = 0, idx = 0;
-			struct page_probes *pp = NULL;
+			struct page_probes *page_p = NULL;
 			int k;
 			sort_libs(p_libs);
 
@@ -208,8 +208,8 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 				printk("#### k=%2u, addr=%x\n", k, addr);
 				if ( page != (addr & PAGE_MASK)) {
 					max_index = k;
-					pp = get_pp_of_ips(page, min_index, max_index, p_libs->p_ips);
-					fp_add_pp(fp, pp);
+					page_p = get_page_p_of_ips(page, min_index, max_index, p_libs->p_ips);
+					file_p_add_page_p(file_p, page_p);
 
 					page = addr & PAGE_MASK;
 					min_index = max_index;
@@ -217,25 +217,25 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 			}
 
 			max_index = p_libs->ips_count;
-			pp = get_pp_of_ips(page, min_index, max_index, p_libs->p_ips);
-			fp_add_pp(fp, pp);
+			page_p = get_page_p_of_ips(page, min_index, max_index, p_libs->p_ips);
+			file_p_add_page_p(file_p, page_p);
 
-			proc_p->fp[i] = fp;
+			proc_p->file_p[i] = file_p;
 		}
 	}
 
 	return proc_p;
 }
 
-struct file_probes *proc_p_find_file_p(struct proc_probes *pp, struct vm_area_struct *vma)
+struct file_probes *proc_p_find_file_p(struct proc_probes *proc_p, struct vm_area_struct *vma)
 {
-	struct file_probes *fp;
+	struct file_probes *file_p;
 	size_t i;
-	for (i = 0; i < pp->cnt; ++i) {
-		fp = pp->fp[i];
+	for (i = 0; i < proc_p->cnt; ++i) {
+		file_p = proc_p->file_p[i];
 
-		if (vma->vm_file->f_dentry == fp->dentry) {
-			return fp;
+		if (vma->vm_file->f_dentry == file_p->dentry) {
+			return file_p;
 		}
 	}
 
@@ -261,70 +261,6 @@ static int register_usprobe_my(struct task_struct *task, struct mm_struct *mm, s
 
 
 	return register_usprobe(task, mm, ip_t, 1, NULL);
-
-
-	int atomic = 1;
-
-	int ret = 0;
-	ip->jprobe.kp.tgid = task->tgid;
-	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
-
-//	printk("### register_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
-//			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
-
-//	return 0;
-
-	if(!ip->jprobe.entry) {
-		if (dbi_ujprobe_event_handler_custom_p != NULL)
-		{
-			ip->jprobe.entry = (kprobe_opcode_t *) dbi_ujprobe_event_handler_custom_p;
-			DPRINTF("Set custom event handler for %x\n", ip->offset);
-		}
-		else
-		{
-			ip->jprobe.entry = (kprobe_opcode_t *) ujprobe_event_handler;
-			DPRINTF("Set default event handler for %x\n", ip->offset);
-		}
-	}
-	if(!ip->jprobe.pre_entry) {
-		if (dbi_ujprobe_event_pre_handler_custom_p != NULL)
-		{
-			ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t) dbi_ujprobe_event_pre_handler_custom_p;
-			DPRINTF("Set custom pre handler for %x\n", ip->offset);
-		}
-		else
-		{
-			ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t) ujprobe_event_pre_handler;
-			DPRINTF("Set default pre handler for %x\n", ip->offset);
-		}
-	}
-	ip->jprobe.priv_arg = ip;
-	ret = dbi_register_ujprobe (task, mm, &ip->jprobe, atomic);
-	if (ret)
-	{
-		DPRINTF ("dbi_register_ujprobe() failure %d", ret);
-		return ret;
-	}
-
-	// Mr_Nobody: comment for valencia
-	ip->retprobe.kp.tgid = task->tgid;
-	//ip->retprobe.kp.addr = (kprobe_opcode_t *) addr;
-	if(!ip->retprobe.handler) {
-	 	if (dbi_uretprobe_event_handler_custom_p != NULL)
-	 		ip->retprobe.handler = (kretprobe_handler_t) dbi_uretprobe_event_handler_custom_p;
-	 	else {
-	 		ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler;
-			//DPRINTF("Failed custom dbi_uretprobe_event_handler_custom_p");
-		}
-	}
-	ip->retprobe.priv_arg = ip;
-	ret = dbi_register_uretprobe (task, mm, &ip->retprobe, atomic);
-	if (ret)
-	{
-		EPRINTF ("dbi_register_uretprobe() failure %d", ret);
-		return ret;
-	}
-	return 0;
 }
 
 // debug
@@ -359,9 +295,9 @@ static void print_proc_probes(const struct proc_probes *pp)
 
 	printk("### print_proc_probes\n");
 	for (i = 0; i < pp->cnt; ++i) {
-		print_file_probes(pp->fp[i]);
+		print_file_probes(pp->file_p[i]);
 	}
 	printk("### print_proc_probes\n");
 }
 
-#endif/* __NEW_DPF__ */
+#endif /* __NEW_DPF__ */
