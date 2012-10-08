@@ -2,18 +2,19 @@
 #define __NEW_DPF__
 
 #include <linux/list.h>
+#include "storage.h"
 
-struct us_proc_ip {
-	struct jprobe jprobe;
-	struct kretprobe retprobe;
-	unsigned long addr;
-};
+//struct us_proc_ip {
+//	struct jprobe jprobe;
+//	struct kretprobe retprobe;
+//	unsigned long offset;
+//};
 
 struct page_probes {
 	unsigned long page;
 	unsigned long offset;
 	size_t cnt_ip;
-	struct us_proc_ip *ip;
+	us_proc_ip_t *ip;
 
 	struct hlist_node node; // for file_probes
 };
@@ -33,7 +34,7 @@ struct proc_probes {
 
 
 // page_probes
-static struct page_probes *page_p_new(unsigned long page, struct us_proc_ip *ip, size_t cnt)
+static struct page_probes *page_p_new(unsigned long page, us_proc_ip_t *ip, size_t cnt)
 {
 	struct page_probes *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 	printk("##### pp_new: page=%x, cnt_addr=%u\n", page, cnt);
@@ -64,12 +65,12 @@ static void page_p_del(struct page_probes *page_p)
 
 static void page_p_set_all_kp_addr(struct page_probes *page_p)
 {
-	struct us_proc_ip *ip;
+	us_proc_ip_t *ip;
 	unsigned long addr;
 	size_t i;
 	for (i = 0; i < page_p->cnt_ip; ++i) {
 		ip = &page_p->ip[i];
-		addr = ip->addr + page_p->offset;
+		addr = ip->offset + page_p->offset;
 		ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
 //		printk("###       pp_set_all_kp_addr: addr=%x\n", addr);
 	}
@@ -163,11 +164,11 @@ static struct page_probes *get_page_p_of_ips(unsigned long page, unsigned long m
 	struct page_probes *page_p;
 	unsigned long idx;
 	unsigned long cnt = max_index - min_index;
-	struct us_proc_ip *ip = kmalloc(sizeof(*ip)*cnt, GFP_ATOMIC);
+	us_proc_ip_t *ip = kmalloc(sizeof(*ip)*cnt, GFP_ATOMIC);
 
 	printk("#### min_index=%2u, max_index=%2u, cnt=%2u\n", min_index, max_index, cnt);
 	for (idx = min_index; idx < max_index; ++idx) {
-		ip[idx - min_index].addr = p_ips[idx].offset;
+		ip[idx - min_index].offset = p_ips[idx].offset;
 		ip[idx - min_index].jprobe = p_ips[idx].jprobe;
 		ip[idx - min_index].retprobe = p_ips[idx].retprobe;
 	}
@@ -242,25 +243,12 @@ struct file_probes *proc_p_find_file_p(struct proc_probes *proc_p, struct vm_are
 	return NULL;
 }
 
-static int register_usprobe_my(struct task_struct *task, struct mm_struct *mm, struct us_proc_ip *ip)
+static int register_usprobe_my(struct task_struct *task, struct mm_struct *mm, us_proc_ip_t *ip)
 {
-//	us_proc_ip_t ip_t;
-//	ip_t.installed = 0;
-//	ip_t.name = 0;
-//	ip_t.jprobe = ip->jprobe;
-//	ip_t.retprobe = ip->retprobe;
-//	ip_t.offset = ip->addr;
+	ip->installed = 0;
+	ip->name = 0;
 
-
-	us_proc_ip_t *ip_t = kmalloc(sizeof(*ip_t), GFP_ATOMIC);
-	ip_t->installed = 0;
-	ip_t->name = 0;
-	ip_t->jprobe = ip->jprobe;
-	ip_t->retprobe = ip->retprobe;
-	ip_t->offset = ip->addr;
-
-
-	return register_usprobe(task, mm, ip_t, 1, NULL);
+	return register_usprobe(task, mm, ip, 1, NULL);
 }
 
 // debug
@@ -271,7 +259,7 @@ static void print_page_probes(const struct page_probes *pp)
 	printk("###     page=%x, offset=%x\n", pp->page, pp->offset);
 	for (i = 0; i < pp->cnt_ip; ++i) {
 		printk("###       addr[%2d]=%x, J_addr=%x, R_addr=%x\n",
-				i, pp->ip[i].addr,
+				i, pp->ip[i].offset,
 				pp->ip[i].jprobe.kp.addr, pp->ip[i].retprobe.kp.addr);
 	}
 }
