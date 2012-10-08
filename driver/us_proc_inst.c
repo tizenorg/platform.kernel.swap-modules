@@ -566,7 +566,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 	struct mm_struct *mm;
 //	char path_buffer[256];
 
-	printk("### install_mapped_ips:\n");
+//	printk("### install_mapped_ips:\n");
 
 	mm = atomic ? task->active_mm : get_task_mm (task);
 	if (!mm) {
@@ -1350,6 +1350,61 @@ EXPORT_SYMBOL_GPL (imi_sum_hit);
 
 #include "new_dpf.h"
 
+static void register_us_page_probe(const struct page_probes *page_p,
+		struct file_probes *fp,
+		const struct task_struct *task,
+		const struct mm_struct *mm,
+		const struct vm_area_struct *vma)
+{
+	int err;
+	size_t ii;
+
+//	// overhead
+//	struct timeval imi_tv1;
+//	struct timeval imi_tv2;
+//#define USEC_IN_SEC_NUM				1000000
+
+	if (!(vma->vm_flags & VM_EXECUTABLE) && !fp->loaded) {
+		char *p;
+		// if we installed something, post library info for those IPs
+		p = strrchr(fp->path, '/');
+		if(!p) {
+			p = fp->path;
+		} else {
+			p++;
+		}
+		fp->loaded = 1;
+		pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspd",
+				task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start);
+	}
+
+//	print_page_probes(page_p);
+	pp_set_all_kp_addr(page_p);
+
+	for (ii = 0; ii < page_p->cnt_ip; ++ii) {
+//		do_gettimeofday(&imi_tv1);
+		err = register_usprobe_my(task, mm, &page_p->ip[ii]);
+//		do_gettimeofday(&imi_tv2);
+//		imi_sum_hit++;
+//		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
+//			(imi_tv2.tv_usec - imi_tv1.tv_usec));
+		if (err != 0) {
+			//TODO: ERROR
+		}
+	}
+}
+
+static int check_vma(struct vm_area_struct *vma)
+{
+#ifndef __ANDROID
+	return vma->vm_file && !(!(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
+			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
+			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
+#else // __ANDROID
+	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC));
+#endif // __ANDROID
+}
+
 
 static void install_page_probes(unsigned long page, struct task_struct *task, struct proc_probes *pp, unsigned long addr)
 {
@@ -1357,7 +1412,14 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 	struct vm_area_struct *vma;
 	struct mm_struct *mm = get_task_mm(task);
 
-	printk("### install_page_probes: addr=%x\n", addr);
+
+	// overhead
+	struct timeval imi_tv1;
+	struct timeval imi_tv2;
+#define USEC_IN_SEC_NUM				1000000
+
+
+//	printk("### install_page_probes: addr=%x\n", addr);
 	if (mm == NULL) {
 		printk("#### ERRR install_page_probes\n");
 		return;
@@ -1365,6 +1427,46 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 
 //	printk("### for 1\n");
 	down_read(&mm->mmap_sem);
+
+//	do_gettimeofday(&imi_tv1);
+	vma = find_vma(mm, page);
+//	printk("### vma=%p\n", vma);
+
+
+
+	if (vma && check_vma(vma)) {
+		for (i = 0; i < pp->cnt; ++i) {
+			struct page_probes *page_p;
+			struct file_probes *fp = pp->fp[i];
+
+			//TODO: test - try to instrument non-existing libs
+			if (vma->vm_file->f_dentry != fp->dentry) {
+				continue;
+			}
+
+			page_p = fp_find_pp(fp, page, vma->vm_start);
+
+			if (page_p) {
+				register_us_page_probe(page_p, fp, task, mm, vma);
+			}
+		}
+	}
+
+//	do_gettimeofday(&imi_tv2);
+//	imi_sum_hit++;
+//	imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
+//		(imi_tv2.tv_usec - imi_tv1.tv_usec));
+
+	goto out;
+
+
+
+
+
+
+
+
+
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 //		printk("### vma: start=%x, end=%x\n", vma->vm_start, vma->vm_end);
 
@@ -1402,75 +1504,24 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 //			}
 //		}
 
-
-
-
 		for (i = 0; i < pp->cnt; ++i) {
-			struct page_probes *page_p = NULL;
+			struct page_probes *page_p;
+			struct file_probes *fp = pp->fp[i];
 
 			//TODO: test - try to instrument non-existing libs
-//			printk("vma: start=%x, name=%s, name_2=%s\n",
-//					vma->vm_start,
-//					vma->vm_file->f_dentry->d_iname,
-//					vma->vm_file->f_dentry->d_name.name);
-			if (vma->vm_file->f_dentry != pp->fp[i]->dentry) {
+			if (vma->vm_file->f_dentry != fp->dentry) {
 				continue;
 			}
 
-//			if (!(vma->vm_flags & VM_EXECUTABLE) {
-//			}
-//			if (page >= vma->vm_start) {
-//				page -= vma->vm_start;
-//			}
-
-			page_p = fp_find_pp(pp->fp[i], page, vma->vm_start);
+			page_p = fp_find_pp(fp, page, vma->vm_start);
 
 			if (page_p) {
-				printk("### vma: start=%x, addr=%x, name=%s, name_2=%s\n",
-						vma->vm_start, addr,
-						vma->vm_file->f_dentry->d_iname,
-						vma->vm_file->f_dentry->d_name.name);
-				print_page_probes(page_p);
+				register_us_page_probe(page_p, fp, task, mm, vma);
 			}
-
-
-//			for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++) {
-//				DPRINTF("ips_count current:%d", k);
-//				if (!task_inst_info->p_libs[i].p_ips[k].installed) {
-//					DPRINTF("!installed");
-//					addr = task_inst_info->p_libs[i].p_ips[k].offset;
-//					if (!(vma->vm_flags & VM_EXECUTABLE)) {
-//						/* In the case of prelinking addr is already an
-//						 * absolute address so we do not need to add
-//						 * library base address to it.  We use a rule of
-//						 * thumb here: if addr is greater than library base
-//						 * address than there is prelinking.
-//						 */
-//						if (addr < vma->vm_start)
-//							addr += vma->vm_start;
-//					}
-//					if (page_present (mm, addr)) {
-//						DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.",
-//							task->pid, task_inst_info->p_libs[i].path,
-//							task_inst_info->p_libs[i].p_ips[k].offset, addr);
-//						task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
-//						task_inst_info->p_libs[i].p_ips[k].retprobe.kp.addr = (kprobe_opcode_t *) addr;
-//						task_inst_info->p_libs[i].p_ips[k].installed = 1;
-//						task_inst_info->unres_ips_count--;
-//						err = register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
-//						if (err != 0) {
-//							DPRINTF ("failed to install IP at %lx/%p. Error %d!",
-//								task_inst_info->p_libs[i].p_ips[k].offset,
-//								task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr, err);
-//						}
-//					}
-//				}
-//			}
-
-
 		}
 	}
 
+out:
 	up_read(&mm->mmap_sem);
 	mmput(mm);
 //	printk("### for 2\n");
@@ -1530,10 +1581,12 @@ void do_page_fault_ret_pre_code (void)
 		}
 
 		// overhead
+		printk("####### T_0\n");
 		do_gettimeofday(&imi_tv1);
 		install_page_probes(page, task, us_proc_info.pp, addr);
-		install_mapped_ips (task, task_inst_info, 1);
+//		install_mapped_ips (task, task_inst_info, 1);
 		do_gettimeofday(&imi_tv2);
+		printk("####### T_1\n");
 		imi_sum_hit++;
 		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
 			(imi_tv2.tv_usec - imi_tv1.tv_usec));
@@ -1601,7 +1654,7 @@ void do_page_fault_ret_pre_code (void)
 
 		do_gettimeofday(&imi_tv1);
 		install_page_probes(page, task, us_proc_info.pp, addr);
-		install_mapped_ips (task, &us_proc_info, 1);
+//		install_mapped_ips (task, &us_proc_info, 1);
 		do_gettimeofday(&imi_tv2);
 		imi_sum_hit++;
 		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
@@ -1837,8 +1890,10 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	ip->jprobe.kp.tgid = task->tgid;
 	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
 
-	printk("### register_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
-			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
+//	printk("### register_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
+//			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
+
+//	return 0;
 
 	if(!ip->jprobe.entry) {
 		if (dbi_ujprobe_event_handler_custom_p != NULL)

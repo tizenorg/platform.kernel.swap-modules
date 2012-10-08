@@ -1068,6 +1068,7 @@ int kprobe_handler(struct pt_regs *regs)
 #endif
 	preempt_disable();
 
+//	printk("### kprobe_handler: task[tgid=%u (%s)] addr=%p\n", tgid, current->comm, addr);
 	p = get_kprobe(addr, tgid);
 
 	if (user_m && p && (check_validity_insn(p, regs, current) != 0)) {

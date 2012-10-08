@@ -3,16 +3,7 @@
 
 #include <linux/list.h>
 
-
-//struct addr_probe {
-//	unsigned long addr;
-//
-//	struct hlist_node node; // for page_probes
-//};
-
 struct us_proc_ip {
-//	char *name;
-//	int installed;
 	struct jprobe jprobe;
 	struct kretprobe retprobe;
 	unsigned long addr;
@@ -21,16 +12,16 @@ struct us_proc_ip {
 struct page_probes {
 	unsigned long page;
 	unsigned long offset;
-
-	struct hlist_node node; // for file_probes
-//	struct hlist_head head; // for addr_probe
-
 	size_t cnt_ip;
 	struct us_proc_ip *ip;
+
+	struct hlist_node node; // for file_probes
 };
 
 struct file_probes {
 	struct dentry *dentry;
+	char *path;
+	int loaded;
 
 	struct hlist_head head; // for page_probes
 };
@@ -40,24 +31,6 @@ struct proc_probes {
 	struct file_probes **fp;
 };
 
-// addr_probe
-//static struct addr_probe *ap_new(unsigned long addr)
-//{
-//	struct addr_probe *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
-//
-//	if (obj) {
-//		obj->addr = addr;
-//		INIT_HLIST_NODE(&obj->node);
-//	}
-//
-//	return obj;
-//}
-//
-//static void ap_del(struct addr_probe *ap)
-//{
-//	// TODO: del
-//}
-// addr_probe
 
 // page_probes
 static struct page_probes *pp_new(unsigned long page, struct us_proc_ip *ip, size_t cnt)
@@ -89,7 +62,7 @@ static void pp_del(struct page_probes *pp)
 }
 // page_probes
 
-void pp_set_all_kp_addr(struct page_probes *pp)
+static void pp_set_all_kp_addr(struct page_probes *pp)
 {
 	struct us_proc_ip *ip;
 	unsigned long addr;
@@ -98,16 +71,19 @@ void pp_set_all_kp_addr(struct page_probes *pp)
 		ip = &pp->ip[i];
 		addr = ip->addr + pp->offset;
 		ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
+//		printk("###       pp_set_all_kp_addr: addr=%x\n", addr);
 	}
 }
 
 // file_probes
-static struct file_probes *fp_new(struct dentry *dentry)
+static struct file_probes *fp_new(us_proc_lib_t *lib)
 {
 	struct file_probes *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 
 	if (obj) {
-		obj->dentry = dentry;
+		obj->dentry = lib->m_f_dentry;
+		obj->path = lib->path;
+		obj->loaded = 0;
 		INIT_HLIST_HEAD(&obj->head);
 	}
 
@@ -135,7 +111,6 @@ static struct page_probes *fp_find_pp(struct file_probes *fp, unsigned long page
 		pp_page = start_addr > pp->page ? start_addr + pp->page : pp->page;
 		if (pp_page == page) {
 			pp->offset = start_addr > pp->page ? start_addr : 0;
-//			pp->
 			return pp;
 		}
 	}
@@ -213,7 +188,7 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 
 		for (i = 0; i < task_inst_info->libs_count; ++i) {
 			us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
-			struct file_probes *fp = fp_new(p_libs->m_f_dentry);
+			struct file_probes *fp = fp_new(p_libs);
 			unsigned long page = 0, min_index = 0, max_index = 0, cnt = 0, idx = 0;
 			struct page_probes *pp = NULL;
 			int k;
@@ -252,28 +227,102 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 	return proc_p;
 }
 
-// debug
-//static void print_addr_probe(const struct addr_probe *ap)
-//{
-//	printk("###       addr=%x\n", ap->addr);
-//}
+static int register_usprobe_my(struct task_struct *task, struct mm_struct *mm, struct us_proc_ip *ip)
+{
+//	us_proc_ip_t ip_t;
+//	ip_t.installed = 0;
+//	ip_t.name = 0;
+//	ip_t.jprobe = ip->jprobe;
+//	ip_t.retprobe = ip->retprobe;
+//	ip_t.offset = ip->addr;
 
+
+	us_proc_ip_t *ip_t = kmalloc(sizeof(*ip_t), GFP_ATOMIC);
+	ip_t->installed = 0;
+	ip_t->name = 0;
+	ip_t->jprobe = ip->jprobe;
+	ip_t->retprobe = ip->retprobe;
+	ip_t->offset = ip->addr;
+
+
+	return register_usprobe(task, mm, ip_t, 1, NULL);
+
+
+	int atomic = 1;
+
+	int ret = 0;
+	ip->jprobe.kp.tgid = task->tgid;
+	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
+
+//	printk("### register_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
+//			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
+
+//	return 0;
+
+	if(!ip->jprobe.entry) {
+		if (dbi_ujprobe_event_handler_custom_p != NULL)
+		{
+			ip->jprobe.entry = (kprobe_opcode_t *) dbi_ujprobe_event_handler_custom_p;
+			DPRINTF("Set custom event handler for %x\n", ip->offset);
+		}
+		else
+		{
+			ip->jprobe.entry = (kprobe_opcode_t *) ujprobe_event_handler;
+			DPRINTF("Set default event handler for %x\n", ip->offset);
+		}
+	}
+	if(!ip->jprobe.pre_entry) {
+		if (dbi_ujprobe_event_pre_handler_custom_p != NULL)
+		{
+			ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t) dbi_ujprobe_event_pre_handler_custom_p;
+			DPRINTF("Set custom pre handler for %x\n", ip->offset);
+		}
+		else
+		{
+			ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t) ujprobe_event_pre_handler;
+			DPRINTF("Set default pre handler for %x\n", ip->offset);
+		}
+	}
+	ip->jprobe.priv_arg = ip;
+	ret = dbi_register_ujprobe (task, mm, &ip->jprobe, atomic);
+	if (ret)
+	{
+		DPRINTF ("dbi_register_ujprobe() failure %d", ret);
+		return ret;
+	}
+
+	// Mr_Nobody: comment for valencia
+	ip->retprobe.kp.tgid = task->tgid;
+	//ip->retprobe.kp.addr = (kprobe_opcode_t *) addr;
+	if(!ip->retprobe.handler) {
+	 	if (dbi_uretprobe_event_handler_custom_p != NULL)
+	 		ip->retprobe.handler = (kretprobe_handler_t) dbi_uretprobe_event_handler_custom_p;
+	 	else {
+	 		ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler;
+			//DPRINTF("Failed custom dbi_uretprobe_event_handler_custom_p");
+		}
+	}
+	ip->retprobe.priv_arg = ip;
+	ret = dbi_register_uretprobe (task, mm, &ip->retprobe, atomic);
+	if (ret)
+	{
+		EPRINTF ("dbi_register_uretprobe() failure %d", ret);
+		return ret;
+	}
+	return 0;
+}
+
+// debug
 static void print_page_probes(const struct page_probes *pp)
 {
-//	struct addr_probe *ap = NULL;
-//	struct hlist_node *node = NULL;
-//	struct hlist_head *head = &pp->head;
 	int i;
 
 	printk("###     page=%x, offset=%x\n", pp->page, pp->offset);
 	for (i = 0; i < pp->cnt_ip; ++i) {
-		printk("###       addr[%2d]=%x\n", i, pp->ip[i].addr);
+		printk("###       addr[%2d]=%x, J_addr=%x, R_addr=%x\n",
+				i, pp->ip[i].addr,
+				pp->ip[i].jprobe.kp.addr, pp->ip[i].retprobe.kp.addr);
 	}
-
-
-//	hlist_for_each_entry(ap, node, head, node) {
-//		print_addr_probe(ap);
-//	}
 }
 
 static void print_file_probes(const struct file_probes *fp)

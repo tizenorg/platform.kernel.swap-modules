@@ -48,6 +48,7 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 {
 	int ret = 0;
 	struct kprobe *old_p;
+//	printk("### __register_uprobe: p->addr = 0x%p\n", p->addr);
 
 //	printk (">>>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s %d\n", __FUNCTION__, __LINE__);
 
