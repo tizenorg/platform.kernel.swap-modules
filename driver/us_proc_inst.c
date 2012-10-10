@@ -1129,6 +1129,28 @@ static int install_kernel_probe (unsigned long addr, int uflag, int kflag, kerne
 	return 0;
 }
 
+static struct dentry *get_dentry(const char *path)
+{
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	struct path st_path;
+	if (kern_path(path, LOOKUP_FOLLOW, &st_path) != 0) {
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	struct nameidata nd;
+	if (path_lookup(path, LOOKUP_FOLLOW, &nd) != 0) {
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+		EPRINTF("failed to lookup dentry for path %s!", path);
+		return NULL;
+	}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+	return nd.dentry;
+#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 38)
+	return nd.path.dentry;
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	return st_path.dentry;
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) */
+}
+
 int inst_usr_space_proc (void)
 {
 	int ret, i;
@@ -1142,98 +1164,41 @@ int inst_usr_space_proc (void)
 	DPRINTF("User space instr");
 
 #ifdef SLP_APP
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	struct path launchpad_daemon_path;
-	if (kern_path("/usr/bin/launchpad_preloading_preinitializing_daemon",
-		      LOOKUP_FOLLOW,
-		      &launchpad_daemon_path) != 0) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	struct nameidata launchpad_daemon_nd;
-	if (path_lookup("/usr/bin/launchpad_preloading_preinitializing_daemon",
-			LOOKUP_FOLLOW, &launchpad_daemon_nd) != 0) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-		EPRINTF("failed to lookup dentry for path %s!",
-				"/usr/bin/launchpad_preloading_preinitializing_daemon");
+	launchpad_daemon_dentry = get_dentry("/usr/bin/launchpad_preloading_preinitializing_daemon");
+	if (launchpad_daemon_dentry == NULL) {
 		return -EINVAL;
 	}
+
 	slp_app_vma_start = 0;
 	slp_app_vma_end = 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	launchpad_daemon_dentry = launchpad_daemon_nd.dentry;
-#else
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	launchpad_daemon_dentry = launchpad_daemon_path.dentry;
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	launchpad_daemon_dentry = launchpad_daemon_nd.path.dentry;
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#endif
 #endif /* SLP_APP */
 
 #ifdef ANDROID_APP
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	struct path app_process_path;
-	if (kern_path("/system/bin/app_process", LOOKUP_FOLLOW,
-			     &app_process_path) != 0) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	struct nameidata app_process_nd;
-	if (path_lookup("/system/bin/app_process",
-			LOOKUP_FOLLOW, &app_process_nd) != 0) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-		EPRINTF("failed to lookup dentry for path %s!",
-				"/system/bin/app_process");
+	app_process_dentry = get_dentry("/system/bin/app_process");
+	if (app_process_dentry == NULL) {
 		return -EINVAL;
 	}
+
 	android_app_vma_start = 0;
 	android_app_vma_end = 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	app_process_dentry = app_process_nd.dentry;
-#else
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	app_process_dentry = app_process_path.dentry;
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	app_process_dentry = app_process_nd.path.dentry;
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#endif
 #endif /* ANDROID_APP */
 
 #ifdef __ANDROID
 	if (is_java_inst_enabled()) {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-		struct path libdvm_path;
-		if (kern_path("/system/lib/libdvm.so",
-			      LOOKUP_FOLLOW,
-			      &libdvm_path) != 0) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-		struct nameidata libdvm_nd;
-		if (path_lookup("/system/lib/libdvm.so",
-				LOOKUP_FOLLOW, &libdvm_nd) != 0) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-			EPRINTF("failed to lookup dentry for path %s!",
-				"/system/lib/libdvm.so");
+		libdvm_dentry = get_dentry("/system/lib/libdvm.so");
+		if (libdvm_dentry == NULL) {
 			return -EINVAL;
 		}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-		libdvm_dentry = libdvm_nd.dentry;
-#else
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-		libdvm_dentry = libdvm_path.dentry;
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-		libdvm_dentry = libdvm_nd.path.dentry;
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#endif
+
+		memset(&us_proc_info.libdvm_entry_ip, 0, sizeof(us_proc_ip_t));
+		memset(&us_proc_info.libdvm_return_ip, 0, sizeof(us_proc_ip_t));
+		us_proc_info.libdvm_start = 0;
+		us_proc_info.libdvm_end = 0;
 	}
 #endif /* __ANDROID */
 
 	for (i = 0; i < us_proc_info.libs_count; i++) {
 		us_proc_info.p_libs[i].loaded = 0;
-#ifdef __ANDROID
-		if (is_java_inst_enabled()) {
-			memset(&us_proc_info.libdvm_entry_ip, 0, sizeof(us_proc_ip_t));
-			memset(&us_proc_info.libdvm_return_ip, 0, sizeof(us_proc_ip_t));
-			us_proc_info.libdvm_start = 0;
-			us_proc_info.libdvm_end = 0;
-		}
-#endif /* __ANDRID */
 	}
 	/* check whether process is already running
 	 * 1) if process is running - look for the libraries in the process maps
