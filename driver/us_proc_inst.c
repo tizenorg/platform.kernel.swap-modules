@@ -644,8 +644,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							 * thumb here: if addr is greater than library base
 							 * address than there is prelinking.
 							 */
-							if (addr < vma->vm_start)
-								addr += vma->vm_start;
+							addr += vma->vm_start;
 						}
 						if (page_present (mm, addr)) {
 							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.",
