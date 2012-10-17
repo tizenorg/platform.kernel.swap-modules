@@ -59,10 +59,6 @@ struct task_inst_info_node {
 LIST_HEAD(task_inst_info_list);
 
 #ifdef SLP_APP
-unsigned long slp_app_vma_start = 0;
-EXPORT_SYMBOL_GPL(slp_app_vma_start);
-unsigned long slp_app_vma_end = 0;
-EXPORT_SYMBOL_GPL(slp_app_vma_end);
 struct dentry *launchpad_daemon_dentry = NULL;
 EXPORT_SYMBOL_GPL(launchpad_daemon_dentry);
 #endif /* SLP_APP */
@@ -293,8 +289,6 @@ static int is_slp_app_with_dentry(struct vm_area_struct *vma,
 			if (slp_app_vma->vm_file) {
 				if (slp_app_vma->vm_file->f_dentry == dentry &&
 					slp_app_vma->vm_pgoff == 0) {
-					slp_app_vma_start = slp_app_vma->vm_start;
-					slp_app_vma_end = slp_app_vma->vm_end;
 					return 1;
 				}
 			}
@@ -591,20 +585,6 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 		 * After process was forked, some time it inherits parent process environment.
 		 * We need to renew instrumentation when we detect that process gets own environment.
 		 */
-		if (vma->vm_flags & VM_EXECUTABLE) {
-			if (!task_inst_info->m_f_dentry) {
-				task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
-				DPRINTF("initiate dentry tgid = %d, comm = %s", task->tgid, task->comm);
-			}
-			else if (task_inst_info->m_f_dentry != vma->vm_file->f_dentry) {
-				/*
-				 * All the stuff that cancel instrumentation in old address
-				 * space are run when do_execve() occurs.  Here we just update
-				 * dentry because it is changed after do_execve() execution.
-				 */
-				task_inst_info->m_f_dentry = vma->vm_file->f_dentry;
-			}
-		}
 		for (i = 0; i < task_inst_info->libs_count; i++) {
 //			struct path tmp_path;
 //			tmp_path.dentry = task_inst_info->p_libs[i].m_f_dentry;
@@ -618,9 +598,10 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 //				DPRINTF("vm_flags:%x loaded:%x ips_count:%d vtps_count:%d",
 //						vma->vm_flags, task_inst_info->p_libs[i].loaded,
 //						task_inst_info->p_libs[i].ips_count, task_inst_info->p_libs[i].vtps_count );
-				if (!(vma->vm_flags & VM_EXECUTABLE) && !task_inst_info->p_libs[i].loaded) {
+				if (!task_inst_info->p_libs[i].loaded) {
 //					DPRINTF("!VM_EXECUTABLE && !loaded");
 					char *p;
+					int app_flag = (vma->vm_file->f_dentry == task_inst_info->m_f_dentry);
 					DPRINTF ("post dyn lib event %s/%s", current->comm, task_inst_info->p_libs[i].path);
 					// if we installed something, post library info for those IPs
 					p = strrchr(task_inst_info->p_libs[i].path, '/');
@@ -629,23 +610,15 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 					else
 						p++;
 					task_inst_info->p_libs[i].loaded = 1;
-					pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspd",
-							task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start);
+					pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
+							task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start, app_flag);
 				}
 				for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++) {
 					DPRINTF("ips_count current:%d", k);
 					if (!task_inst_info->p_libs[i].p_ips[k].installed) {
 						DPRINTF("!installed");
 						addr = task_inst_info->p_libs[i].p_ips[k].offset;
-						if (!(vma->vm_flags & VM_EXECUTABLE)) {
-							/* In the case of prelinking addr is already an
-							 * absolute address so we do not need to add
-							 * library base address to it.  We use a rule of
-							 * thumb here: if addr is greater than library base
-							 * address than there is prelinking.
-							 */
-							addr += vma->vm_start;
-						}
+						addr += vma->vm_start;
 						if (page_present (mm, addr)) {
 							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.",
 								task->pid, task_inst_info->p_libs[i].path,
@@ -1168,8 +1141,6 @@ int inst_usr_space_proc (void)
 		return -EINVAL;
 	}
 
-	slp_app_vma_start = 0;
-	slp_app_vma_end = 0;
 #endif /* SLP_APP */
 
 #ifdef ANDROID_APP
@@ -1551,13 +1522,6 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 	us_proc_ip_t *ip = __get_cpu_var (gpCurIp);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 
-#ifdef SLP_APP
-	if (ip->jprobe.kp.addr >= slp_app_vma_start &&
-		ip->jprobe.kp.addr < slp_app_vma_end) {
-		addr = (unsigned long)ip->jprobe.kp.addr - slp_app_vma_start;
-	}
-#endif /* SLP_APP */
-
 #ifdef __ANDROID
 	if (is_java_inst_enabled() && handle_java_event(addr)) {
 		return;
@@ -1584,13 +1548,6 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 {
 	int retval = regs_return_value(regs);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
-
-#ifdef SLP_APP
-	if (ip->jprobe.kp.addr >= slp_app_vma_start &&
-		ip->jprobe.kp.addr < slp_app_vma_end) {
-		addr = (unsigned long)ip->jprobe.kp.addr - slp_app_vma_start;
-	}
-#endif /* SLP_APP */
 
 #if defined(CONFIG_ARM)
 	if (ip->offset & 0x01)
