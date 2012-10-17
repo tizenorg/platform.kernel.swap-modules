@@ -5,14 +5,14 @@
 MODULE_FILE=swap_driver
 
 # device name
-DEVICE=swap_drv
-DEFAULT_MAJOR=249
+DEVICE=__DEV_NAME__
+DEVICE_MAJOR=__DEV_MAJOR__
 
 # name of device visible in /proc/devices
 DEVICE_NAME=${DEVICE}
 
-# name of the device file for /dev/
-DEVICE_FILE=${DEVICE}
+# name of the device
+DEVICE_FILE=__DEV_DIR__/${DEVICE}
 
 KSYMS=kallsyms_lookup_name
 
@@ -42,22 +42,22 @@ if [ "${MAJOR}" != "" ] ; then
     fi
 fi
 
-if [ ! -c /dev/${DEVICE_FILE} ] ; then
-	echo "WARNING: Creating device node with major number [${DEFAULT_MAJOR}]!"
-	mknod /dev/${DEVICE_FILE} c ${DEFAULT_MAJOR} 0
+if [ ! -c ${DEVICE_FILE} ] ; then
+	echo "WARNING: Creating device node with major number [${DEVICE_MAJOR}]!"
+	mknod ${DEVICE_FILE} c ${DEVICE_MAJOR} 0
 	if [ $? -ne 0 ]; then
 	    echo "Error: Unable to create device node!"
 	    exit 1
 	fi
-	chmod a+r /dev/${DEVICE_FILE}
+	chmod a+r ${DEVICE_FILE}
 else
 	# stat is better, but DTV doesn't have stat
-	DEFAULT_MAJOR=`ls -l /dev/swap_drv | awk '{sub(/,/,"",$5); print $5}'`
+	DEVICE_MAJOR=`ls -l /dev/swap_drv | awk '{sub(/,/,"",$5); print $5}'`
 fi
 
 # load driver module
 echo "loading module '${MODULE_FILE}'"
-insmod ${MODULE_FILE}.ko fp_kallsyms_lookup_name=${ADDRESS} device_name=${DEVICE_NAME} device_major=${DEFAULT_MAJOR}
+insmod ${MODULE_FILE}.ko fp_kallsyms_lookup_name=${ADDRESS} device_name=${DEVICE_NAME} device_major=${DEVICE_MAJOR}
 if [ $? -ne 0 ]; then
     echo "Error: Unable to load Swap Driver!"
     exit 1
