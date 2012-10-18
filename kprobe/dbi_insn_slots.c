@@ -81,7 +81,7 @@ struct kprobe_insn_page
 	struct hlist_node hlist;
 
 	struct chunk chunk;
-	struct task_struct *task
+	struct task_struct *task;
 };
 
 static void chunk_init(struct chunk *chunk, void *data, size_t size, size_t size_block)

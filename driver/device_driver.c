@@ -39,7 +39,7 @@ static int device_mmap (struct file *filp, struct vm_area_struct *vma);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 static int device_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
 #else
-static int device_ioctl (struct file *file, unsigned int cmd, unsigned long arg);
+static long device_ioctl (struct file *file, unsigned int cmd, unsigned long arg);
 #endif
 static int device_open(struct inode *, struct file *);
 static int device_release(struct inode *, struct file *);
@@ -186,7 +186,7 @@ static ssize_t device_write(struct file *filp, const char *buff, size_t len, lof
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, unsigned int cmd, unsigned long arg)
 #else
-static int device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned long arg)
+static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned long arg)
 #endif
 {
 	unsigned long spinlock_flags = 0L;

@@ -84,22 +84,19 @@ struct dentry *libdvm_dentry = NULL;
 us_proc_otg_ip_t *find_otg_probe(unsigned long addr)
 {
 	us_proc_otg_ip_t *p;
-	struct hlist_node *node;
 
-	//check if such probe does exist
+	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
+		if (p->ip.offset == addr) {
+			return p;
+		}
+	}
 
-	list_for_each_entry_rcu (p, &otg_us_proc_info, list)
-		if (p->ip.offset == addr)
-			break;
-
-	return node ? p : NULL;
+	return NULL;
 }
 
 int add_otg_probe_to_list(unsigned long addr, us_proc_otg_ip_t **pprobe)
 {
 	us_proc_otg_ip_t *new_probe;
-	unsigned long jp_handler_addr, rp_handler_addr, pre_handler_addr;
-
 	us_proc_otg_ip_t *probe;
 
 	if (pprobe) {
@@ -138,7 +135,7 @@ int remove_otg_probe_from_list(unsigned long addr)
 	us_proc_otg_ip_t *p;
 
 	//check if such probe does exist
-	p = find_probe(addr);
+	p = find_otg_probe(addr);
 	if (!p) {
 		/* We do not care about it. Nothing bad. */
 		return 0;
@@ -158,7 +155,7 @@ int remove_otg_probe_from_list(unsigned long addr)
 
 inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * task_inst_info)
 {
-	int i, j, len;
+	int i, j;
 	kprobe_opcode_t *entry_save;
 	kprobe_pre_entry_handler_t pre_entry_save;
 	kretprobe_handler_t handler_save;
@@ -179,7 +176,7 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 
 	if (!copy_info->p_libs) {
 		DPRINTF ("No enough memory for copy_info->p_libs");
-		return -ENOMEM;
+		return NULL;
 	}
 	memcpy (copy_info->p_libs, task_inst_info->p_libs,
 			copy_info->libs_count * sizeof (us_proc_lib_t));
@@ -194,7 +191,7 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 
 			if (!copy_info->p_libs[i].p_ips) {
 				DPRINTF ("No enough memory for copy_info->p_libs[i].p_ips");
-				return -ENOMEM;
+				return NULL;
 			}
 
 			memcpy (copy_info->p_libs[i].p_ips, task_inst_info->p_libs[i].p_ips,
@@ -226,7 +223,7 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 
 			if (!copy_info->p_libs[i].p_vtps) {
 				DPRINTF ("No enough memory for copy_info->p_libs[i].p_vtps");
-				return -ENOMEM;
+				return NULL;
 			}
 
 			memcpy (copy_info->p_libs[i].p_vtps, task_inst_info->p_libs[i].p_vtps,
@@ -273,7 +270,7 @@ void put_task_inst_node(struct task_struct *task, inst_us_proc_t *task_inst_info
 }
 
 
-void clear_task_inst_info()
+void clear_task_inst_info(void)
 {
 	struct list_head *node, *tmp;
 
@@ -561,10 +558,8 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 	unsigned long addr;
 	unsigned int old_ips_count, old_vtps_count;
 	us_proc_otg_ip_t *p;
-	struct hlist_node *node;
 	struct task_struct *t;
 	struct mm_struct *mm;
-	char path_buffer[256];
 
 	mm = atomic ? task->active_mm : get_task_mm (task);
 	if (!mm) {
@@ -684,7 +679,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							err = dbi_register_ujprobe (task, mm, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
 							if ( err != 0 ) {
 								EPRINTF ("failed to install VTP at %p. Error %d!",
-										task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr);
+										task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr, err);
 							}
 						}
 					}
@@ -820,18 +815,18 @@ static int install_otg_ip(unsigned long addr,
 	}
 	if (jp_handler) {
 		pprobe->ip.jprobe.entry =
-			(kprobe_pre_entry_handler_t)jp_handler;
+			(kprobe_opcode_t *)jp_handler;
 	} else {
 		pprobe->ip.jprobe.entry =
-			(kprobe_pre_entry_handler_t)
+			(kprobe_opcode_t *)
 			dbi_ujprobe_event_handler_custom_p;
 	}
 	if (rp_handler) {
 		pprobe->ip.retprobe.handler =
-			(kprobe_pre_entry_handler_t)rp_handler;
+			(kretprobe_handler_t)rp_handler;
 	} else {
 		pprobe->ip.retprobe.handler =
-			(kprobe_pre_entry_handler_t)
+			(kretprobe_handler_t)
 			dbi_uretprobe_event_handler_custom_p;
 	}
 
@@ -1552,8 +1547,8 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 
 #ifdef SLP_APP
-	if (ip->jprobe.kp.addr >= slp_app_vma_start &&
-		ip->jprobe.kp.addr < slp_app_vma_end) {
+	if ( (unsigned long)ip->jprobe.kp.addr >= slp_app_vma_start &&
+	     (unsigned long)ip->jprobe.kp.addr <  slp_app_vma_end) {
 		addr = (unsigned long)ip->jprobe.kp.addr - slp_app_vma_start;
 	}
 #endif /* SLP_APP */
@@ -1586,8 +1581,8 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 
 #ifdef SLP_APP
-	if (ip->jprobe.kp.addr >= slp_app_vma_start &&
-		ip->jprobe.kp.addr < slp_app_vma_end) {
+	if ((unsigned long)ip->jprobe.kp.addr >= slp_app_vma_start &&
+	    (unsigned long)ip->jprobe.kp.addr < slp_app_vma_end) {
 		addr = (unsigned long)ip->jprobe.kp.addr - slp_app_vma_start;
 	}
 #endif /* SLP_APP */
@@ -1721,7 +1716,7 @@ int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
 		unsigned long sz)
 {
 	unsigned long rest_sz = sz;
-	char *data = buf;
+	const char *data = buf;
 
 	while (rest_sz >= EVENT_MAX_SIZE) {
 		pack_event_info(probe_id, RECORD_ENTRY, "pa",
@@ -1760,7 +1755,6 @@ EXPORT_SYMBOL_GPL(dump_backtrace);
 unsigned long get_ret_addr(struct task_struct *task, us_proc_ip_t *ip)
 {
 	unsigned long retaddr = 0;
-	unsigned long flags = 0;
 	struct hlist_node *item, *tmp_node;
 	struct kretprobe_instance *ri;
 
@@ -1802,7 +1796,6 @@ and save address borders of this file*/
 		while (vma) {
 			if(vma->vm_file) {
 				if(vma->vm_file->f_dentry) {
-					struct path tmppath = {vma->vm_file->f_vfsmnt, vma->vm_file->f_dentry};
 					filename = d_path(&vma->vm_file->f_path, buf, 256);
 					if((strcmp(lib_to_delete, filename) == 0) && (vma->vm_flags & VM_EXEC)) {
 						addr_min = vma->vm_start;
@@ -1819,7 +1812,8 @@ and save address borders of this file*/
 		if (!p->ip.installed) {
 			continue;
 		}
-		if ((p->ip.jprobe.kp.addr < addr_max)&&(p->ip.jprobe.kp.addr >= addr_min)) {
+		if ( ((unsigned long)p->ip.jprobe.kp.addr <  addr_max) &&
+		     ((unsigned long)p->ip.jprobe.kp.addr >= addr_min) ) {
 			err = unregister_usprobe(task, &p->ip, 1);
 			if (err != 0) {
 				EPRINTF("failed to uninstall IP at %p. Error %d!",

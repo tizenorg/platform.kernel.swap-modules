@@ -551,7 +551,9 @@ int install_kern_otg_probe(unsigned long addr,
 	new_probe->jprobe.priv_arg = new_probe->retprobe.priv_arg = new_probe;
 
 	if (pre_handler) {
-		new_probe->jprobe.pre_entry = pre_handler;
+		new_probe->jprobe.pre_entry =
+			(kprobe_pre_entry_handler_t)
+			pre_handler;
 	} else {
 		new_probe->jprobe.pre_entry =
 			(kprobe_pre_entry_handler_t)
@@ -559,7 +561,7 @@ int install_kern_otg_probe(unsigned long addr,
 	}
 
 	if (jp_handler) {
-		new_probe->jprobe.entry = jp_handler;
+		new_probe->jprobe.entry = (kprobe_opcode_t *)jp_handler;
 	} else {
 		new_probe->jprobe.entry =
 			(kprobe_opcode_t *)
@@ -567,7 +569,7 @@ int install_kern_otg_probe(unsigned long addr,
 	}
 
 	if (rp_handler) {
-		new_probe->retprobe.handler = rp_handler;
+		new_probe->retprobe.handler = (kretprobe_handler_t)rp_handler;
 	} else {
 		new_probe->retprobe.handler =
 			(kretprobe_handler_t)
@@ -579,7 +581,7 @@ int install_kern_otg_probe(unsigned long addr,
 
 	ret = register_kernel_probe(new_probe);
 	if (ret) {
-		EPRINTF("Cannot set kernel probe at addr %p", addr);
+		EPRINTF("Cannot set kernel probe at addr %lx", addr);
 		return -1;
 	}
 

@@ -70,8 +70,8 @@
 
 
 
-extern unsigned int *sched_addr;
-extern unsigned int *fork_addr;
+extern unsigned long sched_addr;
+extern unsigned long fork_addr;
 extern struct hlist_head kprobe_insn_pages;
 
 extern unsigned long (*kallsyms_search) (const char *name);
@@ -468,7 +468,7 @@ int dbi_register_kprobe (struct kprobe *p)
     {
         if (p->addr)
             return -EINVAL;
-        p->addr = (unsigned int) kallsyms_search (p->symbol_name);
+        p->addr = (kprobe_opcode_t *)kallsyms_search (p->symbol_name);
     }
 
     if (!p->addr)
@@ -622,7 +622,7 @@ int alloc_nodes_kretprobe(struct kretprobe *rp)
 
      DBPRINTF("Alloc aditional mem for retprobes");
 
-     if((unsigned int)rp->kp.addr == sched_addr){
+     if ((unsigned long)rp->kp.addr == sched_addr){
 	  rp->maxactive += SCHED_RP_NR;//max (100, 2 * NR_CPUS);
 	  alloc_nodes = SCHED_RP_NR;
      }
@@ -668,10 +668,9 @@ int dbi_register_kretprobe (struct kretprobe *rp)
 	rp->disarm = 0;
 
 	/* Pre-allocate memory for max kretprobe instances */
-	if((unsigned int)rp->kp.addr == sched_addr)
+	if ((unsigned long)rp->kp.addr == sched_addr) {
 		rp->maxactive = SCHED_RP_NR;//max (100, 2 * NR_CPUS);
-	else if (rp->maxactive <= 0)
-	{
+	} else if (rp->maxactive <= 0) {
 #if 1//def CONFIG_PREEMPT
 		rp->maxactive = max (COMMON_RP_NR, 2 * NR_CPUS);
 #else
@@ -699,8 +698,9 @@ int dbi_register_kretprobe (struct kretprobe *rp)
 		free_rp_inst (rp);
 
 	DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
-	if((unsigned int)rp->kp.addr == sched_addr)
+	if ((unsigned long)rp->kp.addr == sched_addr) {
 		sched_rp = rp;
+	}
 
 	return ret;
 }
@@ -714,7 +714,7 @@ void dbi_unregister_kretprobe (struct kretprobe *rp)
 
 	dbi_unregister_kprobe (&rp->kp, 0);
 
-	if((unsigned int)rp->kp.addr == sched_addr) {
+	if ((unsigned long)rp->kp.addr == sched_addr) {
 		unpatch_suspended_all_task_ret_addr(rp);
 		sched_rp = NULL;
 	}
@@ -765,13 +765,13 @@ struct kretprobe * clone_kretprobe (struct kretprobe *rp)
 
 static void inline set_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri, unsigned long tramp_addr)
 {
-	ri->ret_addr = arch_get_task_pc(p);
+	ri->ret_addr = (kprobe_opcode_t *)arch_get_task_pc(p);
 	arch_set_task_pc(p, tramp_addr);
 }
 
 static void inline rm_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri)
 {
-	arch_set_task_pc(p, ri->ret_addr);
+	arch_set_task_pc(p, (unsigned long)ri->ret_addr);
 }
 
 static struct kretprobe_instance* find_ri_pc_mod(struct task_struct *p, struct kretprobe *rp)
@@ -816,7 +816,6 @@ static void add_ri_pc_mod(struct task_struct *p, struct kretprobe *rp, unsigned 
 
 static void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
 {
-	unsigned long flags;
 	struct kretprobe_instance *ri = find_ri_pc_mod(p, rp);
 
 	if(ri) {

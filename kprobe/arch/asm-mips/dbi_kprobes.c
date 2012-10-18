@@ -42,7 +42,7 @@
 
 unsigned int *arr_traps_original;
 
-extern unsigned int *sched_addr;
+extern unsigned long sched_addr;
 
 extern struct kprobe * per_cpu__current_kprobe;
 extern spinlock_t kretprobe_lock;
