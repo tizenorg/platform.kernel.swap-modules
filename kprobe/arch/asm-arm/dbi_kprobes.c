@@ -53,8 +53,8 @@
 
 #define SUPRESS_BUG_MESSAGES
 
-extern unsigned int *sched_addr;
-extern unsigned int *fork_addr;
+extern unsigned long sched_addr;
+extern unsigned long fork_addr;
 
 extern struct kprobe * per_cpu__current_kprobe;
 extern spinlock_t kretprobe_lock;
@@ -82,7 +82,7 @@ EXPORT_SYMBOL_GPL (swap_sum_hit);
 #define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
 #define branch_displacement(insn) sign_extend(((insn) & 0xffffff) << 2, 25)
 
-static kprobe_opcode_t get_addr_b(kprobe_opcode_t insn, kprobe_opcode_t addr)
+static kprobe_opcode_t get_addr_b(kprobe_opcode_t insn, kprobe_opcode_t *addr)
 {
 	// real position less then PC by 8
 	return (kprobe_opcode_t)((long)addr + 8 + branch_displacement(insn));
@@ -373,13 +373,13 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 	}
 
 //	 STRx PC, xxx
-	if ((reg == 15) && THUMB2_INSN_MATCH (STRW, insn)   || \
-			   THUMB2_INSN_MATCH (STRBW, insn)  || \
-			   THUMB2_INSN_MATCH (STRD, insn)   || \
-			   THUMB2_INSN_MATCH (STRHT, insn)  || \
-			   THUMB2_INSN_MATCH (STRT, insn)   || \
-			   THUMB2_INSN_MATCH (STRHW1, insn) || \
-			   THUMB2_INSN_MATCH (STRHW, insn) )
+	if ((reg == 15) && (THUMB2_INSN_MATCH (STRW, insn)   || \
+			    THUMB2_INSN_MATCH (STRBW, insn)  || \
+			    THUMB2_INSN_MATCH (STRD, insn)   || \
+			    THUMB2_INSN_MATCH (STRHT, insn)  || \
+			    THUMB2_INSN_MATCH (STRT, insn)   || \
+			    THUMB2_INSN_MATCH (STRHW1, insn) || \
+			    THUMB2_INSN_MATCH (STRHW, insn) ))
 	{
 		insns[2] = (insns[2] & 0x0fffffff) | 0xd0000000;
 	}
@@ -407,7 +407,6 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 {
 	int ret = 0;
-	kprobe_opcode_t *insn;
 
 	// check instructions that can change PC by nature
 	if (
@@ -603,7 +602,7 @@ int arch_prepare_kprobe (struct kprobe *p)
                     p->ainsn.insn, insns[0], insns[1], insns[2], insns[3], insns[4],
                     insns[5], insns[6], insns[7], insns[8]);
             memcpy (p->ainsn.insn, insns, sizeof(insns));
-            flush_icache_range(p->ainsn.insn, p->ainsn.insn + sizeof(insns));
+            flush_icache_range((long unsigned)p->ainsn.insn, (long unsigned)(p->ainsn.insn) + sizeof(insns));
 #ifdef BOARD_tegra
             flush_cache_all();
 #endif
@@ -612,7 +611,7 @@ int arch_prepare_kprobe (struct kprobe *p)
     else
     {
         free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
-        printk("arch_prepare_kprobe: instruction 0x%x not instrumentation, addr=0x%p\n", insn[0], p->addr);
+        printk("arch_prepare_kprobe: instruction 0x%lx not instrumentation, addr=0x%p\n", insn[0], p->addr);
     }
 
     return ret;
@@ -809,7 +808,7 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 		if (prep_pc_dep_insn_execbuf (insns, insn[0], uregs) != 0)
 		{
 			printk("Error in %s at %d: failed to prepare exec buffer for insn %lx!",
-				insn[0], __FILE__, __LINE__);
+				__FILE__, __LINE__, insn[0]);
 			p->safe_arm = -1;
 			// TODO: move free to later phase
 			//free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_arm, 0);
@@ -915,7 +914,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 		uregs = 0xf000;	// Rd 12-15
 		pc_dep = 1;
 	}
-	else if (THUMB2_INSN_MATCH (STRD, insn[0]) && (THUMB2_INSN_REG_RN(insn[0] == 15) || THUMB2_INSN_REG_RT(insn[0] == 15) || THUMB2_INSN_REG_RT2(insn[0]) == 15))
+	else if (THUMB2_INSN_MATCH(STRD, insn[0]) && ((THUMB2_INSN_REG_RN(insn[0]) == 15) || (THUMB2_INSN_REG_RT(insn[0]) == 15) || THUMB2_INSN_REG_RT2(insn[0]) == 15))
 	{
 		uregs = 0xff00;		// Rt 12-15, Rt2 8-11
 		pc_dep = 1;
@@ -957,7 +956,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 		if (prep_pc_dep_insn_execbuf_thumb (insns, insn[0], uregs) != 0)
 		{
 			printk("Error in %s at %d: failed to prepare exec buffer for insn %lx!",
-				insn[0], __FILE__, __LINE__);
+				__FILE__, __LINE__, insn[0]);
 			p->safe_thumb = -1;
 			//free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_thumb, 0);
 			//return -EINVAL;
@@ -969,12 +968,12 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 		if (!isThumb2(insn[0]))
 		{
 			addr = ((unsigned int)p->addr) + 2;
-			*((unsigned short*)insns + 16) = addr & 0x0000ffff | 0x1;
+			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 			*((unsigned short*)insns + 17) = addr >> 16;
 		}
 		else {
 			addr = ((unsigned int)p->addr) + 4;
-			*((unsigned short*)insns + 16) = addr & 0x0000ffff | 0x1;
+			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 			*((unsigned short*)insns + 17) = addr >> 16;
 		}
 	}
@@ -985,13 +984,13 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 		{
 			addr = ((unsigned int)p->addr) + 2;
 			*((unsigned short*)insns + 2) = insn[0];
-			*((unsigned short*)insns + 16) = addr & 0x0000ffff | 0x1;
+			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 			*((unsigned short*)insns + 17) = addr >> 16;
 		}
 		else {
 			addr = ((unsigned int)p->addr) + 4;
 			insns[1] = insn[0];
-			*((unsigned short*)insns + 16) = addr & 0x0000ffff | 0x1;
+			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 			*((unsigned short*)insns + 17) = addr >> 16;
 		}
 	}
@@ -1017,7 +1016,7 @@ static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct ta
 			}
 		} else {
 			printk("Error in %s at %d: we are in thumb mode (!) and check instruction was fail \
-				(%0X instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
+				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
 			// Test case when we do our actions on already running application
 			arch_disarm_uprobe(p, task);
 			return -1;
@@ -1030,7 +1029,7 @@ static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct ta
 			}
 		} else {
 			printk("Error in %s at %d: we are in arm mode (!) and check instruction was fail \
-				(%0X instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr );
+				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
 			// Test case when we do our actions on already running application
 			arch_disarm_uprobe(p, task);
 			return -1;
@@ -1038,6 +1037,16 @@ static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct ta
 	}
 
 	return 0;
+}
+
+static int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
+{
+	int ret;
+        unsigned long flags;
+        local_irq_save(flags);
+        ret = kprobe_handler(regs);
+        local_irq_restore(flags);
+        return ret;
 }
 
 int kprobe_handler(struct pt_regs *regs)
@@ -1052,7 +1061,6 @@ int kprobe_handler(struct pt_regs *regs)
 	int ret = 0, retprobe = 0, reenter = 0;
 	kprobe_opcode_t *ssaddr = 0;
 	struct kprobe_ctlblk *kcb;
-	int i = 0;
 
 #ifdef SUPRESS_BUG_MESSAGES
 	int swap_oops_in_progress;
@@ -1458,14 +1466,15 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 				}
 
 				if (!node)
-				{	// if there are no more instances for this retprobe
+				{
+					// if there are no more instances for this retprobe
 					// delete retprobe
+					struct kprobe *is_p = &crp->kp;
 					DBPRINTF ("defered retprobe deletion p->addr = %p", crp->kp.addr);
 					/*
 					  If there is no any retprobe instances of this retprobe
 					  we can free the resources related to the probe.
 					 */
-					struct kprobe *is_p = &crp->kp;
 					if (!(hlist_unhashed(&is_p->is_hlist_arm))) {
 						hlist_del_rcu(&is_p->is_hlist_arm);
 					}
@@ -1545,7 +1554,7 @@ struct undef_hook undef_ho_k = {
     .instr_val	= BREAKPOINT_INSTRUCTION,
     .cpsr_mask	= MODE_MASK,
     .cpsr_val	= SVC_MODE,
-    .fn		= kprobe_handler,
+    .fn		= kprobe_trap_handler
 };
 
 // userspace probes hook (arm)
@@ -1554,7 +1563,7 @@ struct undef_hook undef_ho_u = {
     .instr_val	= BREAKPOINT_INSTRUCTION,
     .cpsr_mask	= MODE_MASK,
     .cpsr_val	= USR_MODE,
-    .fn		= kprobe_handler,
+    .fn		= kprobe_trap_handler
 };
 
 // userspace probes hook (thumb)
@@ -1563,7 +1572,7 @@ struct undef_hook undef_ho_u_t = {
     .instr_val	= BREAKPOINT_INSTRUCTION & 0x0000ffff,
     .cpsr_mask	= MODE_MASK,
     .cpsr_val	= USR_MODE,
-    .fn		= kprobe_handler,
+    .fn		= kprobe_trap_handler
 };
 
 int __init arch_init_kprobes (void)
@@ -1584,11 +1593,19 @@ int __init arch_init_kprobes (void)
         }
 	arr_traps_template[NOTIFIER_CALL_CHAIN_INDEX] = arch_construct_brunch ((unsigned int)kprobe_handler, do_bp_handler + NOTIFIER_CALL_CHAIN_INDEX * 4, 1);
 	// Register hooks (kprobe_handler)
-	do_kpro = kallsyms_search ("register_undef_hook");
+	do_kpro = (void *)kallsyms_search ("register_undef_hook");
 	if (do_kpro == 0) {
 		printk("no register_undef_hook symbol found!\n");
                 return -1;
         }
+
+        // Unregister hooks (kprobe_handler)
+        undo_kpro = (void *)kallsyms_search ("unregister_undef_hook");
+        if (undo_kpro == 0) {
+                printk("no unregister_undef_hook symbol found!\n");
+                return -1;
+        }
+
 	do_kpro(&undef_ho_k);
 	do_kpro(&undef_ho_u);
 	do_kpro(&undef_ho_u_t);
@@ -1601,12 +1618,6 @@ int __init arch_init_kprobes (void)
 
 void __exit dbi_arch_exit_kprobes (void)
 {
-	// Unregister hooks (kprobe_handler)
-	undo_kpro = kallsyms_search ("unregister_undef_hook");
-	if (undo_kpro == 0) {
-		printk("no unregister_undef_hook symbol found!\n");
-                return -1;
-        }
 	undo_kpro(&undef_ho_u_t);
 	undo_kpro(&undef_ho_u);
 	undo_kpro(&undef_ho_k);

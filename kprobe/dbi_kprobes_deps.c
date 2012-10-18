@@ -36,8 +36,8 @@
 #include <linux/slab.h>
 #include <linux/mm.h>
 
-unsigned int *sched_addr;
-unsigned int *fork_addr;
+unsigned long sched_addr;
+unsigned long fork_addr;
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 struct mm_struct* init_mm_ptr;
@@ -179,9 +179,9 @@ IMP_MOD_DEP_WRAPPER(in_gate_area_no_task, addr)
 static inline int dbi_in_gate_area_no_xxx(unsigned long addr)
 {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	in_gate_area_no_mm(addr);
+	return in_gate_area_no_mm(addr);
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	in_gate_area_no_task(addr);
+	return in_gate_area_no_task(addr);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 }
 
@@ -743,9 +743,6 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
 	void *old_buf = buf;
-	unsigned long addr1 = addr;
-	unsigned int* inst_buf = (unsigned int*)old_buf;
-
 
 	mm = get_task_mm(tsk);
 	if (!mm)

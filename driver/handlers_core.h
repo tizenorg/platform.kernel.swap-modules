@@ -8,7 +8,7 @@
 //      SEE ALSO:       storage.c
 //      AUTHOR:         S. Andreev
 //      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group 
+//      DEPT NAME:      Advanced Software Group
 //      CREATED:        2012.07.25
 //      VERSION:        1.0
 //      REVISION DATE:  2012.07.25
@@ -30,7 +30,7 @@ struct dbi_modules_handlers {
 
 struct dbi_modules_handlers_info {
 	struct module		*dbi_module;
-	unsigned long		*dbi_handlers;
+	struct handler_map	*dbi_handlers;
 	int			dbi_nr_handlers;
 	struct list_head	dbi_list_head;
 };

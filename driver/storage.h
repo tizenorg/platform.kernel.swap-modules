@@ -130,7 +130,7 @@ extern struct hlist_head kernel_probes;
 
 struct dbi_modules_handlers_info {
 	struct module		*dbi_module;
-	unsigned long		*dbi_handlers;
+	struct handler_map	*dbi_handlers;
 	int			dbi_nr_handlers;
 	struct list_head	dbi_list_head;
 };

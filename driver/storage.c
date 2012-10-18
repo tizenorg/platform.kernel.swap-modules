@@ -21,6 +21,7 @@
 #include <linux/unistd.h>
 #include <linux/spinlock.h>
 #include <linux/kernel.h>
+#include <linux/time.h>
 #include "module.h"
 #include "storage.h"
 #include "handlers_core.h"
@@ -65,9 +66,9 @@ inline unsigned long find_dbi_jp_handler(unsigned long p_addr, struct dbi_module
 
 	/* Possibly we can find less expensive way */
 	for (i = 0; i < mhi->dbi_nr_handlers; i++) {
-		if (((struct handler_map *)(mhi->dbi_handlers))[i].func_addr == p_addr) {
+		if (mhi->dbi_handlers[i].func_addr == p_addr) {
 			printk("Found jp_handler for %0lX address of %s module\n", p_addr, mhi->dbi_module->name);
-			return ((struct handler_map *)(mhi->dbi_handlers))[i].jp_handler_addr;
+			return mhi->dbi_handlers[i].jp_handler_addr;
 		}
 	}
 	return 0;
@@ -79,9 +80,9 @@ inline unsigned long find_dbi_rp_handler(unsigned long p_addr, struct dbi_module
 
 	/* Possibly we can find less expensive way */
 	for (i = 0; i < mhi->dbi_nr_handlers; i++) {
-		if (((struct handler_map *)(mhi->dbi_handlers))[i].func_addr == p_addr) {
+		if (mhi->dbi_handlers[i].func_addr == p_addr) {
 			printk("Found rp_handler for %0lX address of %s module\n", p_addr, mhi->dbi_module->name);
-			return ((struct handler_map *)(mhi->dbi_handlers))[i].rp_handler_addr;
+			return mhi->dbi_handlers[i].rp_handler_addr;
 		}
 	}
 	return 0;
@@ -92,7 +93,7 @@ inline unsigned long find_dbi_rp_handler(unsigned long p_addr, struct dbi_module
  */
 void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
 {
-	unsigned long jp_handler_addr, rp_handler_addr, pre_handler_addr;
+	unsigned long jp_handler_addr, rp_handler_addr;
 	struct dbi_modules_handlers_info *local_mhi;
 	unsigned long dbi_flags;
 	unsigned int local_module_refcount = 0;
@@ -742,15 +743,13 @@ int ResetBuffer(void) {
 }
 
 int WriteEventIntoSingleBuffer(char* pEvent, unsigned long nEventSize) {
-	unsigned long spinlock_flags = 0L;
-	int bCopied = 0;
+	unsigned int unused_space;
 
 	if(!p_buffer) {
 		EPRINTF("Invalid pointer to buffer!");
 		++ec_info.lost_events_count;
 		return -1;
 	}
-	unsigned int unused_space;
 	if (ec_info.trace_size == 0 || ec_info.after_last > ec_info.first) {
 		unused_space = ec_info.buffer_size - ec_info.after_last;
 		if (unused_space > nEventSize) {
@@ -1086,6 +1085,9 @@ int link_bundle()
 	}
 	else
 	{
+		int lib_path_len;
+		char *lib_path;
+
 		us_proc_info.path = (char *)p;
 		DPRINTF("app path = %s", us_proc_info.path);
 		p += len;
@@ -1133,6 +1135,8 @@ int link_bundle()
 
 		for (i = 0; i < us_proc_info.libs_count; i++)
 		{
+			int abs_handler_idx = 0;
+
 			d_lib = &us_proc_info.p_libs[i];
 
 			lib_name_len = *(u_int32_t *)p;
@@ -1217,7 +1221,6 @@ int link_bundle()
 			else
 				ptr = d_lib->path;
 
-			int abs_handler_idx = 0;
 			for (l = 0; l < my_uprobes_info->libs_count; l++)
 			{
 				if ((strcmp(ptr, my_uprobes_info->p_libs[l].path) == 0) ||
@@ -1270,10 +1273,10 @@ int link_bundle()
 		}
 
 		/* Lib path */
-		int lib_path_len = *(u_int32_t *)p;
+		lib_path_len = *(u_int32_t *)p;
 		DPRINTF("lib_path_len = %d", lib_path_len);
 		p += sizeof(u_int32_t);
-		char *lib_path = p;
+		lib_path = p;
 		DPRINTF("lib_path = %s", lib_path);
 		p += lib_path_len;
 
@@ -1284,6 +1287,9 @@ int link_bundle()
 		p += sizeof(u_int32_t);
 		if (s_lib.vtps_count > 0)
 		{
+			unsigned long ucount = 1, pre_addr;
+			unsigned long *addrs;
+
 			s_lib.p_vtps = kmalloc(s_lib.vtps_count
 								   * sizeof(ioctl_usr_space_vtp_t), GFP_KERNEL);
 			if (!s_lib.p_vtps)
@@ -1310,9 +1316,8 @@ int link_bundle()
 				p += sizeof(u_int32_t);
 			}
 
-			unsigned long ucount = 1, pre_addr;
 			// array containing elements like (addr, index)
-			unsigned long *addrs = kmalloc (s_lib.vtps_count * 2 * sizeof (unsigned long), GFP_KERNEL);
+			addrs = kmalloc (s_lib.vtps_count * 2 * sizeof (unsigned long), GFP_KERNEL);
 	//			DPRINTF ("addrs=%p/%u", addrs, s_lib.vtps_count);
 			if (!addrs)
 			{
@@ -1596,7 +1601,7 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 	unsigned long spinlock_flags = 0L;
 	static char buf[EVENT_MAX_SIZE] = "";
 	TYPEOF_EVENT_LENGTH event_len = 0L;
-	TYPEOF_TIME tv = { 0, 0 };
+	struct timeval tv = { 0, 0 };
 	TYPEOF_THREAD_ID current_pid = current->pid;
 	TYPEOF_PROCESS_ID current_tgid = current->tgid;
 	unsigned current_cpu = task_cpu(current);
@@ -1690,7 +1695,7 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 		}
 
 		va_start (args, fmt);
-		event_len = VPackEvent(buf, sizeof(buf), event_mask, probe_id, record_type, &tv,
+		event_len = VPackEvent(buf, sizeof(buf), event_mask, probe_id, record_type, (TYPEOF_TIME *)&tv,
 							   current_tgid, current_pid, current_cpu, fmt, args);
 		va_end (args);
 
@@ -1858,7 +1863,7 @@ int put_us_event (char *data, unsigned long len)
 #endif
 
 	if((probe_id == EVENT_FMT_PROBE_ID) || !(event_mask & IOCTL_EMASK_TIME)){
-		TYPEOF_TIME tv = { 0, 0 };
+		struct timeval tv = { 0, 0 };
 		do_gettimeofday (&tv);
 		memcpy(cur, &tv, sizeof(TYPEOF_TIME));
 		cur += sizeof(TYPEOF_TIME);
@@ -1934,16 +1939,17 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 	get_my_uprobes_info_t get_uprobes = NULL;
 	inst_us_proc_t *my_uprobes_info = NULL;
 
+        inst_us_proc_t empty_uprobes_info =
+        {
+                .libs_count = 0,
+                .p_libs = NULL,
+        };
+
 	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
 	if (get_uprobes)
 		my_uprobes_info = (inst_us_proc_t *)get_uprobes();
 
 	DPRINTF("my_uprobes_info lookup result: 0x%p", my_uprobes_info);
-	inst_us_proc_t empty_uprobes_info =
-	{
-		.libs_count = 0,
-		.p_libs = NULL,
-	};
 	if (my_uprobes_info == 0)
 		my_uprobes_info = &empty_uprobes_info;
 
@@ -2006,15 +2012,15 @@ int get_predef_uprobes_size(int *size)
 	get_my_uprobes_info_t get_uprobes = NULL;
 	inst_us_proc_t *my_uprobes_info = NULL;
 
+        inst_us_proc_t empty_uprobes_info =
+        {
+                .libs_count = 0,
+                .p_libs = NULL,
+        };
+
 	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
 	if (get_uprobes)
 		my_uprobes_info = (inst_us_proc_t *)get_uprobes();
-
-	inst_us_proc_t empty_uprobes_info =
-	{
-		.libs_count = 0,
-		.p_libs = NULL,
-	};
 
 	if (my_uprobes_info == 0)
 		my_uprobes_info = &empty_uprobes_info;
@@ -2039,6 +2045,13 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 	int i, k, size, lib_size, func_size, result;
 	unsigned count = 0;
 	char sep[] = ":";
+
+        inst_us_proc_t empty_uprobes_info =
+        {
+                .libs_count = 0,
+                .p_libs = NULL,
+        };
+
 	get_my_uprobes_info_t get_uprobes = NULL;
 	inst_us_proc_t *my_uprobes_info = NULL;
 
@@ -2046,11 +2059,6 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 	if (get_uprobes)
 		my_uprobes_info = (inst_us_proc_t *)get_uprobes();
 
-	inst_us_proc_t empty_uprobes_info =
-	{
-		.libs_count = 0,
-		.p_libs = NULL,
-	};
 	if (my_uprobes_info == 0)
 		my_uprobes_info = &empty_uprobes_info;
 
