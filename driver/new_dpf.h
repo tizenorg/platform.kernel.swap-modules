@@ -28,6 +28,7 @@ struct file_probes {
 };
 
 struct proc_probes {
+	struct dentry *dentry;
 	size_t cnt;
 	struct file_probes **file_p;
 };
@@ -185,6 +186,7 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 	if (proc_p) {
 		int i;
 		proc_p->cnt = task_inst_info->libs_count;
+		proc_p->dentry = task_inst_info->m_f_dentry;
 		proc_p->file_p = kmalloc(sizeof(*proc_p->file_p)*proc_p->cnt, GFP_ATOMIC);
 
 		for (i = 0; i < task_inst_info->libs_count; ++i) {

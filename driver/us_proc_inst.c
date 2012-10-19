@@ -1278,8 +1278,30 @@ EXPORT_SYMBOL_GPL (imi_sum_hit);
 
 #include "new_dpf.h"
 
+static void send_mapping_event(struct file_probes *file_p,
+		const struct proc_probes *proc_p,
+		const struct task_struct *task,
+		const struct vm_area_struct *vma)
+{
+	if (!file_p->loaded) {
+		int app_flag = (vma->vm_file->f_dentry == proc_p->dentry);
+		char *p;
+		// if we installed something, post library info for those IPs
+		p = strrchr(file_p->path, '/');
+		if(!p) {
+			p = file_p->path;
+		} else {
+			p++;
+		}
+		file_p->loaded = 1;
+		pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
+				task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start, app_flag);
+	}
+}
+
 static void register_us_page_probe(const struct page_probes *page_p,
-		struct file_probes *fp,
+		const struct file_probes *file_p,
+		struct proc_probes *proc_p,
 		const struct task_struct *task,
 		const struct mm_struct *mm,
 		const struct vm_area_struct *vma)
@@ -1287,19 +1309,7 @@ static void register_us_page_probe(const struct page_probes *page_p,
 	int err;
 	size_t i;
 
-	if (!(vma->vm_flags & VM_EXECUTABLE) && !fp->loaded) {
-		char *p;
-		// if we installed something, post library info for those IPs
-		p = strrchr(fp->path, '/');
-		if(!p) {
-			p = fp->path;
-		} else {
-			p++;
-		}
-		fp->loaded = 1;
-		pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspd",
-				task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start);
-	}
+	send_mapping_event(file_p, proc_p, task, vma);
 
 //	print_page_probes(page_p);
 	page_p_set_all_kp_addr(page_p);
@@ -1342,7 +1352,7 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 		if(file_p) {
 			struct page_probes *page_p = file_p_find_page_p(file_p, page, vma->vm_start);
 			if (page_p) {
-				register_us_page_probe(page_p, file_p, task, mm, vma);
+				register_us_page_probe(page_p, file_p, proc_p, task, mm, vma);
 			}
 		}
 	}
