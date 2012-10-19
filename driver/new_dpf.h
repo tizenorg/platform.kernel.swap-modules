@@ -4,12 +4,6 @@
 #include <linux/list.h>
 #include "storage.h"
 
-//struct us_proc_ip {
-//	struct jprobe jprobe;
-//	struct kretprobe retprobe;
-//	unsigned long offset;
-//};
-
 struct page_probes {
 	unsigned long page;
 	unsigned long offset;
@@ -107,12 +101,10 @@ static struct page_probes *file_p_find_page_p(struct file_probes *file_p, unsign
 	struct page_probes *pp = NULL;
 	struct hlist_node *node = NULL;
 	struct hlist_head *head = &file_p->head;
-	unsigned long pp_page;
 
 	hlist_for_each_entry(pp, node, head, node) {
-		pp_page = start_addr > pp->page ? start_addr + pp->page : pp->page;
-		if (pp_page == page) {
-			pp->offset = start_addr > pp->page ? start_addr : 0;
+		if (start_addr + pp->page == page) {
+			pp->offset = start_addr;
 			return pp;
 		}
 	}
