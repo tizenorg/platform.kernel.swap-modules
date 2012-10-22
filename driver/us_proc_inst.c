@@ -1293,7 +1293,7 @@ static void set_mapping_file(struct file_probes *file_p,
 		p++;
 	}
 
-	file_p->start_addr = vma->vm_start;
+	file_p->map_addr = vma->vm_start;
 	pack_event_info(DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
 			task->tgid, p, vma->vm_start,
 			vma->vm_end - vma->vm_start, app_flag);
@@ -1310,7 +1310,7 @@ static void register_us_page_probe(const struct page_probes *page_p,
 	size_t i;
 
 //	print_page_probes(page_p);
-	page_p_set_all_kp_addr(page_p, file_p->start_addr);
+	page_p_set_all_kp_addr(page_p, file_p);
 
 	for (i = 0; i < page_p->cnt_ip; ++i) {
 		err = register_usprobe_my(task, mm, &page_p->ip[i]);

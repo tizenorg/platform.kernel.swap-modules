@@ -5,7 +5,7 @@
 #include "storage.h"
 
 struct page_probes {
-	unsigned long page;
+	unsigned long offset;
 	size_t cnt_ip;
 	us_proc_ip_t *ip;
 
@@ -16,7 +16,7 @@ struct file_probes {
 	struct dentry *dentry;
 	char *path;
 	int loaded;
-	unsigned long start_addr;
+	unsigned long map_addr;
 
 	struct hlist_head head; // for page_probes
 };
@@ -29,10 +29,10 @@ struct proc_probes {
 
 
 // page_probes
-static struct page_probes *page_p_new(unsigned long page, us_proc_ip_t *ip, size_t cnt)
+static struct page_probes *page_p_new(unsigned long offset, us_proc_ip_t *ip, size_t cnt)
 {
 	struct page_probes *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
-	printk("##### pp_new: page=%x, cnt_addr=%u\n", page, cnt);
+	printk("##### pp_new: offset=%x, cnt_addr=%u\n", offset, cnt);
 
 	if (obj) {
 		int i;
@@ -44,7 +44,7 @@ static struct page_probes *page_p_new(unsigned long page, us_proc_ip_t *ip, size
 
 		memcpy(obj->ip, ip, sizeof(*obj->ip)*cnt);
 		obj->cnt_ip = cnt;
-		obj->page = page;
+		obj->offset = offset;
 		INIT_HLIST_NODE(&obj->node);
 	}
 
@@ -57,14 +57,14 @@ static void page_p_del(struct page_probes *page_p)
 }
 // page_probes
 
-static void page_p_set_all_kp_addr(struct page_probes *page_p, unsigned long start)
+static void page_p_set_all_kp_addr(struct page_probes *page_p, const struct file_probes *file_p)
 {
 	us_proc_ip_t *ip;
 	unsigned long addr;
 	size_t i;
 	for (i = 0; i < page_p->cnt_ip; ++i) {
 		ip = &page_p->ip[i];
-		addr = start + page_p->page + ip->offset;
+		addr = file_p->map_addr + page_p->offset + ip->offset;
 		ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
 //		printk("###       pp_set_all_kp_addr: start=%x, page=%x, offset=%x, addr=%x\n",
 //				start, page_p->page, ip->offset, addr);
@@ -101,16 +101,18 @@ static struct page_probes *file_p_find_page_p(struct file_probes *file_p, unsign
 	struct page_probes *pp = NULL;
 	struct hlist_node *node = NULL;
 	struct hlist_head *head = &file_p->head;
+	unsigned long offset;
 
-	if (file_p->start_addr > page) {
-		printk("ERROR: file_p->start > page\n");
+	if (file_p->map_addr > page) {
+		// TODO: or panic?!
+		printk("ERROR: file_p->map_addr > page\n");
 		return NULL;
 	}
 
-	page -= file_p->start_addr;
+	offset = page - file_p->map_addr;
 
 	hlist_for_each_entry(pp, node, head, node) {
-		if (pp->page == page) {
+		if (pp->offset == offset) {
 			return pp;
 		}
 	}
@@ -257,7 +259,7 @@ static void print_page_probes(const struct page_probes *pp)
 {
 	int i;
 
-	printk("###     page=%x\n", pp->page);
+	printk("###     offset=%x\n", pp->offset);
 	for (i = 0; i < pp->cnt_ip; ++i) {
 		printk("###       addr[%2d]=%x, J_addr=%x, R_addr=%x\n",
 				i, pp->ip[i].offset,
@@ -271,8 +273,8 @@ static void print_file_probes(const struct file_probes *file_p)
 	struct hlist_node *node = NULL;
 	struct hlist_head *head = &file_p->head;
 
-	printk("###   d_iname=%s, start_addr=%x\n",
-			file_p->dentry->d_iname, file_p->start_addr);
+	printk("###   d_iname=%s, map_addr=%x\n",
+			file_p->dentry->d_iname, file_p->map_addr);
 
 	hlist_for_each_entry(page_p, node, head, node) {
 		print_page_probes(page_p);
