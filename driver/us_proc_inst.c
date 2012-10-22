@@ -1278,28 +1278,25 @@ EXPORT_SYMBOL_GPL (imi_sum_hit);
 
 #include "new_dpf.h"
 
-static void send_mapping_event(struct file_probes *file_p,
+static void set_mapping_file(struct file_probes *file_p,
 		const struct proc_probes *proc_p,
 		const struct task_struct *task,
 		const struct vm_area_struct *vma)
 {
-	if (!file_p->loaded) {
-		int app_flag = (vma->vm_file->f_dentry == proc_p->dentry);
-		char *p;
-		// if we installed something, post library info for those IPs
-		p = strrchr(file_p->path, '/');
-		if(!p) {
-			p = file_p->path;
-		} else {
-			p++;
-		}
-
-		file_p->start = vma->vm_start;
-		file_p->loaded = 1;
-		pack_event_info(DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
-				task->tgid, p, vma->vm_start,
-				vma->vm_end - vma->vm_start, app_flag);
+	int app_flag = (vma->vm_file->f_dentry == proc_p->dentry);
+	char *p;
+	// if we installed something, post library info for those IPs
+	p = strrchr(file_p->path, '/');
+	if(!p) {
+		p = file_p->path;
+	} else {
+		p++;
 	}
+
+	file_p->start_addr = vma->vm_start;
+	pack_event_info(DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
+			task->tgid, p, vma->vm_start,
+			vma->vm_end - vma->vm_start, app_flag);
 }
 
 static void register_us_page_probe(const struct page_probes *page_p,
@@ -1313,7 +1310,7 @@ static void register_us_page_probe(const struct page_probes *page_p,
 	size_t i;
 
 //	print_page_probes(page_p);
-	page_p_set_all_kp_addr(page_p, file_p->start);
+	page_p_set_all_kp_addr(page_p, file_p->start_addr);
 
 	for (i = 0; i < page_p->cnt_ip; ++i) {
 		err = register_usprobe_my(task, mm, &page_p->ip[i]);
@@ -1352,7 +1349,12 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 		struct file_probes *file_p = proc_p_find_file_p(proc_p, vma);
 		if(file_p) {
 			struct page_probes *page_p;
-			send_mapping_event(file_p, proc_p, task, vma);
+
+			if (!file_p->loaded) {
+				set_mapping_file(file_p, proc_p, task, vma);
+				file_p->loaded = 1;
+			}
+
 			page_p = file_p_find_page_p(file_p, page);
 			if (page_p) {
 				register_us_page_probe(page_p, file_p, proc_p, task, mm, vma);
