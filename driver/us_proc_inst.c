@@ -1293,9 +1293,12 @@ static void send_mapping_event(struct file_probes *file_p,
 		} else {
 			p++;
 		}
+
+		file_p->start = vma->vm_start;
 		file_p->loaded = 1;
-		pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
-				task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start, app_flag);
+		pack_event_info(DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
+				task->tgid, p, vma->vm_start,
+				vma->vm_end - vma->vm_start, app_flag);
 	}
 }
 
@@ -1309,10 +1312,8 @@ static void register_us_page_probe(const struct page_probes *page_p,
 	int err;
 	size_t i;
 
-	send_mapping_event(file_p, proc_p, task, vma);
-
 //	print_page_probes(page_p);
-	page_p_set_all_kp_addr(page_p);
+	page_p_set_all_kp_addr(page_p, file_p->start);
 
 	for (i = 0; i < page_p->cnt_ip; ++i) {
 		err = register_usprobe_my(task, mm, &page_p->ip[i]);
@@ -1350,7 +1351,9 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 	if (vma && check_vma(vma)) {
 		struct file_probes *file_p = proc_p_find_file_p(proc_p, vma);
 		if(file_p) {
-			struct page_probes *page_p = file_p_find_page_p(file_p, page, vma->vm_start);
+			struct page_probes *page_p;
+			send_mapping_event(file_p, proc_p, task, vma);
+			page_p = file_p_find_page_p(file_p, page);
 			if (page_p) {
 				register_us_page_probe(page_p, file_p, proc_p, task, mm, vma);
 			}
