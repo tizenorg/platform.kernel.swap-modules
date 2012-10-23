@@ -57,8 +57,8 @@
 
 #include <linux/module.h>
 
-extern unsigned int *sched_addr;
-extern unsigned int *fork_addr;
+extern unsigned long sched_addr;
+extern unsigned long fork_addr;
 
 extern struct hlist_head kprobe_insn_pages;
 extern struct hlist_head uprobe_insn_pages;
@@ -113,8 +113,8 @@ int arch_init_module_dependencies()
 	kallsyms_search = (void *) ksyms;
 	DBPRINTF ("kallsyms=0x%08x\n", ksyms);
 
-	sched_addr = (unsigned int *)kallsyms_search("__switch_to");//"schedule");
-	fork_addr = (unsigned int *)kallsyms_search("do_fork");
+	sched_addr = kallsyms_search("__switch_to");//"schedule");
+	fork_addr = kallsyms_search("do_fork");
 
 	init_module_dependencies();
 

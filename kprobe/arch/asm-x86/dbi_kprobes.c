@@ -63,9 +63,9 @@
 
 #define SUPRESS_BUG_MESSAGES
 
-extern unsigned int *sched_addr;
-extern unsigned int *exit_addr;
-extern unsigned int *fork_addr;
+extern unsigned long sched_addr;
+extern unsigned long exit_addr;
+extern unsigned long fork_addr;
 
 extern struct kprobe * per_cpu__current_kprobe;
 

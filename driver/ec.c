@@ -8,7 +8,7 @@
 //      SEE ALSO:       ec.h
 //      AUTHOR:         L.Komkov, A.Gerenkov
 //      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group 
+//      DEPT NAME:      Advanced Software Group
 //      CREATED:        2008.02.15
 //      VERSION:        1.0
 //      REVISION DATE:  2008.12.03
@@ -148,7 +148,7 @@ int is_java_inst_enabled(void)
 unsigned int GetNumOfSubbuffers(unsigned long nBufferSize)
 {
 	if(nBufferSize % ec_info.m_nSubbufSize > 0)
-	     EPRINTF("The buffer size is not divisible by a subbuffer size! (nBufferSize = %d, ec_info.m_nSubbufSize =%d)", nBufferSize ,ec_info.m_nSubbufSize);
+	     EPRINTF("The buffer size is not divisible by a subbuffer size! (nBufferSize = %lu, ec_info.m_nSubbufSize = %u)", nBufferSize ,ec_info.m_nSubbufSize);
 	return nBufferSize / ec_info.m_nSubbufSize;
 };
 
@@ -184,10 +184,13 @@ int ec_user_attach (void)
 	if (EC_STATE_IDLE == ec_info.ec_state)
 	{
 		int tmp;
+		struct timeval tv;
+		struct cond *p_cond;
+		struct event_tmpl *p_tmpl;
+
 		ec_info.ec_state = EC_STATE_ATTACHED;
 
 		/* save 'start' time */
-		struct timeval tv;
 		do_gettimeofday(&tv);
 		memcpy(&last_attach_time, &tv, sizeof(struct timeval));
 
@@ -196,8 +199,6 @@ int ec_user_attach (void)
 
 		/* if there is at least one start condition in the list
 		   we are paused at the beginning */
-		struct cond *p_cond;
-		struct event_tmpl *p_tmpl;
 		list_for_each_entry(p_cond, &cond_list.list, list) {
 			p_tmpl = &p_cond->tmpl;
 			if (p_tmpl->type == ET_TYPE_START_COND) {
@@ -212,10 +213,10 @@ int ec_user_attach (void)
 		tmp = event_mask;
 		event_mask = 0;
 		pack_event_info(EVENT_FMT_PROBE_ID, RECORD_ENTRY, "x", tmp);
-		event_mask = tmp;		
-		
+		event_mask = tmp;
+
 		result = attach_selected_probes ();
-		if (result == 0)	// instrument user space process 
+		if (result == 0)	// instrument user space process
 			result = inst_usr_space_proc ();
 		// FIXME: SAFETY CHECK
 		if (result)
@@ -257,10 +258,10 @@ int ec_user_activate (void)
 		tmp = event_mask;
 		event_mask = 0;
 		pack_event_info(EVENT_FMT_PROBE_ID, RECORD_ENTRY, "x", tmp);
-		event_mask = tmp;		
+		event_mask = tmp;
 
 		result = attach_selected_probes ();
-		if (result == 0)	// instrument user space process 
+		if (result == 0)	// instrument user space process
 			result = inst_usr_space_proc ();
 		// FIXME: SAFETY CHECK
 		if (result)
