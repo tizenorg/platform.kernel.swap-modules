@@ -8,6 +8,7 @@ struct page_probes {
 	unsigned long offset;
 	size_t cnt_ip;
 	us_proc_ip_t *ip;
+	int install;
 
 	struct hlist_node hlist; // for file_probes
 };
@@ -45,6 +46,7 @@ static struct page_probes *page_p_new(unsigned long offset, us_proc_ip_t *ip, si
 		memcpy(obj->ip, ip, sizeof(*obj->ip)*cnt);
 		obj->cnt_ip = cnt;
 		obj->offset = offset;
+		obj->install = 0;
 		INIT_HLIST_NODE(&obj->hlist);
 	}
 
@@ -54,6 +56,23 @@ static struct page_probes *page_p_new(unsigned long offset, us_proc_ip_t *ip, si
 static void page_p_del(struct page_probes *page_p)
 {
 	// TODO: del
+}
+
+static void page_p_assert_install(const struct page_probes *page_p)
+{
+	if (page_p->install != 0) {
+		panic("already installed page %x\n", page_p->offset);
+	}
+}
+
+static void page_p_installed(struct page_probes *page_p)
+{
+	page_p->install = 1;
+}
+
+static void page_p_uninstalled(struct page_probes *page_p)
+{
+	page_p->install = 0;
 }
 // page_probes
 
@@ -293,6 +312,16 @@ static int register_usprobe_my(struct task_struct *task, struct mm_struct *mm, u
 	ip->name = 0;
 
 	return register_usprobe(task, mm, ip, 1, NULL);
+}
+
+static int unregister_usprobe_my(struct task_struct *task, us_proc_ip_t *ip)
+{
+	int err = unregister_usprobe(task, ip, 1);
+
+//	ip->installed = 0;
+	ip->name = 0;
+
+	return err;
 }
 
 // debug

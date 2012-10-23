@@ -1053,6 +1053,8 @@ int deinst_usr_space_proc (void)
 			if (iRet != 0)
 			EPRINTF ("failed to uninstall IPs %d!", iRet);
 			put_task_struct (task);
+
+			printk("### 1 ### dbi_unregister_all_uprobes:\n");
 			dbi_unregister_all_uprobes(task, 1);
 			us_proc_info.tgid = 0;
 			for(i = 0; i < us_proc_info.libs_count; i++)
@@ -1299,14 +1301,12 @@ static void set_mapping_file(struct file_probes *file_p,
 			vma->vm_end - vma->vm_start, app_flag);
 }
 
-static void register_us_page_probe(const struct page_probes *page_p,
+static int register_us_page_probe(const struct page_probes *page_p,
 		const struct file_probes *file_p,
-		struct proc_probes *proc_p,
 		const struct task_struct *task,
-		const struct mm_struct *mm,
-		const struct vm_area_struct *vma)
+		const struct mm_struct *mm)
 {
-	int err;
+	int err = 0;
 	size_t i;
 
 //	print_page_probes(page_p);
@@ -1316,8 +1316,34 @@ static void register_us_page_probe(const struct page_probes *page_p,
 		err = register_usprobe_my(task, mm, &page_p->ip[i]);
 		if (err != 0) {
 			//TODO: ERROR
+			return err;
 		}
 	}
+
+	return err;
+}
+
+static int unregister_us_page_probe(const struct task_struct *task,
+		struct page_probes *page_p)
+{
+	int err = 0;
+	size_t i;
+
+	if (page_p->install == 0) {
+		return 0;
+	}
+
+	for (i = 0; i < page_p->cnt_ip; ++i) {
+		err = unregister_usprobe_my(task, &page_p->ip[i]);
+		if (err != 0) {
+			//TODO: ERROR
+			return err;
+		}
+	}
+
+	page_p_uninstalled(page_p);
+
+	return err;
 }
 
 static int check_vma(struct vm_area_struct *vma)
@@ -1356,13 +1382,50 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 
 			page_p = file_p_find_page_p(file_p, page);
 			if (page_p) {
-				register_us_page_probe(page_p, file_p, proc_p, task, mm, vma);
+				int err;
+				page_p_assert_install(page_p);
+				err = register_us_page_probe(page_p, file_p, task, mm);
+				if (err == 0) {
+					page_p_installed(page_p);
+				}
 			}
 		}
 	}
 
 	up_read(&mm->mmap_sem);
 	mmput(mm);
+}
+
+static int unregister_us_file_probes(struct task_struct *task, struct file_probes *file_p)
+{
+	int table_size = (1 << file_p->page_probes_hash_bits);
+	int i, err = 0;
+	for (i = 0; i < table_size; ++i) {
+		err = unregister_us_page_probe(task, &file_p->page_probes_table[i]);
+		if (err != 0) {
+			// TODO: ERROR
+			return err;
+		}
+	}
+
+	file_p->loaded = 0;
+
+	return err;
+}
+
+static int uninstall_us_proc_probes(struct task_struct *task, struct proc_probes *proc_p)
+{
+	int i, err = 0;
+
+	for (i = 0; i < proc_p->cnt; ++i) {
+		err = unregister_us_file_probes(task, proc_p->file_p[i]);
+		if (err != 0) {
+			// TODO:
+			return err;
+		}
+	}
+
+	return err;
 }
 
 void do_page_fault_ret_pre_code (void)
@@ -1550,8 +1613,11 @@ void mm_release_probe_pre_code(void)
 		{
 			int i;
 			iRet = uninstall_mapped_ips (current, &us_proc_info, 1);
+//			iRet = uninstall_us_proc_probes(current, us_proc_info.pp);
 			if (iRet != 0)
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
+
+			printk("### 2 ### dbi_unregister_all_uprobes:\n");
 			dbi_unregister_all_uprobes(current, 1);
 			us_proc_info.tgid = 0;
 			for(i = 0; i < us_proc_info.libs_count; i++)
