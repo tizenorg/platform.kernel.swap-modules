@@ -18,7 +18,6 @@
 #include "module.h"
 #include "device_driver.h"	// device driver
 #include "handlers_core.h"
-#include "CProfile.h"
 #include <linux/notifier.h>
 
 #ifdef OVERHEAD_DEBUG
