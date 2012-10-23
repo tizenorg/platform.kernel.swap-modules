@@ -1349,7 +1349,6 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 		struct file_probes *file_p = proc_p_find_file_p(proc_p, vma);
 		if(file_p) {
 			struct page_probes *page_p;
-
 			if (!file_p->loaded) {
 				set_mapping_file(file_p, proc_p, task, vma);
 				file_p->loaded = 1;
