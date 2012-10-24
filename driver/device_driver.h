@@ -19,6 +19,7 @@
 
 #include "ec_info.h"		// ec_info_t
 #include "ec_probe.h"		// probe_id_t
+#include "stdswap_defs.h"
 
 #define DEFAULT_DEVICE_NAME "swap_drv"
 #define DEFAULT_DEVICE_MAJOR 250
