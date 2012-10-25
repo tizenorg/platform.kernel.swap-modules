@@ -47,7 +47,7 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, us_proc_ip_t * ip);
 
 static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_proc_ip_t * ip, int atomic, kprobe_opcode_t * islot);
-static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic);
+static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic, int no_rp2);
 
 int us_proc_probes;
 
@@ -849,7 +849,7 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 			if (task_inst_info->p_libs[i].p_ips[k].installed)
 			{
 				DPRINTF ("remove IP at %p.", task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr);
-				err = unregister_usprobe (task, &task_inst_info->p_libs[i].p_ips[k], atomic);
+				err = unregister_usprobe (task, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
 				if (err != 0)
 				{
 					EPRINTF ("failed to uninstall IP at %p. Error %d!", task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr, err);
@@ -889,7 +889,7 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 			continue;
 		}
 		DPRINTF("remove OTG IP at %p.",	p->ip.offset);
-		err = unregister_usprobe(task, &p->ip, atomic);
+		err = unregister_usprobe(task, &p->ip, atomic, 0);
 		if (err != 0) {
 			EPRINTF("failed to uninstall IP at %p. Error %d!",
 				 p->ip.jprobe.kp.addr, err);
@@ -1301,7 +1301,7 @@ static void set_mapping_file(struct file_probes *file_p,
 			vma->vm_end - vma->vm_start, app_flag);
 }
 
-static int register_us_page_probe(const struct page_probes *page_p,
+static int register_us_page_probe(struct page_probes *page_p,
 		const struct file_probes *file_p,
 		const struct task_struct *task,
 		const struct mm_struct *mm)
@@ -1309,7 +1309,7 @@ static int register_us_page_probe(const struct page_probes *page_p,
 	int err = 0;
 	size_t i;
 
-//	print_page_probes(page_p);
+	page_p_assert_install(page_p);
 	page_p_set_all_kp_addr(page_p, file_p);
 
 	for (i = 0; i < page_p->cnt_ip; ++i) {
@@ -1320,11 +1320,13 @@ static int register_us_page_probe(const struct page_probes *page_p,
 		}
 	}
 
-	return err;
+	page_p_installed(page_p);
+
+	return 0;
 }
 
 static int unregister_us_page_probe(const struct task_struct *task,
-		struct page_probes *page_p)
+		struct page_probes *page_p, int not_rp2)
 {
 	int err = 0;
 	size_t i;
@@ -1334,7 +1336,7 @@ static int unregister_us_page_probe(const struct task_struct *task,
 	}
 
 	for (i = 0; i < page_p->cnt_ip; ++i) {
-		err = unregister_usprobe_my(task, &page_p->ip[i]);
+		err = unregister_usprobe_my(task, &page_p->ip[i], not_rp2);
 		if (err != 0) {
 			//TODO: ERROR
 			return err;
@@ -1382,12 +1384,7 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 
 			page_p = file_p_find_page_p(file_p, page);
 			if (page_p) {
-				int err;
-				page_p_assert_install(page_p);
-				err = register_us_page_probe(page_p, file_p, task, mm);
-				if (err == 0) {
-					page_p_installed(page_p);
-				}
+				register_us_page_probe(page_p, file_p, task, mm);
 			}
 		}
 	}
@@ -1396,29 +1393,42 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 	mmput(mm);
 }
 
-static int unregister_us_file_probes(struct task_struct *task, struct file_probes *file_p)
+static int unregister_us_file_probes(struct task_struct *task, struct file_probes *file_p, int not_rp2)
 {
-	int table_size = (1 << file_p->page_probes_hash_bits);
 	int i, err = 0;
+	int table_size = (1 << file_p->page_probes_hash_bits);
+
+	struct page_probes *page_p;
+	struct hlist_node *node, *tmp;
+	struct hlist_head *head;
+
+	printk("### unregister_us_file_probes: %s map_addr=%x\n", file_p->dentry->d_iname, file_p->map_addr);
+
 	for (i = 0; i < table_size; ++i) {
-		err = unregister_us_page_probe(task, &file_p->page_probes_table[i]);
-		if (err != 0) {
-			// TODO: ERROR
-			return err;
+		head = &file_p->page_probes_table[i];
+		hlist_for_each_entry_safe (page_p, node, tmp, head, hlist) {
+			err = unregister_us_page_probe(task, page_p, not_rp2);
+			if (err != 0) {
+				// TODO: ERROR
+				return err;
+			}
 		}
 	}
+
 
 	file_p->loaded = 0;
 
 	return err;
 }
 
-static int uninstall_us_proc_probes(struct task_struct *task, struct proc_probes *proc_p)
+static int uninstall_us_proc_probes(struct task_struct *task, struct proc_probes *proc_p, int not_rp2)
 {
 	int i, err = 0;
 
+	printk("### uninstall_us_proc_probes: %s cnt=%d\n", proc_p->dentry->d_iname, proc_p->cnt);
+
 	for (i = 0; i < proc_p->cnt; ++i) {
-		err = unregister_us_file_probes(task, proc_p->file_p[i]);
+		err = unregister_us_file_probes(task, proc_p->file_p[i], not_rp2);
 		if (err != 0) {
 			// TODO:
 			return err;
@@ -1612,12 +1622,11 @@ void mm_release_probe_pre_code(void)
 		if (del)
 		{
 			int i;
-			iRet = uninstall_mapped_ips (current, &us_proc_info, 1);
-//			iRet = uninstall_us_proc_probes(current, us_proc_info.pp);
+//			iRet = uninstall_mapped_ips (current, &us_proc_info, 1);
+			iRet = uninstall_us_proc_probes(current, us_proc_info.pp, 1);
 			if (iRet != 0)
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
 
-			printk("### 2 ### dbi_unregister_all_uprobes:\n");
 			dbi_unregister_all_uprobes(current, 1);
 			us_proc_info.tgid = 0;
 			for(i = 0; i < us_proc_info.libs_count; i++)
@@ -1779,8 +1788,8 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	ip->jprobe.kp.tgid = task->tgid;
 	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
 
-//	printk("### register_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
-//			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
+	printk("### register_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
+			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
 
 //	return 0;
 
@@ -1837,10 +1846,13 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	return 0;
 }
 
-static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic)
+static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic, int not_rp2)
 {
+	printk("### unregister_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
+			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
+
 	dbi_unregister_ujprobe (task, &ip->jprobe, atomic);
-	dbi_unregister_uretprobe (task, &ip->retprobe, atomic);
+	dbi_unregister_uretprobe (task, &ip->retprobe, atomic, not_rp2);
 	return 0;
 }
 
@@ -1991,7 +2003,7 @@ and save address borders of this file*/
 		}
 		if ( ((unsigned long)p->ip.jprobe.kp.addr <  addr_max) &&
 		     ((unsigned long)p->ip.jprobe.kp.addr >= addr_min) ) {
-			err = unregister_usprobe(task, &p->ip, 1);
+			err = unregister_usprobe(task, &p->ip, 1, 0);
 			if (err != 0) {
 				EPRINTF("failed to uninstall IP at %p. Error %d!",
 					 p->ip.jprobe.kp.addr, err);

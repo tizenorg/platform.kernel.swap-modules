@@ -23,9 +23,8 @@
  *
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
-
  */
 
 #include "dbi_kprobes.h"
@@ -37,7 +36,7 @@ void dbi_unregister_ujprobe (struct task_struct *task, struct jprobe *jp, int at
 void unregister_uprobe (struct kprobe *p, struct task_struct *task, int atomic);
 
 int dbi_register_uretprobe (struct task_struct *task, struct mm_struct *mm, struct kretprobe *rp, int atomic);
-void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int atomic);
+void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int atomic, int not_rp2);
 
 void dbi_unregister_all_uprobes (struct task_struct *task, int atomic);
 
@@ -47,4 +46,4 @@ void dbi_uprobe_return (void);
 
 
 
-#endif /*  _DBI_UPROBES_H */ 
+#endif /*  _DBI_UPROBES_H */

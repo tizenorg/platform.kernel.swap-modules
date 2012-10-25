@@ -314,12 +314,12 @@ static int register_usprobe_my(struct task_struct *task, struct mm_struct *mm, u
 	return register_usprobe(task, mm, ip, 1, NULL);
 }
 
-static int unregister_usprobe_my(struct task_struct *task, us_proc_ip_t *ip)
+static int unregister_usprobe_my(struct task_struct *task, us_proc_ip_t *ip, int not_rp2)
 {
-	int err = unregister_usprobe(task, ip, 1);
+	int err = unregister_usprobe(task, ip, 1, not_rp2);
 
 //	ip->installed = 0;
-	ip->name = 0;
+//	ip->name = 0;
 
 	return err;
 }

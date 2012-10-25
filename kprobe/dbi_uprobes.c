@@ -239,14 +239,14 @@ out:
 }
 
 
-void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int atomic)
+void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int atomic, int not_rp2)
 {
 	unsigned long flags;
 	struct kretprobe_instance *ri;
 	struct kretprobe *rp2 = NULL;
 
 	spin_lock_irqsave (&kretprobe_lock, flags);
-	if (hlist_empty (&rp->used_instances))
+	if (hlist_empty (&rp->used_instances) || not_rp2)
 	{
 		struct kprobe *p = &rp->kp;
 		// if there are no used retprobe instances (i.e. function is not entered) - disarm retprobe
