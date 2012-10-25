@@ -903,58 +903,6 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 	return 0;
 }
 
-void send_sig_jprobe_event_handler (int sig, struct siginfo *info, struct task_struct *t, struct sigpending *signals)
-{
-	int iRet, del = 0;
-	struct task_struct *task;
-	inst_us_proc_t *task_inst_info = NULL;
-
-	//if user-space instrumentation is not set
-	if (!us_proc_info.path)
-	    return;
-
-	if (sig != SIGKILL)
-		return;
-
-	if (!strcmp(us_proc_info.path,"*"))
-	{
-		task_inst_info = get_task_inst_node(t);
-		if (task_inst_info)
-		{
-			iRet = uninstall_mapped_ips (t, task_inst_info, 1);
-			if (iRet != 0)
-				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
-			dbi_unregister_all_uprobes(t, 1);
-			return;
-		}
-	}
-	else
-	{
-		if (current->tgid != us_proc_info.tgid)
-			return;
-			del = 1;
-
-		// look for another process with the same tgid
-		rcu_read_lock ();
-		for_each_process (task)
-		{
-			if ((task->pid != t->pid) && (task->tgid == us_proc_info.tgid))
-			{
-				del = 0;
-				break;
-			}
-		}
-		rcu_read_unlock ();
-		if (del)
-		{
-			DPRINTF ("%s(%d) send_signal SIGKILL for the last target proc %s(%d)",
-					current->comm, current->pid, t->comm, t->pid);
-			iRet = uninstall_mapped_ips (t, &us_proc_info, 1);
-			if (iRet != 0)
-				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
-		}
-	}
-}
 static int uninstall_kernel_probe (unsigned long addr, int uflag, int kflag, kernel_probe_t ** pprobe)
 {
 	kernel_probe_t *probe = NULL;
@@ -1584,17 +1532,16 @@ EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
 
 void mm_release_probe_pre_code(void)
 {
-	int iRet, del = 0;
+	int iRet;
 	struct task_struct *task;
-	inst_us_proc_t *task_inst_info = NULL;
 
 	//if user-space instrumentation is not set
-	if (!us_proc_info.path || current->tgid != current->pid)
+	if (!us_proc_info.path || current->tgid != current->pid) {
 		return;
+	}
 
-	if (!strcmp(us_proc_info.path,"*"))
-	{
-		task_inst_info = get_task_inst_node(current);
+	if (!strcmp(us_proc_info.path,"*")) {
+		inst_us_proc_t *task_inst_info = get_task_inst_node(current);
 		if (task_inst_info)
 		{
 			iRet = uninstall_mapped_ips (current, task_inst_info, 1);
@@ -1602,30 +1549,14 @@ void mm_release_probe_pre_code(void)
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
 			dbi_unregister_all_uprobes(current, 1);
 		}
-	}
-	else
-	{
-		if (current->tgid != us_proc_info.tgid)
-			return;
-			del = 1;
-		// look for another process with the same tgid
-		rcu_read_lock ();
-		for_each_process (task)
-		{
-			if ((task->pid != current->pid) && (task->tgid == us_proc_info.tgid))
-			{
-				del = 0;
-				break;
-			}
-		}
-		rcu_read_unlock ();
-		if (del)
-		{
+	} else {
+		if (current->tgid == us_proc_info.tgid && current->tgid == current->pid) {
 			int i;
 //			iRet = uninstall_mapped_ips (current, &us_proc_info, 1);
 			iRet = uninstall_us_proc_probes(current, us_proc_info.pp, 1);
-			if (iRet != 0)
+			if (iRet != 0) {
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
+			}
 
 			dbi_unregister_all_uprobes(current, 1);
 			us_proc_info.tgid = 0;
