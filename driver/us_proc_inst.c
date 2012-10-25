@@ -77,6 +77,18 @@ struct dentry *libdvm_dentry = NULL;
 #define LIBDVM_RETURN 0x30bdc
 #endif /* __ANDROID */
 
+
+static inline int is_libonly(void)
+{
+	return !strcmp(us_proc_info.path,"*");
+}
+
+// is user-space instrumentation
+static inline int is_us_instrumentation(void)
+{
+	return !!us_proc_info.path;
+}
+
 us_proc_otg_ip_t *find_otg_probe(unsigned long addr)
 {
 	us_proc_otg_ip_t *p;
@@ -940,9 +952,9 @@ int deinst_usr_space_proc (void)
 	struct task_struct *task = 0;
 	inst_us_proc_t *task_inst_info = NULL;
 
-	//if user-space instrumentation is not set
-	if (!us_proc_info.path)
+	if (!is_us_instrumentation()) {
 		return 0;
+	}
 
 	iRet = uninstall_kernel_probe (pf_addr, US_PROC_PF_INSTLD,
 			0, &pf_probe);
@@ -964,7 +976,7 @@ int deinst_usr_space_proc (void)
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_exit) result=%d!", iRet);
 
-	if (!strcmp(us_proc_info.path,"*"))
+	if (is_libonly())
 	{
 		for_each_process (task)
 		{
@@ -1074,9 +1086,9 @@ int inst_usr_space_proc (void)
 	struct task_struct *task = 0;
 	inst_us_proc_t *task_inst_info = NULL;
 
-	//if user-space instrumentation is not set
-	if (!us_proc_info.path)
+	if (!is_us_instrumentation()) {
 		return 0;
+	}
 
 	DPRINTF("User space instr");
 
@@ -1123,7 +1135,7 @@ int inst_usr_space_proc (void)
 	 * 2) if process is not running - make sure that do_page_fault handler is installed
 	 * */
 
-	if (!strcmp(us_proc_info.path,"*"))
+	if (is_libonly())
 	{
 		clear_task_inst_info();
 		for_each_process (task) {
@@ -1207,13 +1219,6 @@ extern storage_arg_t sa_dpf;
 void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 {
 	swap_put_entry_data((void *)addr, &sa_dpf);
-
-	unsigned long addr_page_0 = (addr / PAGE_SIZE) * PAGE_SIZE;
-	unsigned long addr_page_1 = (addr >> PAGE_SHIFT) << PAGE_SHIFT;
-	unsigned long addr_page_2 = addr & PAGE_MASK;
-
-//	printk("\n### do_page_fault_j_pre_code: addr=%x, addr_page_0=%x, addr_page_1=%x, addr_page_2=%x\n",
-//			addr, addr_page_0, addr_page_1, addr_page_2);
 }
 EXPORT_SYMBOL_GPL(do_page_fault_j_pre_code);
 
@@ -1299,7 +1304,7 @@ static int unregister_us_page_probe(const struct task_struct *task,
 static int check_vma(struct vm_area_struct *vma)
 {
 #ifndef __ANDROID
-	return vma->vm_file && !(!(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
+	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
 			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
 			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
 #else // __ANDROID
@@ -1409,9 +1414,9 @@ void do_page_fault_ret_pre_code (void)
 //	struct proc_probes * pp = get_file_probes(&us_proc_info);
 //	print_proc_probes(us_proc_info.pp);
 
-	//if user-space instrumentation is not set
-	if (!us_proc_info.path)
+	if (!is_us_instrumentation()) {
 		return;
+	}
 
 	if (task->flags & PF_KTHREAD) {
 		DPRINTF("ignored kernel thread %d\n", task->pid);
@@ -1422,9 +1427,7 @@ void do_page_fault_ret_pre_code (void)
 	page = addr & PAGE_MASK;
 //	printk("### do_page_fault_ret_pre_code: addr=%x\n", addr);
 
-
-	if (!strcmp(us_proc_info.path,"*"))
-	{
+	if (is_libonly()) {
 		task_inst_info = get_task_inst_node(task);
 		if (!task_inst_info)
 		{
@@ -1535,12 +1538,11 @@ void mm_release_probe_pre_code(void)
 	int iRet;
 	struct task_struct *task;
 
-	//if user-space instrumentation is not set
-	if (!us_proc_info.path || current->tgid != current->pid) {
+	if (!is_us_instrumentation() || current->tgid != current->pid) {
 		return;
 	}
 
-	if (!strcmp(us_proc_info.path,"*")) {
+	if (is_libonly()) {
 		inst_us_proc_t *task_inst_info = get_task_inst_node(current);
 		if (task_inst_info)
 		{
@@ -1585,7 +1587,7 @@ static void recover_child(struct task_struct *child_task, inst_us_proc_t *parent
 
 static void rm_uprobes_child(struct task_struct *new_task)
 {
-	if(!strcmp(us_proc_info.path, "*")) {
+	if(is_libonly()) {
 		inst_us_proc_t *task_inst_info = get_task_inst_node(current);
 		if(task_inst_info)
 			recover_child(new_task, task_inst_info);
@@ -1625,7 +1627,7 @@ int handle_java_event(unsigned long addr)
 	unsigned long start = 0;
 	struct pt_regs *regs = __get_cpu_var(gpUserRegs);
 
-	if (!strcmp(us_proc_info.path, "*")) {
+	if (is_libonly()) {
 		/* TODO: some stuff here */
 	} else {
 		start = us_proc_info.libdvm_start;
