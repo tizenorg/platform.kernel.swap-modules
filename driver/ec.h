@@ -21,6 +21,7 @@
 #include "ec_info.h"
 #include "ec_probe.h"
 #include "picl.h"
+#include "stdswap_defs.h"
 
 extern ec_info_t ec_info;
 extern ec_probe_info_t ec_probe_info;

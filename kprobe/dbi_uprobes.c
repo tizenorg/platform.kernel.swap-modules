@@ -60,7 +60,7 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 #if defined(CONFIG_ARM)
 	if ((unsigned long) p->addr & 0x01)
 	{
-		p->addr = (unsigned long)p->addr & 0xfffffffe;
+		p->addr = (kprobe_opcode_t *)((unsigned long)p->addr & 0xfffffffe);
 	}
 #endif
 
@@ -247,9 +247,9 @@ void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, i
 	spin_lock_irqsave (&kretprobe_lock, flags);
 	if (hlist_empty (&rp->used_instances))
 	{
+		struct kprobe *p = &rp->kp;
 		// if there are no used retprobe instances (i.e. function is not entered) - disarm retprobe
 		arch_disarm_uretprobe (rp, task);//vmas[1], pages[1], kaddrs[1]);
-		struct kprobe *p = &rp->kp;
 #ifdef CONFIG_ARM
 		if (!(hlist_unhashed(&p->is_hlist_arm))) {
 			hlist_del_rcu(&p->is_hlist_arm);
@@ -265,6 +265,8 @@ void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, i
 	}
 	else
 	{
+		struct kprobe *new_p = NULL;
+		struct kprobe *p = &rp->kp;
 		rp2 = clone_kretprobe (rp);
 		if (!rp2)
 			DBPRINTF ("dbi_unregister_uretprobe addr %p: failed to clone retprobe!", rp->kp.addr);
@@ -279,7 +281,6 @@ void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, i
 		 * As we cloned retprobe we have to update the entry in the insn slot
 		 * hash list.
 		 */
-		struct kprobe *p = &rp->kp;
 #ifdef CONFIG_ARM
 		if (!(hlist_unhashed(&p->is_hlist_arm))) {
 			hlist_del_rcu(&p->is_hlist_arm);
@@ -292,7 +293,7 @@ void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, i
 			hlist_del_rcu(&p->is_hlist);
 		}
 #endif /* CONFIG_ARM */
-		struct kprobe *new_p = &rp2->kp;
+		new_p = &rp2->kp;
 #ifdef CONFIG_ARM
 		INIT_HLIST_NODE (&new_p->is_hlist_arm);
 		INIT_HLIST_NODE (&new_p->is_hlist_thumb);
