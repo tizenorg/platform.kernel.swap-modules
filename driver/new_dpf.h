@@ -9,6 +9,7 @@ struct page_probes {
 	size_t cnt_ip;
 	us_proc_ip_t *ip;
 	int install;
+	spinlock_t lock;
 
 	struct hlist_node hlist; // for file_probes
 };
@@ -82,6 +83,7 @@ static struct page_probes *page_p_new(unsigned long offset, us_proc_ip_t *ip, si
 		obj->cnt_ip = cnt;
 		obj->offset = offset;
 		obj->install = 0;
+		spin_lock_init(&obj->lock);
 		INIT_HLIST_NODE(&obj->hlist);
 	}
 
@@ -107,6 +109,7 @@ struct page_probes *page_p_copy(const struct page_probes *page_p)
 		page_p_out->cnt_ip = page_p->cnt_ip;
 		page_p_out->offset = page_p->offset;
 		page_p_out->install = 0;
+		spin_lock_init(&page_p_out->lock);
 		INIT_HLIST_NODE(&page_p_out->hlist);
 	}
 
@@ -118,6 +121,11 @@ static void page_p_assert_install(const struct page_probes *page_p)
 	if (page_p->install != 0) {
 		panic("already installed page %x\n", page_p->offset);
 	}
+}
+
+static int page_p_is_install(struct page_probes *page_p)
+{
+	return page_p->install;
 }
 
 static void page_p_installed(struct page_probes *page_p)
@@ -220,7 +228,7 @@ static struct file_probes *file_p_copy(const struct file_probes *file_p)
 
 		// copy pages
 		for (i = 0; i < table_size; ++i) {
-			head = &file_p_out->page_probes_table[i];
+			head = &file_p->page_probes_table[i];
 			hlist_for_each_entry_rcu(page_p, node, head, hlist) {
 				file_p_add_page_p(file_p_out, page_p_copy(page_p));
 			}
@@ -424,7 +432,7 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 		}
 	}
 
-	print_proc_probes(proc_p);
+//	print_proc_probes(proc_p);
 
 	printk("####### get  END  #######\n");
 
@@ -501,7 +509,7 @@ static const char *NA = "N/A";
 
 static void print_file_probes(const struct file_probes *file_p)
 {
-	int i;
+	int i, table_size;
 	struct page_probes *page_p = NULL;
 	struct hlist_node *node = NULL;
 	struct hlist_head *head = NULL;
@@ -511,12 +519,13 @@ static void print_file_probes(const struct file_probes *file_p)
 		return;
 	}
 
+	table_size = (1 << file_p->page_probes_hash_bits);
 	const char *name = (file_p->dentry) ? file_p->dentry->d_iname : NA;
 
-	printk("### print_file_probes: path=%s, d_iname=%s, map_addr=%x\n",
-			file_p->path, name, file_p->map_addr);
+	printk("### print_file_probes: path=%s, d_iname=%s, table_size=%d, map_addr=%x\n",
+			file_p->path, name, table_size, file_p->map_addr);
 
-	for (i = 0; i < (1 << file_p->page_probes_hash_bits); ++i) {
+	for (i = 0; i < table_size; ++i) {
 		head = &file_p->page_probes_table[i];
 		hlist_for_each_entry_rcu(page_p, node, head, hlist) {
 			print_page_probes(page_p);

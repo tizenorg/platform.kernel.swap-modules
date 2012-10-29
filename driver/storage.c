@@ -1517,7 +1517,7 @@ int link_bundle()
 	p += sizeof(u_int32_t);
 
 	// print
-	print_inst_us_proc(&us_proc_info);
+//	print_inst_us_proc(&us_proc_info);
 
 	us_proc_info.pp = get_file_probes(&us_proc_info);
 

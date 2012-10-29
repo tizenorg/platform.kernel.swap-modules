@@ -329,7 +329,7 @@ void dbi_unregister_all_uprobes (struct task_struct *task, int atomic)
 		head = &kprobe_table[i];
 		hlist_for_each_entry_safe (p, node, tnode, head, hlist){
 			if(p->tgid == task->tgid){
-				printk("dbi_unregister_all_uprobes: delete uprobe at %pf for %s/%d\n", p->addr, task->comm, task->pid);
+				printk("dbi_unregister_all_uprobes: delete uprobe at %p for %s/%d\n", p->addr, task->comm, task->pid);
 				unregister_uprobe (p, task, atomic);
 			}
 		}

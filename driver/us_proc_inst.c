@@ -158,6 +158,7 @@ int remove_otg_probe_from_list(unsigned long addr)
 
 
 static struct proc_probes *proc_probes_copy(struct proc_probes *proc_p);
+static void print_proc_probes(const struct proc_probes *proc_p);
 /**
  * Prepare copy of instrumentation data for task
  * in case of library only instrumentation
@@ -252,6 +253,8 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 	copy_info->unres_vtps_count = unres_vtps_count;
 
 	copy_info->pp = proc_probes_copy(task_inst_info->pp);
+
+//	print_proc_probes(copy_info->pp);
 
 	return copy_info;
 }
@@ -1162,7 +1165,7 @@ int inst_usr_space_proc (void)
 				find_libdvm_for_task(task, task_inst_info);
 			}
 #endif /* __ANDROID */
-			install_mapped_ips (task, task_inst_info, 1);
+//			install_mapped_ips (task, task_inst_info, 1);
 			//put_task_struct (task);
 			task_inst_info = NULL;
 		}
@@ -1179,7 +1182,7 @@ int inst_usr_space_proc (void)
 				find_libdvm_for_task(task, &us_proc_info);
 			}
 #endif /* __ANDROID */
-			install_mapped_ips (task, &us_proc_info, 0);
+//			install_mapped_ips (task, &us_proc_info, 0);
 			put_task_struct (task);
 		}
 	}
@@ -1266,6 +1269,17 @@ static int register_us_page_probe(struct page_probes *page_p,
 	int err = 0;
 	size_t i;
 
+//	printk("### register_us_page_probe: task[tgid=%u, pid=%u, comm=%s], page=%x\n",
+//			task->tgid, task->pid, task->comm, page_p->offset);
+
+	spin_lock(&page_p->lock);
+
+	if (page_p_is_install(page_p)) {
+		printk("page %x in %s task[tgid=%u, pid=%u] already installed\n",
+				page_p->offset, file_p->dentry->d_iname, task->tgid, task->pid);
+		return 0;
+	}
+
 	page_p_assert_install(page_p);
 	page_p_set_all_kp_addr(page_p, file_p);
 
@@ -1278,6 +1292,8 @@ static int register_us_page_probe(struct page_probes *page_p,
 	}
 
 	page_p_installed(page_p);
+
+	spin_unlock(&page_p->lock);
 
 	return 0;
 }
@@ -1359,7 +1375,9 @@ static int unregister_us_file_probes(struct task_struct *task, struct file_probe
 	struct hlist_node *node, *tmp;
 	struct hlist_head *head;
 
-	printk("### unregister_us_file_probes: %s map_addr=%x\n", file_p->dentry->d_iname, file_p->map_addr);
+	printk("### unregister_us_file_probes: task[tgid=%u, pid=%u, comm=%s], file[%s map_addr=%x], file_p=%p\n",
+			task->tgid, task->pid, task->comm,
+			file_p->dentry->d_iname, file_p->map_addr, file_p);
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file_p->page_probes_table[i];
@@ -1448,7 +1466,7 @@ void do_page_fault_ret_pre_code (void)
 		// overhead
 //		printk("####### T_0\n");
 		do_gettimeofday(&imi_tv1);
-		install_page_probes(page, task, us_proc_info.pp, addr);
+		install_page_probes(page, task, task_inst_info->pp, addr);
 //		install_mapped_ips (task, task_inst_info, 1);
 		do_gettimeofday(&imi_tv2);
 //		printk("####### T_1\n");
@@ -1726,8 +1744,8 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	ip->jprobe.kp.tgid = task->tgid;
 	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
 
-//	printk("### register_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
-//			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
+//	printk("### register_usprobe: task[tgid=%u, pid=%u] offset=%x, j_addr=%x, ret_addr=%x\n",
+//			task->tgid, task->pid, ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
 
 	if(!ip->jprobe.entry) {
 		if (dbi_ujprobe_event_handler_custom_p != NULL)
