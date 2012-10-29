@@ -156,6 +156,8 @@ int remove_otg_probe_from_list(unsigned long addr)
 	return 0;
 }
 
+
+static struct proc_probes *proc_probes_copy(struct proc_probes *proc_p);
 /**
  * Prepare copy of instrumentation data for task
  * in case of library only instrumentation
@@ -248,6 +250,8 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 	}
 	copy_info->unres_ips_count = unres_ips_count;
 	copy_info->unres_vtps_count = unres_vtps_count;
+
+	copy_info->pp = proc_probes_copy(task_inst_info->pp);
 
 	return copy_info;
 }
@@ -1442,12 +1446,12 @@ void do_page_fault_ret_pre_code (void)
 		}
 
 		// overhead
-		printk("####### T_0\n");
+//		printk("####### T_0\n");
 		do_gettimeofday(&imi_tv1);
 		install_page_probes(page, task, us_proc_info.pp, addr);
 //		install_mapped_ips (task, task_inst_info, 1);
 		do_gettimeofday(&imi_tv2);
-		printk("####### T_1\n");
+//		printk("####### T_1\n");
 		imi_sum_hit++;
 		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
 			(imi_tv2.tv_usec - imi_tv1.tv_usec));
@@ -1546,7 +1550,8 @@ void mm_release_probe_pre_code(void)
 		inst_us_proc_t *task_inst_info = get_task_inst_node(current);
 		if (task_inst_info)
 		{
-			iRet = uninstall_mapped_ips (current, task_inst_info, 1);
+//			iRet = uninstall_mapped_ips (current, task_inst_info, 1);
+			iRet = uninstall_us_proc_probes(current, task_inst_info->pp, 1);
 			if (iRet != 0)
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
 			dbi_unregister_all_uprobes(current, 1);
@@ -1721,10 +1726,8 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	ip->jprobe.kp.tgid = task->tgid;
 	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
 
-	printk("### register_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
-			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
-
-//	return 0;
+//	printk("### register_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
+//			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
 
 	if(!ip->jprobe.entry) {
 		if (dbi_ujprobe_event_handler_custom_p != NULL)
@@ -1781,8 +1784,8 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 
 static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic, int not_rp2)
 {
-	printk("### unregister_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
-			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
+//	printk("### unregister_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
+//			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
 
 	dbi_unregister_ujprobe (task, &ip->jprobe, atomic);
 	dbi_unregister_uretprobe (task, &ip->retprobe, atomic, not_rp2);

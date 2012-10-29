@@ -30,6 +30,41 @@ struct proc_probes {
 };
 
 
+us_proc_ip_t *us_proc_ips_copy(const us_proc_ip_t *ips, int cnt)
+{
+	int i;
+	kprobe_opcode_t *entry_save;
+	kprobe_pre_entry_handler_t pre_entry_save;
+	kretprobe_handler_t handler_save;
+
+	us_proc_ip_t *ips_out =
+		kmalloc (cnt * sizeof (us_proc_ip_t), GFP_ATOMIC);
+
+	if (!ips_out) {
+		DPRINTF ("No enough memory for copy_info->p_libs[i].p_ips");
+		return NULL;
+	}
+
+	memcpy (ips_out, ips, cnt * sizeof (us_proc_ip_t));
+	for (i = 0; i < cnt; ++i) {
+		// save handlers
+		entry_save = ips_out[i].jprobe.entry;
+		pre_entry_save = ips_out[i].jprobe.pre_entry;
+		handler_save = ips_out[i].retprobe.handler;
+
+		ips_out[i].installed = 0;
+		memset(&ips_out[i].jprobe, 0, sizeof(struct jprobe));
+		memset(&ips_out[i].retprobe, 0, sizeof(struct kretprobe));
+
+		// restore handlers
+		ips_out[i].jprobe.entry = entry_save;
+		ips_out[i].jprobe.pre_entry = pre_entry_save;
+		ips_out[i].retprobe.handler = handler_save;
+	}
+
+	return ips_out;
+}
+
 // page_probes
 static struct page_probes *page_p_new(unsigned long offset, us_proc_ip_t *ip, size_t cnt)
 {
@@ -56,6 +91,26 @@ static struct page_probes *page_p_new(unsigned long offset, us_proc_ip_t *ip, si
 static void page_p_del(struct page_probes *page_p)
 {
 	// TODO: del
+}
+
+struct page_probes *page_p_copy(const struct page_probes *page_p)
+{
+	struct page_probes *page_p_out = kmalloc(sizeof(*page_p), GFP_ATOMIC);
+
+	if (page_p_out) {
+		page_p_out->ip = us_proc_ips_copy(page_p->ip, page_p->cnt_ip);
+		if(page_p_out->ip == NULL) {
+			kfree(page_p_out);
+			return NULL;
+		}
+
+		page_p_out->cnt_ip = page_p->cnt_ip;
+		page_p_out->offset = page_p->offset;
+		page_p_out->install = 0;
+		INIT_HLIST_NODE(&page_p_out->hlist);
+	}
+
+	return page_p_out;
 }
 
 static void page_p_assert_install(const struct page_probes *page_p)
@@ -133,6 +188,48 @@ static void file_p_add_page_p(struct file_probes *file_p, struct page_probes *pa
 	hlist_add_head_rcu(&page_p->hlist, &file_p->page_probes_table[hash_ptr(page_p->offset, file_p->page_probes_hash_bits)]);
 }
 
+static struct file_probes *file_p_copy(const struct file_probes *file_p)
+{
+	struct file_probes *file_p_out;
+
+	if (file_p == NULL) {
+		printk("### WARNING: file_p == NULL\n");
+		return NULL;
+	}
+
+	file_p_out = kmalloc(sizeof(*file_p_out), GFP_ATOMIC);
+	if (file_p_out) {
+		struct page_probes *page_p = NULL;
+		struct hlist_node *node = NULL;
+		struct hlist_head *head = NULL;
+		int i, table_size;
+		file_p_out->dentry = file_p->dentry;
+		file_p_out->path = file_p->path;
+		file_p_out->loaded = 0;
+		file_p_out->map_addr = 0;
+
+		file_p_out->page_probes_hash_bits = file_p->page_probes_hash_bits;
+		table_size = (1 << file_p_out->page_probes_hash_bits);
+
+		file_p_out->page_probes_table =
+				kmalloc(sizeof(*file_p_out->page_probes_table)*table_size, GFP_ATOMIC);
+
+		for (i = 0; i < table_size; ++i) {
+			INIT_HLIST_HEAD(&file_p_out->page_probes_table[i]);
+		}
+
+		// copy pages
+		for (i = 0; i < table_size; ++i) {
+			head = &file_p_out->page_probes_table[i];
+			hlist_for_each_entry_rcu(page_p, node, head, hlist) {
+				file_p_add_page_p(file_p_out, page_p_copy(page_p));
+			}
+		}
+	}
+
+	return file_p_out;
+}
+
 static struct page_probes *file_p_find_page_p(struct file_probes *file_p, unsigned long page)
 {
 	struct page_probes *page_p;
@@ -142,7 +239,8 @@ static struct page_probes *file_p_find_page_p(struct file_probes *file_p, unsign
 
 	if (file_p->map_addr > page) {
 		// TODO: or panic?!
-		printk("ERROR: file_p->map_addr > page\n");
+		printk("ERROR: file_p->map_addr > page: file_p[map_addr=%x, path=%s, d_iname=%s] page=%x\n",
+				file_p->map_addr, file_p->path, file_p->dentry->d_iname, page);
 		return NULL;
 	}
 
@@ -222,11 +320,16 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 {
 	struct proc_probes *proc_p = kmalloc(sizeof(*proc_p), GFP_ATOMIC);
 
+	printk("####### get START #######\n");
+
 	if (proc_p) {
 		int i;
 		proc_p->cnt = task_inst_info->libs_count;
 		proc_p->dentry = task_inst_info->m_f_dentry;
 		proc_p->file_p = kmalloc(sizeof(*proc_p->file_p)*proc_p->cnt, GFP_ATOMIC);
+
+		printk("#2# get_file_probes: proc_p[cnt=%d, dentry=%p, file_p=%p]\n",
+				proc_p->cnt, proc_p->dentry, proc_p->file_p);
 
 		for (i = 0; i < task_inst_info->libs_count; ++i) {
 			us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
@@ -235,7 +338,10 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 			struct page_probes *page_p = NULL;
 			int k, page_cnt = 0;
 
+			printk("#3# get_file_probes: p_libs[ips_count=%d, dentry=%p, %s %s\n",
+					p_libs->ips_count, p_libs->m_f_dentry, p_libs->path, p_libs->path_dyn);
 			if (p_libs->ips_count == 0) {
+				proc_p->file_p[i] = NULL;
 				continue;
 			}
 
@@ -258,7 +364,10 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 
 			++page_cnt;
 
-			printk("### file: %s, page_cnt=%d\n", p_libs->m_f_dentry->d_iname, page_cnt);
+			printk("#4# get_file_probes: %s, page_cnt=%d\n",
+					p_libs->m_f_dentry ? p_libs->m_f_dentry->d_iname : "N/A",
+					page_cnt);
+
 			file_p = file_p_new(p_libs, page_cnt);
 
 			page = p_libs->p_ips[0].offset & PAGE_MASK;
@@ -284,19 +393,70 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 			file_p_add_page_p(file_p, page_p);
 			proc_p->file_p[i] = file_p;
 		}
+
+		// rm file == NULL
+		{
+			int i, cnt = 0;
+			for (i = 0; i < proc_p->cnt; ++i) {
+				if (proc_p->file_p[i] == NULL) {
+					continue;
+				}
+				++cnt;
+			}
+
+			if (cnt != proc_p->cnt) {
+				int j = 0;
+				struct file_probes **file_p_tmp = kmalloc(sizeof(*proc_p->file_p)*cnt, GFP_ATOMIC);
+
+				for (i = 0; i < proc_p->cnt; ++i) {
+					if (proc_p->file_p[i] == NULL) {
+						continue;
+					}
+
+					file_p_tmp[j] = proc_p->file_p[i];
+					++j;
+				}
+
+				proc_p->cnt = j;
+				kfree(proc_p->file_p);
+				proc_p->file_p = file_p_tmp;
+			}
+		}
 	}
 
 	print_proc_probes(proc_p);
 
+	printk("####### get  END  #######\n");
+
 	return proc_p;
 }
 
-struct file_probes *proc_p_find_file_p(struct proc_probes *proc_p, struct vm_area_struct *vma)
+static struct proc_probes *proc_probes_copy(struct proc_probes *proc_p)
+{
+	size_t i;
+	struct proc_probes *proc_p_out = kmalloc(sizeof(*proc_p_out), GFP_ATOMIC);
+
+	proc_p_out->dentry = proc_p->dentry;
+	proc_p_out->cnt = proc_p->cnt;
+
+	proc_p_out->file_p = kmalloc(proc_p_out->cnt * sizeof(*proc_p_out->file_p), GFP_ATOMIC);
+
+	for (i = 0; i < proc_p_out->cnt; ++i) {
+		proc_p_out->file_p[i] = file_p_copy(proc_p->file_p[i]);
+	}
+
+	return proc_p_out;
+}
+
+static struct file_probes *proc_p_find_file_p(struct proc_probes *proc_p, struct vm_area_struct *vma)
 {
 	struct file_probes *file_p;
 	size_t i;
 	for (i = 0; i < proc_p->cnt; ++i) {
 		file_p = proc_p->file_p[i];
+		if (file_p == NULL) {
+			continue;
+		}
 
 		if (vma->vm_file->f_dentry == file_p->dentry) {
 			return file_p;
@@ -337,6 +497,8 @@ static void print_page_probes(const struct page_probes *pp)
 	}
 }
 
+static const char *NA = "N/A";
+
 static void print_file_probes(const struct file_probes *file_p)
 {
 	int i;
@@ -344,8 +506,15 @@ static void print_file_probes(const struct file_probes *file_p)
 	struct hlist_node *node = NULL;
 	struct hlist_head *head = NULL;
 
-	printk("###   d_iname=%s, map_addr=%x\n",
-			file_p->dentry->d_iname, file_p->map_addr);
+	if (file_p == NULL) {
+		printk("### file_p == NULL\n");
+		return;
+	}
+
+	const char *name = (file_p->dentry) ? file_p->dentry->d_iname : NA;
+
+	printk("### print_file_probes: path=%s, d_iname=%s, map_addr=%x\n",
+			file_p->path, name, file_p->map_addr);
 
 	for (i = 0; i < (1 << file_p->page_probes_hash_bits); ++i) {
 		head = &file_p->page_probes_table[i];
@@ -364,6 +533,31 @@ static void print_proc_probes(const struct proc_probes *proc_p)
 		print_file_probes(proc_p->file_p[i]);
 	}
 	printk("### print_proc_probes\n");
+}
+
+void print_inst_us_proc(const inst_us_proc_t *task_inst_info)
+{
+	int i;
+	int cnt = task_inst_info->libs_count;
+	printk(  "### BUNDLE PRINT START ###\n");
+	printk("\n### BUNDLE PRINT START ###\n");
+	printk("### task_inst_info.libs_count=%d\n", cnt);
+
+	for (i = 0; i < cnt; ++i) {
+		int j;
+
+		us_proc_lib_t *lib = &task_inst_info->p_libs[i];
+		int cnt_j = lib->ips_count;
+		char *path = lib->path;
+		printk("###     path=%s, cnt_j=%d\n", path, cnt_j);
+
+		for (j = 0; j < cnt_j; ++j) {
+			us_proc_ip_t *ips = &lib->p_ips[j];
+			unsigned long offset = ips->offset;
+			printk("###         offset=%x\n", offset);
+		}
+	}
+	printk("### BUNDLE PRINT  END  ###\n");
 }
 
 #endif /* __NEW_DPF__ */

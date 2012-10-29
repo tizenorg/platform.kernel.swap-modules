@@ -988,6 +988,7 @@ void unlink_bundle(void)
 }
 
 struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info);
+void print_inst_us_proc(const inst_us_proc_t *task_inst_info);
 
 int link_bundle()
 {
@@ -1515,6 +1516,8 @@ int link_bundle()
 
 	p += sizeof(u_int32_t);
 
+	// print
+	print_inst_us_proc(&us_proc_info);
 
 	us_proc_info.pp = get_file_probes(&us_proc_info);
 
