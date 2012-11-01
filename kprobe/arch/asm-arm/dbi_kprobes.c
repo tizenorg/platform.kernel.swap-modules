@@ -674,7 +674,8 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 		return -EFAULT;
 	}
 	if ((p->safe_arm == -1) && (p->safe_thumb == -1)) {
-		printk("Error in %s at %d: failed arch_copy_trampoline_*_uprobe() (both)\n", __FILE__, __LINE__);
+		printk("Error in %s at %d: failed arch_copy_trampoline_*_uprobe() (both) [tgid=%u, addr=%x, data=%x]\n",
+				__FILE__, __LINE__, task->tgid, p->addr, p->opcode);
 		if (!write_proc_vm_atomic (task, (unsigned long) p->addr, &p->opcode, sizeof (p->opcode)))
 			panic ("Failed to write memory %p!\n", p->addr);
 		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);

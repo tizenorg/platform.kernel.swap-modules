@@ -21,6 +21,29 @@
 #include "../kprobe/dbi_kprobes_deps.h"
 #include "../kprobe/dbi_uprobes.h"
 
+#define mm_read_lock(task, mm, atomic, lock) 			\
+	mm = atomic ? task->active_mm : get_task_mm(task); 	\
+	if (mm == NULL) {					\
+		/* FIXME: */					\
+		panic("ERRR mm_read_lock: mm == NULL\n");	\
+	}							\
+								\
+	if (atomic) {						\
+		lock = down_read_trylock(&mm->mmap_sem);	\
+	} else {						\
+		lock = 1;					\
+		down_read(&mm->mmap_sem);			\
+	}
+
+#define mm_read_unlock(mm, atomic, lock) 			\
+	if (lock) {						\
+		up_read(&mm->mmap_sem);				\
+	}							\
+								\
+	if (!atomic) {						\
+		mmput(mm);					\
+	}
+
 DEFINE_PER_CPU (us_proc_vtp_t *, gpVtp) = NULL;
 DEFINE_PER_CPU (struct pt_regs *, gpCurVtpRegs) = NULL;
 
@@ -1087,6 +1110,8 @@ static struct dentry *get_dentry(const char *path)
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) */
 }
 
+static void install_proc_probes(struct task_struct *task, struct proc_probes *proc_p, int atomic);
+
 int inst_usr_space_proc (void)
 {
 	int ret, i;
@@ -1165,7 +1190,7 @@ int inst_usr_space_proc (void)
 				find_libdvm_for_task(task, task_inst_info);
 			}
 #endif /* __ANDROID */
-//			install_mapped_ips (task, task_inst_info, 1);
+			install_proc_probes(task, task_inst_info->pp, 1);
 			//put_task_struct (task);
 			task_inst_info = NULL;
 		}
@@ -1182,7 +1207,7 @@ int inst_usr_space_proc (void)
 				find_libdvm_for_task(task, &us_proc_info);
 			}
 #endif /* __ANDROID */
-//			install_mapped_ips (task, &us_proc_info, 0);
+			install_proc_probes(task, us_proc_info.pp, 0);
 			put_task_struct (task);
 		}
 	}
@@ -1225,7 +1250,21 @@ extern storage_arg_t sa_dpf;
 
 void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 {
-	swap_put_entry_data((void *)addr, &sa_dpf);
+	struct task_struct *task = current->group_leader;
+
+	if (task->flags & PF_KTHREAD) {
+		DPRINTF("ignored kernel thread %d\n", task->pid);
+		return;
+	}
+
+	if (is_us_instrumentation()) {
+		if (task->flags & PF_KTHREAD) {
+			DPRINTF("ignored kernel thread %d\n", task->tgid);
+			return;
+		}
+
+		swap_put_entry_data((void *)addr, &sa_dpf);
+	}
 }
 EXPORT_SYMBOL_GPL(do_page_fault_j_pre_code);
 
@@ -1269,9 +1308,6 @@ static int register_us_page_probe(struct page_probes *page_p,
 	int err = 0;
 	size_t i;
 
-//	printk("### register_us_page_probe: task[tgid=%u, pid=%u, comm=%s], page=%x\n",
-//			task->tgid, task->pid, task->comm, page_p->offset);
-
 	spin_lock(&page_p->lock);
 
 	if (page_p_is_install(page_p)) {
@@ -1299,7 +1335,7 @@ static int register_us_page_probe(struct page_probes *page_p,
 }
 
 static int unregister_us_page_probe(const struct task_struct *task,
-		struct page_probes *page_p, int not_rp2)
+		struct page_probes *page_p, enum US_FLAGS flag)
 {
 	int err = 0;
 	size_t i;
@@ -1309,14 +1345,16 @@ static int unregister_us_page_probe(const struct task_struct *task,
 	}
 
 	for (i = 0; i < page_p->cnt_ip; ++i) {
-		err = unregister_usprobe_my(task, &page_p->ip[i], not_rp2);
+		err = unregister_usprobe_my(task, &page_p->ip[i], flag);
 		if (err != 0) {
 			//TODO: ERROR
 			return err;
 		}
 	}
 
-	page_p_uninstalled(page_p);
+	if (flag != US_DISARM) {
+		page_p_uninstalled(page_p);
+	}
 
 	return err;
 }
@@ -1333,22 +1371,18 @@ static int check_vma(struct vm_area_struct *vma)
 }
 
 
-static void install_page_probes(unsigned long page, struct task_struct *task, struct proc_probes *proc_p, unsigned long addr)
+static void install_page_probes(unsigned long page, struct task_struct *task, struct proc_probes *proc_p, int atomic)
 {
+	int lock;
+	struct mm_struct *mm;
 	struct vm_area_struct *vma;
-	struct mm_struct *mm = get_task_mm(task);
 
-	if (mm == NULL) {
-		printk("#### ERRR install_page_probes\n");
-		return;
-	}
-
-	down_read(&mm->mmap_sem);
+	mm_read_lock(task, mm, atomic, lock);
 
 	vma = find_vma(mm, page);
 	if (vma && check_vma(vma)) {
 		struct file_probes *file_p = proc_p_find_file_p(proc_p, vma);
-		if(file_p) {
+		if (file_p) {
 			struct page_probes *page_p;
 			if (!file_p->loaded) {
 				set_mapping_file(file_p, proc_p, task, vma);
@@ -1362,11 +1396,52 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 		}
 	}
 
-	up_read(&mm->mmap_sem);
-	mmput(mm);
+	mm_read_unlock(mm, atomic, lock);
 }
 
-static int unregister_us_file_probes(struct task_struct *task, struct file_probes *file_p, int not_rp2)
+static void install_file_probes(struct task_struct *task, struct mm_struct *mm, struct file_probes *file_p)
+{
+	struct page_probes *page_p = NULL;
+	struct hlist_node *node = NULL;
+	struct hlist_head *head = NULL;
+	int i, table_size = (1 << file_p->page_probes_hash_bits);
+
+	for (i = 0; i < table_size; ++i) {
+		head = &file_p->page_probes_table[i];
+		hlist_for_each_entry_rcu(page_p, node, head, hlist) {
+			if (page_present(mm, page_p->offset)) {
+				register_us_page_probe(page_p, file_p, task, mm);
+			}
+		}
+	}
+}
+
+static void install_proc_probes(struct task_struct *task, struct proc_probes *proc_p, int atomic)
+{
+	int lock;
+	struct vm_area_struct *vma;
+	struct mm_struct *mm;
+
+	mm_read_lock(task, mm, atomic, lock);
+
+	for (vma = mm->mmap; vma; vma = vma->vm_next) {
+		if (check_vma(vma)) {
+			struct file_probes *file_p = proc_p_find_file_p(proc_p, vma);
+			if (file_p) {
+				if (!file_p->loaded) {
+					set_mapping_file(file_p, proc_p, task, vma);
+					file_p->loaded = 1;
+				}
+
+				install_file_probes(task, mm, file_p);
+			}
+		}
+	}
+
+	mm_read_unlock(mm, atomic, lock);
+}
+
+static int unregister_us_file_probes(struct task_struct *task, struct file_probes *file_p, enum US_FLAGS flag)
 {
 	int i, err = 0;
 	int table_size = (1 << file_p->page_probes_hash_bits);
@@ -1375,14 +1450,14 @@ static int unregister_us_file_probes(struct task_struct *task, struct file_probe
 	struct hlist_node *node, *tmp;
 	struct hlist_head *head;
 
-	printk("### unregister_us_file_probes: task[tgid=%u, pid=%u, comm=%s], file[%s map_addr=%x], file_p=%p\n",
-			task->tgid, task->pid, task->comm,
-			file_p->dentry->d_iname, file_p->map_addr, file_p);
+//	printk("### unregister_us_file_probes: task[tgid=%u, pid=%u, comm=%s], file[%s map_addr=%x], file_p=%p\n",
+//			task->tgid, task->pid, task->comm,
+//			file_p->dentry->d_iname, file_p->map_addr, file_p);
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file_p->page_probes_table[i];
 		hlist_for_each_entry_safe (page_p, node, tmp, head, hlist) {
-			err = unregister_us_page_probe(task, page_p, not_rp2);
+			err = unregister_us_page_probe(task, page_p, flag);
 			if (err != 0) {
 				// TODO: ERROR
 				return err;
@@ -1391,19 +1466,19 @@ static int unregister_us_file_probes(struct task_struct *task, struct file_probe
 	}
 
 
-	file_p->loaded = 0;
+	if (flag != US_DISARM) {
+		file_p->loaded = 0;
+	}
 
 	return err;
 }
 
-static int uninstall_us_proc_probes(struct task_struct *task, struct proc_probes *proc_p, int not_rp2)
+static int uninstall_us_proc_probes(struct task_struct *task, struct proc_probes *proc_p, enum US_FLAGS flag)
 {
 	int i, err = 0;
 
-	printk("### uninstall_us_proc_probes: %s cnt=%d\n", proc_p->dentry->d_iname, proc_p->cnt);
-
 	for (i = 0; i < proc_p->cnt; ++i) {
-		err = unregister_us_file_probes(task, proc_p->file_p[i], not_rp2);
+		err = unregister_us_file_probes(task, proc_p->file_p[i], flag);
 		if (err != 0) {
 			// TODO:
 			return err;
@@ -1432,22 +1507,23 @@ void do_page_fault_ret_pre_code (void)
 	struct timeval imi_tv2;
 #define USEC_IN_SEC_NUM				1000000
 
-
-//	struct proc_probes * pp = get_file_probes(&us_proc_info);
-//	print_proc_probes(us_proc_info.pp);
-
-	if (!is_us_instrumentation()) {
-		return;
-	}
-
 	if (task->flags & PF_KTHREAD) {
 		DPRINTF("ignored kernel thread %d\n", task->pid);
 		return;
 	}
 
+	if (!is_us_instrumentation()) {
+		return;
+	}
+
 	addr = (unsigned long)swap_get_entry_data(&sa_dpf);
+
+	if (addr == 0) {
+		printk("WARNING: do_page_fault_ret_pre_code addr = 0\n");
+		return;
+	}
+
 	page = addr & PAGE_MASK;
-//	printk("### do_page_fault_ret_pre_code: addr=%x\n", addr);
 
 	if (is_libonly()) {
 		task_inst_info = get_task_inst_node(task);
@@ -1464,12 +1540,9 @@ void do_page_fault_ret_pre_code (void)
 		}
 
 		// overhead
-//		printk("####### T_0\n");
 		do_gettimeofday(&imi_tv1);
-		install_page_probes(page, task, task_inst_info->pp, addr);
-//		install_mapped_ips (task, task_inst_info, 1);
+		install_page_probes(page, task, task_inst_info->pp, 1);
 		do_gettimeofday(&imi_tv2);
-//		printk("####### T_1\n");
 		imi_sum_hit++;
 		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
 			(imi_tv2.tv_usec - imi_tv1.tv_usec));
@@ -1536,8 +1609,7 @@ void do_page_fault_ret_pre_code (void)
 #endif /* __ANDROID */
 
 		do_gettimeofday(&imi_tv1);
-		install_page_probes(page, task, us_proc_info.pp, addr);
-//		install_mapped_ips (task, &us_proc_info, 1);
+		install_page_probes(page, task, us_proc_info.pp, 1);
 		do_gettimeofday(&imi_tv2);
 		imi_sum_hit++;
 		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
@@ -1566,27 +1638,27 @@ void mm_release_probe_pre_code(void)
 
 	if (is_libonly()) {
 		inst_us_proc_t *task_inst_info = get_task_inst_node(current);
-		if (task_inst_info)
-		{
-//			iRet = uninstall_mapped_ips (current, task_inst_info, 1);
-			iRet = uninstall_us_proc_probes(current, task_inst_info->pp, 1);
-			if (iRet != 0)
+		if (task_inst_info) {
+			iRet = uninstall_us_proc_probes(current, task_inst_info->pp, US_NOT_RP2);
+			if (iRet != 0) {
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
+			}
+
 			dbi_unregister_all_uprobes(current, 1);
 		}
 	} else {
 		if (current->tgid == us_proc_info.tgid && current->tgid == current->pid) {
 			int i;
-//			iRet = uninstall_mapped_ips (current, &us_proc_info, 1);
-			iRet = uninstall_us_proc_probes(current, us_proc_info.pp, 1);
+			iRet = uninstall_us_proc_probes(current, us_proc_info.pp, US_NOT_RP2);
 			if (iRet != 0) {
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
 			}
 
 			dbi_unregister_all_uprobes(current, 1);
 			us_proc_info.tgid = 0;
-			for(i = 0; i < us_proc_info.libs_count; i++)
+			for(i = 0; i < us_proc_info.libs_count; i++) {
 				us_proc_info.p_libs[i].loaded = 0;
+			}
 		}
 	}
 }
@@ -1595,22 +1667,12 @@ EXPORT_SYMBOL_GPL(mm_release_probe_pre_code);
 
 static void recover_child(struct task_struct *child_task, inst_us_proc_t *parent_iup)
 {
-	int i, k;
-	for(i = 0; i < parent_iup->libs_count; ++i)
-	{
-		for(k = 0; k < parent_iup->p_libs[i].ips_count; ++k)
-			if(parent_iup->p_libs[i].p_ips[k].installed)
-				arch_disarm_uprobe(&parent_iup->p_libs[i].p_ips[k].jprobe.kp, child_task);
-
-		for(k = 0; k < parent_iup->p_libs[i].vtps_count; ++k)
-			if(parent_iup->p_libs[i].p_vtps[k].installed)
-				arch_disarm_uprobe(&parent_iup->p_libs[i].p_vtps[k].jprobe.kp, child_task);
-	}
+	uninstall_us_proc_probes(child_task, parent_iup->pp, US_DISARM);
 }
 
 static void rm_uprobes_child(struct task_struct *new_task)
 {
-	if(is_libonly()) {
+	if (is_libonly()) {
 		inst_us_proc_t *task_inst_info = get_task_inst_node(current);
 		if(task_inst_info)
 			recover_child(new_task, task_inst_info);
@@ -1744,9 +1806,6 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 	ip->jprobe.kp.tgid = task->tgid;
 	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
 
-//	printk("### register_usprobe: task[tgid=%u, pid=%u] offset=%x, j_addr=%x, ret_addr=%x\n",
-//			task->tgid, task->pid, ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
-
 	if(!ip->jprobe.entry) {
 		if (dbi_ujprobe_event_handler_custom_p != NULL)
 		{
@@ -1802,9 +1861,6 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 
 static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic, int not_rp2)
 {
-//	printk("### unregister_usprobe: offset=%x, j_addr=%x, ret_addr=%x\n",
-//			ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
-
 	dbi_unregister_ujprobe (task, &ip->jprobe, atomic);
 	dbi_unregister_uretprobe (task, &ip->retprobe, atomic, not_rp2);
 	return 0;

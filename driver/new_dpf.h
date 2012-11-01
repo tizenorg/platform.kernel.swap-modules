@@ -4,6 +4,11 @@
 #include <linux/hash.h>
 #include "storage.h"
 
+enum US_FLAGS {
+	US_NOT_RP2,
+	US_DISARM
+};
+
 struct page_probes {
 	unsigned long offset;
 	size_t cnt_ip;
@@ -482,12 +487,20 @@ static int register_usprobe_my(struct task_struct *task, struct mm_struct *mm, u
 	return register_usprobe(task, mm, ip, 1, NULL);
 }
 
-static int unregister_usprobe_my(struct task_struct *task, us_proc_ip_t *ip, int not_rp2)
+static int unregister_usprobe_my(struct task_struct *task, us_proc_ip_t *ip, enum US_FLAGS flag)
 {
-	int err = unregister_usprobe(task, ip, 1, not_rp2);
+	int err = 0;
 
-//	ip->installed = 0;
-//	ip->name = 0;
+	switch (flag) {
+	case US_NOT_RP2:
+		err = unregister_usprobe(task, ip, 1, 1);
+		break;
+	case US_DISARM:
+		arch_disarm_uprobe(&ip->jprobe.kp, task);
+		break;
+	default:
+		panic("incorrect value flag=%d", flag);
+	}
 
 	return err;
 }

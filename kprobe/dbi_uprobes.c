@@ -43,6 +43,77 @@ extern struct kretprobe *sched_rp;
 
 struct hlist_head uprobe_insn_slot_table[KPROBE_TABLE_SIZE];
 
+
+#define DEBUG_PRINT_HASH_TABLE 0
+
+#if DEBUG_PRINT_HASH_TABLE
+void print_kprobe_hash_table(void)
+{
+	int i;
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct kprobe *p;
+
+	// print uprobe table
+	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
+		head = &kprobe_table[i];
+		hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
+			printk("####### find K tgid=%u, addr=%x\n",
+					p->tgid, p->addr);
+		}
+	}
+}
+
+void print_kretprobe_hash_table(void)
+{
+	int i;
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct kprobe *p;
+
+	// print uprobe table
+	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
+		head = &kretprobe_inst_table[i];
+		hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
+			printk("####### find KR tgid=%u, addr=%x\n",
+					p->tgid, p->addr);
+		}
+	}
+}
+
+void print_uprobe_hash_table(void)
+{
+	int i;
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct kprobe *p;
+
+	// print uprobe table
+	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
+		head = &uprobe_insn_slot_table[i];
+		hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
+			printk("####### find U tgid=%u, addr=%x\n",
+					p->tgid, p->addr);
+		}
+	}
+}
+#endif
+
+
+static void add_uprobe_table(struct kprobe *p)
+{
+#ifdef CONFIG_ARM
+	INIT_HLIST_NODE (&p->is_hlist_arm);
+	hlist_add_head_rcu (&p->is_hlist_arm, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_arm, KPROBE_HASH_BITS)]);
+	INIT_HLIST_NODE (&p->is_hlist_thumb);
+	hlist_add_head_rcu (&p->is_hlist_thumb, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_thumb, KPROBE_HASH_BITS)]);
+#else /* CONFIG_ARM */
+	INIT_HLIST_NODE (&p->is_hlist);
+	hlist_add_head_rcu (&p->is_hlist, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn, KPROBE_HASH_BITS)]);
+#endif /* CONFIG_ARM */
+}
+
+
 static
 int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, unsigned long called_from)
 {
@@ -85,15 +156,7 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 		ret = register_aggr_kprobe (old_p, p);
 		if (!ret) {
 			atomic_inc (&kprobe_count);
-#ifdef CONFIG_ARM
-			INIT_HLIST_NODE (&p->is_hlist_arm);
-			hlist_add_head_rcu (&p->is_hlist_arm, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_arm, KPROBE_HASH_BITS)]);
-			INIT_HLIST_NODE (&p->is_hlist_thumb);
-			hlist_add_head_rcu (&p->is_hlist_thumb, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_thumb, KPROBE_HASH_BITS)]);
-#else /* CONFIG_ARM */
-			INIT_HLIST_NODE (&p->is_hlist);
-			hlist_add_head_rcu (&p->is_hlist, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn, KPROBE_HASH_BITS)]);
-#endif /* CONFIG_ARM */
+			add_uprobe_table(p);
 		}
 		DBPRINTF ("goto out\n", ret);
 		goto out;
@@ -114,17 +177,7 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 //	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
 	hlist_add_head_rcu (&p->hlist, &kprobe_table[hash_ptr (p->addr, KPROBE_HASH_BITS)]);
 
-#ifdef CONFIG_ARM
-	INIT_HLIST_NODE (&p->is_hlist_arm);
-	INIT_HLIST_NODE (&p->is_hlist_thumb);
-//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
-	hlist_add_head_rcu (&p->is_hlist_arm, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_arm, KPROBE_HASH_BITS)]);
-	hlist_add_head_rcu (&p->is_hlist_thumb, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_thumb, KPROBE_HASH_BITS)]);
-#else /* CONFIG_ARM */
-	INIT_HLIST_NODE (&p->is_hlist);
-	//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
-	hlist_add_head_rcu (&p->is_hlist, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn, KPROBE_HASH_BITS)]);
-#endif /* CONFIG_ARM */
+	add_uprobe_table(p);
 
 //	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
 	arch_arm_uprobe (p, task);
@@ -295,15 +348,7 @@ void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, i
 		}
 #endif /* CONFIG_ARM */
 		new_p = &rp2->kp;
-#ifdef CONFIG_ARM
-		INIT_HLIST_NODE (&new_p->is_hlist_arm);
-		INIT_HLIST_NODE (&new_p->is_hlist_thumb);
-		hlist_add_head_rcu (&new_p->is_hlist_arm, &uprobe_insn_slot_table[hash_ptr (new_p->ainsn.insn_arm, KPROBE_HASH_BITS)]);
-		hlist_add_head_rcu (&new_p->is_hlist_thumb, &uprobe_insn_slot_table[hash_ptr (new_p->ainsn.insn_thumb, KPROBE_HASH_BITS)]);
-#else /* CONFIG_ARM */
-		INIT_HLIST_NODE (&new_p->is_hlist);
-		hlist_add_head_rcu (&new_p->is_hlist, &uprobe_insn_slot_table[hash_ptr (new_p->ainsn.insn, KPROBE_HASH_BITS)]);
-#endif /* CONFIG_ARM */
+		add_uprobe_table(new_p);
 	}
 
 	while ((ri = get_used_rp_inst (rp)) != NULL)
