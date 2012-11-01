@@ -5,6 +5,7 @@
 #include "storage.h"
 
 enum US_FLAGS {
+	US_UNREGS_PROBE,
 	US_NOT_RP2,
 	US_DISARM
 };
@@ -492,6 +493,9 @@ static int unregister_usprobe_my(struct task_struct *task, us_proc_ip_t *ip, enu
 	int err = 0;
 
 	switch (flag) {
+	case US_UNREGS_PROBE:
+		err = unregister_usprobe(task, ip, 1, 0);
+		break;
 	case US_NOT_RP2:
 		err = unregister_usprobe(task, ip, 1, 1);
 		break;

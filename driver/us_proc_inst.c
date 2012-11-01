@@ -976,6 +976,11 @@ static int uninstall_kernel_probe (unsigned long addr, int uflag, int kflag, ker
 	return iRet;
 }
 
+
+#include "new_dpf.h"
+
+static int uninstall_us_proc_probes(struct task_struct *task, struct proc_probes *proc_p, enum US_FLAGS flag);
+
 int deinst_usr_space_proc (void)
 {
 	int iRet = 0, found = 0;
@@ -1013,7 +1018,7 @@ int deinst_usr_space_proc (void)
 			task_inst_info = get_task_inst_node(task);
 			if (task_inst_info)
 			{
-				iRet = uninstall_mapped_ips (task, task_inst_info, 1);
+				iRet = uninstall_us_proc_probes(task, task_inst_info->pp, US_UNREGS_PROBE);
 				if (iRet != 0)
 					EPRINTF ("failed to uninstall IPs (%d)!", iRet);
 				dbi_unregister_all_uprobes(task, 1);
@@ -1039,7 +1044,7 @@ int deinst_usr_space_proc (void)
 		{
 			int i;
 			// uninstall IPs
-			iRet = uninstall_mapped_ips (task, &us_proc_info, 0);
+			iRet = uninstall_us_proc_probes(task, us_proc_info.pp, US_UNREGS_PROBE);
 			if (iRet != 0)
 			EPRINTF ("failed to uninstall IPs %d!", iRet);
 			put_task_struct (task);
@@ -1274,11 +1279,6 @@ unsigned long imi_sum_hit = 0;
 EXPORT_SYMBOL_GPL (imi_sum_time);
 EXPORT_SYMBOL_GPL (imi_sum_hit);
 
-
-
-
-#include "new_dpf.h"
-
 static void set_mapping_file(struct file_probes *file_p,
 		const struct proc_probes *proc_p,
 		const struct task_struct *task,
@@ -1445,14 +1445,9 @@ static int unregister_us_file_probes(struct task_struct *task, struct file_probe
 {
 	int i, err = 0;
 	int table_size = (1 << file_p->page_probes_hash_bits);
-
 	struct page_probes *page_p;
 	struct hlist_node *node, *tmp;
 	struct hlist_head *head;
-
-//	printk("### unregister_us_file_probes: task[tgid=%u, pid=%u, comm=%s], file[%s map_addr=%x], file_p=%p\n",
-//			task->tgid, task->pid, task->comm,
-//			file_p->dentry->d_iname, file_p->map_addr, file_p);
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file_p->page_probes_table[i];
@@ -1464,7 +1459,6 @@ static int unregister_us_file_probes(struct task_struct *task, struct file_probe
 			}
 		}
 	}
-
 
 	if (flag != US_DISARM) {
 		file_p->loaded = 0;
