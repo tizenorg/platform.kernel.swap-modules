@@ -51,6 +51,7 @@ const char *ec_probe_name[] = {
 	"us_probe_id",
 	"vtp_probe_id",
 	"dyn_lib_probe_id",
+	"plt_addr_probe_id",
 	"event_fmt_probe_id",
 	"rq_profile",
 	"pid_rq_profile"

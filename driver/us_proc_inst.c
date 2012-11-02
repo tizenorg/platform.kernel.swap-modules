@@ -211,6 +211,9 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 			unres_ips_count += copy_info->p_libs[i].ips_count;
 		}
 
+        printk("++ Where are my plt?!\n");
+        printk("++ %d\n", copy_info->p_libs[i].plt_count);
+
 		if (copy_info->p_libs[i].vtps_count > 0) {
 			unres_vtps_count += copy_info->p_libs[i].vtps_count;
 
@@ -605,6 +608,21 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 					else
 						p++;
 					task_inst_info->p_libs[i].loaded = 1;
+                    printk("loaded library : %s at : %x dentry short name : %s\n", task_inst_info->p_libs[i].path, vma->vm_start, vma->vm_file->f_dentry->d_iname);
+					if (task_inst_info->p_libs[i].plt_count > 0)
+					{
+						int j;
+						for (j = 0; j < task_inst_info->p_libs[i].plt_count; j++)
+						{
+							task_inst_info->p_libs[i].p_plt[j].func_addr += vma->vm_start;
+                            if (strcmp(task_inst_info->p_libs[i].path, task_inst_info->path))
+                            {
+                                task_inst_info->p_libs[i].p_plt[j].got_addr += vma->vm_start;
+                            }
+						}
+					}
+					task_inst_info->p_libs[i].vma_start = vma->vm_start;
+					task_inst_info->p_libs[i].vma_end = vma->vm_end;
 					pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
 							task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start, app_flag);
 				}
@@ -1539,10 +1557,88 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 	dbi_uprobe_return ();
 }
 
+void find_plt_address(struct kretprobe_instance *probe, us_proc_ip_t * ip)
+{
+    unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
+    inst_us_proc_t *task_inst_info = NULL;
+    int i;
+    unsigned real_addr;
+    struct vm_area_struct *vma;
+    us_proc_lib_t *p_lib = NULL;
+    char *szLibPath = NULL;
+
+    // Search for library structure to check whether this function plt or not
+    if (strcmp(us_proc_info.path, "*"))
+    {
+        // If lib only instrumentation
+        task_inst_info = get_task_inst_node(current);
+    }
+    {
+        // If app lib instrumentation
+        task_inst_info = &us_proc_info;
+    }
+    if (task_inst_info != NULL)
+    {
+        for (i = 0; i < task_inst_info->libs_count; i++)
+        {
+            if ((task_inst_info->p_libs[i].loaded) && (task_inst_info->p_libs[i].plt_count > 0) && (addr > task_inst_info->p_libs[i].vma_start) && (addr < task_inst_info->p_libs[i].vma_end))
+            {
+                p_lib = &(task_inst_info->p_libs[i]);
+                break;
+            }
+        }
+    }
+    else
+    {
+        printk("task_inst_info not found!\n");
+        return;
+    }
+
+    if (p_lib != NULL)
+    {
+        for (i = 0; i < p_lib->plt_count; i++)
+        {
+            if (addr == p_lib->p_plt[i].func_addr)
+            {
+                if (!read_proc_vm_atomic(current, (unsigned long)p_lib->p_plt[i].got_addr, &real_addr, sizeof(unsigned long)))
+                {
+                    printk("Failed to read memory %p!\n", p_lib->p_plt[i].got_addr);
+                    break;
+                }
+                if (real_addr != p_lib->p_plt[i].real_func_addr)
+                {
+                    p_lib->p_plt[i].real_func_addr =  real_addr;
+                    vma = find_vma(current->mm, real_addr);
+                    if ((vma->vm_start <= real_addr) && (vma->vm_end > real_addr))
+                    {
+                        if (vma->vm_file != NULL)
+                        {
+                            szLibPath = &(vma->vm_file->f_dentry->d_iname);
+                        }
+                    }
+
+                    if (szLibPath)
+                    {
+                        pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ps", real_addr, szLibPath);
+                        break;
+                    }
+                    else
+                    {
+                        pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "p", real_addr);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
 int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, us_proc_ip_t * ip)
 {
 	int retval = regs_return_value(regs);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
+
+    find_plt_address(probe, ip);
 
 #if defined(CONFIG_ARM)
 	if (ip->offset & 0x01)
