@@ -916,7 +916,6 @@ char *find_lib_path(const char *lib_name)
 	return NULL;
 }
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 #define list_for_each_rcu(pos, head) __list_for_each_rcu(pos, head)
 #endif
 
@@ -969,10 +968,8 @@ void unlink_bundle(void)
 				}
 				kfree ((void *) d_lib->p_vtps);
 			}
-// FIXME Under construction
 			d_lib->plt_count = 0;
 			kfree((void*) d_lib->p_plt);
-// Under construction ends
 		}
 		kfree ((void *) us_proc_info.p_libs);
 		us_proc_info.p_libs = 0;
@@ -1021,6 +1018,7 @@ int link_bundle()
 	size_t nr_conds;
 	int lib_name_len;
 	int handler_index;
+
 
 	/* Get user-defined us handlers (if they are provided) */
 	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
@@ -1285,7 +1283,6 @@ int link_bundle()
 
 			d_lib->plt_count = *(u_int32_t*)p;
 			p += sizeof(u_int32_t);
-            printk("+++ PLT count : %d", d_lib->plt_count);
 			if (d_lib->plt_count > 0)
 			{
 				int j;
@@ -1302,8 +1299,6 @@ int link_bundle()
 					p += sizeof(u_int32_t);
 					d_lib->p_plt[j].got_addr = *(u_int32_t*)p;
 					p += sizeof(u_int32_t);
-                    printk("plt addr : %x\n", d_lib->p_plt[j].func_addr);
-                    printk("plt got : %x\n", d_lib->p_plt[j].got_addr);
 					d_lib->p_plt[j].real_func_addr = 0;
 				}
 			}
