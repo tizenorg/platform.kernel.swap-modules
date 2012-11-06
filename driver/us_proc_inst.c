@@ -1621,12 +1621,12 @@ void find_plt_address(struct kretprobe_instance *probe, us_proc_ip_t * ip)
 
 					if (szLibPath)
 					{
-						pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "pps", addr, real_addr, szLibPath);
+						pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp", addr, real_addr, szLibPath, real_addr - vma->vm_start);
 						break;
 					}
 					else
 					{
-						pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "pp", addr, real_addr);
+						pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppp", addr, real_addr, real_addr - vma->vm_start);
 						break;
 					}
 				}
