@@ -1571,7 +1571,7 @@ void find_plt_address(struct kretprobe_instance *probe, us_proc_ip_t * ip)
 		// If lib only instrumentation
 		task_inst_info = get_task_inst_node(current);
 	}
-	if (task_inst_info != NULL)
+	if ((task_inst_info != NULL) && (task_inst_info->is_plt != 0))
 	{
 		for (i = 0; i < task_inst_info->libs_count; i++)
 		{
@@ -1581,54 +1581,48 @@ void find_plt_address(struct kretprobe_instance *probe, us_proc_ip_t * ip)
 				break;
 			}
 		}
-	}
-	else
-	{
-		printk("task_inst_info not found!\n");
-		return;
-	}
-
-	if (p_lib != NULL)
-	{
-		for (i = 0; i < p_lib->plt_count; i++)
+		if (p_lib != NULL)
 		{
-			if (addr == p_lib->p_plt[i].func_addr + p_lib->vma_start)
+			for (i = 0; i < p_lib->plt_count; i++)
 			{
-				unsigned real_got;
-				if (strcmp(p_lib->path, task_inst_info->path))
+				if (addr == p_lib->p_plt[i].func_addr + p_lib->vma_start)
 				{
-					real_got = p_lib->p_plt[i].got_addr + p_lib->vma_start;
-				}
-				else
-				{
-					real_got = p_lib->p_plt[i].got_addr;
-				}
-				if (!read_proc_vm_atomic(current, (unsigned long)(real_got), &real_addr, sizeof(unsigned long)))
-				{
-					printk("Failed to read got %p at memory address %p!\n", p_lib->p_plt[i].got_addr, real_got);
-					break;
-				}
-				if (real_addr != p_lib->p_plt[i].real_func_addr)
-				{
-					p_lib->p_plt[i].real_func_addr =  real_addr;
-					vma = find_vma(current->mm, real_addr);
-					if ((vma->vm_start <= real_addr) && (vma->vm_end > real_addr))
+					unsigned real_got;
+					if (strcmp(p_lib->path, task_inst_info->path))
 					{
-						if (vma->vm_file != NULL)
-						{
-							szLibPath = &(vma->vm_file->f_dentry->d_iname);
-						}
-					}
-
-					if (szLibPath)
-					{
-						pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp", addr, real_addr, szLibPath, real_addr - vma->vm_start);
-						break;
+						real_got = p_lib->p_plt[i].got_addr + p_lib->vma_start;
 					}
 					else
 					{
-						pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppp", addr, real_addr, real_addr - vma->vm_start);
+						real_got = p_lib->p_plt[i].got_addr;
+					}
+					if (!read_proc_vm_atomic(current, (unsigned long)(real_got), &real_addr, sizeof(unsigned long)))
+					{
+						printk("Failed to read got %p at memory address %p!\n", p_lib->p_plt[i].got_addr, real_got);
 						break;
+					}
+					if (real_addr != p_lib->p_plt[i].real_func_addr)
+					{
+						p_lib->p_plt[i].real_func_addr =  real_addr;
+						vma = find_vma(current->mm, real_addr);
+						if ((vma->vm_start <= real_addr) && (vma->vm_end > real_addr))
+						{
+							if (vma->vm_file != NULL)
+							{
+								szLibPath = &(vma->vm_file->f_dentry->d_iname);
+							}
+						}
+	
+						if (szLibPath)
+						{
+							pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp", addr, real_addr, szLibPath, real_addr - vma->vm_start);
+							break;
+						}
+						else
+						{
+							pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppp", addr, real_addr, real_addr - vma->vm_start);
+							break;
+						}
 					}
 				}
 			}

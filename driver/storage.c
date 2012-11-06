@@ -971,6 +971,7 @@ void unlink_bundle(void)
 			}
 			d_lib->plt_count = 0;
 			kfree((void*) d_lib->p_plt);
+			us_proc_info.is_plt = 0;
 		}
 		kfree ((void *) us_proc_info.p_libs);
 		us_proc_info.p_libs = 0;
@@ -1080,6 +1081,7 @@ int link_bundle()
 	len = *(u_int32_t *)p; /* App path len */
 	p += sizeof(u_int32_t);
 
+	us_proc_info.is_plt = 0;
 	if ( len == 0 )
 	{
 	    us_proc_info.path = NULL;
@@ -1146,8 +1148,6 @@ int link_bundle()
 			d_lib->path = (char *)p;
 			DPRINTF("d_lib->path = %s", d_lib->path);
 			p += lib_name_len;
-
-            printk("+++ lib_name = %s\n", d_lib->path);
 
 			if ( i != 0 ) {
 				lib_name_len = *(u_int32_t *)p;
@@ -1287,6 +1287,7 @@ int link_bundle()
 			if (d_lib->plt_count > 0)
 			{
 				int j;
+                us_proc_info.is_plt = 1;
 				d_lib->p_plt = kmalloc(d_lib->plt_count * sizeof(us_proc_plt_t), GFP_KERNEL);
 				if (!d_lib->p_plt)
 				{

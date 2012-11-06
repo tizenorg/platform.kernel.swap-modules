@@ -221,6 +221,7 @@ typedef struct
 	unsigned unres_vtps_count;
 	unsigned unres_otg_ips_count;
 	//kprobe_opcode_t *mapped_codelets;
+	int is_plt;
 	unsigned libs_count;
 	us_proc_lib_t *p_libs;
 #ifdef __ANDROID
