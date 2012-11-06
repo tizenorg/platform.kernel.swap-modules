@@ -916,6 +916,7 @@ char *find_lib_path(const char *lib_name)
 	return NULL;
 }
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 #define list_for_each_rcu(pos, head) __list_for_each_rcu(pos, head)
 #endif
 

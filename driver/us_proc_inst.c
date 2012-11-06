@@ -1593,9 +1593,18 @@ void find_plt_address(struct kretprobe_instance *probe, us_proc_ip_t * ip)
 		{
 			if (addr == p_lib->p_plt[i].func_addr + p_lib->vma_start)
 			{
-				if (!read_proc_vm_atomic(current, (unsigned long)(p_lib->p_plt[i].got_addr + p_lib->vma_start), &real_addr, sizeof(unsigned long)))
+				unsigned real_got;
+				if (strcmp(p_lib->path, task_inst_info->path))
 				{
-					printk("Failed to read memory %p!\n", p_lib->p_plt[i].got_addr + p_lib->vma_start);
+					real_got = p_lib->p_plt[i].got_addr + p_lib->vma_start;
+				}
+				else
+				{
+					real_got = p_lib->p_plt[i].got_addr;
+				}
+				if (!read_proc_vm_atomic(current, (unsigned long)(real_got), &real_addr, sizeof(unsigned long)))
+				{
+					printk("Failed to read got %p at memory address %p!\n", p_lib->p_plt[i].got_addr, real_got);
 					break;
 				}
 				if (real_addr != p_lib->p_plt[i].real_func_addr)
