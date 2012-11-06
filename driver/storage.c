@@ -1429,6 +1429,7 @@ int link_bundle()
 				  return -EFAULT;
 				  }
 				  //vtp_data->name[len] = 0;*/
+				vtp_data->name = s_vtp->name;
 				vtp_data->type = s_vtp->type;
 				vtp_data->size = s_vtp->size;
 				vtp_data->reg = s_vtp->reg;
