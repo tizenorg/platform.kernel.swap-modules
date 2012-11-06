@@ -158,6 +158,9 @@ static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
 # define MASK_THUMB_INSN_B2		0xF800			// 11111xxxxxxxxxxx
 # define PTRN_THUMB_INSN_B2		0xE000			// 11100xxxxxxxxxxx						// b label
 
+# define MASK_THUMB_INSN_CBZ		0xF500			// 1111x1x1xxxxxxxx
+# define PTRN_THUMB_INSN_CBZ		0xB100			// 1011x0x1xxxxxxxx						// CBZ/CBNZ
+
 # define MASK_THUMB2_INSN_B1		0xD000F800		// 11x1xxxxxxxxxxxx 11111xxxxxxxxxxx				// swapped
 # define PTRN_THUMB2_INSN_B1		0x8000F000		// 10x0xxxxxxxxxxxx 11110xxxxxxxxxxx				// swapped
 

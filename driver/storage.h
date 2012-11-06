@@ -176,7 +176,7 @@ typedef struct
 
 typedef struct
 {
-	//char *name;
+	char *name;
 	char type;
 	unsigned long size;
 	signed char reg;	// -1 - memory, 0..127 - register number

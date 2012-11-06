@@ -460,6 +460,7 @@ int arch_check_insn_thumb (struct arch_specific_insn *ainsn)
 		THUMB2_INSN_MATCH (BL, ainsn->insn_thumb[0]) ||
 		THUMB_INSN_MATCH (B1, ainsn->insn_thumb[0]) ||
 		THUMB_INSN_MATCH (B2, ainsn->insn_thumb[0]) ||
+		THUMB_INSN_MATCH (CBZ, ainsn->insn_thumb[0]) ||
 		THUMB2_INSN_MATCH (B1, ainsn->insn_thumb[0]) ||
 		THUMB2_INSN_MATCH (B2, ainsn->insn_thumb[0]) ||
 		THUMB2_INSN_MATCH (BLX1, ainsn->insn_thumb[0]) ||

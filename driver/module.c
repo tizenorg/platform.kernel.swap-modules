@@ -31,6 +31,7 @@ module_param (device_major, uint, 0);
 MODULE_PARM_DESC (device_major, "default device major number");
 
 fp_kallsyms_lookup_name_t lookup_name;
+EXPORT_SYMBOL_GPL(lookup_name);
 
 #if (LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 16))
 void (*__real_put_task_struct) (struct task_struct * tsk);
