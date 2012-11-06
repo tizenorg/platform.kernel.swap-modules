@@ -460,6 +460,7 @@ int arch_check_insn_thumb (struct arch_specific_insn *ainsn)
 		THUMB2_INSN_MATCH (BL, ainsn->insn_thumb[0]) ||
 		THUMB_INSN_MATCH (B1, ainsn->insn_thumb[0]) ||
 		THUMB_INSN_MATCH (B2, ainsn->insn_thumb[0]) ||
+		THUMB_INSN_MATCH (CBZ, ainsn->insn_thumb[0]) ||
 		THUMB2_INSN_MATCH (B1, ainsn->insn_thumb[0]) ||
 		THUMB2_INSN_MATCH (B2, ainsn->insn_thumb[0]) ||
 		THUMB2_INSN_MATCH (BLX1, ainsn->insn_thumb[0]) ||
@@ -674,7 +675,8 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 		return -EFAULT;
 	}
 	if ((p->safe_arm == -1) && (p->safe_thumb == -1)) {
-		printk("Error in %s at %d: failed arch_copy_trampoline_*_uprobe() (both)\n", __FILE__, __LINE__);
+		printk("Error in %s at %d: failed arch_copy_trampoline_*_uprobe() (both) addr=%p, inst=%x\n",
+			__FILE__, __LINE__, p->addr, p->opcode);
 		if (!write_proc_vm_atomic (task, (unsigned long) p->addr, &p->opcode, sizeof (p->opcode)))
 			panic ("Failed to write memory %p!\n", p->addr);
 		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
