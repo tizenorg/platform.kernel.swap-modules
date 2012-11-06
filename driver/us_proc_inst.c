@@ -473,14 +473,15 @@ static void us_vtp_event_handler (unsigned long arg1, unsigned long arg2, unsign
 #if !defined(CONFIG_X86)
 	struct pt_regs *regs = __get_cpu_var(gpCurVtpRegs);
 #endif
-	char fmt[3];
+	char fmt[4];
 	unsigned long vaddr;
 	long ival;
 	char cval, *sval;
 	us_proc_vtp_data_t *vtp_data;
-
+unsigned long ll;
 	fmt[0] = 'p';
-	fmt[2] = 0;
+	fmt[3] = 0;
+	fmt[2] = 's';
 
 	list_for_each_entry_rcu (vtp_data, &vtp->list, list) {
 		//		DPRINTF ("[%d]proc %s(%d): %lx", nCount++, current->comm, current->pid, vtp->addr);
@@ -498,19 +499,19 @@ static void us_vtp_event_handler (unsigned long arg1, unsigned long arg2, unsign
 				if (read_proc_vm_atomic (current, vaddr, &ival, sizeof (ival)) < sizeof (ival))
 					EPRINTF ("failed to read vm of proc %s/%u addr %lu!", current->comm, current->pid, vaddr);
 				else
-					pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, ival);
+					pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, ival, vtp_data->name);
 				break;
 			case 'f':
 				if (read_proc_vm_atomic (current, vaddr, &ival, sizeof (ival)) < sizeof (ival))
 					EPRINTF ("failed to read vm of proc %s/%u addr %lu!", current->comm, current->pid, vaddr);
 				else
-					pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, ival);
+					pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, ival, vtp_data->name);
 				break;
 			case 'c':
 				if (read_proc_vm_atomic (current, vaddr, &cval, sizeof (cval)) < sizeof (cval))
 					EPRINTF ("failed to read vm of proc %s/%u addr %lu!", current->comm, current->pid, vaddr);
 				else
-					pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, cval);
+					pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, cval, vtp_data->name);
 				break;
 			case 's':
 				if (current->active_mm) {
@@ -529,7 +530,7 @@ static void us_vtp_event_handler (unsigned long arg1, unsigned long arg2, unsign
 						EPRINTF ("failed to alloc memory for string in proc %s/%u addr %lu!", current->comm, current->pid, vaddr);
 					else {
 						copy_from_user_page (vma, page, vaddr, sval, maddr + (vaddr & ~PAGE_MASK), len + 1);
-						pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, sval);
+						pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, sval,  vtp_data->name);
 						kfree (sval);
 					}
 					kunmap_atomic (maddr, KM_USER0);
