@@ -210,7 +210,7 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 
 			unres_ips_count += copy_info->p_libs[i].ips_count;
 		}
-        
+
 		for (j = 0; j < copy_info->p_libs[i].plt_count; j++)
 		{
 			copy_info->p_libs[i].p_plt[j].real_func_addr = 0;
@@ -1426,7 +1426,6 @@ static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_in
 				}
 			}
 		}
-		task_inst_info->p_libs[i].loaded = 0;
 	}
 #ifdef __ANDROID
 	if (is_java_inst_enabled()) {
@@ -1733,7 +1732,7 @@ void find_plt_address(struct kretprobe_instance *probe, us_proc_ip_t * ip)
 								szLibPath = &(vma->vm_file->f_dentry->d_iname);
 							}
 						}
-	
+
 						if (szLibPath)
 						{
 							pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp", addr, real_addr, szLibPath, real_addr - vma->vm_start);
