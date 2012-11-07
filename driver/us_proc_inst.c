@@ -1017,6 +1017,11 @@ int deinst_usr_space_proc (void)
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_exit) result=%d!", iRet);
 
+	iRet = uninstall_kernel_probe (unmap_addr, US_PROC_UNMAP_INSTLD,
+			0, &unmap_probe);
+	if (iRet)
+		EPRINTF ("uninstall_kernel_probe(do_munmap) result=%d!", iRet);
+
 	if (!strcmp(us_proc_info.path,"*"))
 	{
 		for_each_process (task)
@@ -1248,6 +1253,14 @@ int inst_usr_space_proc (void)
 		EPRINTF ("install_kernel_probe(mm_release) result=%d!", ret);
 		return ret;
 	}
+
+	// enable 'do_munmap' probe to detect when for remove user space probes
+	ret = install_kernel_probe (unmap_addr, US_PROC_UNMAP_INSTLD, 0, &unmap_probe);
+	if (ret != 0)
+	{
+		EPRINTF ("install_kernel_probe(do_munmap) result=%d!", ret);
+		return ret;
+	}
 	return 0;
 }
 
@@ -1361,6 +1374,114 @@ void do_exit_probe_pre_code (void)
 	// TODO: remove task
 }
 EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
+
+static int check_addr(unsigned long addr, unsigned long start, size_t len)
+{
+	if ((addr >= start) && (addr < start + (unsigned long)len)) {
+		return 1;
+	}
+
+	return 0;
+}
+
+static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_inst_info, unsigned long start, size_t len)
+{
+	int i, k, err;
+	us_proc_otg_ip_t *p;
+	unsigned long addr;
+	const int atomic = 1;
+
+	for (i = 0; i < task_inst_info->libs_count; ++i) {
+		for (k = 0; k < task_inst_info->p_libs[i].ips_count; ++k) {
+			if (task_inst_info->p_libs[i].p_ips[k].installed) {
+				addr = task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr;
+				if (check_addr(addr, start, len)) {
+					err = unregister_usprobe(task, &task_inst_info->p_libs[i].p_ips[k], atomic);
+					if (err != 0) {
+						EPRINTF("failed to uninstall IP at %p. Error %d!", task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr, err);
+						continue;
+					}
+					task_inst_info->unres_ips_count++;
+					task_inst_info->p_libs[i].p_ips[k].installed = 0;
+				}
+			}
+		}
+		for (k = 0; k < task_inst_info->p_libs[i].vtps_count; ++k) {
+			if (task_inst_info->p_libs[i].p_vtps[k].installed) {
+				addr = task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr;
+				if (check_addr(addr, start, len)) {
+					dbi_unregister_ujprobe(task, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
+					task_inst_info->unres_vtps_count++;
+					task_inst_info->p_libs[i].p_vtps[k].installed = 0;
+				}
+			}
+		}
+		task_inst_info->p_libs[i].loaded = 0;
+	}
+#ifdef __ANDROID
+	if (is_java_inst_enabled()) {
+		us_proc_ip_t *entp = &task_inst_info->libdvm_entry_ip;
+		if (entp->installed) {
+			addr = entp->jprobe.kp.addr;
+			if (check_addr(addr, start, len)) {
+				unregister_usprobe(task, entp, atomic);
+				entp->installed = 0;
+			}
+		}
+		us_proc_ip_t *retp = &task_inst_info->libdvm_return_ip;
+		if (retp->installed) {
+			addr = retp->jprobe.kp.addr;
+			if (check_addr(addr, start, len)) {
+				unregister_usprobe(task, retp, atomic);
+				retp->installed = 0;
+			}
+		}
+	}
+#endif /* __ANDROID */
+	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
+		if (!p->ip.installed) {
+			continue;
+		}
+
+		addr = p->ip.jprobe.kp.addr;
+		if (check_addr(addr, start, len) == 0) {
+			continue;
+		}
+
+		err = unregister_usprobe(task, &p->ip, atomic);
+		if (err != 0) {
+			EPRINTF("failed to uninstall IP at %p. Error %d!",
+				 p->ip.jprobe.kp.addr, err);
+			continue;
+		}
+		p->ip.installed = 0;
+	}
+
+	return 0;
+}
+
+void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t len)
+{
+	inst_us_proc_t *task_inst_info = NULL;
+	struct task_struct *task = current;
+
+	//if user-space instrumentation is not set
+	if (!us_proc_info.path || task->tgid != task->pid)
+		return;
+
+	if (!strcmp(us_proc_info.path,"*")) {
+		task_inst_info = get_task_inst_node(task);
+	} else {
+		if (task->tgid == us_proc_info.tgid) {
+			task_inst_info = &us_proc_info;
+		}
+	}
+
+	if (task_inst_info) {
+		remove_unmap_probes(task, task_inst_info, start, len);
+	}
+}
+EXPORT_SYMBOL_GPL(do_munmap_probe_pre_code);
 
 void mm_release_probe_pre_code(void)
 {

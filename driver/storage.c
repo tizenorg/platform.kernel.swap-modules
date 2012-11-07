@@ -1617,7 +1617,9 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 		addr = get_probe_func_addr(fmt, args);
 		va_end(args);
 		if( ((addr == pf_addr) && !(probes_flags & PROBE_FLAG_PF_INSTLD)) ||
+		    ((addr == cp_addr) && !(probes_flags & PROBE_FLAG_CP_INSTLD)) ||
 		    ((addr == mr_addr) && !(probes_flags & PROBE_FLAG_MR_INSTLD)) ||
+		    ((addr == unmap_addr) && !(probes_flags & PROBE_FLAG_UNMAP_INSTLD)) ||
 		    ((addr == exit_addr) && !(probes_flags & PROBE_FLAG_EXIT_INSTLD)) ) {
 			return;
 		}
