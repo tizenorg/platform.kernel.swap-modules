@@ -898,14 +898,14 @@ char *find_lib_path(const char *lib_name)
 	char *p = deps + sizeof(size_t);
 	char *match;
 	size_t len;
-
+    
 	while (*p != '\0') {
 		DPRINTF("p is at %s", p);
 		len = strlen(p) + 1;
 		match = strstr(p, lib_name);
 		p += len;
 		len = strlen(p) + 1; /* we are at path now */
-		if (!match) {
+	    if (!match) {
 			p += len;
 		} else {
 			DPRINTF("Found match: %s", match);
@@ -969,6 +969,9 @@ void unlink_bundle(void)
 				}
 				kfree ((void *) d_lib->p_vtps);
 			}
+			d_lib->plt_count = 0;
+			kfree((void*) d_lib->p_plt);
+			us_proc_info.is_plt = 0;
 		}
 		kfree ((void *) us_proc_info.p_libs);
 		us_proc_info.p_libs = 0;
@@ -1020,6 +1023,7 @@ int link_bundle()
 	size_t nr_conds;
 	int lib_name_len;
 	int handler_index;
+
 
 	/* Get user-defined us handlers (if they are provided) */
 	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
@@ -1080,6 +1084,7 @@ int link_bundle()
 	len = *(u_int32_t *)p; /* App path len */
 	p += sizeof(u_int32_t);
 
+	us_proc_info.is_plt = 0;
 	if ( len == 0 )
 	{
 	    us_proc_info.path = NULL;
@@ -1088,6 +1093,7 @@ int link_bundle()
 	{
 		int lib_path_len;
 		char *lib_path;
+		int plt_count;
 
 		us_proc_info.path = (char *)p;
 		DPRINTF("app path = %s", us_proc_info.path);
@@ -1162,7 +1168,10 @@ int link_bundle()
 			if (strcmp(d_lib->path, "*") == 0)
 			{
 				p += d_lib->ips_count * 3 * sizeof(u_int32_t);
+				/* For plt count */
+				p += sizeof(u_int32_t);
 				d_lib->ips_count = 0;
+				d_lib->plt_count = 0;
 				continue;
 			}
 
@@ -1180,6 +1189,9 @@ int link_bundle()
 						/* Just skip all the IPs and go to next lib */
 						p += d_lib->ips_count * 3 * sizeof(u_int32_t);
 						d_lib->ips_count = 0;
+						d_lib->plt_count = *(u_int32_t*)p;
+						p += sizeof(u_int32_t);
+						p += d_lib->plt_count * 2 * sizeof(u_int32_t);
 						continue;
 					}
 					else {
@@ -1232,6 +1244,7 @@ int link_bundle()
 				}
 				abs_handler_idx += my_uprobes_info->p_libs[l].ips_count;
 			}
+
 			if (d_lib->ips_count > 0)
 			{
 				us_proc_info.unres_ips_count += d_lib->ips_count;
@@ -1269,6 +1282,29 @@ int link_bundle()
 								pd_lib->p_ips[handler_index - abs_handler_idx].retprobe.handler;
 						}
 					}
+				}
+			}
+
+			d_lib->plt_count = *(u_int32_t*)p;
+			p += sizeof(u_int32_t);
+			if (d_lib->plt_count > 0)
+			{
+				int j;
+                us_proc_info.is_plt = 1;
+				d_lib->p_plt = kmalloc(d_lib->plt_count * sizeof(us_proc_plt_t), GFP_KERNEL);
+				if (!d_lib->p_plt)
+				{
+					EPRINTF("Cannot alloc p_plt!");
+					return -1;
+				}
+				memset(d_lib->p_plt, 0, d_lib->plt_count * sizeof(us_proc_plt_t));
+				for (j = 0; j < d_lib->plt_count; j++)
+				{
+					d_lib->p_plt[j].func_addr = *(u_int32_t*)p;
+					p += sizeof(u_int32_t);
+					d_lib->p_plt[j].got_addr = *(u_int32_t*)p;
+					p += sizeof(u_int32_t);
+					d_lib->p_plt[j].real_func_addr = 0;
 				}
 			}
 		}
@@ -1625,7 +1661,9 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 		addr = get_probe_func_addr(fmt, args);
 		va_end(args);
 		if( ((addr == pf_addr) && !(probes_flags & PROBE_FLAG_PF_INSTLD)) ||
+		    ((addr == cp_addr) && !(probes_flags & PROBE_FLAG_CP_INSTLD)) ||
 		    ((addr == mr_addr) && !(probes_flags & PROBE_FLAG_MR_INSTLD)) ||
+		    ((addr == unmap_addr) && !(probes_flags & PROBE_FLAG_UNMAP_INSTLD)) ||
 		    ((addr == exit_addr) && !(probes_flags & PROBE_FLAG_EXIT_INSTLD)) ) {
 			return;
 		}

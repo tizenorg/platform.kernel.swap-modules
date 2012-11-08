@@ -189,6 +189,13 @@ typedef struct vfsmount *STRUCT_VFSMOUNT_PTR;
 
 typedef struct
 {
+	unsigned func_addr;
+	unsigned got_addr;
+	unsigned real_func_addr;
+} us_proc_plt_t;
+
+typedef struct
+{
 	char *path;
 	char *path_dyn;
 	STRUCT_DENTRY_PTR m_f_dentry;
@@ -198,10 +205,12 @@ typedef struct
 	unsigned vtps_count;
 	us_proc_vtp_t *p_vtps;
 	int loaded;
+	unsigned plt_count;
+	us_proc_plt_t *p_plt;
+	unsigned vma_start;
+	unsigned vma_end;
 } us_proc_lib_t;
 
-
-//#include "new_dpf.h"
 
 typedef struct
 {
@@ -212,6 +221,7 @@ typedef struct
 	unsigned unres_vtps_count;
 	unsigned unres_otg_ips_count;
 	//kprobe_opcode_t *mapped_codelets;
+	int is_plt;
 	unsigned libs_count;
 	us_proc_lib_t *p_libs;
 #ifdef __ANDROID

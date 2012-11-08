@@ -98,8 +98,9 @@ void arch_arm_uretprobe (struct kretprobe *p, struct task_struct *tsk)
 
 void arch_disarm_uprobe (struct kprobe *p, struct task_struct *tsk)
 {
-	if (!write_proc_vm_atomic (tsk, (unsigned long) p->addr, &p->opcode, sizeof (p->opcode)))
-		panic ("failed to write memory %p!\n", p->addr);
+	if (!write_proc_vm_atomic (tsk, (unsigned long) p->addr, &p->opcode, sizeof (p->opcode))) {
+		panic ("failed to write memory: tgid=%u, addr=%p!\n", tsk->tgid, p->addr);
+	}
 }
 EXPORT_SYMBOL_GPL(arch_disarm_uprobe);
 
