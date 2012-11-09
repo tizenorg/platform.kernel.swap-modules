@@ -1318,7 +1318,8 @@ static void set_mapping_file(struct file_probes *file_p,
 		p++;
 	}
 
-	file_p->map_addr = vma->vm_start;
+	file_p->vm_start = vma->vm_start;
+	file_p->vm_end = vma->vm_end;
 	pack_event_info(DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
 			task->tgid, p, vma->vm_start,
 			vma->vm_end - vma->vm_start, app_flag);

@@ -24,7 +24,8 @@ struct file_probes {
 	struct dentry *dentry;
 	char *path;
 	int loaded;
-	unsigned long map_addr;
+	unsigned long vm_start;
+	unsigned long vm_end;
 
 	unsigned long page_probes_hash_bits;
 	struct hlist_head *page_probes_table; // for page_probes
@@ -152,7 +153,7 @@ static void page_p_set_all_kp_addr(struct page_probes *page_p, const struct file
 	size_t i;
 	for (i = 0; i < page_p->cnt_ip; ++i) {
 		ip = &page_p->ip[i];
-		addr = file_p->map_addr + page_p->offset + ip->offset;
+		addr = file_p->vm_start + page_p->offset + ip->offset;
 		ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
 //		printk("###       pp_set_all_kp_addr: start=%x, page=%x, offset=%x, addr=%x\n",
 //				start, page_p->page, ip->offset, addr);
@@ -177,7 +178,8 @@ static struct file_probes *file_p_new(us_proc_lib_t *lib, int page_cnt)
 		obj->dentry = lib->m_f_dentry;
 		obj->path = lib->path;
 		obj->loaded = 0;
-		obj->map_addr = 0;
+		obj->vm_start = 0;
+		obj->vm_end = 0;
 
 		obj->page_probes_hash_bits = calculation_hash_bits(page_cnt);//PAGE_PROBES_HASH_BITS;
 		table_size = (1 << obj->page_probes_hash_bits);
@@ -220,7 +222,8 @@ static struct file_probes *file_p_copy(const struct file_probes *file_p)
 		file_p_out->dentry = file_p->dentry;
 		file_p_out->path = file_p->path;
 		file_p_out->loaded = 0;
-		file_p_out->map_addr = 0;
+		file_p_out->vm_start = 0;
+		file_p_out->vm_end = 0;
 
 		file_p_out->page_probes_hash_bits = file_p->page_probes_hash_bits;
 		table_size = (1 << file_p_out->page_probes_hash_bits);
@@ -251,14 +254,14 @@ static struct page_probes *file_p_find_page_p(struct file_probes *file_p, unsign
 	struct hlist_head *head;
 	unsigned long offset;
 
-	if (file_p->map_addr > page) {
+	if (file_p->vm_start > page || file_p->vm_end < page) {
 		// TODO: or panic?!
-		printk("ERROR: file_p->map_addr > page: file_p[map_addr=%x, path=%s, d_iname=%s] page=%x\n",
-				file_p->map_addr, file_p->path, file_p->dentry->d_iname, page);
+		printk("ERROR: file_p[vm_start..vm_end] <> page: file_p[vm_start=%x, vm_end=%x, path=%s, d_iname=%s] page=%x\n",
+				file_p->vm_start, file_p->vm_end, file_p->path, file_p->dentry->d_iname, page);
 		return NULL;
 	}
 
-	offset = page - file_p->map_addr;
+	offset = page - file_p->vm_start;
 
 	head = &file_p->page_probes_table[hash_ptr(offset, file_p->page_probes_hash_bits)];
 	hlist_for_each_entry_rcu(page_p, node, head, hlist) {
@@ -539,8 +542,8 @@ static void print_file_probes(const struct file_probes *file_p)
 	table_size = (1 << file_p->page_probes_hash_bits);
 	const char *name = (file_p->dentry) ? file_p->dentry->d_iname : NA;
 
-	printk("### print_file_probes: path=%s, d_iname=%s, table_size=%d, map_addr=%x\n",
-			file_p->path, name, table_size, file_p->map_addr);
+	printk("### print_file_probes: path=%s, d_iname=%s, table_size=%d, vm_start=%x\n",
+			file_p->path, name, table_size, file_p->vm_start);
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file_p->page_probes_table[i];
