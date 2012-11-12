@@ -1694,7 +1694,7 @@ void find_plt_address(unsigned long addr)
 			if ((task_inst_info->p_libs[i].loaded)
 				&& (task_inst_info->p_libs[i].plt_count > 0)
 				&& (addr > task_inst_info->p_libs[i].vma_start)
-				&& (addr < task_inst_info->p_libs[i].vma_end)) 
+				&& (addr < task_inst_info->p_libs[i].vma_end))
 			{
 				p_lib = &(task_inst_info->p_libs[i]);
 				break;
@@ -1730,7 +1730,6 @@ void find_plt_address(unsigned long addr)
 							break;
 						}
 					} else {
-                        printk(" Wut?!\n");
 						break;
 					}
 				}
