@@ -207,8 +207,9 @@ typedef struct
 	int loaded;
 	unsigned plt_count;
 	us_proc_plt_t *p_plt;
-	unsigned vma_start;
-	unsigned vma_end;
+	unsigned long vma_start;
+	unsigned long vma_end;
+	unsigned vma_flag;
 } us_proc_lib_t;
 
 

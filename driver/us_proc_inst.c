@@ -616,6 +616,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 					task_inst_info->p_libs[i].loaded = 1;
 					task_inst_info->p_libs[i].vma_start = vma->vm_start;
 					task_inst_info->p_libs[i].vma_end = vma->vm_end;
+					task_inst_info->p_libs[i].vma_flag = vma->vm_flags;
 					pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
 							task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start, app_flag);
 				}
@@ -1704,10 +1705,10 @@ void find_plt_address(unsigned long addr)
 			{
 				if (addr == p_lib->p_plt[i].func_addr + p_lib->vma_start) {
 					unsigned long real_got;
-					if (strcmp(p_lib->path, task_inst_info->path)) {
-						real_got = p_lib->p_plt[i].got_addr - 0x8000 + p_lib->vma_start;
-					} else {
+					if (p_lib->vma_flag & VM_EXECUTABLE) {
 						real_got = p_lib->p_plt[i].got_addr;
+					} else {
+						real_got = p_lib->p_plt[i].got_addr + p_lib->vma_start;
 					}
 					if (!read_proc_vm_atomic(current, (unsigned long)(real_got), &real_addr, sizeof(unsigned long))) {
 						printk("Failed to read got %p at memory address %p!\n", p_lib->p_plt[i].got_addr, real_got);
@@ -1729,6 +1730,7 @@ void find_plt_address(unsigned long addr)
 							break;
 						}
 					} else {
+                        printk(" Wut?!\n");
 						break;
 					}
 				}
