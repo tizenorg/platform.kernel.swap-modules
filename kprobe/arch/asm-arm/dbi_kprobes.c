@@ -651,7 +651,7 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 		return -EINVAL;
 	}
 	if (!read_proc_vm_atomic (task, (unsigned long) p->addr, &insn, MAX_INSN_SIZE * sizeof(kprobe_opcode_t)))
-		panic ("Failed to read memory %p!\n", p->addr);
+		panic ("Failed to read memory tgid=%u %p!\n", task->tgid, p->addr);
 	p->opcode = insn[0];
 	p->ainsn.insn_arm = get_insn_slot(task, atomic);
 	if (!p->ainsn.insn_arm) {

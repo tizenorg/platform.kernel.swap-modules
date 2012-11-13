@@ -363,6 +363,11 @@ static void print_proc_probes(const struct proc_probes *proc_p);
 
 struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 {
+	const int tmp_hash_bits = 12;
+	const int tmp_table_size = (1 << tmp_hash_bits);
+	struct hlist_head *tmp_page_probes_table = kmalloc(tmp_table_size* sizeof(*tmp_page_probes_table), GFP_KERNEL);
+	int tmp_i;
+
 	struct proc_probes *proc_p = kmalloc(sizeof(*proc_p), GFP_ATOMIC);
 
 	printk("####### get START #######\n");
@@ -379,8 +384,6 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 		for (i = 0; i < task_inst_info->libs_count; ++i) {
 			us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
 			struct file_probes *file_p = NULL;
-			unsigned long page = 0, min_index = 0, max_index = 0, cnt = 0, idx = 0;
-			struct page_probes *page_p = NULL;
 			int k, page_cnt = 0;
 
 			printk("#3# get_file_probes: p_libs[ips_count=%d, dentry=%p, %s %s\n",
@@ -390,52 +393,61 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 				continue;
 			}
 
-			sort_libs(p_libs);
+			// init tmp_page_probes_table
+			for (tmp_i = 0; tmp_i < tmp_table_size; ++tmp_i) {
+				INIT_HLIST_HEAD(&tmp_page_probes_table[tmp_i]);
+			}
+
+			// fill tmp_page_probes_table
+			for (k = 0; k < p_libs->ips_count; ++k) {
+				struct hlist_node *node;
+				struct hlist_head *head;
+				us_proc_ip_t *ip = &p_libs->p_ips[k];
+				unsigned long offset = ip->offset & PAGE_MASK;
+				struct page_probes *page_p_tmp, *page_p = NULL;
+
+				head = &tmp_page_probes_table[hash_ptr(offset, tmp_hash_bits)];
+				hlist_for_each_entry(page_p_tmp, node, head, hlist) {
+					if (page_p_tmp->offset == offset) {
+						page_p = page_p_tmp;
+						break;
+					}
+				}
+
+				if (page_p == NULL) {
+					page_p = page_p_new(offset);
+					hlist_add_head(&page_p->hlist, &tmp_page_probes_table[hash_ptr(page_p->offset, tmp_hash_bits)]);
+				}
+
+				page_p_add_ip(page_p, ip);
+			}
 
 			// calculation page_cnt
-			page = p_libs->p_ips[0].offset & PAGE_MASK;
-			min_index = 0;
-			for (k = 0; k < p_libs->ips_count; ++k) {
-				us_proc_ip_t *p_ips = &p_libs->p_ips[k];
-				unsigned long addr = p_ips->offset;
-				if ( page != (addr & PAGE_MASK)) {
-					max_index = k;
+			page_cnt = 0;
+			for (tmp_i = 0; tmp_i < tmp_table_size; ++tmp_i) {
+				struct page_probes *page_p;
+				struct hlist_node *node;
+				struct hlist_head *head = &tmp_page_probes_table[tmp_i];
+				hlist_for_each_entry(page_p, node, head, hlist) {
 					++page_cnt;
-
-					page = addr & PAGE_MASK;
-					min_index = max_index;
 				}
 			}
 
-			++page_cnt;
-
-			printk("#4# get_file_probes: %s, page_cnt=%d\n",
-					p_libs->m_f_dentry ? p_libs->m_f_dentry->d_iname : "N/A",
-					page_cnt);
+			printk("#4# get_file_probes: page_cnt=%d\n", page_cnt);
 
 			file_p = file_p_new(p_libs, page_cnt);
 
-			page = p_libs->p_ips[0].offset & PAGE_MASK;
-			min_index = 0;
-			for (k = 0; k < p_libs->ips_count; ++k) {
-				us_proc_ip_t *p_ips = &p_libs->p_ips[k];
-				unsigned long addr = p_ips->offset;
-				if ( page != (addr & PAGE_MASK)) {
-					max_index = k;
-					page_p = get_page_p_of_ips(page, min_index, max_index, p_libs->p_ips);
-
+			// fill file_p
+			for (tmp_i = 0; tmp_i < tmp_table_size; ++tmp_i) {
+				struct page_probes *page_p;
+				struct hlist_node *node, *n;
+				struct hlist_head *head = &tmp_page_probes_table[tmp_i];
+				hlist_for_each_entry_safe(page_p, node, n, head, hlist) {
+					hlist_del_init(&page_p->hlist);
 					file_p_add_page_p(file_p, page_p);
-
-					page = addr & PAGE_MASK;
-					min_index = max_index;
 				}
 			}
 
-			max_index = p_libs->ips_count;
-			page_p = get_page_p_of_ips(page, min_index, max_index, p_libs->p_ips);
-
-
-			file_p_add_page_p(file_p, page_p);
 			proc_p->file_p[i] = file_p;
 		}
 
@@ -472,6 +484,8 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 //	print_proc_probes(proc_p);
 
 	printk("####### get  END  #######\n");
+
+	kfree(tmp_page_probes_table);
 
 	return proc_p;
 }
@@ -546,7 +560,6 @@ static void print_page_probes(const struct page_probes *page_p)
 	int i = 0;
 	us_proc_ip_t *ip;
 
-	printk("### page_p->ip_list.next=%x\n", page_p->ip_list.next);
 	printk("###     offset=%x\n", page_p->offset);
 	list_for_each_entry(ip, &page_p->ip_list, list) {
 
