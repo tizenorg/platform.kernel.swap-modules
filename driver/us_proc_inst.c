@@ -1331,7 +1331,7 @@ static int register_us_page_probe(struct page_probes *page_p,
 		const struct mm_struct *mm)
 {
 	int err = 0;
-	size_t i;
+	us_proc_ip_t *ip;
 
 	spin_lock(&page_p->lock);
 
@@ -1344,8 +1344,8 @@ static int register_us_page_probe(struct page_probes *page_p,
 	page_p_assert_install(page_p);
 	page_p_set_all_kp_addr(page_p, file_p);
 
-	for (i = 0; i < page_p->cnt_ip; ++i) {
-		err = register_usprobe_my(task, mm, &page_p->ip[i]);
+	list_for_each_entry(ip, &page_p->ip_list, list) {
+		err = register_usprobe_my(task, mm, ip);
 		if (err != 0) {
 			//TODO: ERROR
 			return err;
@@ -1363,14 +1363,14 @@ static int unregister_us_page_probe(const struct task_struct *task,
 		struct page_probes *page_p, enum US_FLAGS flag)
 {
 	int err = 0;
-	size_t i;
+	us_proc_ip_t *ip;
 
 	if (page_p->install == 0) {
 		return 0;
 	}
 
-	for (i = 0; i < page_p->cnt_ip; ++i) {
-		err = unregister_usprobe_my(task, &page_p->ip[i], flag);
+	list_for_each_entry(ip, &page_p->ip_list, list) {
+		err = unregister_usprobe_my(task, ip, flag);
 		if (err != 0) {
 			//TODO: ERROR
 			return err;

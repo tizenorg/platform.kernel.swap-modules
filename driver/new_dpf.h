@@ -11,9 +11,8 @@ enum US_FLAGS {
 };
 
 struct page_probes {
+	struct list_head ip_list;
 	unsigned long offset;
-	size_t cnt_ip;
-	us_proc_ip_t *ip;
 	int install;
 	spinlock_t lock;
 
@@ -37,6 +36,28 @@ struct proc_probes {
 	struct file_probes **file_p;
 };
 
+us_proc_ip_t *us_proc_ip_copy(const us_proc_ip_t *ip)
+{
+	us_proc_ip_t *ip_out = kmalloc(sizeof(*ip_out), GFP_ATOMIC);
+	if (ip_out == NULL) {
+		DPRINTF ("us_proc_ip_copy: No enough memory");
+		return NULL;
+	}
+
+	memcpy (ip_out, ip, sizeof(*ip_out));
+
+	ip_out->installed = 0;
+	memset(&ip_out->jprobe, 0, sizeof(struct jprobe));
+	memset(&ip_out->retprobe, 0, sizeof(struct kretprobe));
+
+	ip_out->jprobe.entry = ip->jprobe.entry;
+	ip_out->jprobe.pre_entry = ip->jprobe.pre_entry;
+	ip_out->retprobe.handler = ip->retprobe.handler;
+
+	INIT_LIST_HEAD(&ip_out->list);
+
+	return ip_out;
+}
 
 us_proc_ip_t *us_proc_ips_copy(const us_proc_ip_t *ips, int cnt)
 {
@@ -74,20 +95,11 @@ us_proc_ip_t *us_proc_ips_copy(const us_proc_ip_t *ips, int cnt)
 }
 
 // page_probes
-static struct page_probes *page_p_new(unsigned long offset, us_proc_ip_t *ip, size_t cnt)
+static struct page_probes *page_p_new(unsigned long offset)
 {
 	struct page_probes *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
-
 	if (obj) {
-		int i;
-		obj->ip = kmalloc(sizeof(*obj->ip)*cnt, GFP_ATOMIC);
-		if(obj->ip == NULL) {
-			kfree(obj);
-			return NULL;
-		}
-
-		memcpy(obj->ip, ip, sizeof(*obj->ip)*cnt);
-		obj->cnt_ip = cnt;
+		INIT_LIST_HEAD(&obj->ip_list);
 		obj->offset = offset;
 		obj->install = 0;
 		spin_lock_init(&obj->lock);
@@ -104,16 +116,22 @@ static void page_p_del(struct page_probes *page_p)
 
 struct page_probes *page_p_copy(const struct page_probes *page_p)
 {
+	us_proc_ip_t *ip_in, *ip_out;
 	struct page_probes *page_p_out = kmalloc(sizeof(*page_p), GFP_ATOMIC);
 
 	if (page_p_out) {
-		page_p_out->ip = us_proc_ips_copy(page_p->ip, page_p->cnt_ip);
-		if(page_p_out->ip == NULL) {
-			kfree(page_p_out);
-			return NULL;
+		INIT_LIST_HEAD(&page_p_out->ip_list);
+		list_for_each_entry(ip_in, &page_p->ip_list, list) {
+			ip_out = us_proc_ip_copy(ip_in);
+			if (ip_out == NULL) {
+				// FIXME: free ip_list in page_p_out
+				kfree(page_p_out);
+				return NULL;
+			}
+
+			list_add(&ip_out->list, &page_p_out->ip_list);
 		}
 
-		page_p_out->cnt_ip = page_p->cnt_ip;
 		page_p_out->offset = page_p->offset;
 		page_p_out->install = 0;
 		spin_lock_init(&page_p_out->lock);
@@ -121,6 +139,12 @@ struct page_probes *page_p_copy(const struct page_probes *page_p)
 	}
 
 	return page_p_out;
+}
+
+void page_p_add_ip(struct page_probes *page_p, us_proc_ip_t *ip)
+{
+	INIT_LIST_HEAD(&ip->list);
+	list_add(&ip->list, &page_p->ip_list);
 }
 
 static void page_p_assert_install(const struct page_probes *page_p)
@@ -150,13 +174,12 @@ static void page_p_set_all_kp_addr(struct page_probes *page_p, const struct file
 {
 	us_proc_ip_t *ip;
 	unsigned long addr;
-	size_t i;
-	for (i = 0; i < page_p->cnt_ip; ++i) {
-		ip = &page_p->ip[i];
+
+	list_for_each_entry(ip, &page_p->ip_list, list) {
 		addr = file_p->vm_start + page_p->offset + ip->offset;
 		ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
-//		printk("###       pp_set_all_kp_addr: start=%x, page=%x, offset=%x, addr=%x\n",
-//				start, page_p->page, ip->offset, addr);
+//		printk("###       pp_set_all_kp_addr: start=%x, page_offset=%x, ip_offset=%x, addr=%x\n",
+//				file_p->vm_start, page_p->offset, ip->offset, addr);
 	}
 }
 
@@ -315,19 +338,24 @@ static void sort_libs(us_proc_lib_t *p_libs)
 
 static struct page_probes *get_page_p_of_ips(unsigned long page, unsigned long min_index, unsigned long max_index, us_proc_ip_t *p_ips)
 {
-	struct page_probes *page_p;
+	us_proc_ip_t *ip;
 	unsigned long idx;
-	unsigned long cnt = max_index - min_index;
-	us_proc_ip_t *ip = kmalloc(sizeof(*ip)*cnt, GFP_ATOMIC);
+	struct page_probes *page_p = page_p_new(page);
 
-	for (idx = min_index; idx < max_index; ++idx) {
-		ip[idx - min_index].offset = p_ips[idx].offset & ~PAGE_MASK;;
-		ip[idx - min_index].jprobe = p_ips[idx].jprobe;
-		ip[idx - min_index].retprobe = p_ips[idx].retprobe;
+	if (page_p == NULL) {
+		// TODO: error
+		return NULL;
 	}
 
-	page_p = page_p_new(page, ip, cnt);
-	kfree(ip);
+	for (idx = min_index; idx < max_index; ++idx) {
+		ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
+		memset(ip, 0, sizeof(*ip));
+		ip->offset = p_ips[idx].offset & ~PAGE_MASK;;
+		ip->jprobe = p_ips[idx].jprobe;
+		ip->retprobe = p_ips[idx].retprobe;
+		page_p_add_ip(page_p, ip);
+	}
+
 	return page_p;
 }
 
@@ -513,15 +541,18 @@ static int unregister_usprobe_my(struct task_struct *task, us_proc_ip_t *ip, enu
 }
 
 // debug
-static void print_page_probes(const struct page_probes *pp)
+static void print_page_probes(const struct page_probes *page_p)
 {
-	int i;
+	int i = 0;
+	us_proc_ip_t *ip;
 
-	printk("###     offset=%x\n", pp->offset);
-	for (i = 0; i < pp->cnt_ip; ++i) {
+	printk("### page_p->ip_list.next=%x\n", page_p->ip_list.next);
+	printk("###     offset=%x\n", page_p->offset);
+	list_for_each_entry(ip, &page_p->ip_list, list) {
+
 		printk("###       addr[%2d]=%x, J_addr=%x, R_addr=%x\n",
-				i, pp->ip[i].offset,
-				pp->ip[i].jprobe.kp.addr, pp->ip[i].retprobe.kp.addr);
+				i, ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
+		++i;
 	}
 }
 

@@ -152,6 +152,7 @@ extern unsigned int inst_pid;
 
 typedef struct
 {
+	struct list_head list;
 	char *name;
 	int installed;
 	struct jprobe jprobe;
