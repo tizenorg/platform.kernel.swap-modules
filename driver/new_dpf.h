@@ -143,6 +143,7 @@ struct page_probes *page_p_copy(const struct page_probes *page_p)
 
 void page_p_add_ip(struct page_probes *page_p, us_proc_ip_t *ip)
 {
+	ip->offset &= ~PAGE_MASK;
 	INIT_LIST_HEAD(&ip->list);
 	list_add(&ip->list, &page_p->ip_list);
 }
@@ -335,29 +336,6 @@ static void sort_libs(us_proc_lib_t *p_libs)
 }
 
 #include "storage.h"
-
-static struct page_probes *get_page_p_of_ips(unsigned long page, unsigned long min_index, unsigned long max_index, us_proc_ip_t *p_ips)
-{
-	us_proc_ip_t *ip;
-	unsigned long idx;
-	struct page_probes *page_p = page_p_new(page);
-
-	if (page_p == NULL) {
-		// TODO: error
-		return NULL;
-	}
-
-	for (idx = min_index; idx < max_index; ++idx) {
-		ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
-		memset(ip, 0, sizeof(*ip));
-		ip->offset = p_ips[idx].offset & ~PAGE_MASK;;
-		ip->jprobe = p_ips[idx].jprobe;
-		ip->retprobe = p_ips[idx].retprobe;
-		page_p_add_ip(page_p, ip);
-	}
-
-	return page_p;
-}
 
 static void print_proc_probes(const struct proc_probes *proc_p);
 
