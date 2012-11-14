@@ -1165,9 +1165,10 @@ int link_bundle()
 			if (strcmp(d_lib->path, "*") == 0)
 			{
 				p += d_lib->ips_count * 3 * sizeof(u_int32_t);
-				/* For plt count */
-				p += sizeof(u_int32_t);
 				d_lib->ips_count = 0;
+				d_lib->plt_count = *(u_int32_t*)p;
+				p += sizeof(u_int32_t);
+				p += d_lib->plt_count * 2 * sizeof(u_int32_t);
 				d_lib->plt_count = 0;
 				continue;
 			}
@@ -1189,11 +1190,12 @@ int link_bundle()
 						d_lib->plt_count = *(u_int32_t*)p;
 						p += sizeof(u_int32_t);
 						p += d_lib->plt_count * 2 * sizeof(u_int32_t);
+						d_lib->plt_count = 0;
 						continue;
 					}
 					else {
 						d_lib->path = d_lib->path_dyn;
-						DPRINTF("Assign path for lib as %s (in suggestion of dyn lib", d_lib->path);
+						DPRINTF("Assign path for lib as %s (in suggestion of dyn lib)", d_lib->path);
 					}
 				}
 			}
@@ -1207,8 +1209,13 @@ int link_bundle()
 				/* Just skip all the IPs and go to next lib */
 				p += d_lib->ips_count * 3 * sizeof(u_int32_t);
 				d_lib->ips_count = 0;
+				d_lib->plt_count = *(u_int32_t*)p;
+				p += sizeof(u_int32_t);
+				p += d_lib->plt_count * 2 * sizeof(u_int32_t);
+				d_lib->plt_count = 0;
 				continue;
 			}
+
 	#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 			d_lib->m_f_dentry = nd.dentry;
 			path_release(&nd);
@@ -1272,7 +1279,7 @@ int link_bundle()
 						{
 							DPRINTF("found handler for 0x%x", d_ip->offset);
 							d_ip->jprobe.pre_entry =
-							        pd_lib->p_ips[handler_index - abs_handler_idx].jprobe.pre_entry;
+								pd_lib->p_ips[handler_index - abs_handler_idx].jprobe.pre_entry;
 							d_ip->jprobe.entry =
 								pd_lib->p_ips[handler_index - abs_handler_idx].jprobe.entry;
 							d_ip->retprobe.handler =
@@ -1287,7 +1294,7 @@ int link_bundle()
 			if (d_lib->plt_count > 0)
 			{
 				int j;
-                us_proc_info.is_plt = 1;
+				us_proc_info.is_plt = 1;
 				d_lib->p_plt = kmalloc(d_lib->plt_count * sizeof(us_proc_plt_t), GFP_KERNEL);
 				if (!d_lib->p_plt)
 				{
