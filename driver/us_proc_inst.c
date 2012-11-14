@@ -1682,10 +1682,10 @@ void find_plt_address(unsigned long addr)
 
 	// Search for library structure to check whether this function plt or not
 	if (strcmp(us_proc_info.path, "*")){
-		// If app lib instrumentation
+	// If app lib instrumentation
 		task_inst_info = &us_proc_info;
 	} else {
-		// If lib only instrumentation
+	// If lib only instrumentation
 		task_inst_info = get_task_inst_node(current);
 	}
 	if ((task_inst_info != NULL) && (task_inst_info->is_plt != 0)) {
@@ -1712,25 +1712,28 @@ void find_plt_address(unsigned long addr)
 					}
 					if (!read_proc_vm_atomic(current, (unsigned long)(real_got), &real_addr, sizeof(unsigned long))) {
 						printk("Failed to read got %p at memory address %p!\n", p_lib->p_plt[i].got_addr, real_got);
-						break;
+						return;
 					}
 					if (real_addr != p_lib->p_plt[i].real_func_addr) {
 						p_lib->p_plt[i].real_func_addr =  real_addr;
 						vma = find_vma(current->mm, real_addr);
-						if ((vma->vm_start <= real_addr) && (vma->vm_end > real_addr)) {
+						if ((vma != NULL) && (vma->vm_start <= real_addr) && (vma->vm_end > real_addr)) {
 							if (vma->vm_file != NULL) {
 								szLibPath = &(vma->vm_file->f_dentry->d_iname);
 							}
+						} else {
+							printk("Failed to get vma, includes %x address\n", real_addr);
+							return;
 						}
 						if (szLibPath) {
 							pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp", addr, real_addr, szLibPath, real_addr - vma->vm_start);
-							break;
+							return;
 						} else {
 							pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppp", addr, real_addr, real_addr - vma->vm_start);
-							break;
+							return;
 						}
 					} else {
-						break;
+						return;
 					}
 				}
 			}
