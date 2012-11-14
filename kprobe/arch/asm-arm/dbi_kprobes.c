@@ -1180,11 +1180,10 @@ int kprobe_handler(struct pt_regs *regs)
 		if (!isThumb2(p->opcode)) {
 			unsigned long tmp = p->opcode >> 16;
 			write_proc_vm_atomic(current, (unsigned long)((unsigned short*)p->addr + 1), &tmp, 2);
-		} else {
-			unsigned long tmp = p->opcode;
-			write_proc_vm_atomic(current, (unsigned long)((unsigned short*)p->addr), &tmp, 4);
+
+			// "2*sizeof(kprobe_opcode_t)" - strange. Should be "sizeof(kprobe_opcode_t)", need to test
+			flush_icache_range((unsigned int) p->addr, ((unsigned int)p->addr) + (2 * sizeof(kprobe_opcode_t)));
 		}
-		flush_icache_range ((unsigned int) p->addr, (unsigned int) (((unsigned int) p->addr) + (sizeof (kprobe_opcode_t) * 2)));
 	}
 	set_current_kprobe(p, NULL, NULL);
 	if(!reenter)
