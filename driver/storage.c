@@ -1090,7 +1090,6 @@ int link_bundle()
 	{
 		int lib_path_len;
 		char *lib_path;
-		int plt_count;
 
 		us_proc_info.path = (char *)p;
 		DPRINTF("app path = %s", us_proc_info.path);
