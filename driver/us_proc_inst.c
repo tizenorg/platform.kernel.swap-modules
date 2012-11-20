@@ -1948,6 +1948,7 @@ void otg_probe_list_clean(char* lib_to_delete)
 	unsigned long int addr_min = 0;
 	int err;
 	us_proc_otg_ip_t *p;
+	struct dentry *delete_dentry = get_dentry(lib_to_delete);
 
 	mm = task->active_mm;
 /*find in process space map file with name "lib_to_delete" and flag VM_EXEC
@@ -1957,8 +1958,7 @@ and save address borders of this file*/
 		while (vma) {
 			if(vma->vm_file) {
 				if(vma->vm_file->f_dentry) {
-					filename = d_path(&vma->vm_file->f_path, buf, 256);
-					if((strcmp(lib_to_delete, filename) == 0) && (vma->vm_flags & VM_EXEC)) {
+					if ((delete_dentry == vma->vm_file->f_dentry) && (vma->vm_flags & VM_EXEC)) {
 						addr_min = vma->vm_start;
 						addr_max = vma->vm_end;
 						break;
@@ -1968,6 +1968,7 @@ and save address borders of this file*/
 			vma = vma->vm_next;
 		}
 	}
+
 /*remove OTG-probe if its address is between addr_min and addr_max*/
 	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
 		if (!p->ip.installed) {
