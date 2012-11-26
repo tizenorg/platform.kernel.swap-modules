@@ -21,9 +21,10 @@
 #include "ec_probe.h"		// probe_id_t
 #include "stdswap_defs.h"
 
-#define DEFAULT_DEVICE_NAME "swap_drv"
-#define DEFAULT_DEVICE_MAJOR 250
-#define EVENTS_AGGREGATION_USEC (5 * 1000000UL)
+#define DEFAULT_DEVICE_NAME				"swap_drv"
+#define DEFAULT_DEVICE_MAJOR				250
+#define EVENTS_AGGREGATION_USEC				(5 * 1000000UL)
+#define MAX_PRIORITY					255
 
 extern int device_init (void);
 extern void device_down (void);
