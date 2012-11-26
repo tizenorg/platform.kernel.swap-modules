@@ -1983,6 +1983,7 @@ and save address borders of this file*/
 				continue;
 			}
 			p->ip.installed = 0;
+			remove_otg_probe_from_list(p->ip.offset);
 		}
 	}
 }
