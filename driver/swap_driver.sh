@@ -57,7 +57,7 @@ fi
 
 # load driver module
 echo "loading module '${MODULE_FILE}'"
-insmod ${MODULE_FILE}.ko fp_kallsyms_lookup_name=${ADDRESS} device_name=${DEVICE_NAME} device_major=${DEVICE_MAJOR}
+./bin/insmod.sh ${MODULE_FILE}.ko fp_kallsyms_lookup_name=${ADDRESS} device_name=${DEVICE_NAME} device_major=${DEVICE_MAJOR}
 if [ $? -ne 0 ]; then
     echo "Error: Unable to load Swap Driver!"
     exit 1

@@ -8,6 +8,9 @@ all-local:
 	cp $(top_srcdir)/src/modules/driver/Module.symvers $(handlers_module_dir)
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) android_opt=$(android_opt) debug_opt=$(debug_opt) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(handlers_module_dir) modules
 
+	echo "generate data for version patching <$(OBJDUMP)><$(READELF)>"
+	$(top_srcdir)/src/daemon/patchko.sh -g $(handlers_module_dir)/$(module_name).ko $(OBJDUMP) $(READELF)
+
 clean-local:
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(handlers_module_dir) clean
 

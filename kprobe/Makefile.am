@@ -17,11 +17,18 @@ all-local:
 	rm -f $(top_srcdir)/src/modules/kprobe/arch/asm && $(LN_S) asm-${target_arch} $(top_srcdir)/src/modules/kprobe/arch/asm
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) android_opt=$(android_opt) board_opt=$(board_opt) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(kprobes_module_dir) modules
 
+
+	echo "generate data for version patching <$(OBJDUMP)><$(READELF)>"
+	PATH=$(PATH) $(top_srcdir)/src/daemon/patchko.sh -g $(kprobes_module_dir)/$(module_name).ko $(OBJDUMP) $(READELF)
+
 clean-local:
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(kprobes_module_dir) clean
 
 install-exec-local:
+
 	install -m 644 $(kprobes_module_dir)/$(module_name).ko $(prefix)
+	install -m 644 $(kprobes_module_dir)/$(module_name).ko.addr $(prefix)
+
 	if [ "$(android)" != "yes" ] ; then install -m 755 $(kprobes_module_dir)/$(module_name).sh $(prefix) ; fi
 
 

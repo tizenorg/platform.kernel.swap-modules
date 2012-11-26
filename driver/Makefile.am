@@ -34,11 +34,17 @@ all-local:
 	cp $(top_srcdir)/src/modules/kprobe/Module.symvers $(driver_module_dir)
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) memchecker=$(memchecker) android_opt=$(android_opt) slp_opt=$(slp_opt) android_app_opt=$(android_app_opt) board_opt=$(board_opt) debug_opt=$(debug_opt) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) modules
 
+	echo "generate data for version patching <$(OBJDUMP)><$(READELF)>"
+	$(top_srcdir)/src/daemon/patchko.sh -g $(driver_module_dir)/$(module_name).ko $(OBJDUMP) $(READELF)
+
 clean-local:
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) clean
 
 install-exec-local:
+
 	install -m 644 $(driver_module_dir)/$(module_name).ko $(prefix)
+	install -m 644 $(driver_module_dir)/$(module_name).ko.addr $(prefix)
+
 	if [ "$(android)" != "yes" ] ; then \
 	sed "s|__DEV_MAJOR__|$(dev_major)|" $(driver_module_dir)/$(module_name).sh | \
 	sed "s|__DEV_NAME__|`basename $(dev_path)`|" | \
