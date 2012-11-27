@@ -30,12 +30,14 @@ driver_module_dir = $(realpath $(srcdir))
 module_name = swap_driver
 cross_compiler = $(subst gcc,,$(CC))
 
+#bin_SCRIPTS = patchko.sh insmod.sh
+
 all-local:
 	cp $(top_srcdir)/src/modules/kprobe/Module.symvers $(driver_module_dir)
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) memchecker=$(memchecker) android_opt=$(android_opt) slp_opt=$(slp_opt) android_app_opt=$(android_app_opt) board_opt=$(board_opt) debug_opt=$(debug_opt) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) modules
 
 	echo "generate data for version patching <$(OBJDUMP)><$(READELF)>"
-	$(top_srcdir)/src/daemon/patchko.sh -g $(driver_module_dir)/$(module_name).ko $(OBJDUMP) $(READELF)
+	$(top_srcdir)/src/modules/driver/patchko.sh -g $(driver_module_dir)/$(module_name).ko $(OBJDUMP) $(READELF)
 
 clean-local:
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) clean
@@ -44,9 +46,14 @@ install-exec-local:
 
 	install -m 644 $(driver_module_dir)/$(module_name).ko $(prefix)
 	install -m 644 $(driver_module_dir)/$(module_name).ko.addr $(prefix)
+	install -m 755 $(driver_module_dir)/patchko.sh $(prefix)/bin
+	install -m 755 $(driver_module_dir)/insmod.sh $(prefix)/bin
 
 	if [ "$(android)" != "yes" ] ; then \
 	sed "s|__DEV_MAJOR__|$(dev_major)|" $(driver_module_dir)/$(module_name).sh | \
 	sed "s|__DEV_NAME__|`basename $(dev_path)`|" | \
 	sed "s|__DEV_DIR__|`dirname $(dev_path)`|" > \
-	$(prefix)/$(module_name).sh ; chmod +x $(prefix)/$(module_name).sh ; fi
+	$(prefix)/$(module_name).sh ; chmod +x $(prefix)/$(module_name).sh ; \
+	chmod +x $(driver_module_dir)/patchko.sh ; \
+	chmod +x $(driver_module_dir)/insmod.sh ; \
+	fi

@@ -19,7 +19,7 @@ all-local:
 
 
 	echo "generate data for version patching <$(OBJDUMP)><$(READELF)>"
-	PATH=$(PATH) $(top_srcdir)/src/daemon/patchko.sh -g $(kprobes_module_dir)/$(module_name).ko $(OBJDUMP) $(READELF)
+	PATH=$(PATH) $(top_srcdir)/src/modules/driver/patchko.sh -g $(kprobes_module_dir)/$(module_name).ko $(OBJDUMP) $(READELF)
 
 clean-local:
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(kprobes_module_dir) clean
