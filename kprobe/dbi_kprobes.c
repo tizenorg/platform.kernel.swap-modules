@@ -856,6 +856,13 @@ void patch_suspended_all_task_ret_addr(struct kretprobe *rp)
 			continue;
 		patch_suspended_task_ret_addr(p, rp);
 	} while_each_thread(g, p);
+
+#ifdef CONFIG_X86
+	/* workaround for do_exit probe on x86 targets */
+	if ((current->flags & PF_EXITING) || (current->flags & PF_EXITPIDONE)) {
+		patch_suspended_task_ret_addr(current, sched_rp);
+	}
+#endif
 	rcu_read_unlock();
 }
 
