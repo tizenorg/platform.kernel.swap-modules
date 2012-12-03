@@ -898,7 +898,7 @@ char *find_lib_path(const char *lib_name)
 	char *p = deps + sizeof(size_t);
 	char *match;
 	size_t len;
-    
+
 	while (*p != '\0') {
 		DPRINTF("p is at %s", p);
 		len = strlen(p) + 1;
@@ -990,6 +990,8 @@ void unlink_bundle(void)
 	}
 }
 
+extern struct dentry *dentry_by_path(const char *path);
+
 int link_bundle()
 {
 	get_my_uprobes_info_t get_uprobes = NULL;
@@ -1008,11 +1010,6 @@ int link_bundle()
 	ioctl_usr_space_lib_t s_lib;
 	ioctl_usr_space_vtp_t *s_vtp;
 	us_proc_vtp_t *mvtp;
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	struct path path;
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	struct nameidata nd;
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	int is_app = 0;
 	char *ptr;
 	us_proc_ip_t *d_ip;
@@ -1096,26 +1093,10 @@ int link_bundle()
 		p += len;
 
 		if (strcmp(us_proc_info.path, "*")) {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-			if (kern_path(us_proc_info.path, LOOKUP_FOLLOW, &path) != 0) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-			if (path_lookup(us_proc_info.path, LOOKUP_FOLLOW, &nd) != 0) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-				EPRINTF("failed to lookup dentry for path %s!", us_proc_info.path);
+			us_proc_info.m_f_dentry = dentry_by_path(us_proc_info.path);
+			if (us_proc_info.m_f_dentry == NULL) {
 				return -1;
 			}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	    us_proc_info.m_f_dentry = nd.dentry;
-	    path_release(&nd);
-#else
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	    us_proc_info.m_f_dentry = path.dentry;
-	    path_put(&path);
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	    us_proc_info.m_f_dentry = nd.path.dentry;
-	    path_put(&nd.path);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#endif
 		}
 		else
 		{
@@ -1199,11 +1180,8 @@ int link_bundle()
 				}
 			}
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-			if (kern_path(d_lib->path, LOOKUP_FOLLOW, &path) != 0) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-			if (path_lookup(d_lib->path, LOOKUP_FOLLOW, &nd) != 0) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+			d_lib->m_f_dentry = dentry_by_path(d_lib->path);
+			if (d_lib->m_f_dentry == NULL) {
 				EPRINTF ("failed to lookup dentry for path %s!", d_lib->path);
 				/* Just skip all the IPs and go to next lib */
 				p += d_lib->ips_count * 3 * sizeof(u_int32_t);
@@ -1214,21 +1192,6 @@ int link_bundle()
 				d_lib->plt_count = 0;
 				continue;
 			}
-
-	#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-			d_lib->m_f_dentry = nd.dentry;
-			path_release(&nd);
-	#else
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-			d_lib->m_f_dentry = path.dentry;
-			d_lib->m_vfs_mount = path.mnt;
-			path_put(&path);
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-			d_lib->m_f_dentry = nd.path.dentry;
-			d_lib->m_vfs_mount = nd.path.mnt;
-			path_put(&nd.path);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	#endif
 
 			pd_lib = NULL;
 			ptr = strrchr(d_lib->path, '/');
