@@ -353,7 +353,7 @@ void find_libdvm_for_task(struct task_struct *task, inst_us_proc_t *info)
 }
 #endif /* __ANDROID */
 
-static struct dentry *dentry_by_path(const char *path)
+struct dentry *dentry_by_path(const char *path)
 {
 	struct dentry *dentry;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
