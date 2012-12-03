@@ -8,7 +8,7 @@
 //      SEE ALSO:       storage.c
 //      AUTHOR:         L.Komkov, S.Dianov, A.Gerenkov
 //      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group 
+//      DEPT NAME:      Advanced Software Group
 //      CREATED:        2008.02.15
 //      VERSION:        1.0
 //      REVISION DATE:  2008.12.03
@@ -179,13 +179,10 @@ typedef struct
 	char *name;
 	char type;
 	unsigned long size;
-	signed char reg;	// -1 - memory, 0..127 - register number  
+	signed char reg;	// -1 - memory, 0..127 - register number
 	long off;
 	struct list_head list;
 } us_proc_vtp_data_t;
-
-typedef struct dentry *STRUCT_DENTRY_PTR;
-typedef struct vfsmount *STRUCT_VFSMOUNT_PTR;
 
 typedef struct
 {
@@ -198,8 +195,7 @@ typedef struct
 {
 	char *path;
 	char *path_dyn;
-	STRUCT_DENTRY_PTR m_f_dentry;
-	STRUCT_VFSMOUNT_PTR m_vfs_mount;
+	struct dentry *m_f_dentry;
 	unsigned ips_count;
 	us_proc_ip_t *p_ips;
 	unsigned vtps_count;
@@ -216,7 +212,7 @@ typedef struct
 typedef struct
 {
 	char *path;
-	STRUCT_DENTRY_PTR m_f_dentry;
+	struct dentry *m_f_dentry;
 	pid_t tgid;
 	unsigned unres_ips_count;
 	unsigned unres_vtps_count;
