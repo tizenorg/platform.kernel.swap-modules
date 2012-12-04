@@ -4,8 +4,6 @@
 
 #include "../kprobe/dbi_kprobes_deps.h"
 
-#include "../../../modules/driver/module_common.h"
-
 int fp_kallsyms_lookup_name = 0;
 module_param(fp_kallsyms_lookup_name, uint, 0);
 MODULE_PARM_DESC(fp_kallsyms_lookup_name,
