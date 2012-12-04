@@ -17,6 +17,7 @@
 
 #include <linux/percpu.h>
 #include "module.h"
+#include "module_common.h"
 #include "probes_manager.h"
 
 #ifdef EC_ARCH_arm

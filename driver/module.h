@@ -86,9 +86,6 @@
 #include "probes_manager.h"
 #include "probes.h"
 
-typedef unsigned long (*fp_kallsyms_lookup_name_t) (const char *name);
-extern int fp_kallsyms_lookup_name;
-extern fp_kallsyms_lookup_name_t lookup_name;
 extern char *device_name;
 extern unsigned int device_major;
 

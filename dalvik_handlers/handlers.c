@@ -4,6 +4,7 @@
 
 #include "../kprobe/dbi_kprobes_deps.h"
 
+#include "../../../modules/driver/module_common.h"
 
 int fp_kallsyms_lookup_name = 0;
 module_param(fp_kallsyms_lookup_name, uint, 0);
@@ -22,13 +23,6 @@ MODULE_PARM_DESC(fp_kallsyms_lookup_name,
 extern void swap_register_notify (struct notifier_block *nb);
 extern void swap_unregister_notify (struct notifier_block *nb);
 #endif
-
-
-struct handler_map {
-	unsigned long func_addr;
-	unsigned long jp_handler_addr;
-	unsigned long rp_handler_addr;
-};
 
 #include "../../symbol/android/demangle.h"
 #include "index_tree.h"
