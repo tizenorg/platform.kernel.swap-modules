@@ -395,29 +395,47 @@ void find_libdvm_for_task(struct task_struct *task, inst_us_proc_t *info)
 }
 #endif /* __ANDROID */
 
+struct dentry *dentry_by_path(const char *path)
+{
+	struct dentry *dentry;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	struct path st_path;
+	if (kern_path(path, LOOKUP_FOLLOW, &st_path) != 0) {
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	struct nameidata nd;
+	if (path_lookup(path, LOOKUP_FOLLOW, &nd) != 0) {
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+		EPRINTF("failed to lookup dentry for path %s!", path);
+		return NULL;
+	}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+	dentry = nd.dentry;
+	path_release(&nd);
+#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 38)
+	dentry = nd.path.dentry;
+	path_put(&nd.path);
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	dentry = st_path.dentry;
+	path_put(&st_path);
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) */
+	return dentry;
+}
+
 static int find_task_by_path (const char *path, struct task_struct **p_task, struct list_head *tids)
 {
 	int found = 0;
 	struct task_struct *task;
 	struct vm_area_struct *vma;
 	struct mm_struct *mm;
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	struct path s_path;
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	struct nameidata nd;
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	struct dentry *dentry = dentry_by_path(path);
 
 	*p_task = 0;
 
 	/* find corresponding dir entry, this is also check for valid path */
 	// TODO: test - try to instrument process with non-existing path
 	// TODO: test - try to instrument process  with existing path and delete file just after start
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	if (kern_path(us_proc_info.path, LOOKUP_FOLLOW, &s_path) != 0) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	if (path_lookup(us_proc_info.path, LOOKUP_FOLLOW, &nd) != 0) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-		EPRINTF ("failed to lookup dentry for path %s!", path);
+	if (dentry == NULL) {
 		return -EINVAL;
 	}
 
@@ -433,15 +451,7 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 		vma = mm->mmap;
 		while (vma) {
 			if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-				if (vma->vm_file->f_dentry == nd.dentry) {
-#else
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-				if (vma->vm_file->f_dentry == s_path.dentry  ) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-				if (vma->vm_file->f_dentry == nd.path.dentry  ) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#endif
+				if (vma->vm_file->f_dentry == dentry) {
 					if (!*p_task) {
 						*p_task = task;
 						get_task_struct (task);
@@ -450,15 +460,7 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 				}
 #ifdef SLP_APP
 				if (!*p_task) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-					if (is_slp_app_with_dentry(vma, nd.dentry)) {
-#else
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-					if (is_slp_app_with_dentry(vma, s_path.dentry)) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-					if (is_slp_app_with_dentry(vma, nd.path.dentry)) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#endif
+					if (is_slp_app_with_dentry(vma, dentry)) {
 						*p_task = task;
 						get_task_struct(task);
 					}
@@ -466,15 +468,7 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 #endif /* SLP_APP */
 #ifdef ANDROID_APP
 				if (!*p_task) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-					if (is_android_app_with_dentry(vma, nd.dentry)) {
-#else
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-					if (is_android_app_with_dentry(vma, s_path.dentry)) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-					if (is_android_app_with_dentry(vma, nd.path.dentry)) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#endif
+					if (is_android_app_with_dentry(vma, dentry)) {
 						*p_task = task;
 						get_task_struct(task);
 					}
@@ -498,15 +492,6 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 		DPRINTF ("pid for %s not found!", path);
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	path_release (&nd);
-#else
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	path_put (&s_path);
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	path_put (&nd.path);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#endif
 	return 0;
 }
 
@@ -658,6 +643,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 					task_inst_info->p_libs[i].loaded = 1;
 					task_inst_info->p_libs[i].vma_start = vma->vm_start;
 					task_inst_info->p_libs[i].vma_end = vma->vm_end;
+					task_inst_info->p_libs[i].vma_flag = vma->vm_flags;
 					pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
 							task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start, app_flag);
 				}
@@ -765,38 +751,19 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 		if (p->ip.installed) {
 			continue;
 		}
-		rcu_read_lock();
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-		t = find_task_by_pid(p->tgid);
-#else
-		t = pid_task(find_pid_ns(p->tgid, &init_pid_ns),
-			     PIDTYPE_PID);
-#endif
-		if (t){
-			get_task_struct(t);
-		}
-		rcu_read_unlock();
-		if (!t) {
-			DPRINTF("task for pid %d not found! Dead probe?",
-				  p->tgid);
-			continue;
-		}
-		if (!t->active_mm) {
-			continue;
-		}
-		if (!page_present(t->active_mm, p->ip.offset)) {
+
+		if (!page_present(mm, p->ip.offset)) {
 			DPRINTF("Page isn't present for %p.",
 				p->ip.offset);
 			continue;
 		}
 		p->ip.installed = 1;
-		err = register_usprobe(current, t->active_mm,
-				       &p->ip, atomic, 0);
+		err = register_usprobe(task, mm, &p->ip, atomic, 0);
 		if (err != 0) {
 			DPRINTF("failed to install IP at %lx/%p. Error %d!",
 				p->ip.offset,
 				p->ip.jprobe.kp.addr, err);
-			return err;
+			continue;
 		}
 		task_inst_info->unres_otg_ips_count--;
 	}
@@ -814,10 +781,8 @@ static int install_otg_ip(unsigned long addr,
 {
 	int err;
 	us_proc_otg_ip_t *pprobe;
-	struct mm_struct *mm;
-
-	inst_us_proc_t *task_inst_info = NULL;
-	struct task_struct *task;
+	struct task_struct *task = current->group_leader;
+	struct mm_struct *mm = task->mm;
 
 	/* Probe preparing */
 	err = add_otg_probe_to_list(addr, &pprobe);
@@ -856,19 +821,10 @@ static int install_otg_ip(unsigned long addr,
 			dbi_uretprobe_event_handler_custom_p;
 	}
 
-	mm = get_task_mm(current);
+	pprobe->tgid = task->tgid;
 	if (!page_present(mm, addr)) {
 		DPRINTF("Page isn't present for %p.", addr);
 
-		pprobe->tgid = current->tgid;
-		task = current->group_leader;
-
-		task_inst_info = get_task_inst_node(task);
-		if (!task_inst_info)
-		{
-			task_inst_info = copy_task_inst_info(task, &us_proc_info);
-			put_task_inst_node(task, task_inst_info);
-		}
 		us_proc_info.unres_otg_ips_count++;
 		/* Probe will be installed in do_page_fault handler */
 		return 0;
@@ -876,7 +832,6 @@ static int install_otg_ip(unsigned long addr,
 	DPRINTF("Page present for %p.", addr);
 
 	/* Probe installing */
-	pprobe->tgid = current->tgid;
 	pprobe->ip.installed = 1;
 	err = register_usprobe(current, mm, &pprobe->ip, 1, 0);
 	if (err != 0) {
@@ -1109,28 +1064,6 @@ static int install_kernel_probe (unsigned long addr, int uflag, int kflag, kerne
 	return 0;
 }
 
-static struct dentry *get_dentry(const char *path)
-{
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	struct path st_path;
-	if (kern_path(path, LOOKUP_FOLLOW, &st_path) != 0) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	struct nameidata nd;
-	if (path_lookup(path, LOOKUP_FOLLOW, &nd) != 0) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-		EPRINTF("failed to lookup dentry for path %s!", path);
-		return NULL;
-	}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	return nd.dentry;
-#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 38)
-	return nd.path.dentry;
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	return st_path.dentry;
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) */
-}
-
 static void install_proc_probes(struct task_struct *task, struct proc_probes *proc_p, int atomic);
 
 int inst_usr_space_proc (void)
@@ -1146,7 +1079,7 @@ int inst_usr_space_proc (void)
 	DPRINTF("User space instr");
 
 #ifdef SLP_APP
-	launchpad_daemon_dentry = get_dentry("/usr/bin/launchpad_preloading_preinitializing_daemon");
+	launchpad_daemon_dentry = dentry_by_path("/usr/bin/launchpad_preloading_preinitializing_daemon");
 	if (launchpad_daemon_dentry == NULL) {
 		return -EINVAL;
 	}
@@ -1154,7 +1087,7 @@ int inst_usr_space_proc (void)
 #endif /* SLP_APP */
 
 #ifdef ANDROID_APP
-	app_process_dentry = get_dentry("/system/bin/app_process");
+	app_process_dentry = dentry_by_path("/system/bin/app_process");
 	if (app_process_dentry == NULL) {
 		return -EINVAL;
 	}
@@ -1165,7 +1098,7 @@ int inst_usr_space_proc (void)
 
 #ifdef __ANDROID
 	if (is_java_inst_enabled()) {
-		libdvm_dentry = get_dentry("/system/lib/libdvm.so");
+		libdvm_dentry = dentry_by_path("/system/lib/libdvm.so");
 		if (libdvm_dentry == NULL) {
 			return -EINVAL;
 		}
@@ -1708,6 +1641,8 @@ static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_in
 		}
 	}
 #endif /* __ANDROID */
+
+	// remove OTG-probes
 	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
 		if (!p->ip.installed) {
 			continue;
@@ -1725,6 +1660,7 @@ static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_in
 			continue;
 		}
 		p->ip.installed = 0;
+		remove_otg_probe_from_list(p->ip.offset);
 	}
 
 	return 0;
@@ -1906,9 +1842,8 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 	dbi_uprobe_return ();
 }
 
-void find_plt_address(struct kretprobe_instance *probe, us_proc_ip_t * ip)
+void find_plt_address(unsigned long addr)
 {
-	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 	inst_us_proc_t *task_inst_info = NULL;
 	int i;
 	unsigned real_addr;
@@ -1917,68 +1852,59 @@ void find_plt_address(struct kretprobe_instance *probe, us_proc_ip_t * ip)
 	char *szLibPath = NULL;
 
 	// Search for library structure to check whether this function plt or not
-	if (strcmp(us_proc_info.path, "*"))
-	{
-		// If app lib instrumentation
+	if (strcmp(us_proc_info.path, "*")){
+	// If app lib instrumentation
 		task_inst_info = &us_proc_info;
-	}
-	else
-	{
-		// If lib only instrumentation
+	} else {
+	// If lib only instrumentation
 		task_inst_info = get_task_inst_node(current);
 	}
-	if ((task_inst_info != NULL) && (task_inst_info->is_plt != 0))
-	{
+	if ((task_inst_info != NULL) && (task_inst_info->is_plt != 0)) {
 		for (i = 0; i < task_inst_info->libs_count; i++)
 		{
-			if ((task_inst_info->p_libs[i].loaded) && (task_inst_info->p_libs[i].plt_count > 0) && (addr > task_inst_info->p_libs[i].vma_start) && (addr < task_inst_info->p_libs[i].vma_end))
+			if ((task_inst_info->p_libs[i].loaded)
+				&& (task_inst_info->p_libs[i].plt_count > 0)
+				&& (addr > task_inst_info->p_libs[i].vma_start)
+				&& (addr < task_inst_info->p_libs[i].vma_end))
 			{
 				p_lib = &(task_inst_info->p_libs[i]);
 				break;
 			}
 		}
-		if (p_lib != NULL)
-		{
+		if (p_lib != NULL) {
 			for (i = 0; i < p_lib->plt_count; i++)
 			{
-				if (addr == p_lib->p_plt[i].func_addr + p_lib->vma_start)
-				{
-					unsigned real_got;
-					if (strcmp(p_lib->path, task_inst_info->path))
-					{
+				if (addr == p_lib->p_plt[i].func_addr + p_lib->vma_start) {
+					unsigned long real_got;
+					if (p_lib->vma_flag & VM_EXECUTABLE) {
+						real_got = p_lib->p_plt[i].got_addr;
+					} else {
 						real_got = p_lib->p_plt[i].got_addr + p_lib->vma_start;
 					}
-					else
-					{
-						real_got = p_lib->p_plt[i].got_addr;
-					}
-					if (!read_proc_vm_atomic(current, (unsigned long)(real_got), &real_addr, sizeof(unsigned long)))
-					{
+					if (!read_proc_vm_atomic(current, (unsigned long)(real_got), &real_addr, sizeof(unsigned long))) {
 						printk("Failed to read got %p at memory address %p!\n", p_lib->p_plt[i].got_addr, real_got);
-						break;
+						return;
 					}
-					if (real_addr != p_lib->p_plt[i].real_func_addr)
-					{
+					if (real_addr != p_lib->p_plt[i].real_func_addr) {
 						p_lib->p_plt[i].real_func_addr =  real_addr;
 						vma = find_vma(current->mm, real_addr);
-						if ((vma->vm_start <= real_addr) && (vma->vm_end > real_addr))
-						{
-							if (vma->vm_file != NULL)
-							{
+						if ((vma != NULL) && (vma->vm_start <= real_addr) && (vma->vm_end > real_addr)) {
+							if (vma->vm_file != NULL) {
 								szLibPath = &(vma->vm_file->f_dentry->d_iname);
 							}
+						} else {
+							printk("Failed to get vma, includes %x address\n", real_addr);
+							return;
 						}
-
-						if (szLibPath)
-						{
+						if (szLibPath) {
 							pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp", addr, real_addr, szLibPath, real_addr - vma->vm_start);
-							break;
-						}
-						else
-						{
+							return;
+						} else {
 							pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppp", addr, real_addr, real_addr - vma->vm_start);
-							break;
+							return;
 						}
+					} else {
+						return;
 					}
 				}
 			}
@@ -1991,7 +1917,7 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 	int retval = regs_return_value(regs);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 
-	find_plt_address(probe, ip);
+	find_plt_address(addr);
 
 #if defined(CONFIG_ARM)
 	if (ip->offset & 0x01)
@@ -2182,53 +2108,3 @@ unsigned long get_ret_addr(struct task_struct *task, us_proc_ip_t *ip)
 }
 EXPORT_SYMBOL_GPL(get_ret_addr);
 
-/*function call removes all OTG-probes installed in library "lib_to_delete"*/
-void otg_probe_list_clean(char* lib_to_delete)
-{
-	struct task_struct *task = current->group_leader;
-	struct mm_struct *mm;
-	struct vm_area_struct *vma = 0;
-	char *filename = "";
-	char *buf = "";
-	unsigned long int addr_max = 0;
-	unsigned long int addr_min = 0;
-	int err;
-	us_proc_otg_ip_t *p;
-
-	mm = task->active_mm;
-/*find in process space map file with name "lib_to_delete" and flag VM_EXEC
-and save address borders of this file*/
-	if (mm) {
-		vma = mm->mmap;
-		while (vma) {
-			if(vma->vm_file) {
-				if(vma->vm_file->f_dentry) {
-					filename = d_path(&vma->vm_file->f_path, buf, 256);
-					if((strcmp(lib_to_delete, filename) == 0) && (vma->vm_flags & VM_EXEC)) {
-						addr_min = vma->vm_start;
-						addr_max = vma->vm_end;
-						break;
-					}
-				}
-			}
-			vma = vma->vm_next;
-		}
-	}
-/*remove OTG-probe if its address is between addr_min and addr_max*/
-	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
-		if (!p->ip.installed) {
-			continue;
-		}
-		if ( ((unsigned long)p->ip.jprobe.kp.addr <  addr_max) &&
-		     ((unsigned long)p->ip.jprobe.kp.addr >= addr_min) ) {
-			err = unregister_usprobe(task, &p->ip, 1, 0);
-			if (err != 0) {
-				EPRINTF("failed to uninstall IP at %p. Error %d!",
-					 p->ip.jprobe.kp.addr, err);
-				continue;
-			}
-			p->ip.installed = 0;
-		}
-	}
-}
-EXPORT_SYMBOL_GPL(otg_probe_list_clean);

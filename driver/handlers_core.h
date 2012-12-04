@@ -33,6 +33,10 @@ struct dbi_modules_handlers_info {
 	struct handler_map	*dbi_handlers;
 	int			dbi_nr_handlers;
 	struct list_head	dbi_list_head;
+	void *			dbi_module_callback_start;
+	void *			dbi_module_callback_stop;
+	int			dbi_module_priority_start;
+	int			dbi_module_priority_stop;
 };
 
 extern int dbi_register_handlers_module(struct dbi_modules_handlers_info *dbi_mhi);

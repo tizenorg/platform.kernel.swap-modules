@@ -65,6 +65,8 @@ static struct file_operations device_fops = {
 	.release = device_release
 };
 
+typedef void (* dbi_module_callback)();
+
 int device_init (void)
 {
 	int nReserved = 0;
@@ -187,6 +189,7 @@ static ssize_t device_write(struct file *filp, const char *buff, size_t len, lof
 	EPRINTF("Operation <<write>> not supported!");
 	return -1;
 }
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, unsigned int cmd, unsigned long arg)
 #else
@@ -498,13 +501,37 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			break;
 		}
 	case EC_IOCTL_ATTACH:
-		result = ec_user_attach ();
+		{
+			unsigned long dbi_flags;
+			struct dbi_modules_handlers *local_mh;
+			struct dbi_modules_handlers_info *local_mhi;
+			int j;
+			dbi_module_callback dmc_start;
+
+			// call "start"-callback for all modules according module priority
+			local_mh = get_dbi_modules_handlers();
+			spin_lock_irqsave(&local_mh->lock, dbi_flags);
+			for (j = 0; j <= MAX_PRIORITY; j++) {
+				list_for_each_entry_rcu(local_mhi, &local_mh->modules_handlers, dbi_list_head) {
+					if (local_mhi->dbi_module_priority_start == j) {
+						if (local_mhi->dbi_module_callback_start != NULL) {
+							printk("Started module callback (start) %s\n", local_mhi->dbi_module->name);
+							dmc_start = (dbi_module_callback )local_mhi->dbi_module_callback_start;
+							dmc_start();
+						}
+					}
+				}
+			}
+			spin_unlock_irqrestore(&local_mh->lock, dbi_flags);
+
+			result = ec_user_attach ();
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
-		DPRINTF("EC_IOCTL_ATTACH calling notification chain");
-		blocking_notifier_call_chain(&swap_notifier_list, EC_IOCTL_ATTACH, (void*)NULL);
+			DPRINTF("EC_IOCTL_ATTACH calling notification chain");
+			blocking_notifier_call_chain(&swap_notifier_list, EC_IOCTL_ATTACH, (void*)NULL);
 #endif
-		DPRINTF("Attach Probes");
-		break;
+			DPRINTF("Attach Probes");
+			break;
+		}
 	case EC_IOCTL_ACTIVATE:
 		result = ec_user_activate ();
 		DPRINTF("Activate Probes");
@@ -516,6 +543,8 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		struct dbi_modules_handlers *local_mh;
 		struct dbi_modules_handlers_info *local_mhi;
 		unsigned int local_module_refcount = 0;
+		int j;
+		dbi_module_callback dmc_stop;
 
 #ifdef OVERHEAD_DEBUG
 		printk("\nswap_sum_time = %ld in kprobe_handler()\n", swap_sum_time);
@@ -534,6 +563,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		imi_sum_time = 0;
 		imi_sum_hit = 0;
 
+		local_mh = get_dbi_modules_handlers();
 		if(ec_user_stop() != 0) {
 			result = -1;
 			goto sad_cleanup;
@@ -550,8 +580,21 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		DPRINTF("EC_IOCTL_STOP_AND_DETACH calling notification chain");
 		blocking_notifier_call_chain(&swap_notifier_list, EC_IOCTL_STOP_AND_DETACH, (void*)&gl_nNotifyTgid);
 #endif
+		// call "stop"-callback for all modules according module priority
+		spin_lock_irqsave(&local_mh->lock, dbi_flags);
+		for (j = 0; j <= MAX_PRIORITY; j++) {
+			list_for_each_entry_rcu(local_mhi, &local_mh->modules_handlers, dbi_list_head) {
+				if (local_mhi->dbi_module_priority_stop == j) {
+					if (local_mhi->dbi_module_callback_stop != NULL) {
+						printk("Started module callback (stop) %s\n", local_mhi->dbi_module->name);
+						dmc_stop = (dbi_module_callback )local_mhi->dbi_module_callback_stop;
+						dmc_stop();
+					}
+				}
+			}
+		}
+		spin_unlock_irqrestore(&local_mh->lock, dbi_flags);
 sad_cleanup:
-		local_mh = get_dbi_modules_handlers();
 		spin_lock_irqsave(&local_mh->lock, dbi_flags);
 		list_for_each_entry_rcu(local_mhi, &local_mh->modules_handlers, dbi_list_head) {
 			local_module_refcount = module_refcount(local_mhi->dbi_module);

@@ -185,9 +185,6 @@ typedef struct
 	struct list_head list;
 } us_proc_vtp_data_t;
 
-typedef struct dentry *STRUCT_DENTRY_PTR;
-typedef struct vfsmount *STRUCT_VFSMOUNT_PTR;
-
 typedef struct
 {
 	unsigned func_addr;
@@ -199,8 +196,7 @@ typedef struct
 {
 	char *path;
 	char *path_dyn;
-	STRUCT_DENTRY_PTR m_f_dentry;
-	STRUCT_VFSMOUNT_PTR m_vfs_mount;
+	struct dentry *m_f_dentry;
 	unsigned ips_count;
 	us_proc_ip_t *p_ips;
 	unsigned vtps_count;
@@ -208,15 +204,16 @@ typedef struct
 	int loaded;
 	unsigned plt_count;
 	us_proc_plt_t *p_plt;
-	unsigned vma_start;
-	unsigned vma_end;
+	unsigned long vma_start;
+	unsigned long vma_end;
+	unsigned vma_flag;
 } us_proc_lib_t;
 
 
 typedef struct
 {
 	char *path;
-	STRUCT_DENTRY_PTR m_f_dentry;
+	struct dentry *m_f_dentry;
 	pid_t tgid;
 	unsigned unres_ips_count;
 	unsigned unres_vtps_count;

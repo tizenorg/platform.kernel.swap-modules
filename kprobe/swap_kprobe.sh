@@ -21,7 +21,7 @@ fi
 RUNNING=`sed "/${SWAP_KPROBE}/ ! d" /proc/modules`
 
 if [ "${RUNNING}" = "" ]; then
-    insmod ${SWAP_KPROBE}.ko ksyms=${ADDRESS}
+    ./bin/insmod.sh ${SWAP_KPROBE}.ko ksyms=${ADDRESS}
     if [ $? -ne 0 ]; then
             echo "Error: unable to load SWAP KProbe!"
 	    exit 1

@@ -898,7 +898,7 @@ char *find_lib_path(const char *lib_name)
 	char *p = deps + sizeof(size_t);
 	char *match;
 	size_t len;
-    
+
 	while (*p != '\0') {
 		DPRINTF("p is at %s", p);
 		len = strlen(p) + 1;
@@ -993,6 +993,8 @@ void unlink_bundle(void)
 struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info);
 void print_inst_us_proc(const inst_us_proc_t *task_inst_info);
 
+extern struct dentry *dentry_by_path(const char *path);
+
 int link_bundle()
 {
 	get_my_uprobes_info_t get_uprobes = NULL;
@@ -1011,11 +1013,6 @@ int link_bundle()
 	ioctl_usr_space_lib_t s_lib;
 	ioctl_usr_space_vtp_t *s_vtp;
 	us_proc_vtp_t *mvtp;
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	struct path path;
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	struct nameidata nd;
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	int is_app = 0;
 	char *ptr;
 	us_proc_ip_t *d_ip;
@@ -1093,33 +1090,16 @@ int link_bundle()
 	{
 		int lib_path_len;
 		char *lib_path;
-		int plt_count;
 
 		us_proc_info.path = (char *)p;
 		DPRINTF("app path = %s", us_proc_info.path);
 		p += len;
 
 		if (strcmp(us_proc_info.path, "*")) {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-			if (kern_path(us_proc_info.path, LOOKUP_FOLLOW, &path) != 0) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-			if (path_lookup(us_proc_info.path, LOOKUP_FOLLOW, &nd) != 0) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-				EPRINTF("failed to lookup dentry for path %s!", us_proc_info.path);
+			us_proc_info.m_f_dentry = dentry_by_path(us_proc_info.path);
+			if (us_proc_info.m_f_dentry == NULL) {
 				return -1;
 			}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	    us_proc_info.m_f_dentry = nd.dentry;
-	    path_release(&nd);
-#else
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	    us_proc_info.m_f_dentry = path.dentry;
-	    path_put(&path);
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	    us_proc_info.m_f_dentry = nd.path.dentry;
-	    path_put(&nd.path);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#endif
 		}
 		else
 		{
@@ -1168,9 +1148,10 @@ int link_bundle()
 			if (strcmp(d_lib->path, "*") == 0)
 			{
 				p += d_lib->ips_count * 3 * sizeof(u_int32_t);
-				/* For plt count */
-				p += sizeof(u_int32_t);
 				d_lib->ips_count = 0;
+				d_lib->plt_count = *(u_int32_t*)p;
+				p += sizeof(u_int32_t);
+				p += d_lib->plt_count * 2 * sizeof(u_int32_t);
 				d_lib->plt_count = 0;
 				continue;
 			}
@@ -1192,40 +1173,28 @@ int link_bundle()
 						d_lib->plt_count = *(u_int32_t*)p;
 						p += sizeof(u_int32_t);
 						p += d_lib->plt_count * 2 * sizeof(u_int32_t);
+						d_lib->plt_count = 0;
 						continue;
 					}
 					else {
 						d_lib->path = d_lib->path_dyn;
-						DPRINTF("Assign path for lib as %s (in suggestion of dyn lib", d_lib->path);
+						DPRINTF("Assign path for lib as %s (in suggestion of dyn lib)", d_lib->path);
 					}
 				}
 			}
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-			if (kern_path(d_lib->path, LOOKUP_FOLLOW, &path) != 0) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-			if (path_lookup(d_lib->path, LOOKUP_FOLLOW, &nd) != 0) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+			d_lib->m_f_dentry = dentry_by_path(d_lib->path);
+			if (d_lib->m_f_dentry == NULL) {
 				EPRINTF ("failed to lookup dentry for path %s!", d_lib->path);
 				/* Just skip all the IPs and go to next lib */
 				p += d_lib->ips_count * 3 * sizeof(u_int32_t);
 				d_lib->ips_count = 0;
+				d_lib->plt_count = *(u_int32_t*)p;
+				p += sizeof(u_int32_t);
+				p += d_lib->plt_count * 2 * sizeof(u_int32_t);
+				d_lib->plt_count = 0;
 				continue;
 			}
-	#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-			d_lib->m_f_dentry = nd.dentry;
-			path_release(&nd);
-	#else
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-			d_lib->m_f_dentry = path.dentry;
-			d_lib->m_vfs_mount = path.mnt;
-			path_put(&path);
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-			d_lib->m_f_dentry = nd.path.dentry;
-			d_lib->m_vfs_mount = nd.path.mnt;
-			path_put(&nd.path);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	#endif
 
 			pd_lib = NULL;
 			ptr = strrchr(d_lib->path, '/');
@@ -1275,7 +1244,7 @@ int link_bundle()
 						{
 							DPRINTF("found handler for 0x%x", d_ip->offset);
 							d_ip->jprobe.pre_entry =
-							        pd_lib->p_ips[handler_index - abs_handler_idx].jprobe.pre_entry;
+								pd_lib->p_ips[handler_index - abs_handler_idx].jprobe.pre_entry;
 							d_ip->jprobe.entry =
 								pd_lib->p_ips[handler_index - abs_handler_idx].jprobe.entry;
 							d_ip->retprobe.handler =
@@ -1290,7 +1259,7 @@ int link_bundle()
 			if (d_lib->plt_count > 0)
 			{
 				int j;
-                us_proc_info.is_plt = 1;
+				us_proc_info.is_plt = 1;
 				d_lib->p_plt = kmalloc(d_lib->plt_count * sizeof(us_proc_plt_t), GFP_KERNEL);
 				if (!d_lib->p_plt)
 				{
