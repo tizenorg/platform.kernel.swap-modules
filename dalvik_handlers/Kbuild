@@ -1,4 +1,0 @@
-EXTRA_CFLAGS := -I$(src)/../../common -I$(src)/../driver -I$(src)/../../dalvik_probes -DEC_ARCH_$(ARCH) $(debug_opt) $(android_opt)
-
-obj-m := dalvik_handlers.o
-dalvik_handlers-y := handlers.o index_tree.o ../../symbol/android/demangle.o
