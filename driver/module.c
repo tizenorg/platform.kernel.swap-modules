@@ -16,7 +16,6 @@
 ////////////////////////////////////////////////////////////////////////////////////
 
 #include "module.h"
-#include "module_common.h"
 
 char gl_szDefaultDeviceName[128] = DEFAULT_DEVICE_NAME;
 char* device_name = NULL;

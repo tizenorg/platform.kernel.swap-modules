@@ -23,7 +23,6 @@
 #include <linux/kernel.h>
 #include <linux/time.h>
 #include "module.h"
-#include "module_common.h"
 #include "storage.h"
 #include "handlers_core.h"
 #include "CProfile.h"
