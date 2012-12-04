@@ -709,38 +709,19 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 		if (p->ip.installed) {
 			continue;
 		}
-		rcu_read_lock();
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-		t = find_task_by_pid(p->tgid);
-#else
-		t = pid_task(find_pid_ns(p->tgid, &init_pid_ns),
-			     PIDTYPE_PID);
-#endif
-		if (t){
-			get_task_struct(t);
-		}
-		rcu_read_unlock();
-		if (!t) {
-			DPRINTF("task for pid %d not found! Dead probe?",
-				  p->tgid);
-			continue;
-		}
-		if (!t->active_mm) {
-			continue;
-		}
-		if (!page_present(t->active_mm, p->ip.offset)) {
+
+		if (!page_present(mm, p->ip.offset)) {
 			DPRINTF("Page isn't present for %p.",
 				p->ip.offset);
 			continue;
 		}
 		p->ip.installed = 1;
-		err = register_usprobe(current, t->active_mm,
-				       &p->ip, atomic, 0);
+		err = register_usprobe(task, mm, &p->ip, atomic, 0);
 		if (err != 0) {
 			DPRINTF("failed to install IP at %lx/%p. Error %d!",
 				p->ip.offset,
 				p->ip.jprobe.kp.addr, err);
-			return err;
+			continue;
 		}
 		task_inst_info->unres_otg_ips_count--;
 	}
@@ -758,10 +739,8 @@ static int install_otg_ip(unsigned long addr,
 {
 	int err;
 	us_proc_otg_ip_t *pprobe;
-	struct mm_struct *mm;
-
-	inst_us_proc_t *task_inst_info = NULL;
-	struct task_struct *task;
+	struct task_struct *task = current->group_leader;
+	struct mm_struct *mm = task->mm;
 
 	/* Probe preparing */
 	err = add_otg_probe_to_list(addr, &pprobe);
@@ -800,19 +779,10 @@ static int install_otg_ip(unsigned long addr,
 			dbi_uretprobe_event_handler_custom_p;
 	}
 
-	mm = get_task_mm(current);
+	pprobe->tgid = task->tgid;
 	if (!page_present(mm, addr)) {
 		DPRINTF("Page isn't present for %p.", addr);
 
-		pprobe->tgid = current->tgid;
-		task = current->group_leader;
-
-		task_inst_info = get_task_inst_node(task);
-		if (!task_inst_info)
-		{
-			task_inst_info = copy_task_inst_info(task, &us_proc_info);
-			put_task_inst_node(task, task_inst_info);
-		}
 		us_proc_info.unres_otg_ips_count++;
 		/* Probe will be installed in do_page_fault handler */
 		return 0;
@@ -820,7 +790,6 @@ static int install_otg_ip(unsigned long addr,
 	DPRINTF("Page present for %p.", addr);
 
 	/* Probe installing */
-	pprobe->tgid = current->tgid;
 	pprobe->ip.installed = 1;
 	err = register_usprobe(current, mm, &pprobe->ip, 1, 0);
 	if (err != 0) {
@@ -1411,6 +1380,8 @@ static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_in
 		}
 	}
 #endif /* __ANDROID */
+
+	// remove OTG-probes
 	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
 		if (!p->ip.installed) {
 			continue;
@@ -1428,6 +1399,7 @@ static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_in
 			continue;
 		}
 		p->ip.installed = 0;
+		remove_otg_probe_from_list(p->ip.offset);
 	}
 
 	return 0;
