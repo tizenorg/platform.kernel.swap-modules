@@ -1440,6 +1440,35 @@ static int uninstall_us_proc_probes(struct task_struct *task, struct proc_probes
 	return err;
 }
 
+static pid_t find_proc_by_task(const struct task_struct *task, const struct dentry *dentry)
+{
+	struct vm_area_struct *vma;
+	struct mm_struct *mm = task->active_mm;
+	if (mm == NULL) {
+		return 0;
+	}
+
+	for (vma = mm->mmap; vma; vma = vma->vm_next) {
+		if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file) {
+			if (vma->vm_file->f_dentry == dentry) {
+				return task->tgid;
+			}
+#ifdef SLP_APP
+			if (is_slp_app_with_dentry(vma, dentry)) {
+				return task->tgid;
+			}
+#endif /* SLP_APP */
+#ifdef ANDROID_APP
+			if (is_android_app_with_dentry(vma, dentry)) {
+				return task->tgid;
+			}
+#endif /* ANDROID_APP */
+		}
+	}
+
+	return 0;
+}
+
 void do_page_fault_ret_pre_code (void)
 {
 	struct mm_struct *mm;
@@ -1479,17 +1508,37 @@ void do_page_fault_ret_pre_code (void)
 
 	if (is_libonly()) {
 		task_inst_info = get_task_inst_node(task);
-		if (!task_inst_info)
-		{
-			task_inst_info = copy_task_inst_info(task,
-							     &us_proc_info);
+		if (task_inst_info == NULL) {
+			task_inst_info = copy_task_inst_info(task, &us_proc_info);
 			put_task_inst_node(task, task_inst_info);
-#ifdef __ANDROID
-			if (is_java_inst_enabled()) {
-				find_libdvm_for_task(task, task_inst_info);
-			}
-#endif /* __ANDROID */
 		}
+	} else {
+		if (!is_java_inst_enabled() &&
+			(us_proc_info.unres_ips_count +
+			 us_proc_info.unres_vtps_count +
+			 us_proc_info.unres_otg_ips_count) == 0) {
+			return;
+		}
+
+		// find task
+		if (us_proc_info.tgid == 0) {
+			pid_t tgid = find_proc_by_task(task, us_proc_info.m_f_dentry);
+			if (tgid) {
+				us_proc_info.tgid = gl_nNotifyTgid = tgid;
+			}
+		}
+
+		if (us_proc_info.tgid == task->tgid) {
+			task_inst_info = &us_proc_info;
+		}
+	}
+
+	if (task_inst_info) {
+#ifdef __ANDROID
+		if (is_java_inst_enabled()) {
+			find_libdvm_for_task(task, &us_proc_info);
+		}
+#endif /* __ANDROID */
 
 		// overhead
 		do_gettimeofday(&imi_tv1);
@@ -1497,77 +1546,8 @@ void do_page_fault_ret_pre_code (void)
 		do_gettimeofday(&imi_tv2);
 		imi_sum_hit++;
 		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
-			(imi_tv2.tv_usec - imi_tv1.tv_usec));
-		return;
+				(imi_tv2.tv_usec - imi_tv1.tv_usec));
 	}
-
-	task_inst_info = &us_proc_info;
-	//DPRINTF("do_page_fault from proc %d-%d-%d", current->pid, task_inst_info->tgid, task_inst_info->unres_ips_count);
-	if (!is_java_inst_enabled()
-	    && (task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count
-		+ task_inst_info->unres_otg_ips_count) == 0)
-	{
-		//DPRINTF("do_page_fault: there no unresolved IPs");
-		return;
-	}
-
-	if (task_inst_info->tgid == 0)
-	{
-		mm = task->active_mm;
-		if (mm)
-		{
-//			down_read (&mm->mmap_sem);
-			vma = mm->mmap;
-			while (vma)
-			{
-				if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file)
-				{
-					if (vma->vm_file->f_dentry == task_inst_info->m_f_dentry)
-					{
-						break;
-					}
-#ifdef SLP_APP
-					if (is_slp_app_with_dentry(vma, task_inst_info->m_f_dentry)) {
-						break;
-					}
-#endif /* SLP_APP */
-#ifdef ANDROID_APP
-					if (is_android_app_with_dentry(vma, task_inst_info->m_f_dentry)) {
-						break;
-					}
-#endif /* ANDROID_APP */
-				}
-				vma = vma->vm_next;
-			}
-//			up_read (&mm->mmap_sem);
-//			mmput (mm);
-		} else {
-			//			DPRINTF ("proc %s/%d has no mm", current->comm, current->pid);
-		}
-		if (vma)
-		{
-		     DPRINTF ("do_page_fault found target proc %s(%d)", task->comm, task->pid);
-		     task_inst_info->tgid = task->pid;
-		     gl_nNotifyTgid = task->tgid;
-		}
-	}
-	if (task_inst_info->tgid == task->tgid)
-	{
-		//DPRINTF("do_page_fault from target proc %d", task_inst_info->tgid);
-#ifdef __ANDROID
-		if (is_java_inst_enabled()) {
-			find_libdvm_for_task(task, &us_proc_info);
-		}
-#endif /* __ANDROID */
-
-		do_gettimeofday(&imi_tv1);
-		install_page_probes(page, task, us_proc_info.pp, 1);
-		do_gettimeofday(&imi_tv2);
-		imi_sum_hit++;
-		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
-			(imi_tv2.tv_usec - imi_tv1.tv_usec));
-	}
-	//DPRINTF("do_page_fault from proc %d-%d exit", task->pid, task_inst_info->pid);
 }
 
 EXPORT_SYMBOL_GPL(do_page_fault_ret_pre_code);
