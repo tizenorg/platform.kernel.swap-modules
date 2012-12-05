@@ -86,10 +86,19 @@
 #include "probes_manager.h"
 #include "probes.h"
 
-typedef unsigned long (*fp_kallsyms_lookup_name_t) (const char *name);
-extern int fp_kallsyms_lookup_name;
-extern fp_kallsyms_lookup_name_t lookup_name;
 extern char *device_name;
 extern unsigned int device_major;
+
+typedef unsigned long (*fp_kallsyms_lookup_name_t) (const char *name);
+
+//export by swap_kprobes.ko
+extern fp_kallsyms_lookup_name_t lookup_name;
+
+struct handler_map {
+	unsigned long func_addr;
+	unsigned long jp_handler_addr;
+	unsigned long rp_handler_addr;
+	char * func_name;
+};
 
 #endif /* !defined(module_h) */

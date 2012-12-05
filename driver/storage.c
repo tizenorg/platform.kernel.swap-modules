@@ -45,15 +45,6 @@ struct timeval last_attach_time = {0, 0};
 
 struct dbi_modules_handlers dbi_mh;
 
-//
-// Mr_Nobody: should we use centralized definition of this structure??
-//
-struct handler_map {
-	unsigned long func_addr;
-	unsigned long jp_handler_addr;
-	unsigned long rp_handler_addr;
-};
-
 struct dbi_modules_handlers *get_dbi_modules_handlers(void)
 {
 	return &dbi_mh;
@@ -98,7 +89,7 @@ void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
 	unsigned long dbi_flags;
 	unsigned int local_module_refcount = 0;
 
-        spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
+	spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
 	list_for_each_entry_rcu(local_mhi, &dbi_mh.modules_handlers, dbi_list_head) {
 		printk("Searching handlers in %s module for %0lX address\n",
 			(local_mhi->dbi_module)->name, p->addr);
@@ -159,7 +150,7 @@ void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
 		p->retprobe.handler = (kretprobe_handler_t) def_retprobe_event_handler;
 		printk("Set default rp_handler (address %0lX)\n", p->addr);
 	}
-        spin_unlock_irqrestore(&dbi_mh.lock, dbi_flags);
+	spin_unlock_irqrestore(&dbi_mh.lock, dbi_flags);
 }
 
 // XXX TODO: possible mess when start-register/unregister-stop operation
@@ -169,12 +160,12 @@ int dbi_register_handlers_module(struct dbi_modules_handlers_info *dbi_mhi)
 	unsigned long dbi_flags;
 //	struct dbi_modules_handlers_info *local_mhi;
 
-        spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
+	spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
 //	local_mhi = container_of(&dbi_mhi->dbi_list_head, struct dbi_modules_handlers_info, dbi_list_head);
 	list_add_rcu(&dbi_mhi->dbi_list_head, &dbi_mh.modules_handlers);
 	printk("Added module %s (head is %p)\n", (dbi_mhi->dbi_module)->name, &dbi_mhi->dbi_list_head);
-        spin_unlock_irqrestore(&dbi_mh.lock, dbi_flags);
-        return 0;
+	spin_unlock_irqrestore(&dbi_mh.lock, dbi_flags);
+	return 0;
 }
 EXPORT_SYMBOL_GPL(dbi_register_handlers_module);
 
@@ -189,7 +180,7 @@ int dbi_unregister_handlers_module(struct dbi_modules_handlers_info *dbi_mhi)
 	struct hlist_node *node;
 	unsigned long jp_handler_addr, rp_handler_addr, pre_handler_addr;*/
 
-        spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
+	spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
 	list_del_rcu(&dbi_mhi->dbi_list_head);
 	// Next code block is for far future possible usage in case when removing will be implemented for unsafe state
 	// (i.e. between attach and stop)
@@ -210,8 +201,8 @@ int dbi_unregister_handlers_module(struct dbi_modules_handlers_info *dbi_mhi)
 		}
 	}*/
 	printk("Removed module %s (head was %p)\n", (dbi_mhi->dbi_module)->name, &dbi_mhi->dbi_list_head);
-        spin_unlock_irqrestore(&dbi_mh.lock, dbi_flags);
-        return 0;
+	spin_unlock_irqrestore(&dbi_mh.lock, dbi_flags);
+	return 0;
 }
 EXPORT_SYMBOL_GPL(dbi_unregister_handlers_module);
 
