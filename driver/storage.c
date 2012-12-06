@@ -159,6 +159,21 @@ int dbi_register_handlers_module(struct dbi_modules_handlers_info *dbi_mhi)
 {
 	unsigned long dbi_flags;
 //	struct dbi_modules_handlers_info *local_mhi;
+	int i=0;
+	int nr_handlers=dbi_mhi->dbi_nr_handlers;
+	printk ("lookup_name=0x%08x\n", lookup_name);
+
+	if ( lookup_name != NULL){
+		for (i=0;i<nr_handlers;i++){
+			//handlers[i].func_addr = (void (*)(pte_t) ) lookup_name (handlers[i].func_name);
+			dbi_mhi->dbi_handlers[i].func_addr = (void (*)(pte_t) ) lookup_name (dbi_mhi->dbi_handlers[i].func_name);
+			printk("[0x%08x]-%s\n",dbi_mhi->dbi_handlers[i].func_addr,dbi_mhi->dbi_handlers[i].func_name);
+		}
+	}
+	else
+	{
+		printk("[ERROR] lookup_name is NULL\n");
+	}
 
 	spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
 //	local_mhi = container_of(&dbi_mhi->dbi_list_head, struct dbi_modules_handlers_info, dbi_list_head);
