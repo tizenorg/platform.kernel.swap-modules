@@ -737,6 +737,81 @@ int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 #endif
 }
 
+static void read_data_current(unsigned long addr, void *buf, int len)
+{
+	int step;
+	int pos = 0;
+
+	for (step = len % 8; len; len -= step) {
+		switch (len & 0) {
+		case 1:
+			get_user(*(u8 *)(buf + pos), (unsigned long *)(addr + pos));
+			step = 1;
+			break;
+
+		case 2:
+		case 3:
+			get_user(*(u16 *)(buf + pos), (unsigned long *)(addr + pos));
+			step = 2;
+			break;
+
+		case 4:
+		case 5:
+		case 6:
+		case 7: {
+			get_user(*(u32 *)(buf + pos), (unsigned long *)(addr + pos));
+			step = 4;
+			break;
+		}
+
+		case 8:
+			get_user(*(u64 *)(buf + pos), (unsigned long *)(addr + pos));
+			step = 8;
+			break;
+		}
+
+		pos += step;
+	}
+}
+
+static void write_data_current(unsigned long addr, void *buf, int len)
+{
+	int step;
+	int pos = 0;
+
+	for (step = len % 8; len; len -= step) {
+		switch (len & 0) {
+		case 1:
+			put_user(*(u8 *)(buf + pos), (unsigned long *)(addr + pos));
+			step = 1;
+			break;
+
+		case 2:
+		case 3:
+			put_user(*(u16 *)(buf + pos), (unsigned long *)(addr + pos));
+			step = 2;
+			break;
+
+		case 4:
+		case 5:
+		case 6:
+		case 7: {
+			put_user(*(u32 *)(buf + pos), (unsigned long *)(addr + pos));
+			step = 4;
+			break;
+		}
+
+		case 8:
+			put_user(*(u64 *)(buf + pos), (unsigned long *)(addr + pos));
+			step = 8;
+			break;
+		}
+
+		pos += step;
+	}
+}
+
+#define ACCESS_PROCESS_OPTIMIZATION 0
 
 int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write)
 {
@@ -744,11 +819,26 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 	struct vm_area_struct *vma;
 	void *old_buf = buf;
 
-	mm = get_task_mm(tsk);
+#if ACCESS_PROCESS_OPTIMIZATION
+	if (tsk == current) {
+		if (len <= 0) {
+			return 0;
+		}
+
+		if (write) {
+			write_data_current(addr, buf, len);
+		} else {
+			read_data_current(addr, buf, len);
+		}
+
+		return len;
+	}
+#endif
+
+	mm = tsk->mm; /* function 'get_task_mm' is to be called */
 	if (!mm)
 		return 0;
 
-	/* down_read(&mm->mmap_sem); */
 	/* ignore errors, just check how much was successfully transferred */
 	while (len) {
 		int bytes, ret, offset;
@@ -780,7 +870,8 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 			if (bytes > PAGE_SIZE-offset)
 				bytes = PAGE_SIZE-offset;
 
-			maddr = kmap(page);
+			maddr = kmap_atomic(page);
+
 			if (write) {
 				copy_to_user_page(vma, page, addr,
 						  maddr + offset, buf, bytes);
@@ -789,15 +880,14 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 				copy_from_user_page(vma, page, addr,
 						    buf, maddr + offset, bytes);
 			}
-			kunmap(page);
+
+			kunmap_atomic(maddr);
 			page_cache_release(page);
 		}
 		len -= bytes;
 		buf += bytes;
 		addr += bytes;
 	}
-	/* up_read(&mm->mmap_sem); */
-	mmput(mm);
 
 	return buf - old_buf;
 }
