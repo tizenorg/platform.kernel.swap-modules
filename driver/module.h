@@ -60,20 +60,6 @@
 #include <linux/cdev.h>
 #include <linux/jiffies.h>
 #include <linux/time.h>
-#include <linux/proc_fs.h>
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 14))
-#ifndef __DISABLE_RELAYFS
-#define __DISABLE_RELAYFS
-#warning "RELAY FS was disabled since not supported!"
-#endif // __DISABLE_RELAYFS
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 14) & LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17))
-#include <linux/debugfs.h>
-#include <linux/relayfs_fs.h>
-#else
-#include <linux/debugfs.h>
-#include <linux/relay.h>
-#endif
 
 #include "events.h"
 

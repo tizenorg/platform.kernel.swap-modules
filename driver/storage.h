@@ -31,13 +31,6 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef __DISABLE_RELAYFS
-extern struct rchan* GetRelayChannel(void);
-extern struct dentry* GetRelayDir(void);
-#endif //__DISABLE_RELAYFS
-
-extern int EnableMultipleBuffer(void);
-extern int DisableMultipleBuffer(void);
 extern int EnableContinuousRetrieval(void);
 extern int DisableContinuousRetrieval(void);
 

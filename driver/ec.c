@@ -25,8 +25,6 @@ ec_info_t ec_info = {
 	.m_nMode = 0L,
 	.buffer_size = EC_BUFFER_SIZE_DEFAULT,
 	.ignored_events_count = 0,
-	.m_nNumOfSubbuffers = 0,
-	.m_nSubbufSize = DEFAULT_SUBBUF_SIZE,
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -63,10 +61,6 @@ void reset_ec_info_nolock(void)
 	ec_info.discarded_events_count = 0;
 	ec_info.collision_count = 0;
 	ec_info.lost_events_count = 0;
-	ec_info.m_nBeginSubbufNum = 0;
-	ec_info.m_nEndSubbufNum = 0;
-	ec_info.m_nEndOffset = 0;
-	ec_info.m_nSubbufSavedEvents = 0;
 }
 
 void ResetECInfo(void) {
@@ -90,24 +84,11 @@ void CleanECInfo(void) {
 
 int IsECMode(unsigned long nMask) { return ((ec_info.m_nMode & nMask) != 0); }
 
-int IsMultipleBuffer() { return IsECMode(MODEMASK_MULTIPLE_BUFFER); }
-
 int IsContinuousRetrieval() { return IsECMode(MODEMASK_CONTINUOUS_RETRIEVAL); }
 
 int SetECMode(unsigned long nECMode) {
 	unsigned long spinlock_flags = 0L;
 
-	if((nECMode & MODEMASK_MULTIPLE_BUFFER) != 0) {
-		if(EnableMultipleBuffer() == -1) {
-			EPRINTF("Cannot enable multiple buffer!");
-			return -1;
-		}
-	} else {
-		if(DisableMultipleBuffer() == -1) {
-			EPRINTF("Cannot disable multiple buffer!");
-			return -1;
-		}
-	}
 	if((nECMode & MODEMASK_CONTINUOUS_RETRIEVAL) != 0) {
 		if(EnableContinuousRetrieval() == -1) {
 			EPRINTF("Cannot enable continuous retrieval!");
@@ -144,13 +125,6 @@ int is_java_inst_enabled(void)
 {
 	return !!(GetECMode() & MODEMASK_JAVA_INST);
 }
-
-unsigned int GetNumOfSubbuffers(unsigned long nBufferSize)
-{
-	if(nBufferSize % ec_info.m_nSubbufSize > 0)
-	     EPRINTF("The buffer size is not divisible by a subbuffer size! (nBufferSize = %lu, ec_info.m_nSubbufSize = %u)", nBufferSize ,ec_info.m_nSubbufSize);
-	return nBufferSize / ec_info.m_nSubbufSize;
-};
 
 #if defined(__DEBUG)
 static UNUSED char * ec_state_name (ec_state_t ec_state)
