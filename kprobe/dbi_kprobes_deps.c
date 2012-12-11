@@ -737,13 +737,20 @@ int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 #endif
 }
 
+#define ACCESS_PROCESS_OPTIMIZATION 0
+
+#if ACCESS_PROCESS_OPTIMIZATION
+
+#define GET_STEP_X(LEN, STEP) (((LEN) >= (STEP)) ? (STEP) : (LEN) % (STEP))
+#define GET_STEP_4(LEN) GET_STEP_X((LEN), 4)
+
 static void read_data_current(unsigned long addr, void *buf, int len)
 {
 	int step;
 	int pos = 0;
 
-	for (step = len % 8; len; len -= step) {
-		switch (len & 0) {
+	for (step = GET_STEP_4(len); len; len -= step) {
+		switch (GET_STEP_4(len)) {
 		case 1:
 			get_user(*(u8 *)(buf + pos), (unsigned long *)(addr + pos));
 			step = 1;
@@ -756,17 +763,8 @@ static void read_data_current(unsigned long addr, void *buf, int len)
 			break;
 
 		case 4:
-		case 5:
-		case 6:
-		case 7: {
 			get_user(*(u32 *)(buf + pos), (unsigned long *)(addr + pos));
 			step = 4;
-			break;
-		}
-
-		case 8:
-			get_user(*(u64 *)(buf + pos), (unsigned long *)(addr + pos));
-			step = 8;
 			break;
 		}
 
@@ -774,13 +772,14 @@ static void read_data_current(unsigned long addr, void *buf, int len)
 	}
 }
 
+// not working
 static void write_data_current(unsigned long addr, void *buf, int len)
 {
 	int step;
 	int pos = 0;
 
-	for (step = len % 8; len; len -= step) {
-		switch (len & 0) {
+	for (step = GET_STEP_4(len); len; len -= step) {
+		switch (GET_STEP_4(len)) {
 		case 1:
 			put_user(*(u8 *)(buf + pos), (unsigned long *)(addr + pos));
 			step = 1;
@@ -793,25 +792,15 @@ static void write_data_current(unsigned long addr, void *buf, int len)
 			break;
 
 		case 4:
-		case 5:
-		case 6:
-		case 7: {
 			put_user(*(u32 *)(buf + pos), (unsigned long *)(addr + pos));
 			step = 4;
-			break;
-		}
-
-		case 8:
-			put_user(*(u64 *)(buf + pos), (unsigned long *)(addr + pos));
-			step = 8;
 			break;
 		}
 
 		pos += step;
 	}
 }
-
-#define ACCESS_PROCESS_OPTIMIZATION 0
+#endif
 
 int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write)
 {
@@ -819,18 +808,13 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 	struct vm_area_struct *vma;
 	void *old_buf = buf;
 
+	if (len <= 0) {
+		return -1;
+	}
+
 #if ACCESS_PROCESS_OPTIMIZATION
-	if (tsk == current) {
-		if (len <= 0) {
-			return 0;
-		}
-
-		if (write) {
-			write_data_current(addr, buf, len);
-		} else {
-			read_data_current(addr, buf, len);
-		}
-
+	if (write == 0 && tsk == current) {
+		read_data_current(addr, buf, len);
 		return len;
 	}
 #endif
