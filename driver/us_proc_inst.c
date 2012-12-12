@@ -56,21 +56,12 @@ DEFINE_PER_CPU (struct pt_regs *, gpCurVtpRegs) = NULL;
 #	warning ARCH_REG_VAL is not implemented for this architecture. FBI will work improperly or even crash!!!
 #endif // ARCH
 
-unsigned long (*dbi_ujprobe_event_pre_handler_custom_p)
-(us_proc_ip_t *, struct pt_regs *) = NULL;
-EXPORT_SYMBOL(dbi_ujprobe_event_pre_handler_custom_p);
-void (*dbi_ujprobe_event_handler_custom_p)(void) = NULL;
-EXPORT_SYMBOL(dbi_ujprobe_event_handler_custom_p);
-int (*dbi_uretprobe_event_handler_custom_p)
-(struct kretprobe_instance *, struct pt_regs *, us_proc_ip_t *) = NULL;
-EXPORT_SYMBOL(dbi_uretprobe_event_handler_custom_p);
-
 unsigned long ujprobe_event_pre_handler (us_proc_ip_t * ip, struct pt_regs *regs);
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
 int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, us_proc_ip_t * ip);
 
-static int register_usprobe(struct task_struct *task, struct mm_struct *mm, us_proc_ip_t *ip, int atomic);
-static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic, int no_rp2);
+static int register_usprobe(struct task_struct *task, us_proc_ip_t *ip, int atomic);
+static int unregister_usprobe(struct task_struct *task, us_proc_ip_t * ip, int atomic, int no_rp2);
 
 int us_proc_probes;
 
@@ -659,9 +650,8 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 								task_inst_info->p_libs[i].p_ips[k].offset, addr);
 							task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
 							task_inst_info->p_libs[i].p_ips[k].retprobe.kp.addr = (kprobe_opcode_t *) addr;
-							task_inst_info->p_libs[i].p_ips[k].installed = 1;
 							task_inst_info->unres_ips_count--;
-							err = register_usprobe(task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic);
+							err = register_usprobe(task, &task_inst_info->p_libs[i].p_ips[k], atomic);
 							if (err != 0) {
 								DPRINTF ("failed to install IP at %lx/%p. Error %d!",
 									task_inst_info->p_libs[i].p_ips[k].offset,
@@ -757,8 +747,8 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 				p->ip.offset);
 			continue;
 		}
-		p->ip.installed = 1;
-		err = register_usprobe(task, mm, &p->ip, atomic);
+
+		err = register_usprobe(task, &p->ip, atomic);
 		if (err != 0) {
 			DPRINTF("failed to install IP at %lx/%p. Error %d!",
 				p->ip.offset,
@@ -774,10 +764,10 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 	return task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count;
 }
 
-static int install_otg_ip(unsigned long addr,
-		      unsigned long pre_handler,
-		      unsigned long jp_handler,
-		      unsigned long rp_handler)
+int install_otg_ip(unsigned long addr,
+			kprobe_pre_entry_handler_t pre_handler,
+			unsigned long jp_handler,
+			kretprobe_handler_t rp_handler)
 {
 	int err;
 	us_proc_otg_ip_t *pprobe;
@@ -795,31 +785,10 @@ static int install_otg_ip(unsigned long addr,
 			return err;
 		}
 	}
-	if (pre_handler) {
-		pprobe->ip.jprobe.pre_entry =
-			(kprobe_pre_entry_handler_t)pre_handler;
-	} else {
-		pprobe->ip.jprobe.pre_entry =
-			(kprobe_pre_entry_handler_t)
-			dbi_ujprobe_event_pre_handler_custom_p;
 
-	}
-	if (jp_handler) {
-		pprobe->ip.jprobe.entry =
-			(kprobe_opcode_t *)jp_handler;
-	} else {
-		pprobe->ip.jprobe.entry =
-			(kprobe_opcode_t *)
-			dbi_ujprobe_event_handler_custom_p;
-	}
-	if (rp_handler) {
-		pprobe->ip.retprobe.handler =
-			(kretprobe_handler_t)rp_handler;
-	} else {
-		pprobe->ip.retprobe.handler =
-			(kretprobe_handler_t)
-			dbi_uretprobe_event_handler_custom_p;
-	}
+	pprobe->ip.jprobe.pre_entry = pre_handler;
+	pprobe->ip.jprobe.entry = (kprobe_opcode_t *)jp_handler;
+	pprobe->ip.retprobe.handler = rp_handler;
 
 	pprobe->tgid = task->tgid;
 	if (!page_present(mm, addr)) {
@@ -832,13 +801,13 @@ static int install_otg_ip(unsigned long addr,
 	DPRINTF("Page present for %p.", addr);
 
 	/* Probe installing */
-	pprobe->ip.installed = 1;
-	err = register_usprobe(current, mm, &pprobe->ip, 1);
+	err = register_usprobe(task, &pprobe->ip, 1);
 	if (err != 0) {
 		DPRINTF("failed to install IP at %lx/%p. Error %d!",
 			 addr, pprobe->ip.jprobe.kp.addr, err);
 		return err;
 	}
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(install_otg_ip);
@@ -864,7 +833,6 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 					continue;
 				}
 				task_inst_info->unres_ips_count++;
-				task_inst_info->p_libs[i].p_ips[k].installed = 0;
 			}
 		}
 		for (k = 0; k < task_inst_info->p_libs[i].vtps_count; k++)
@@ -903,7 +871,6 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 				 p->ip.jprobe.kp.addr, err);
 			continue;
 		}
-		p->ip.installed = 0;
 	}
 
 	DPRINTF ("Ures IPs  %d.", task_inst_info->unres_ips_count);
@@ -1260,8 +1227,7 @@ static void set_mapping_file(struct file_probes *file_p,
 
 static int register_us_page_probe(struct page_probes *page_p,
 		const struct file_probes *file_p,
-		const struct task_struct *task,
-		const struct mm_struct *mm)
+		const struct task_struct *task)
 {
 	int err = 0;
 	us_proc_ip_t *ip;
@@ -1278,7 +1244,7 @@ static int register_us_page_probe(struct page_probes *page_p,
 	page_p_set_all_kp_addr(page_p, file_p);
 
 	list_for_each_entry(ip, &page_p->ip_list, list) {
-		err = register_usprobe_my(task, mm, ip);
+		err = register_usprobe_my(task, ip);
 		if (err != 0) {
 			//TODO: ERROR
 			return err;
@@ -1349,7 +1315,7 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 
 			page_p = file_p_find_page_p(file_p, page);
 			if (page_p) {
-				register_us_page_probe(page_p, file_p, task, mm);
+				register_us_page_probe(page_p, file_p, task);
 			}
 		}
 	}
@@ -1368,7 +1334,7 @@ static void install_file_probes(struct task_struct *task, struct mm_struct *mm, 
 		head = &file_p->page_probes_table[i];
 		hlist_for_each_entry_rcu(page_p, node, head, hlist) {
 			if (page_present(mm, page_p->offset)) {
-				register_us_page_probe(page_p, file_p, task, mm);
+				register_us_page_probe(page_p, file_p, task);
 			}
 		}
 	}
@@ -1586,7 +1552,6 @@ static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_in
 						continue;
 					}
 					task_inst_info->unres_ips_count++;
-					task_inst_info->p_libs[i].p_ips[k].installed = 0;
 				}
 			}
 		}
@@ -1639,7 +1604,7 @@ static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_in
 				 p->ip.jprobe.kp.addr, err);
 			continue;
 		}
-		p->ip.installed = 0;
+
 		remove_otg_probe_from_list(p->ip.offset);
 	}
 
@@ -1914,36 +1879,21 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 	return 0;
 }
 
-static int register_usprobe(struct task_struct *task, struct mm_struct *mm, us_proc_ip_t *ip, int atomic)
+static int register_usprobe(struct task_struct *task, us_proc_ip_t *ip, int atomic)
 {
 	int ret = 0;
 	ip->jprobe.kp.tgid = task->tgid;
-	//ip->jprobe.kp.addr = (kprobe_opcode_t *) addr;
 
-	if(!ip->jprobe.entry) {
-		if (dbi_ujprobe_event_handler_custom_p != NULL)
-		{
-			ip->jprobe.entry = (kprobe_opcode_t *) dbi_ujprobe_event_handler_custom_p;
-			DPRINTF("Set custom event handler for %x\n", ip->offset);
-		}
-		else
-		{
-			ip->jprobe.entry = (kprobe_opcode_t *) ujprobe_event_handler;
-			DPRINTF("Set default event handler for %x\n", ip->offset);
-		}
+	if (ip->jprobe.entry == NULL) {
+		ip->jprobe.entry = (kprobe_opcode_t *)ujprobe_event_handler;
+		DPRINTF("Set default event handler for %x\n", ip->offset);
 	}
-	if(!ip->jprobe.pre_entry) {
-		if (dbi_ujprobe_event_pre_handler_custom_p != NULL)
-		{
-			ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t) dbi_ujprobe_event_pre_handler_custom_p;
-			DPRINTF("Set custom pre handler for %x\n", ip->offset);
-		}
-		else
-		{
-			ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t) ujprobe_event_pre_handler;
-			DPRINTF("Set default pre handler for %x\n", ip->offset);
-		}
+
+	if (ip->jprobe.pre_entry == NULL) {
+		ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t)ujprobe_event_pre_handler;
+		DPRINTF("Set default pre handler for %x\n", ip->offset);
 	}
+
 	ip->jprobe.priv_arg = ip;
 	ret = dbi_register_ujprobe(task, &ip->jprobe, atomic);
 	if (ret) {
@@ -1953,28 +1903,30 @@ static int register_usprobe(struct task_struct *task, struct mm_struct *mm, us_p
 
 	// Mr_Nobody: comment for valencia
 	ip->retprobe.kp.tgid = task->tgid;
-	//ip->retprobe.kp.addr = (kprobe_opcode_t *) addr;
-	if(!ip->retprobe.handler) {
-	 	if (dbi_uretprobe_event_handler_custom_p != NULL)
-	 		ip->retprobe.handler = (kretprobe_handler_t) dbi_uretprobe_event_handler_custom_p;
-	 	else {
-	 		ip->retprobe.handler = (kretprobe_handler_t) uretprobe_event_handler;
-			//DPRINTF("Failed custom dbi_uretprobe_event_handler_custom_p");
-		}
+	if (ip->retprobe.handler == NULL) {
+		ip->retprobe.handler = (kretprobe_handler_t)uretprobe_event_handler;
+		DPRINTF("Set default ret event handler for %x\n", ip->offset);
 	}
+
 	ip->retprobe.priv_arg = ip;
 	ret = dbi_register_uretprobe(task, &ip->retprobe, atomic);
 	if (ret) {
 		EPRINTF ("dbi_register_uretprobe() failure %d", ret);
 		return ret;
 	}
+
+	ip->installed = 1;
+
 	return 0;
 }
 
-static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic, int not_rp2)
+static int unregister_usprobe(struct task_struct *task, us_proc_ip_t * ip, int atomic, int not_rp2)
 {
-	dbi_unregister_ujprobe (task, &ip->jprobe, atomic);
-	dbi_unregister_uretprobe (task, &ip->retprobe, atomic, not_rp2);
+	dbi_unregister_ujprobe(task, &ip->jprobe, atomic);
+	dbi_unregister_uretprobe(task, &ip->retprobe, atomic, not_rp2);
+
+	ip->installed = 0;
+
 	return 0;
 }
 

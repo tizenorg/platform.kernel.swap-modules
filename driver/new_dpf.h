@@ -298,43 +298,6 @@ static struct page_probes *file_p_find_page_p(struct file_probes *file_p, unsign
 }
 // file_probes
 
-
-#include "storage.h"
-#include <linux/sort.h>
-
-static int cmp_func(const void *a, const void *b)
-{
-	us_proc_ip_t *p_ips_a = a;
-	us_proc_ip_t *p_ips_b = b;
-
-	if (p_ips_a->offset < p_ips_b->offset) {
-		return -1;
-	}
-
-	if (p_ips_a->offset > p_ips_b->offset) {
-		return 1;
-	}
-
-	return 0;
-}
-
-static void print_libs(us_proc_lib_t *p_libs, const char *prefix)
-{
-	int k;
-	for (k = 0; k < p_libs->ips_count; ++k) {
-		us_proc_ip_t *p_ips = &p_libs->p_ips[k];
-		unsigned long addr = p_ips->offset;
-		printk("### %s tgid=%u addr = %x\n", prefix, current->tgid, addr);
-	}
-}
-
-static void sort_libs(us_proc_lib_t *p_libs)
-{
-//	print_libs(p_libs, "no_sort");
-	sort(p_libs->p_ips, p_libs->ips_count, sizeof(*p_libs->p_ips), &cmp_func, NULL);
-//	print_libs(p_libs, "sort");
-}
-
 #include "storage.h"
 
 static void print_proc_probes(const struct proc_probes *proc_p);
@@ -503,12 +466,12 @@ static struct file_probes *proc_p_find_file_p(struct proc_probes *proc_p, struct
 	return NULL;
 }
 
-static int register_usprobe_my(struct task_struct *task, struct mm_struct *mm, us_proc_ip_t *ip)
+static int register_usprobe_my(struct task_struct *task, us_proc_ip_t *ip)
 {
 	ip->installed = 0;
 	ip->name = 0;
 
-	return register_usprobe(task, mm, ip, 1);
+	return register_usprobe(task, ip, 1);
 }
 
 static int unregister_usprobe_my(struct task_struct *task, us_proc_ip_t *ip, enum US_FLAGS flag)
