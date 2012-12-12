@@ -508,7 +508,7 @@ static int register_usprobe_my(struct task_struct *task, struct mm_struct *mm, u
 	ip->installed = 0;
 	ip->name = 0;
 
-	return register_usprobe(task, mm, ip, 1, NULL);
+	return register_usprobe(task, mm, ip, 1);
 }
 
 static int unregister_usprobe_my(struct task_struct *task, us_proc_ip_t *ip, enum US_FLAGS flag)

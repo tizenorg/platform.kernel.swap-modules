@@ -103,35 +103,32 @@ void print_uprobe_hash_table(void)
 static void add_uprobe_table(struct kprobe *p)
 {
 #ifdef CONFIG_ARM
-	INIT_HLIST_NODE (&p->is_hlist_arm);
-	hlist_add_head_rcu (&p->is_hlist_arm, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_arm, KPROBE_HASH_BITS)]);
-	INIT_HLIST_NODE (&p->is_hlist_thumb);
-	hlist_add_head_rcu (&p->is_hlist_thumb, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_thumb, KPROBE_HASH_BITS)]);
+	INIT_HLIST_NODE(&p->is_hlist_arm);
+	hlist_add_head_rcu(&p->is_hlist_arm, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_arm, KPROBE_HASH_BITS)]);
+	INIT_HLIST_NODE(&p->is_hlist_thumb);
+	hlist_add_head_rcu(&p->is_hlist_thumb, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_thumb, KPROBE_HASH_BITS)]);
 #else /* CONFIG_ARM */
-	INIT_HLIST_NODE (&p->is_hlist);
-	hlist_add_head_rcu (&p->is_hlist, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn, KPROBE_HASH_BITS)]);
+	INIT_HLIST_NODE(&p->is_hlist);
+	hlist_add_head_rcu(&p->is_hlist, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn, KPROBE_HASH_BITS)]);
 #endif /* CONFIG_ARM */
 }
 
 
-static
-int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, unsigned long called_from)
+static int __register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 {
 	int ret = 0;
 	struct kprobe *old_p;
-//	printk("### __register_uprobe: p->addr = 0x%p\n", p->addr);
 
-//	printk (">>>>>>>>>>>>>>>>>>>>>>>>>>>>>> %s %d\n", __FUNCTION__, __LINE__);
-
-	if (!p->addr)
+	if (!p->addr) {
 		return -EINVAL;
+	}
 
-	DBPRINTF ("p->addr = 0x%p p = 0x%p\n", p->addr, p);
+	DBPRINTF("p->addr = 0x%p p = 0x%p\n", p->addr, p);
 
 // thumb address = address-1;
 #if defined(CONFIG_ARM)
-	if ((unsigned long) p->addr & 0x01)
-	{
+	// TODO: must be corrected in 'bundle'
+	if ((unsigned long) p->addr & 0x01) {
 		p->addr = (kprobe_opcode_t *)((unsigned long)p->addr & 0xfffffffe);
 	}
 #endif
@@ -147,56 +144,46 @@ int __register_uprobe (struct kprobe *p, struct task_struct *task, int atomic, u
 
 	// get the first item
 	old_p = get_kprobe(p->addr, p->tgid);
-	if (old_p)
-	{
+	if (old_p) {
 #ifdef CONFIG_ARM
 		p->safe_arm = old_p->safe_arm;
 		p->safe_thumb = old_p->safe_thumb;
 #endif
-		ret = register_aggr_kprobe (old_p, p);
+		ret = register_aggr_kprobe(old_p, p);
 		if (!ret) {
-			atomic_inc (&kprobe_count);
+			atomic_inc(&kprobe_count);
 			add_uprobe_table(p);
 		}
-		DBPRINTF ("goto out\n", ret);
+		DBPRINTF("goto out\n", ret);
 		goto out;
 	}
 
-//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
-	if ((ret = arch_prepare_uprobe (p, task, atomic)) != 0)
-	{
-//		printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
-       	DBPRINTF ("goto out\n", ret);
+	ret = arch_prepare_uprobe(p, task, atomic);
+	if (ret) {
+		DBPRINTF("goto out\n", ret);
 		goto out;
 	}
 
-//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
 	DBPRINTF ("before out ret = 0x%x\n", ret);
 
-	INIT_HLIST_NODE (&p->hlist);
-//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
-	hlist_add_head_rcu (&p->hlist, &kprobe_table[hash_ptr (p->addr, KPROBE_HASH_BITS)]);
-
+	// TODO: add uprobe (must be in function)
+	INIT_HLIST_NODE(&p->hlist);
+	hlist_add_head_rcu(&p->hlist, &kprobe_table[hash_ptr (p->addr, KPROBE_HASH_BITS)]);
 	add_uprobe_table(p);
-
-//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
-	arch_arm_uprobe (p, task);
-//	printk ("================================ %s %d\n", __FUNCTION__, __LINE__);
+	arch_arm_uprobe(p, task);
 
 out:
-	DBPRINTF ("out ret = 0x%x\n", ret);
-
-//	printk ("<<<<<<<<<<<<<<<<<<<<<<<<<<<<< %s %d\n", __FUNCTION__, __LINE__);
+	DBPRINTF("out ret = 0x%x\n", ret);
 	return ret;
 }
 
-void unregister_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
+void unregister_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 {
 	dbi_unregister_kprobe (p, task);
 }
 
 
-int dbi_register_ujprobe (struct task_struct *task, struct mm_struct *mm, struct jprobe *jp, int atomic)
+int dbi_register_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic)
 {
 	int ret = 0;
 
@@ -204,15 +191,14 @@ int dbi_register_ujprobe (struct task_struct *task, struct mm_struct *mm, struct
 	jp->kp.pre_handler = setjmp_pre_handler;
 	jp->kp.break_handler = longjmp_break_handler;
 
-	ret = __register_uprobe (&jp->kp, task, atomic,
-			(unsigned long) __builtin_return_address (0));
+	ret = __register_uprobe(&jp->kp, task, atomic);
 
 	return ret;
 }
 
-void dbi_unregister_ujprobe (struct task_struct *task, struct jprobe *jp, int atomic)
+void dbi_unregister_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic)
 {
-	unregister_uprobe (&jp->kp, task, atomic);
+	unregister_uprobe(&jp->kp, task, atomic);
 	/*
 	 * Here is an attempt to unregister even those probes that have not been
 	 * installed (hence not added to the hlist).
@@ -234,11 +220,10 @@ void dbi_unregister_ujprobe (struct task_struct *task, struct jprobe *jp, int at
 #endif /* CONFIG_ARM */
 }
 
-int dbi_register_uretprobe (struct task_struct *task, struct mm_struct *mm, struct kretprobe *rp, int atomic)
+int dbi_register_uretprobe(struct task_struct *task, struct kretprobe *rp, int atomic)
 {
-	int ret = 0;
+	int i, ret = 0;
 	struct kretprobe_instance *inst;
-	int i;
 
 	DBPRINTF ("START\n");
 
@@ -250,64 +235,67 @@ int dbi_register_uretprobe (struct task_struct *task, struct mm_struct *mm, stru
 	rp->disarm = 0;
 
 	/* Pre-allocate memory for max kretprobe instances */
-	if (rp->maxactive <= 0)
-	{
+	if (rp->maxactive <= 0) {
 #if 1//def CONFIG_PREEMPT
-		rp->maxactive = max (10, 2 * NR_CPUS);
+		rp->maxactive = max(10, 2 * NR_CPUS);
 #else
 		rp->maxactive = NR_CPUS;
 #endif
 	}
-	INIT_HLIST_HEAD (&rp->used_instances);
-	INIT_HLIST_HEAD (&rp->free_instances);
-	for (i = 0; i < rp->maxactive; i++)
-	{
-		inst = kmalloc (sizeof (struct kretprobe_instance), GFP_KERNEL);
-		if (inst == NULL)
-		{
+
+	INIT_HLIST_HEAD(&rp->used_instances);
+	INIT_HLIST_HEAD(&rp->free_instances);
+
+	for (i = 0; i < rp->maxactive; i++) {
+		inst = kmalloc(sizeof(*inst), GFP_KERNEL);
+		if (inst == NULL) {
 			free_rp_inst (rp);
 			ret = -ENOMEM;
 			goto out;
 		}
-		INIT_HLIST_NODE (&inst->uflist);
-		hlist_add_head (&inst->uflist, &rp->free_instances);
+
+		INIT_HLIST_NODE(&inst->uflist);
+		hlist_add_head(&inst->uflist, &rp->free_instances);
 	}
 
 	rp->nmissed = 0;
 
 	/* Establish function exit probe point */
-	if ((ret = arch_prepare_uretprobe (rp, task)) != 0)
-		goto out;
-	/* Establish function entry probe point */
-	if ((ret = __register_uprobe (&rp->kp, task, atomic,
-					(unsigned long) __builtin_return_address (0))) != 0)
-	{
-		free_rp_inst (rp);
+	ret = arch_prepare_uretprobe(rp, task);
+	if (ret) {
 		goto out;
 	}
 
-	arch_arm_uretprobe (rp, task);//vmas[1], pages[1], kaddrs[1]);
+	/* Establish function entry probe point */
+	ret = __register_uprobe(&rp->kp, task, atomic);
+	if (ret) {
+		free_rp_inst(rp);
+		goto out;
+	}
+
+	arch_arm_uretprobe(rp, task);
 out:
 	return ret;
 }
 
 
-void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, int atomic, int not_rp2)
+void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, int atomic, int not_rp2)
 {
 	unsigned long flags;
 	struct kretprobe_instance *ri;
 	struct kretprobe *rp2 = NULL;
 
 	spin_lock_irqsave (&kretprobe_lock, flags);
-	if (hlist_empty (&rp->used_instances) || not_rp2)
-	{
+
+	if (hlist_empty(&rp->used_instances) || not_rp2) {
 		struct kprobe *p = &rp->kp;
 		// if there are no used retprobe instances (i.e. function is not entered) - disarm retprobe
-		arch_disarm_uretprobe (rp, task);//vmas[1], pages[1], kaddrs[1]);
+		arch_disarm_uretprobe(rp, task);//vmas[1], pages[1], kaddrs[1]);
 #ifdef CONFIG_ARM
 		if (!(hlist_unhashed(&p->is_hlist_arm))) {
 			hlist_del_rcu(&p->is_hlist_arm);
 		}
+
 		if (!(hlist_unhashed(&p->is_hlist_thumb))) {
 			hlist_del_rcu(&p->is_hlist_thumb);
 		}
@@ -316,16 +304,13 @@ void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, i
 			hlist_del_rcu(&p->is_hlist);
 		}
 #endif /* CONFIG_ARM */
-	}
-	else
-	{
+	} else {
 		struct kprobe *new_p = NULL;
 		struct kprobe *p = &rp->kp;
-		rp2 = clone_kretprobe (rp);
-		if (!rp2)
+		rp2 = clone_kretprobe(rp);
+		if (!rp2) {
 			DBPRINTF ("dbi_unregister_uretprobe addr %p: failed to clone retprobe!", rp->kp.addr);
-		else
-		{
+		} else {
 			DBPRINTF ("initiating deferred retprobe deletion addr %p", rp->kp.addr);
 			printk ("initiating deferred retprobe deletion addr %p\n", rp->kp.addr);
 			arch_disarm_uprobe(&rp->kp, task);
@@ -351,32 +336,32 @@ void dbi_unregister_uretprobe (struct task_struct *task, struct kretprobe *rp, i
 		add_uprobe_table(new_p);
 	}
 
-	while ((ri = get_used_rp_inst (rp)) != NULL)
-	{
+	while ((ri = get_used_rp_inst(rp)) != NULL) {
 		ri->rp = NULL;
 		ri->rp2 = rp2;
-		hlist_del (&ri->uflist);
+		hlist_del(&ri->uflist);
 	}
-	spin_unlock_irqrestore (&kretprobe_lock, flags);
-	free_rp_inst (rp);
 
-	unregister_uprobe (&rp->kp, task, atomic);
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+	free_rp_inst(rp);
+
+	unregister_uprobe(&rp->kp, task, atomic);
 }
 
-void dbi_unregister_all_uprobes (struct task_struct *task, int atomic)
+void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
 {
 	struct hlist_head *head;
 	struct hlist_node *node, *tnode;
 	struct kprobe *p;
 	int i;
 
-	for(i = 0; i < KPROBE_TABLE_SIZE; i++){
+	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
 		head = &kprobe_table[i];
-		hlist_for_each_entry_safe (p, node, tnode, head, hlist){
-			if(p->tgid == task->tgid){
+		hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
+			if (p->tgid == task->tgid) {
 				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%x] for %s/%d\n",
 						p->addr, p->opcode, task->comm, task->pid);
-				unregister_uprobe (p, task, atomic);
+				unregister_uprobe(p, task, atomic);
 			}
 		}
 	}
@@ -384,19 +369,18 @@ void dbi_unregister_all_uprobes (struct task_struct *task, int atomic)
 
 void init_uprobes_insn_slots(int i)
 {
-	INIT_HLIST_HEAD (&uprobe_insn_slot_table[i]);
+	INIT_HLIST_HEAD(&uprobe_insn_slot_table[i]);
 }
 
-void dbi_uprobe_return (void)
+void dbi_uprobe_return(void)
 {
 	dbi_arch_uprobe_return();
 }
 
 
-EXPORT_SYMBOL_GPL (dbi_uprobe_return);
-EXPORT_SYMBOL_GPL (dbi_register_ujprobe);
-EXPORT_SYMBOL_GPL (dbi_unregister_ujprobe);
-EXPORT_SYMBOL_GPL (dbi_register_uretprobe);
-EXPORT_SYMBOL_GPL (dbi_unregister_uretprobe);
-EXPORT_SYMBOL_GPL (dbi_unregister_all_uprobes);
-
+EXPORT_SYMBOL_GPL(dbi_uprobe_return);
+EXPORT_SYMBOL_GPL(dbi_register_ujprobe);
+EXPORT_SYMBOL_GPL(dbi_unregister_ujprobe);
+EXPORT_SYMBOL_GPL(dbi_register_uretprobe);
+EXPORT_SYMBOL_GPL(dbi_unregister_uretprobe);
+EXPORT_SYMBOL_GPL(dbi_unregister_all_uprobes);

@@ -69,7 +69,7 @@ unsigned long ujprobe_event_pre_handler (us_proc_ip_t * ip, struct pt_regs *regs
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
 int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, us_proc_ip_t * ip);
 
-static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_proc_ip_t * ip, int atomic, kprobe_opcode_t * islot);
+static int register_usprobe(struct task_struct *task, struct mm_struct *mm, us_proc_ip_t *ip, int atomic);
 static int unregister_usprobe (struct task_struct *task, us_proc_ip_t * ip, int atomic, int no_rp2);
 
 int us_proc_probes;
@@ -661,7 +661,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							task_inst_info->p_libs[i].p_ips[k].retprobe.kp.addr = (kprobe_opcode_t *) addr;
 							task_inst_info->p_libs[i].p_ips[k].installed = 1;
 							task_inst_info->unres_ips_count--;
-							err = register_usprobe (task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
+							err = register_usprobe(task, mm, &task_inst_info->p_libs[i].p_ips[k], atomic);
 							if (err != 0) {
 								DPRINTF ("failed to install IP at %lx/%p. Error %d!",
 									task_inst_info->p_libs[i].p_ips[k].offset,
@@ -688,7 +688,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 							task_inst_info->p_libs[i].p_vtps[k].jprobe.priv_arg = &task_inst_info->p_libs[i].p_vtps[k];
 							task_inst_info->p_libs[i].p_vtps[k].installed = 1;
 							task_inst_info->unres_vtps_count--;
-							err = dbi_register_ujprobe (task, mm, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
+							err = dbi_register_ujprobe(task, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
 							if ( err != 0 ) {
 								EPRINTF ("failed to install VTP at %p. Error %d!",
 										task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr, err);
@@ -758,7 +758,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 			continue;
 		}
 		p->ip.installed = 1;
-		err = register_usprobe(task, mm, &p->ip, atomic, 0);
+		err = register_usprobe(task, mm, &p->ip, atomic);
 		if (err != 0) {
 			DPRINTF("failed to install IP at %lx/%p. Error %d!",
 				p->ip.offset,
@@ -833,7 +833,7 @@ static int install_otg_ip(unsigned long addr,
 
 	/* Probe installing */
 	pprobe->ip.installed = 1;
-	err = register_usprobe(current, mm, &pprobe->ip, 1, 0);
+	err = register_usprobe(current, mm, &pprobe->ip, 1);
 	if (err != 0) {
 		DPRINTF("failed to install IP at %lx/%p. Error %d!",
 			 addr, pprobe->ip.jprobe.kp.addr, err);
@@ -1914,7 +1914,7 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 	return 0;
 }
 
-static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_proc_ip_t * ip, int atomic, kprobe_opcode_t * islot)
+static int register_usprobe(struct task_struct *task, struct mm_struct *mm, us_proc_ip_t *ip, int atomic)
 {
 	int ret = 0;
 	ip->jprobe.kp.tgid = task->tgid;
@@ -1945,9 +1945,8 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 		}
 	}
 	ip->jprobe.priv_arg = ip;
-	ret = dbi_register_ujprobe (task, mm, &ip->jprobe, atomic);
-	if (ret)
-	{
+	ret = dbi_register_ujprobe(task, &ip->jprobe, atomic);
+	if (ret) {
 		DPRINTF ("dbi_register_ujprobe() failure %d", ret);
 		return ret;
 	}
@@ -1964,9 +1963,8 @@ static int register_usprobe (struct task_struct *task, struct mm_struct *mm, us_
 		}
 	}
 	ip->retprobe.priv_arg = ip;
-	ret = dbi_register_uretprobe (task, mm, &ip->retprobe, atomic);
-	if (ret)
-	{
+	ret = dbi_register_uretprobe(task, &ip->retprobe, atomic);
+	if (ret) {
 		EPRINTF ("dbi_register_uretprobe() failure %d", ret);
 		return ret;
 	}
