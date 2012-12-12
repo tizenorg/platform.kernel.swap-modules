@@ -199,6 +199,9 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 	unsigned long spinlock_flags = 0L;
 	int result = -1;
 //	DPRINTF("Command=%d", cmd);
+	printk("#1# Command=%d\n", cmd);
+	printk("#2# Command=%d\n", cmd);
+
 	switch (cmd)
 	{
 	case EC_IOCTL_SET_EC_MODE:
@@ -729,6 +732,9 @@ sad_cleanup:
 
 	case EC_IOCTL_SET_PREDEF_UPROBES:
 		{
+			result = -1;
+			break;
+
 			ioctl_predef_uprobes_info_t data;
 			result = copy_from_user (&data, (void *) arg, sizeof (data));
 			if (result)
@@ -748,6 +754,9 @@ sad_cleanup:
 
 	case EC_IOCTL_GET_PREDEF_UPROBES:
 		{
+//			result = 0;
+//			break;
+
 			result = get_predef_uprobes((ioctl_predef_uprobes_info_t *)arg);
 			if (result)
 			{

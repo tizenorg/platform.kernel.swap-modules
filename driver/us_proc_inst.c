@@ -1187,11 +1187,6 @@ void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_re
 	}
 
 	if (is_us_instrumentation()) {
-		if (task->flags & PF_KTHREAD) {
-			DPRINTF("ignored kernel thread %d\n", task->tgid);
-			return;
-		}
-
 		swap_put_entry_data((void *)addr, &sa_dpf);
 	}
 }

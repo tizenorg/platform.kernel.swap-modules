@@ -422,7 +422,7 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 		}
 	}
 
-//	print_proc_probes(proc_p);
+	print_proc_probes(proc_p);
 
 	printk("####### get  END  #######\n");
 
@@ -496,6 +496,18 @@ static int unregister_usprobe_my(struct task_struct *task, us_proc_ip_t *ip, enu
 }
 
 // debug
+static void print_jprobe(struct jprobe *jp)
+{
+	printk("###         JP: entry=%x, pre_entry=%x\n",
+			jp->entry, jp->pre_entry);
+}
+
+static void print_retprobe(struct kretprobe *rp)
+{
+	printk("###         RP: handler=%x\n",
+			rp->handler);
+}
+
 static void print_page_probes(const struct page_probes *page_p)
 {
 	int i = 0;
@@ -506,6 +518,8 @@ static void print_page_probes(const struct page_probes *page_p)
 
 		printk("###       addr[%2d]=%x, J_addr=%x, R_addr=%x\n",
 				i, ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
+		print_jprobe(&ip->jprobe);
+		print_retprobe(&ip->retprobe);
 		++i;
 	}
 }
