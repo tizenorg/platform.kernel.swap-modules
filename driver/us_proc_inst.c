@@ -1440,9 +1440,7 @@ void do_page_fault_ret_pre_code (void)
 	 * we instrument only group_leader of all this threads
 	 */
 	struct task_struct *task = current->group_leader;
-
-	unsigned long addr = 0, page = 0;
-
+	unsigned long addr = 0;
 
 	// overhead
 	struct timeval imi_tv1;
@@ -1464,8 +1462,6 @@ void do_page_fault_ret_pre_code (void)
 		printk("WARNING: do_page_fault_ret_pre_code addr = 0\n");
 		return;
 	}
-
-	page = addr & PAGE_MASK;
 
 	if (is_libonly()) {
 		task_inst_info = get_task_inst_node(task);
@@ -1495,6 +1491,8 @@ void do_page_fault_ret_pre_code (void)
 	}
 
 	if (task_inst_info) {
+		unsigned long page = addr & PAGE_MASK;
+
 #ifdef __ANDROID
 		if (is_java_inst_enabled()) {
 			find_libdvm_for_task(task, &us_proc_info);
