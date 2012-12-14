@@ -81,7 +81,7 @@ us_proc_ip_t *us_proc_ips_copy(const us_proc_ip_t *ips, int cnt)
 		ips_out[i].jprobe.pre_entry = ips[i].jprobe.pre_entry;
 
 		// retprobe
-		retprobe_init(&ips_out[i].retprobe, ips[i]->retprobe.handler);
+		retprobe_init(&ips_out[i].retprobe, ips[i].retprobe.handler);
 	}
 
 	return ips_out;
