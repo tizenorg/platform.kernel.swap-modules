@@ -1894,18 +1894,20 @@ static int register_usprobe(struct task_struct *task, us_proc_ip_t *ip, int atom
 		return ret;
 	}
 
-	// Mr_Nobody: comment for valencia
-	ip->retprobe.kp.tgid = task->tgid;
-	if (ip->retprobe.handler == NULL) {
-		ip->retprobe.handler = (kretprobe_handler_t)uretprobe_event_handler;
-		DPRINTF("Set default ret event handler for %x\n", ip->offset);
-	}
+	if (ip->flags & FLAG_RETPROBE) {
+		// Mr_Nobody: comment for valencia
+		ip->retprobe.kp.tgid = task->tgid;
+		if (ip->retprobe.handler == NULL) {
+			ip->retprobe.handler = (kretprobe_handler_t)uretprobe_event_handler;
+			DPRINTF("Set default ret event handler for %x\n", ip->offset);
+		}
 
-	ip->retprobe.priv_arg = ip;
-	ret = dbi_register_uretprobe(task, &ip->retprobe, atomic);
-	if (ret) {
-		EPRINTF ("dbi_register_uretprobe() failure %d", ret);
-		return ret;
+		ip->retprobe.priv_arg = ip;
+		ret = dbi_register_uretprobe(task, &ip->retprobe, atomic);
+		if (ret) {
+			EPRINTF ("dbi_register_uretprobe() failure %d", ret);
+			return ret;
+		}
 	}
 
 	ip->installed = 1;
@@ -1916,7 +1918,10 @@ static int register_usprobe(struct task_struct *task, us_proc_ip_t *ip, int atom
 static int unregister_usprobe(struct task_struct *task, us_proc_ip_t * ip, int atomic, int not_rp2)
 {
 	dbi_unregister_ujprobe(task, &ip->jprobe, atomic);
-	dbi_unregister_uretprobe(task, &ip->retprobe, atomic, not_rp2);
+
+	if (ip->flags & FLAG_RETPROBE) {
+		dbi_unregister_uretprobe(task, &ip->retprobe, atomic, not_rp2);
+	}
 
 	ip->installed = 0;
 

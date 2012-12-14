@@ -150,6 +150,10 @@ extern int event_mask;
 // process pid to instrument
 extern unsigned int inst_pid;
 
+enum FLAG_PROBE {
+	FLAG_RETPROBE = (1 << 0)
+};
+
 typedef struct
 {
 	struct list_head list;
@@ -158,6 +162,8 @@ typedef struct
 	struct jprobe jprobe;
 	struct kretprobe retprobe;
 	unsigned long offset;
+
+	enum FLAG_PROBE flags;
 } us_proc_ip_t;
 
 typedef struct

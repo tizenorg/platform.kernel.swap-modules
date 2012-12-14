@@ -339,6 +339,7 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 				us_proc_ip_t *ip = &p_libs->p_ips[k];
 				unsigned long offset = ip->offset & PAGE_MASK;
 				struct page_probes *page_p_tmp, *page_p = NULL;
+				ip->flags |= FLAG_RETPROBE;
 
 				head = &tmp_page_probes_table[hash_ptr(offset, tmp_hash_bits)];
 				hlist_for_each_entry(page_p_tmp, node, head, hlist) {
