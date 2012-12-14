@@ -46,14 +46,15 @@ us_proc_ip_t *us_proc_ip_copy(const us_proc_ip_t *ip)
 
 	memcpy (ip_out, ip, sizeof(*ip_out));
 
-	ip_out->installed = 0;
+	// jprobe
 	memset(&ip_out->jprobe, 0, sizeof(struct jprobe));
-	memset(&ip_out->retprobe, 0, sizeof(struct kretprobe));
-
 	ip_out->jprobe.entry = ip->jprobe.entry;
 	ip_out->jprobe.pre_entry = ip->jprobe.pre_entry;
-	ip_out->retprobe.handler = ip->retprobe.handler;
 
+	// retprobe
+	retprobe_init(&ip_out->retprobe, ip->retprobe.handler);
+
+	ip_out->installed = 0;
 	INIT_LIST_HEAD(&ip_out->list);
 
 	return ip_out;
@@ -62,10 +63,6 @@ us_proc_ip_t *us_proc_ip_copy(const us_proc_ip_t *ip)
 us_proc_ip_t *us_proc_ips_copy(const us_proc_ip_t *ips, int cnt)
 {
 	int i;
-	kprobe_opcode_t *entry_save;
-	kprobe_pre_entry_handler_t pre_entry_save;
-	kretprobe_handler_t handler_save;
-
 	us_proc_ip_t *ips_out =
 		kmalloc (cnt * sizeof (us_proc_ip_t), GFP_ATOMIC);
 
@@ -76,19 +73,15 @@ us_proc_ip_t *us_proc_ips_copy(const us_proc_ip_t *ips, int cnt)
 
 	memcpy (ips_out, ips, cnt * sizeof (us_proc_ip_t));
 	for (i = 0; i < cnt; ++i) {
-		// save handlers
-		entry_save = ips_out[i].jprobe.entry;
-		pre_entry_save = ips_out[i].jprobe.pre_entry;
-		handler_save = ips_out[i].retprobe.handler;
-
 		ips_out[i].installed = 0;
-		memset(&ips_out[i].jprobe, 0, sizeof(struct jprobe));
-		memset(&ips_out[i].retprobe, 0, sizeof(struct kretprobe));
 
-		// restore handlers
-		ips_out[i].jprobe.entry = entry_save;
-		ips_out[i].jprobe.pre_entry = pre_entry_save;
-		ips_out[i].retprobe.handler = handler_save;
+		// jprobe
+		memset(&ips_out[i].jprobe, 0, sizeof(struct jprobe));
+		ips_out[i].jprobe.entry = ips[i].jprobe.entry;
+		ips_out[i].jprobe.pre_entry = ips[i].jprobe.pre_entry;
+
+		// retprobe
+		retprobe_init(&ips_out[i].retprobe, ips[i]->retprobe.handler);
 	}
 
 	return ips_out;
