@@ -261,19 +261,14 @@ int AllocateSingleBuffer(unsigned int nSize)
 {
 	unsigned long spinlock_flags = 0L;
 
-	unsigned int nSubbufferSize = ec_info.m_nSubbufSize;
-	unsigned int nNumOfSubbufers = GetNumOfSubbuffers(nSize);
-	unsigned long nAllocatedSize = nSubbufferSize * nNumOfSubbufers;
-
-	p_buffer = vmalloc_user(nAllocatedSize);
+	p_buffer = vmalloc_user(nSize);
 	if(!p_buffer) {
-		EPRINTF("Memory allocation error! [Size=%lu KB]", nAllocatedSize / 1024);
+		EPRINTF("Memory allocation error! [Size=%lu KB]", nSize / 1024);
 		return -1;
 	}
 
 	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-	ec_info.m_nNumOfSubbuffers = nNumOfSubbufers;
-	ec_info.buffer_effect = ec_info.buffer_size = nAllocatedSize;
+	ec_info.buffer_effect = ec_info.buffer_size = nSize;
 	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 
 	return 0;
@@ -309,371 +304,12 @@ int DisableContinuousRetrieval() {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef __DISABLE_RELAYFS
-
-struct rchan* gl_pRelayChannel = NULL;
-struct rchan* GetRelayChannel(void) { return gl_pRelayChannel; };
-
-struct dentry* gl_pdirRelay = NULL;
-struct dentry* GetRelayDir(void) { return gl_pdirRelay; };
-
-#ifdef __USE_PROCFS
-
-struct proc_dir_entry* alt_pde = NULL;
-
-static inline struct dentry *_dir_create (const char *dirname, struct dentry *parent, struct proc_dir_entry **p2pde)
-{
-    struct dentry *dir;
-    struct proc_dir_entry *pde;
-
-    pde = proc_mkdir (dirname, PDE (parent->d_inode));
-    if (pde == NULL)
-    {
-        dir = NULL;
-    }
-    else
-    {
-        mutex_lock (&parent->d_inode->i_mutex);
-        dir = lookup_one_len (dirname, parent, strlen (dirname));
-        mutex_unlock (&parent->d_inode->i_mutex);
-
-        if (IS_ERR (dir))
-        {
-            dir = NULL;
-            remove_proc_entry (dirname, PDE (parent->d_inode));
-        }
-
-        *p2pde = pde;
-    }
-
-    return dir;
-}
-
-static inline struct dentry *_get_proc_root (void)
-{
-    struct file_system_type *procfs_type;
-    struct super_block *procfs_sb;
-
-    procfs_type = get_fs_type ("proc");
-
-    if (!procfs_type || list_empty (&procfs_type->fs_supers))
-        return NULL;
-
-    procfs_sb = list_entry (procfs_type->fs_supers.next, \
-        struct super_block, s_instances);
-
-    return procfs_sb->s_root;
-
-}
-
-static struct dentry *create_buf (const char *filename, struct dentry *parent, int mode, struct rchan_buf *buf, int *is_global)
-{
-    struct proc_dir_entry *pde;
-    struct proc_dir_entry *parent_pde = NULL;
-    struct dentry *dentry;
-
-    if (parent)
-        parent_pde = PDE (parent->d_inode);
-    else
-        parent = _get_proc_root ();
-
-    pde = create_proc_entry (filename, S_IFREG|S_IRUSR, parent_pde);
-
-    if(unlikely(!pde))
-        return NULL;
-
-    pde->proc_fops = &relay_file_operations;
-
-    mutex_lock (&parent->d_inode->i_mutex);
-    dentry = lookup_one_len (filename, parent, strlen (filename));
-    mutex_unlock (&parent->d_inode->i_mutex);
-
-    if (IS_ERR(dentry)) {
-        remove_proc_entry (filename, parent_pde);
-	}
-
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18))
-	dentry->d_inode->i_private = buf;
-#else
-	dentry->d_inode->u.generic_ip = buf;
-#endif
-
-    return dentry;
-
-}
-
-static int remove_buf (struct dentry *dentry)
-{
-    if (dentry != NULL)
-    {
-        struct proc_dir_entry *pde = PDE (dentry->d_inode);
-        dput (dentry);
-        remove_proc_entry (pde->name, pde->parent);
-    }
-
-    return 0;
-}
-
-#endif // __USE_PROCFS
-	/*
-          * subbuf_start - called on buffer-switch to a new sub-buffer
-          * @buf: the channel buffer containing the new sub-buffer
-          * @subbuf: the start of the new sub-buffer
-          * @prev_subbuf: the start of the previous sub-buffer
-          * @prev_padding: unused space at the end of previous sub-buffer
-          *
-          * The client should return 1 to continue logging, 0 to stop
-          * logging.
-          *
-          * NOTE: subbuf_start will also be invoked when the buffer is
-          *       created, so that the first sub-buffer can be initialized
-          *       if necessary.  In this case, prev_subbuf will be NULL.
-          *
-          * NOTE: the client can reserve bytes at the beginning of the new
-          *       sub-buffer by calling subbuf_start_reserve() in this callback.
-          */
-int RelayCallbackSubbufStart(struct rchan_buf *buf,
-                              void *subbuf,
-                              void *prev_subbuf,
-                              size_t prev_padding)
-{
-	struct rchan* pRelayChannel = NULL;
-	unsigned int nNumOfSubbufs = 0;
-
-	unsigned long spinlock_flags = 0L;
-	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-
-	subbuf_start_reserve(buf, RELAY_SUBBUF_HEADER_SIZE);
-	ec_info.buffer_effect += RELAY_SUBBUF_HEADER_SIZE;
-	ec_info.m_nEndOffset = RELAY_SUBBUF_HEADER_SIZE;
-
-	if(prev_subbuf == NULL) {
-		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
-		return 1;
-	}
-	memcpy(prev_subbuf, &prev_padding, sizeof(unsigned int));
-	memcpy(prev_subbuf + sizeof(unsigned int), &ec_info.m_nSubbufSavedEvents, sizeof(unsigned int));
-	ec_info.m_nSubbufSavedEvents = 0;
-	pRelayChannel = GetRelayChannel();
-	if(pRelayChannel == NULL) {
-		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
-		EPRINTF("Null pointer to relay channel!");
-		return 0;
-	}
-	nNumOfSubbufs = pRelayChannel->n_subbufs;
-	ec_info.m_nBeginSubbufNum = buf->subbufs_consumed % nNumOfSubbufs;
-	ec_info.m_nEndSubbufNum = buf->subbufs_produced % nNumOfSubbufs;
-	if(relay_buf_full(buf)) {
-		void* pConsume = NULL;
-		unsigned int nPaddingLength = 0;
-		unsigned int nSubbufSize = 0;
-		unsigned int nDataSize = 0;
-		unsigned int nEffectSize = 0;
-		unsigned int nSubbufDiscardedCount = 0;
-		nSubbufSize = pRelayChannel->subbuf_size;
-		pConsume = buf->start + buf->subbufs_consumed % nNumOfSubbufs * nSubbufSize;
-		memcpy(&nPaddingLength, pConsume, sizeof(unsigned int));
-		memcpy(&nSubbufDiscardedCount, pConsume + sizeof(unsigned int), sizeof(unsigned int));
-		nEffectSize = nSubbufSize - nPaddingLength;
-		nDataSize = nEffectSize - RELAY_SUBBUF_HEADER_SIZE;
-		ec_info.discarded_events_count += nSubbufDiscardedCount;
-		relay_subbufs_consumed(pRelayChannel, 0, 1);
-		ec_info.m_nBeginSubbufNum = buf->subbufs_consumed % nNumOfSubbufs;
-		ec_info.m_nEndSubbufNum = buf->subbufs_produced % nNumOfSubbufs;
-		ec_info.buffer_effect -= nEffectSize;
-		ec_info.trace_size -= nDataSize;
-		buf->dentry->d_inode->i_size = ec_info.trace_size;
-		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
-		return 1; // Overwrite mode
-	}
-	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
-	return 1;
-}
-
-	/*
-          * buf_mapped - relay buffer mmap notification
-          * @buf: the channel buffer
-          * @filp: relay file pointer
-          *
-          * Called when a relay file is successfully mmapped
-          */
-void RelayCallbackBufMapped(struct rchan_buf *buf,
-                            struct file *filp)
-{
-}
-
-	/*
-          * buf_unmapped - relay buffer unmap notification
-          * @buf: the channel buffer
-          * @filp: relay file pointer
-          *
-          * Called when a relay file is successfully unmapped
-          */
-void RelayCallbackBufUnmapped(struct rchan_buf *buf,
-                             struct file *filp)
-{
-}
-	/*
-          * create_buf_file - create file to represent a relay channel buffer
-          * @filename: the name of the file to create
-          * @parent: the parent of the file to create
-          * @mode: the mode of the file to create
-          * @buf: the channel buffer
-          * @is_global: outparam - set non-zero if the buffer should be global
-          *
-          * Called during relay_open(), once for each per-cpu buffer,
-          * to allow the client to create a file to be used to
-          * represent the corresponding channel buffer.  If the file is
-          * created outside of relay, the parent must also exist in
-          * that filesystem.
-          *
-          * The callback should return the dentry of the file created
-          * to represent the relay buffer.
-          *
-          * Setting the is_global outparam to a non-zero value will
-          * cause relay_open() to create a single global buffer rather
-          * than the default set of per-cpu buffers.
-          *
-          * See Documentation/filesystems/relayfs.txt for more info.
-          */
-struct dentry * RelayCallbackCreateBufFile(const char *filename,
-                                           struct dentry *parent,
-                                           int mode,
-                                           struct rchan_buf *buf,
-                                           int *is_global)
-{
-	*is_global = 1;
-#ifdef __USE_PROCFS
-	DPRINTF("\"%s\" is creating in procfs...!", filename);
-	return create_buf(filename, parent, mode, buf, is_global);
-#else
-	DPRINTF("\"%s\" is creating in debugfs...!", filename);
-	return debugfs_create_file(filename, (mode_t)mode, parent, buf, &relay_file_operations);
-#endif // __USE_PROCFS
-}
-
-	/*
-          * remove_buf_file - remove file representing a relay channel buffer
-          * @dentry: the dentry of the file to remove
-          *
-          * Called during relay_close(), once for each per-cpu buffer,
-          * to allow the client to remove a file used to represent a
-          * channel buffer.
-          *
-          * The callback should return 0 if successful, negative if not.
-          */
-int RelayCallbackRemoveBufFile(struct dentry *dentry)
-{
-#ifdef __USE_PROCFS
-	remove_buf(dentry);
-#else
-	debugfs_remove(dentry);
-#endif // __USE_PROCFS
-	return 0;
-}
-
-struct rchan_callbacks gl_RelayCallbacks = {
-	.subbuf_start = RelayCallbackSubbufStart,
-	.buf_mapped = RelayCallbackBufMapped,
-	.buf_unmapped = RelayCallbackBufUnmapped,
-	.create_buf_file = RelayCallbackCreateBufFile,
-	.remove_buf_file = RelayCallbackRemoveBufFile
-};
-#endif //__DISABLE_RELAYFS
-
-int AllocateMultipleBuffer(unsigned int nSize) {
-#ifndef __DISABLE_RELAYFS
-	unsigned long spinlock_flags = 0L;
-
-	unsigned int nSubbufferSize = ec_info.m_nSubbufSize;
-	unsigned int nNumOfSubbufers = GetNumOfSubbuffers(nSize);
-
-	gl_pRelayChannel = relay_open(DEFAULT_RELAY_BASE_FILENAME,
-					GetRelayDir(),
-					nSubbufferSize,
-					nNumOfSubbufers,
-					&gl_RelayCallbacks
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18))
-					,NULL
-#endif
-					);
-	if(gl_pRelayChannel == NULL) {
-		EPRINTF("Cannot create relay buffer channel! [%d subbufers by %u Kb = %u Kb]",
-			nNumOfSubbufers, nSubbufferSize / 1024, nSize / 1024);
-		return -1;
-	}
-
-	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-	ec_info.m_nNumOfSubbuffers = nNumOfSubbufers;
-	ec_info.buffer_effect = ec_info.buffer_size = nSubbufferSize * nNumOfSubbufers;
-	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
-
-	return 0;
-#else
-	EPRINTF("RelayFS not supported!");
-	return -1;
-#endif //__DISABLE_RELAYFS
-}
-
-void FreeMultipleBuffer(void) {
-#ifndef __DISABLE_RELAYFS
-	relay_close(gl_pRelayChannel);
-	CleanECInfo();
-#else
-	EPRINTF("RelayFS not supported!");
-#endif //__DISABLE_RELAYFS
-}
-
 int InitializeBuffer(unsigned int nSize) {
-	if(IsMultipleBuffer())
-		return AllocateMultipleBuffer(nSize);
 	return AllocateSingleBuffer(nSize);
 }
 
 int UninitializeBuffer(void) {
-	if(IsMultipleBuffer())
-		FreeMultipleBuffer();
 	FreeSingleBuffer();
-	return 0;
-}
-
-int EnableMultipleBuffer() {
-	unsigned long spinlock_flags = 0L;
-
-	if(IsMultipleBuffer())
-		return 0;
-
-	if(UninitializeBuffer() == -1)
-		EPRINTF("Cannot uninitialize buffer!");
-
-	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-	ec_info.m_nMode |= MODEMASK_MULTIPLE_BUFFER;
-	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
-
-	if(InitializeBuffer(GetBufferSize()) == -1) {
-		EPRINTF("Cannot initialize buffer!");
-		return -1;
-	}
-	return 0;
-}
-
-int DisableMultipleBuffer() {
-	unsigned long spinlock_flags = 0L;
-
-	if(!IsMultipleBuffer())
-		return 0;
-
-	if(UninitializeBuffer() == -1)
-		EPRINTF("Cannot uninitialize buffer!");
-
-	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-	ec_info.m_nMode &= ~MODEMASK_MULTIPLE_BUFFER;
-	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
-
-	if(InitializeBuffer(GetBufferSize()) == -1) {
-		EPRINTF("Cannot initialize buffer!");
-		return -1;
-	}
 	return 0;
 }
 
@@ -716,14 +352,6 @@ int SetPid(unsigned int pid)
 void ResetSingleBuffer(void) {
 }
 
-void ResetMultipleBuffer(void) {
-#ifndef __DISABLE_RELAYFS
-	relay_reset(gl_pRelayChannel);
-#else
-	EPRINTF("RelayFS not supported!");
-#endif //__DISABLE_RELAYFS
-}
-
 int ResetBuffer(void) {
 	unsigned long spinlock_flags = 0L;
 
@@ -732,10 +360,7 @@ int ResetBuffer(void) {
 		return -1;
 	}
 
-	if(IsMultipleBuffer())
-		ResetMultipleBuffer();
-	else
-		ResetSingleBuffer();
+	ResetSingleBuffer();
 
 	detach_selected_probes ();
 
@@ -802,22 +427,6 @@ int WriteEventIntoSingleBuffer(char* pEvent, unsigned long nEventSize) {
 	return 0;
 }
 
-int WriteEventIntoMultipleBuffer(char* pEvent, unsigned long nEventSize) {
-#ifndef __DISABLE_RELAYFS
-	unsigned long spinlock_flags = 0L;
-	__relay_write(GetRelayChannel(), pEvent, nEventSize);
-	ec_info.buffer_effect += nEventSize;
-	ec_info.trace_size += nEventSize;
-	ec_info.saved_events_count++;
-	ec_info.m_nEndOffset += nEventSize;
-	ec_info.m_nSubbufSavedEvents++;
-	return 0;
-#else
-	EPRINTF("RelayFS not supported!");
-	return -1;
-#endif //__DISABLE_RELAYFS
-}
-
 int WriteEventIntoBuffer(char* pEvent, unsigned long nEventSize) {
 
 	/*unsigned long i;
@@ -825,8 +434,6 @@ int WriteEventIntoBuffer(char* pEvent, unsigned long nEventSize) {
 		printk("%02X ", pEvent[i]);
 	printk("\n");*/
 
-	if(IsMultipleBuffer())
-		return WriteEventIntoMultipleBuffer(pEvent, nEventSize);
 	return WriteEventIntoSingleBuffer(pEvent, nEventSize);
 }
 
@@ -1460,27 +1067,7 @@ int storage_init (void)
 
 	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
 	ec_info.m_nMode = 0; // MASK IS CLEAR (SINGLE NON_CONTINUOUS BUFFER)
-//	ec_info.m_nMode |= ECMODEMASK_MULTIPLE_BUFFER;
 	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
-
-#ifndef __DISABLE_RELAYFS
-
-#ifdef __USE_PROCFS
-	gl_pdirRelay = _dir_create (DEFAULT_RELAY_BASE_DIR, _get_proc_root(), &alt_pde);
-	if(gl_pdirRelay == NULL) {
-		EPRINTF("Cannot create procfs directory for relay buffer!");
-		return -1;
-	}
-#else
-	gl_pdirRelay = debugfs_create_dir(DEFAULT_RELAY_BASE_DIR, NULL);
-	if(gl_pdirRelay == NULL) {
-		EPRINTF("Cannot create directory for relay buffer!");
-		return -1;
-	}
-
-#endif // __USE_PROCFS
-
-#endif //__DISABLE_RELAYFS
 
 	if(InitializeBuffer(EC_BUFFER_SIZE_DEFAULT) == -1) {
 		EPRINTF("Cannot initialize buffer! [Size=%u KB]", EC_BUFFER_SIZE_DEFAULT / 1024 );
@@ -1503,16 +1090,6 @@ void storage_down (void)
 {
 	if(UninitializeBuffer() == -1)
 		EPRINTF("Cannot uninitialize buffer!");
-
-#ifndef __DISABLE_RELAYFS
-
-#ifdef __USE_PROCFS
-//	remove_buf(gl_pdirRelay);
-#else
-	debugfs_remove(gl_pdirRelay);
-#endif // __USE_PROCFS
-
-#endif //__DISABLE_RELAYFS
 
 	if (ec_info.collision_count)
 		EPRINTF ("ec_info.collision_count=%d", ec_info.collision_count);
