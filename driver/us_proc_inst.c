@@ -171,7 +171,7 @@ int remove_otg_probe_from_list(unsigned long addr)
 }
 
 
-static struct proc_probes *proc_probes_copy(struct proc_probes *proc_p);
+static struct proc_probes *proc_p_copy(struct proc_probes *proc_p);
 static void print_proc_probes(const struct proc_probes *proc_p);
 /**
  * Prepare copy of instrumentation data for task
@@ -274,7 +274,7 @@ inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * 
 	copy_info->unres_ips_count = unres_ips_count;
 	copy_info->unres_vtps_count = unres_vtps_count;
 
-	copy_info->pp = proc_probes_copy(task_inst_info->pp);
+	copy_info->pp = proc_p_copy(task_inst_info->pp);
 
 //	print_proc_probes(copy_info->pp);
 
@@ -1388,10 +1388,11 @@ static int unregister_us_file_probes(struct task_struct *task, struct file_probe
 
 static int uninstall_us_proc_probes(struct task_struct *task, struct proc_probes *proc_p, enum US_FLAGS flag)
 {
-	int i, err = 0;
+	int err;
+	struct file_probes *file_p;
 
-	for (i = 0; i < proc_p->cnt; ++i) {
-		err = unregister_us_file_probes(task, proc_p->file_p[i], flag);
+	list_for_each_entry_rcu(file_p, &proc_p->file_list, list) {
+		err = unregister_us_file_probes(task, file_p, flag);
 		if (err != 0) {
 			// TODO:
 			return err;

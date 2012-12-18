@@ -20,6 +20,7 @@ struct page_probes {
 };
 
 struct file_probes {
+	struct list_head list;			// for proc_probes
 	struct dentry *dentry;
 	char *path;
 	int loaded;
@@ -32,8 +33,7 @@ struct file_probes {
 
 struct proc_probes {
 	struct dentry *dentry;
-	size_t cnt;
-	struct file_probes **file_p;
+	struct list_head file_list;
 };
 
 us_proc_ip_t *us_proc_ip_copy(const us_proc_ip_t *ip)
@@ -236,6 +236,7 @@ static struct file_probes *file_p_copy(const struct file_probes *file_p)
 		struct hlist_node *node = NULL;
 		struct hlist_head *head = NULL;
 		int i, table_size;
+		INIT_LIST_HEAD(&file_p_out->list);
 		file_p_out->dentry = file_p->dentry;
 		file_p_out->path = file_p->path;
 		file_p_out->loaded = 0;
@@ -291,6 +292,46 @@ static struct page_probes *file_p_find_page_p(struct file_probes *file_p, unsign
 }
 // file_probes
 
+// proc_probes
+static void proc_p_init(struct proc_probes *proc_p, struct dentry* dentry)
+{
+	proc_p->dentry = dentry;
+	INIT_LIST_HEAD(&proc_p->file_list);
+}
+
+static void proc_p_add_file_p(struct proc_probes *proc_p, struct file_probes *file_p)
+{
+	list_add(&file_p->list, &proc_p->file_list);
+}
+
+static struct proc_probes *proc_p_copy(struct proc_probes *proc_p)
+{
+	struct file_probes *file_p;
+	struct proc_probes *proc_p_out = kmalloc(sizeof(*proc_p_out), GFP_ATOMIC);
+
+	proc_p_init(proc_p_out, proc_p->dentry);
+
+	list_for_each_entry(file_p, &proc_p->file_list, list) {
+		proc_p_add_file_p(proc_p_out, file_p_copy(file_p));
+	}
+
+	return proc_p_out;
+}
+
+static struct file_probes *proc_p_find_file_p(struct proc_probes *proc_p, struct vm_area_struct *vma)
+{
+	struct file_probes *file_p;
+
+	list_for_each_entry(file_p, &proc_p->file_list, list) {
+		if (vma->vm_file->f_dentry == file_p->dentry) {
+			return file_p;
+		}
+	}
+
+	return NULL;
+}
+// proc_probes
+
 #include "storage.h"
 
 static void print_proc_probes(const struct proc_probes *proc_p);
@@ -308,12 +349,9 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 
 	if (proc_p) {
 		int i;
-		proc_p->cnt = task_inst_info->libs_count;
-		proc_p->dentry = task_inst_info->m_f_dentry;
-		proc_p->file_p = kmalloc(sizeof(*proc_p->file_p)*proc_p->cnt, GFP_ATOMIC);
+		proc_p_init(proc_p, task_inst_info->m_f_dentry);
 
-		printk("#2# get_file_probes: proc_p[cnt=%d, dentry=%p, file_p=%p]\n",
-				proc_p->cnt, proc_p->dentry, proc_p->file_p);
+		printk("#2# get_file_probes: proc_p[dentry=%p]\n", proc_p->dentry);
 
 		for (i = 0; i < task_inst_info->libs_count; ++i) {
 			us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
@@ -323,7 +361,6 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 			printk("#3# get_file_probes: p_libs[ips_count=%d, dentry=%p, %s %s\n",
 					p_libs->ips_count, p_libs->m_f_dentry, p_libs->path, p_libs->path_dyn);
 			if (p_libs->ips_count == 0) {
-				proc_p->file_p[i] = NULL;
 				continue;
 			}
 
@@ -383,36 +420,7 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 				}
 			}
 
-			proc_p->file_p[i] = file_p;
-		}
-
-		// rm file == NULL
-		{
-			int i, cnt = 0;
-			for (i = 0; i < proc_p->cnt; ++i) {
-				if (proc_p->file_p[i] == NULL) {
-					continue;
-				}
-				++cnt;
-			}
-
-			if (cnt != proc_p->cnt) {
-				int j = 0;
-				struct file_probes **file_p_tmp = kmalloc(sizeof(*proc_p->file_p)*cnt, GFP_ATOMIC);
-
-				for (i = 0; i < proc_p->cnt; ++i) {
-					if (proc_p->file_p[i] == NULL) {
-						continue;
-					}
-
-					file_p_tmp[j] = proc_p->file_p[i];
-					++j;
-				}
-
-				proc_p->cnt = j;
-				kfree(proc_p->file_p);
-				proc_p->file_p = file_p_tmp;
-			}
+			proc_p_add_file_p(proc_p, file_p);
 		}
 	}
 
@@ -423,41 +431,6 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 	kfree(tmp_page_probes_table);
 
 	return proc_p;
-}
-
-static struct proc_probes *proc_probes_copy(struct proc_probes *proc_p)
-{
-	size_t i;
-	struct proc_probes *proc_p_out = kmalloc(sizeof(*proc_p_out), GFP_ATOMIC);
-
-	proc_p_out->dentry = proc_p->dentry;
-	proc_p_out->cnt = proc_p->cnt;
-
-	proc_p_out->file_p = kmalloc(proc_p_out->cnt * sizeof(*proc_p_out->file_p), GFP_ATOMIC);
-
-	for (i = 0; i < proc_p_out->cnt; ++i) {
-		proc_p_out->file_p[i] = file_p_copy(proc_p->file_p[i]);
-	}
-
-	return proc_p_out;
-}
-
-static struct file_probes *proc_p_find_file_p(struct proc_probes *proc_p, struct vm_area_struct *vma)
-{
-	struct file_probes *file_p;
-	size_t i;
-	for (i = 0; i < proc_p->cnt; ++i) {
-		file_p = proc_p->file_p[i];
-		if (file_p == NULL) {
-			continue;
-		}
-
-		if (vma->vm_file->f_dentry == file_p->dentry) {
-			return file_p;
-		}
-	}
-
-	return NULL;
 }
 
 static int register_usprobe_my(struct task_struct *task, us_proc_ip_t *ip)
@@ -548,11 +521,11 @@ static void print_file_probes(const struct file_probes *file_p)
 
 static void print_proc_probes(const struct proc_probes *proc_p)
 {
-	int i;
+	struct file_probes *file_p;
 
 	printk("### print_proc_probes\n");
-	for (i = 0; i < proc_p->cnt; ++i) {
-		print_file_probes(proc_p->file_p[i]);
+	list_for_each_entry(file_p, &proc_p->file_list, list) {
+		print_file_probes(file_p);
 	}
 	printk("### print_proc_probes\n");
 }
