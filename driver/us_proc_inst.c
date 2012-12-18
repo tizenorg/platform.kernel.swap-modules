@@ -1308,7 +1308,7 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 				file_p->loaded = 1;
 			}
 
-			page_p = file_p_find_page_p(file_p, page);
+			page_p = file_p_find_page_p_mapped(file_p, page);
 			if (page_p) {
 				register_us_page_probe(page_p, file_p, task);
 			}
