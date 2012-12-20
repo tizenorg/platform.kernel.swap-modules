@@ -764,51 +764,68 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 	return task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count;
 }
 
+#include "new_dpf.h"
+
+static void set_mapping_file(struct file_probes *file_p,
+		const struct proc_probes *proc_p,
+		const struct task_struct *task,
+		const struct vm_area_struct *vma);
+
 int install_otg_ip(unsigned long addr,
 			kprobe_pre_entry_handler_t pre_handler,
 			unsigned long jp_handler,
 			kretprobe_handler_t rp_handler)
 {
-	int err;
-	us_proc_otg_ip_t *pprobe;
+	int ret = 0;
 	struct task_struct *task = current->group_leader;
 	struct mm_struct *mm = task->mm;
 
-	/* Probe preparing */
-	err = add_otg_probe_to_list(addr, &pprobe);
-	if (err) {
-		if (err == 1) {
-			DPRINTF("OTG probe %p already installed.", addr);
-			return 0;
-		} else {
-			DPRINTF("Failed to add new OTG probe, err=%d",err);
-			return err;
+	if (mm) {
+		struct vm_area_struct *vma = find_vma(mm, addr);
+		if (vma && (vma->vm_flags & VM_EXEC) &&
+		    vma->vm_file && vma->vm_file->f_dentry) {
+			unsigned long offset_addr = addr - vma->vm_start;
+			struct dentry *dentry = vma->vm_file->f_dentry;
+			char *name = dentry->d_iname;
+			struct proc_probes *proc_p = us_proc_info.pp;
+			struct probe_data pd = {
+					.offset = offset_addr,
+					.pre_handler = pre_handler,
+					.jp_handler = jp_handler,
+					.rp_handler = rp_handler
+			};
+
+			struct file_probes *file_p = proc_p_find_file_p_by_dentry(proc_p, name, dentry);
+			struct page_probes *page_p = get_page_p(file_p, offset_addr);
+			us_proc_ip_t *ip = page_p_find_ip(page_p, offset_addr & ~PAGE_MASK);
+
+			if (!file_p->loaded) {
+				set_mapping_file(file_p, proc_p, task, vma);
+				file_p->loaded = 1;
+			}
+
+			if (ip == NULL) {
+				struct file_probes *file_p = proc_p_find_file_p_by_dentry(proc_p, name, dentry);
+				file_p_add_probe(file_p, &pd);
+				/* if addr mapping, that probe install, else it be installed in do_page_fault handler */
+				if (page_present(mm, addr)) {
+					ip = page_p_find_ip(page_p, offset_addr & ~PAGE_MASK);
+					set_ip_kp_addr(ip, page_p, file_p);
+
+					// TODO: error
+					ret = register_usprobe_my(task, ip);
+					if (ret) {
+						printk("ERROR install_otg_ip: ret=%d\n", ret);
+					}
+				}
+
+			}
+
+			put_page_p(page_p);
 		}
 	}
 
-	pprobe->ip.jprobe.pre_entry = pre_handler;
-	pprobe->ip.jprobe.entry = (kprobe_opcode_t *)jp_handler;
-	pprobe->ip.retprobe.handler = rp_handler;
-
-	pprobe->tgid = task->tgid;
-	if (!page_present(mm, addr)) {
-		DPRINTF("Page isn't present for %p.", addr);
-
-		us_proc_info.unres_otg_ips_count++;
-		/* Probe will be installed in do_page_fault handler */
-		return 0;
-	}
-	DPRINTF("Page present for %p.", addr);
-
-	/* Probe installing */
-	err = register_usprobe(task, &pprobe->ip, 1);
-	if (err != 0) {
-		DPRINTF("failed to install IP at %lx/%p. Error %d!",
-			 addr, pprobe->ip.jprobe.kp.addr, err);
-		return err;
-	}
-
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(install_otg_ip);
 
@@ -908,9 +925,6 @@ static int uninstall_kernel_probe (unsigned long addr, int uflag, int kflag, ker
 	}
 	return iRet;
 }
-
-
-#include "new_dpf.h"
 
 static int uninstall_us_proc_probes(struct task_struct *task, struct proc_probes *proc_p, enum US_FLAGS flag);
 
@@ -1360,6 +1374,26 @@ static void install_proc_probes(struct task_struct *task, struct proc_probes *pr
 	mm_read_unlock(mm, atomic, lock);
 }
 
+static int check_install_pages_in_file(struct task_struct *task, struct file_probes *file_p)
+{
+	int i;
+	int table_size = (1 << file_p->page_probes_hash_bits);
+	struct page_probes *page_p;
+	struct hlist_node *node, *tmp;
+	struct hlist_head *head;
+
+	for (i = 0; i < table_size; ++i) {
+		head = &file_p->page_probes_table[i];
+		hlist_for_each_entry_safe (page_p, node, tmp, head, hlist) {
+			if (page_p->install) {
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static int unregister_us_file_probes(struct task_struct *task, struct file_probes *file_p, enum US_FLAGS flag)
 {
 	int i, err = 0;
@@ -1519,87 +1553,69 @@ void do_exit_probe_pre_code (void)
 }
 EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
 
-static int check_addr(unsigned long addr, unsigned long start, size_t len)
+int check_vma_area(struct vm_area_struct *vma, unsigned long start, unsigned long end)
 {
-	if ((addr >= start) && (addr < start + (unsigned long)len)) {
-		return 1;
-	}
+	return (vma->vm_start >= start && vma->vm_end <= end);
+}
 
-	return 0;
+void print_vma(struct mm_struct *mm)
+{
+	struct vm_area_struct *vma;
+	printk("### print_vma: START\n");\
+	printk("### print_vma: START\n");
+
+	for (vma = mm->mmap; vma; vma = vma->vm_next) {
+		char *x = vma->vm_flags & VM_EXEC ? "x" : "-";
+		char *r = vma->vm_flags & VM_READ ? "r" : "-";
+		char *w = vma->vm_flags & VM_WRITE ? "w" : "-";
+		char *name = vma->vm_file ? vma->vm_file->f_dentry->d_iname : "N/A";
+
+		printk("### [%8x..%8x] %s%s%s pgoff=\'%8u\' %s\n",
+				vma->vm_start, vma->vm_end, x, r, w, vma->vm_pgoff, name);
+	}
+	printk("### print_vma:  END\n");
 }
 
 static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_inst_info, unsigned long start, size_t len)
 {
-	int i, k, err;
-	us_proc_otg_ip_t *p;
-	unsigned long addr;
-	const int atomic = 1;
+	struct mm_struct *mm = task->mm;
+	struct vm_area_struct *vma;
+	unsigned long end, pointer, step;
 
-	for (i = 0; i < task_inst_info->libs_count; ++i) {
-		for (k = 0; k < task_inst_info->p_libs[i].ips_count; ++k) {
-			if (task_inst_info->p_libs[i].p_ips[k].installed) {
-				addr = task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr;
-				if (check_addr(addr, start, len)) {
-					err = unregister_usprobe(task, &task_inst_info->p_libs[i].p_ips[k], atomic, 1);
-					if (err != 0) {
-						EPRINTF("failed to uninstall IP at %p. Error %d!", task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr, err);
-						continue;
+	if ((start & ~PAGE_MASK) || start > TASK_SIZE || len > TASK_SIZE - start) {
+		return -EINVAL;
+	}
+
+	if ((len = PAGE_ALIGN(len)) == 0) {
+		return -EINVAL;
+	}
+
+	vma = find_vma(mm, start);
+	if (vma && check_vma(vma)) {
+		struct file_probes *file_p;
+		unsigned long end = start + len;
+
+		file_p = proc_p_find_file_p(task_inst_info->pp, vma);
+		if (file_p) {
+			if (vma->vm_start == start || vma->vm_end == end) {
+				unregister_us_file_probes(task, file_p, US_NOT_RP2);
+				file_p->loaded = 0;
+			} else {
+				unsigned long page;
+				struct page_probes *page_p;
+
+				for (page = vma->vm_start; page < vma->vm_end; page += PAGE_SIZE) {
+					page_p = file_p_find_page_p_mapped(file_p, page);
+					if (page_p) {
+						unregister_us_page_probe(task, page_p, US_NOT_RP2);
 					}
-					task_inst_info->unres_ips_count++;
+				}
+
+				if (check_install_pages_in_file(task, file_p)) {
+					file_p->loaded = 0;
 				}
 			}
 		}
-		for (k = 0; k < task_inst_info->p_libs[i].vtps_count; ++k) {
-			if (task_inst_info->p_libs[i].p_vtps[k].installed) {
-				addr = task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr;
-				if (check_addr(addr, start, len)) {
-					dbi_unregister_ujprobe(task, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
-					task_inst_info->unres_vtps_count++;
-					task_inst_info->p_libs[i].p_vtps[k].installed = 0;
-				}
-			}
-		}
-	}
-#ifdef __ANDROID
-	if (is_java_inst_enabled()) {
-		us_proc_ip_t *entp = &task_inst_info->libdvm_entry_ip;
-		if (entp->installed) {
-			addr = entp->jprobe.kp.addr;
-			if (check_addr(addr, start, len)) {
-				unregister_usprobe(task, entp, atomic, 1);
-				entp->installed = 0;
-			}
-		}
-		us_proc_ip_t *retp = &task_inst_info->libdvm_return_ip;
-		if (retp->installed) {
-			addr = retp->jprobe.kp.addr;
-			if (check_addr(addr, start, len)) {
-				unregister_usprobe(task, retp, atomic, 1);
-				retp->installed = 0;
-			}
-		}
-	}
-#endif /* __ANDROID */
-
-	// remove OTG-probes
-	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
-		if (!p->ip.installed) {
-			continue;
-		}
-
-		addr = p->ip.jprobe.kp.addr;
-		if (check_addr(addr, start, len) == 0) {
-			continue;
-		}
-
-		err = unregister_usprobe(task, &p->ip, atomic, 1);
-		if (err != 0) {
-			EPRINTF("failed to uninstall IP at %p. Error %d!",
-				 p->ip.jprobe.kp.addr, err);
-			continue;
-		}
-
-		remove_otg_probe_from_list(p->ip.offset);
 	}
 
 	return 0;
@@ -1623,7 +1639,9 @@ void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t 
 	}
 
 	if (task_inst_info) {
-		remove_unmap_probes(task, task_inst_info, start, len);
+		if (remove_unmap_probes(task, task_inst_info, start, len)) {
+			printk("ERROR do_munmap: start=%x, len=%x\n", start, len);
+		}
 	}
 }
 EXPORT_SYMBOL_GPL(do_munmap_probe_pre_code);

@@ -115,7 +115,7 @@ static void page_p_del(struct page_probes *page_p)
 	// TODO: del
 }
 
-struct page_probes *page_p_copy(const struct page_probes *page_p)
+static struct page_probes *page_p_copy(const struct page_probes *page_p)
 {
 	us_proc_ip_t *ip_in, *ip_out;
 	struct page_probes *page_p_out = kmalloc(sizeof(*page_p), GFP_ATOMIC);
@@ -142,11 +142,24 @@ struct page_probes *page_p_copy(const struct page_probes *page_p)
 	return page_p_out;
 }
 
-void page_p_add_ip(struct page_probes *page_p, us_proc_ip_t *ip)
+static void page_p_add_ip(struct page_probes *page_p, us_proc_ip_t *ip)
 {
 	ip->offset &= ~PAGE_MASK;
 	INIT_LIST_HEAD(&ip->list);
 	list_add(&ip->list, &page_p->ip_list);
+}
+
+static us_proc_ip_t *page_p_find_ip(struct page_probes *page_p, unsigned long offset)
+{
+	us_proc_ip_t *ip;
+
+	list_for_each_entry(ip, &page_p->ip_list, list) {
+		if (ip->offset == offset) {
+			return ip;
+		}
+	}
+
+	return NULL;
 }
 
 static void page_p_assert_install(const struct page_probes *page_p)
@@ -171,6 +184,12 @@ static void page_p_uninstalled(struct page_probes *page_p)
 	page_p->install = 0;
 }
 // page_probes
+
+static void set_ip_kp_addr(us_proc_ip_t *ip, struct page_probes *page_p, const struct file_probes *file_p)
+{
+	unsigned long addr = file_p->vm_start + page_p->offset + ip->offset;
+	ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
+}
 
 static void page_p_set_all_kp_addr(struct page_probes *page_p, const struct file_probes *file_p)
 {
@@ -289,6 +308,18 @@ static struct page_probes *file_p_find_page_p(struct file_probes *file_p, unsign
 	return NULL;
 }
 
+static struct page_probes *file_p_find_page_p_or_new(struct file_probes *file_p, unsigned long offset)
+{
+	struct page_probes *page_p = file_p_find_page_p(file_p, offset);
+
+	if (page_p == NULL) {
+		page_p = page_p_new(offset);
+		file_p_add_page_p(file_p, page_p);
+	}
+
+	return page_p;
+}
+
 static struct page_probes *file_p_find_page_p_mapped(struct file_probes *file_p, unsigned long page)
 {
 	unsigned long offset;
@@ -307,15 +338,8 @@ static struct page_probes *file_p_find_page_p_mapped(struct file_probes *file_p,
 
 void file_p_add_probe(struct file_probes *file_p, struct probe_data *pd)
 {
-	unsigned long page = pd->offset & PAGE_MASK;
-	struct page_probes *page_p = file_p_find_page_p(file_p, page);
-
-	if (page_p == NULL) {
-		unsigned long hash_bits = file_p->page_probes_hash_bits;
-		struct hlist_head *head = &file_p->page_probes_table[hash_ptr(page, hash_bits)];
-		page_p = page_p_new(page);
-		hlist_add_head(&page_p->hlist, head);
-	}
+	unsigned long offset = pd->offset & PAGE_MASK;
+	struct page_probes *page_p = file_p_find_page_p_or_new(file_p, offset);
 
 	// FIXME: ip
 	us_proc_ip_t *ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
@@ -329,6 +353,21 @@ void file_p_add_probe(struct file_probes *file_p, struct probe_data *pd)
 	ip->retprobe.handler = pd->rp_handler;
 
 	page_p_add_ip(page_p, ip);
+}
+
+static struct page_probes *get_page_p(struct file_probes *file_p, unsigned long offset_addr)
+{
+	unsigned long offset = offset_addr & PAGE_MASK;
+	struct page_probes *page_p = file_p_find_page_p_or_new(file_p, offset);
+
+	spin_lock(&page_p->lock);
+
+	return page_p;
+}
+
+static void put_page_p(struct page_probes *page_p)
+{
+	spin_unlock(&page_p->lock);
 }
 // file_probes
 
