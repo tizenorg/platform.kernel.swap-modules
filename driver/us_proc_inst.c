@@ -63,14 +63,11 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 static int register_usprobe(struct task_struct *task, us_proc_ip_t *ip, int atomic);
 static int unregister_usprobe(struct task_struct *task, us_proc_ip_t * ip, int atomic, int no_rp2);
 
+#include "new_dpf.h"
+
 int us_proc_probes;
 
-struct task_inst_info_node {
-	struct list_head      plist;
-	inst_us_proc_t *      task_inst_info;
-	int                   tgid;
-};
-LIST_HEAD(task_inst_info_list);
+LIST_HEAD(proc_probes_list);
 
 #ifdef SLP_APP
 struct dentry *launchpad_daemon_dentry = NULL;
@@ -103,148 +100,34 @@ static inline int is_us_instrumentation(void)
 	return !!us_proc_info.path;
 }
 
-static struct proc_probes *proc_p_copy(struct proc_probes *proc_p);
-static void print_proc_probes(const struct proc_probes *proc_p);
-/**
- * Prepare copy of instrumentation data for task
- * in case of library only instrumentation
- */
-
-inst_us_proc_t* copy_task_inst_info (struct task_struct *task, inst_us_proc_t * task_inst_info)
+struct proc_probes *get_proc_probes_by_task(struct task_struct *task)
 {
-	int i, j;
-	kprobe_opcode_t *entry_save;
-	kprobe_pre_entry_handler_t pre_entry_save;
-	kretprobe_handler_t handler_save;
+	struct proc_probes *proc_p, *tmp;
 
-	inst_us_proc_t* copy_info = 0;
-
-	int unres_ips_count = 0, unres_vtps_count = 0;
-
-	copy_info = kmalloc (sizeof (inst_us_proc_t), GFP_ATOMIC);
-	memset ((void *) copy_info, 0, sizeof (inst_us_proc_t));
-
-	copy_info->path = task_inst_info->path;
-	copy_info->m_f_dentry = NULL;
-
-	copy_info->libs_count = task_inst_info->libs_count;
-	copy_info->p_libs =
-		kmalloc (task_inst_info->libs_count * sizeof (us_proc_lib_t), GFP_ATOMIC);
-
-	if (!copy_info->p_libs) {
-		DPRINTF ("No enough memory for copy_info->p_libs");
-		return NULL;
-	}
-	memcpy (copy_info->p_libs, task_inst_info->p_libs,
-			copy_info->libs_count * sizeof (us_proc_lib_t));
-
-	for (i = 0; i < copy_info->libs_count; i++) {
-		if (copy_info->p_libs[i].ips_count > 0)
-		{
-			unres_ips_count += copy_info->p_libs[i].ips_count;
-
-			copy_info->p_libs[i].p_ips =
-				kmalloc (copy_info->p_libs[i].ips_count * sizeof (us_proc_ip_t), GFP_ATOMIC);
-
-			if (!copy_info->p_libs[i].p_ips) {
-				DPRINTF ("No enough memory for copy_info->p_libs[i].p_ips");
-				return NULL;
-			}
-
-			memcpy (copy_info->p_libs[i].p_ips, task_inst_info->p_libs[i].p_ips,
-					copy_info->p_libs[i].ips_count * sizeof (us_proc_ip_t));
-			for (j = 0; j < copy_info->p_libs[i].ips_count; j++) {
-				// save handlers
-				entry_save = copy_info->p_libs[i].p_ips[j].jprobe.entry;
-				pre_entry_save = copy_info->p_libs[i].p_ips[j].jprobe.pre_entry;
-				handler_save = copy_info->p_libs[i].p_ips[j].retprobe.handler;
-
-				copy_info->p_libs[i].p_ips[j].installed = 0;
-				memset(&copy_info->p_libs[i].p_ips[j].jprobe, 0, sizeof(struct jprobe));
-				memset(&copy_info->p_libs[i].p_ips[j].retprobe, 0, sizeof(struct kretprobe));
-
-				// restore handlers
-				copy_info->p_libs[i].p_ips[j].jprobe.entry = entry_save;
-				copy_info->p_libs[i].p_ips[j].jprobe.pre_entry = pre_entry_save;
-				copy_info->p_libs[i].p_ips[j].retprobe.handler = handler_save;
-			}
-
-			unres_ips_count += copy_info->p_libs[i].ips_count;
-		}
-
-		for (j = 0; j < copy_info->p_libs[i].plt_count; j++)
-		{
-			copy_info->p_libs[i].p_plt[j].real_func_addr = 0;
-		}
-
-		if (copy_info->p_libs[i].vtps_count > 0) {
-			unres_vtps_count += copy_info->p_libs[i].vtps_count;
-
-			copy_info->p_libs[i].p_vtps =
-				kmalloc (copy_info->p_libs[i].vtps_count * sizeof (us_proc_vtp_t), GFP_ATOMIC);
-
-			if (!copy_info->p_libs[i].p_vtps) {
-				DPRINTF ("No enough memory for copy_info->p_libs[i].p_vtps");
-				return NULL;
-			}
-
-			memcpy (copy_info->p_libs[i].p_vtps, task_inst_info->p_libs[i].p_vtps,
-					copy_info->p_libs[i].vtps_count * sizeof (us_proc_vtp_t));
-			for (j = 0; j < copy_info->p_libs[i].vtps_count; j++) {
-				copy_info->p_libs[i].p_vtps[j].installed = 0;
-				memset (&copy_info->p_libs[i].p_vtps[j].jprobe, 0, sizeof(struct jprobe));
-			}
-			unres_vtps_count = copy_info->p_libs[i].vtps_count;
-		}
-
-		copy_info->p_libs[i].m_f_dentry = task_inst_info->p_libs[i].m_f_dentry;
-		copy_info->p_libs[i].loaded = 0;
-
-		copy_info->p_libs[i].vma_start = 0;
-		copy_info->p_libs[i].vma_end = 0;
-	}
-	copy_info->unres_ips_count = unres_ips_count;
-	copy_info->unres_vtps_count = unres_vtps_count;
-
-	copy_info->pp = proc_p_copy(task_inst_info->pp);
-
-//	print_proc_probes(copy_info->pp);
-
-	return copy_info;
-}
-
-inst_us_proc_t* get_task_inst_node(struct task_struct *task)
-{
-	struct task_inst_info_node *node, *tnode;
-
-	list_for_each_entry_safe(node, tnode, &task_inst_info_list, plist)
-	{
-		if (node && task && node->tgid == task->tgid) {
-			return node->task_inst_info;
+	list_for_each_entry_safe(proc_p, tmp, &proc_probes_list, list) {
+		if (proc_p->tgid == task->tgid) {
+			return proc_p;
 		}
 	}
+
 	return NULL;
 }
 
-void put_task_inst_node(struct task_struct *task, inst_us_proc_t *task_inst_info)
+void add_proc_probes(struct task_struct *task, struct proc_probes *proc_p)
 {
-	struct task_inst_info_node * node;
-
-	node = kmalloc (sizeof(struct task_inst_info_node), GFP_ATOMIC);
-
-	node->tgid = task->tgid;
-	node->task_inst_info = task_inst_info;
-
-	list_add_tail (&(node->plist), &task_inst_info_list);
+	proc_p->tgid = task->tgid;
+	list_add_tail(&proc_p->list, &proc_probes_list);
 }
 
-
-void clear_task_inst_info(void)
+struct proc_probes *get_proc_probes_by_task_or_new(struct task_struct *task)
 {
-	struct list_head *node, *tmp;
+	struct proc_probes *proc_p = get_proc_probes_by_task(task);
+	if (proc_p == NULL) {
+		proc_p = proc_p_copy(us_proc_info.pp);
+		add_proc_probes(task, proc_p);
+	}
 
-	list_for_each_safe(node, tmp, &task_inst_info_list)
-		list_del(node);
+	return proc_p;
 }
 
 #ifdef SLP_APP
@@ -676,8 +559,6 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 	return task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count;
 }
 
-#include "new_dpf.h"
-
 static void set_mapping_file(struct file_probes *file_p,
 		const struct proc_probes *proc_p,
 		const struct task_struct *task,
@@ -862,16 +743,17 @@ int deinst_usr_space_proc (void)
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_munmap) result=%d!", iRet);
 
-	if (is_libonly())
-	{
-		for_each_process (task)
-		{
-			task_inst_info = get_task_inst_node(task);
-			if (task_inst_info)
-			{
-				iRet = uninstall_us_proc_probes(task, task_inst_info->pp, US_UNREGS_PROBE);
-				if (iRet != 0)
-					EPRINTF ("failed to uninstall IPs (%d)!", iRet);
+	if (is_libonly()) {
+		struct proc_probes *proc_p;
+
+		for_each_process(task)	{
+			proc_p = get_proc_probes_by_task(task);
+			if (proc_p) {
+				int ret = uninstall_us_proc_probes(task, proc_p, US_UNREGS_PROBE);
+				if (ret) {
+					EPRINTF ("failed to uninstall IPs (%d)!", ret);
+				}
+
 				dbi_unregister_all_uprobes(task, 1);
 			}
 		}
@@ -893,11 +775,13 @@ int deinst_usr_space_proc (void)
 		rcu_read_unlock ();
 		if (found)
 		{
-			int i;
+			int i, ret;
 			// uninstall IPs
-			iRet = uninstall_us_proc_probes(task, us_proc_info.pp, US_UNREGS_PROBE);
-			if (iRet != 0)
-			EPRINTF ("failed to uninstall IPs %d!", iRet);
+			ret = uninstall_us_proc_probes(task, us_proc_info.pp, US_UNREGS_PROBE);
+			if (ret != 0) {
+				EPRINTF ("failed to uninstall IPs %d!", ret);
+			}
+
 			put_task_struct (task);
 
 			printk("### 1 ### dbi_unregister_all_uprobes:\n");
@@ -950,7 +834,6 @@ int inst_usr_space_proc (void)
 {
 	int ret, i;
 	struct task_struct *task = 0;
-	inst_us_proc_t *task_inst_info = NULL;
 
 	if (!is_us_instrumentation()) {
 		return 0;
@@ -1003,30 +886,25 @@ int inst_usr_space_proc (void)
 
 	if (is_libonly())
 	{
-		clear_task_inst_info();
+		// FIXME: clear_task_inst_info();
 		for_each_process (task) {
+			struct proc_probes *proc_p;
+
 			if (task->flags & PF_KTHREAD){
 				DPRINTF("ignored kernel thread %d\n",
 					task->pid);
 				continue;
 			}
 
-			task_inst_info = get_task_inst_node(task);
-			if (!task_inst_info) {
-				task_inst_info =
-					copy_task_inst_info(task,
-							    &us_proc_info);
-				put_task_inst_node(task, task_inst_info);
-			}
+			proc_p = get_proc_probes_by_task_or_new(task);
 			DPRINTF("trying process");
 #ifdef __ANDROID
 			if (is_java_inst_enabled()) {
 				find_libdvm_for_task(task, task_inst_info);
 			}
 #endif /* __ANDROID */
-			install_proc_probes(task, task_inst_info->pp, 1);
+			install_proc_probes(task, proc_p, 1);
 			//put_task_struct (task);
-			task_inst_info = NULL;
 		}
 	}
 	else
@@ -1368,7 +1246,7 @@ void do_page_fault_ret_pre_code (void)
 {
 	struct mm_struct *mm;
 	struct vm_area_struct *vma = 0;
-	inst_us_proc_t *task_inst_info = NULL;
+	struct proc_probes *proc_p = NULL;
 	/*
 	 * Because process threads have same address space
 	 * we instrument only group_leader of all this threads
@@ -1398,11 +1276,7 @@ void do_page_fault_ret_pre_code (void)
 	}
 
 	if (is_libonly()) {
-		task_inst_info = get_task_inst_node(task);
-		if (task_inst_info == NULL) {
-			task_inst_info = copy_task_inst_info(task, &us_proc_info);
-			put_task_inst_node(task, task_inst_info);
-		}
+		proc_p = get_proc_probes_by_task_or_new(task);
 	} else {
 		if (!is_java_inst_enabled() &&
 			(us_proc_info.unres_ips_count +
@@ -1419,11 +1293,11 @@ void do_page_fault_ret_pre_code (void)
 		}
 
 		if (us_proc_info.tgid == task->tgid) {
-			task_inst_info = &us_proc_info;
+			proc_p = us_proc_info.pp;
 		}
 	}
 
-	if (task_inst_info) {
+	if (proc_p) {
 		unsigned long page = addr & PAGE_MASK;
 
 #ifdef __ANDROID
@@ -1434,7 +1308,7 @@ void do_page_fault_ret_pre_code (void)
 
 		// overhead
 		do_gettimeofday(&imi_tv1);
-		install_page_probes(page, task, task_inst_info->pp, 1);
+		install_page_probes(page, task, proc_p, 1);
 		do_gettimeofday(&imi_tv2);
 		imi_sum_hit++;
 		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
@@ -1474,7 +1348,7 @@ void print_vma(struct mm_struct *mm)
 	printk("### print_vma:  END\n");
 }
 
-static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_inst_info, unsigned long start, size_t len)
+static int remove_unmap_probes(struct task_struct *task, struct proc_probes *proc_p, unsigned long start, size_t len)
 {
 	struct mm_struct *mm = task->mm;
 	struct vm_area_struct *vma;
@@ -1493,7 +1367,7 @@ static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_in
 		struct file_probes *file_p;
 		unsigned long end = start + len;
 
-		file_p = proc_p_find_file_p(task_inst_info->pp, vma);
+		file_p = proc_p_find_file_p(proc_p, vma);
 		if (file_p) {
 			if (vma->vm_start == start || vma->vm_end == end) {
 				unregister_us_file_probes(task, file_p, US_NOT_RP2);
@@ -1521,7 +1395,7 @@ static int remove_unmap_probes(struct task_struct *task, inst_us_proc_t* task_in
 
 void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t len)
 {
-	inst_us_proc_t *task_inst_info = NULL;
+	struct proc_probes *proc_p = NULL;
 	struct task_struct *task = current;
 
 	//if user-space instrumentation is not set
@@ -1529,15 +1403,15 @@ void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t 
 		return;
 
 	if (!strcmp(us_proc_info.path,"*")) {
-		task_inst_info = get_task_inst_node(task);
+		proc_p = get_proc_probes_by_task(task);
 	} else {
 		if (task->tgid == us_proc_info.tgid) {
-			task_inst_info = &us_proc_info;
+			proc_p = us_proc_info.pp;
 		}
 	}
 
-	if (task_inst_info) {
-		if (remove_unmap_probes(task, task_inst_info, start, len)) {
+	if (proc_p) {
+		if (remove_unmap_probes(task, proc_p, start, len)) {
 			printk("ERROR do_munmap: start=%x, len=%x\n", start, len);
 		}
 	}
@@ -1554,9 +1428,9 @@ void mm_release_probe_pre_code(void)
 	}
 
 	if (is_libonly()) {
-		inst_us_proc_t *task_inst_info = get_task_inst_node(current);
-		if (task_inst_info) {
-			iRet = uninstall_us_proc_probes(current, task_inst_info->pp, US_NOT_RP2);
+		struct proc_probes *proc_p = get_proc_probes_by_task(current);
+		if (proc_p) {
+			iRet = uninstall_us_proc_probes(current, proc_p, US_NOT_RP2);
 			if (iRet != 0) {
 				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
 			}
@@ -1582,20 +1456,21 @@ void mm_release_probe_pre_code(void)
 EXPORT_SYMBOL_GPL(mm_release_probe_pre_code);
 
 
-static void recover_child(struct task_struct *child_task, inst_us_proc_t *parent_iup)
+static void recover_child(struct task_struct *child_task, struct proc_probes *proc_p)
 {
-	uninstall_us_proc_probes(child_task, parent_iup->pp, US_DISARM);
+	uninstall_us_proc_probes(child_task, proc_p, US_DISARM);
 }
 
 static void rm_uprobes_child(struct task_struct *new_task)
 {
 	if (is_libonly()) {
-		inst_us_proc_t *task_inst_info = get_task_inst_node(current);
-		if(task_inst_info)
-			recover_child(new_task, task_inst_info);
+		struct proc_probes *proc_p = get_proc_probes_by_task(current);
+		if(proc_p) {
+			recover_child(new_task, proc_p);
+		}
 	} else {
 		if(us_proc_info.tgid == current->tgid) {
-			recover_child(new_task, &us_proc_info);
+			recover_child(new_task, us_proc_info.pp);
 		}
 	}
 }
@@ -1712,7 +1587,8 @@ void find_plt_address(unsigned long addr)
 		task_inst_info = &us_proc_info;
 	} else {
 	// If lib only instrumentation
-		task_inst_info = get_task_inst_node(current);
+		// FIXME:
+		task_inst_info = NULL;//get_task_inst_node(current);
 	}
 	if ((task_inst_info != NULL) && (task_inst_info->is_plt != 0)) {
 		for (i = 0; i < task_inst_info->libs_count; i++)

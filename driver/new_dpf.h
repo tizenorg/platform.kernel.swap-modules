@@ -40,6 +40,8 @@ struct file_probes {
 };
 
 struct proc_probes {
+	struct list_head list;
+	pid_t tgid;
 	struct dentry *dentry;
 	struct list_head file_list;
 };
@@ -374,6 +376,8 @@ static void put_page_p(struct page_probes *page_p)
 // proc_probes
 static void proc_p_init(struct proc_probes *proc_p, struct dentry* dentry)
 {
+	INIT_LIST_HEAD(&proc_p->list);
+	proc_p->tgid = 0;
 	proc_p->dentry = dentry;
 	INIT_LIST_HEAD(&proc_p->file_list);
 }
