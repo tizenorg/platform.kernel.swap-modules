@@ -135,8 +135,6 @@ extern int dbi_unregister_handlers_module(struct dbi_modules_handlers_info *dbi_
 /* list of on-the-go installed kernel probes */
 extern struct hlist_head otg_kernel_probes;
 
-extern struct list_head otg_us_proc_info;
-
 // event mask
 extern int event_mask;
 
@@ -158,13 +156,6 @@ typedef struct
 
 	enum FLAG_PROBE flags;
 } us_proc_ip_t;
-
-typedef struct
-{
-	us_proc_ip_t ip;
-	pid_t tgid;
-	struct list_head list;
-} us_proc_otg_ip_t;
 
 typedef struct
 {
@@ -216,7 +207,6 @@ typedef struct
 	pid_t tgid;
 	unsigned unres_ips_count;
 	unsigned unres_vtps_count;
-	unsigned unres_otg_ips_count;
 	//kprobe_opcode_t *mapped_codelets;
 	int is_plt;
 	unsigned libs_count;

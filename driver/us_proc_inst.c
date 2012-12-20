@@ -103,74 +103,6 @@ static inline int is_us_instrumentation(void)
 	return !!us_proc_info.path;
 }
 
-us_proc_otg_ip_t *find_otg_probe(unsigned long addr)
-{
-	us_proc_otg_ip_t *p;
-
-	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
-		if (p->ip.offset == addr) {
-			return p;
-		}
-	}
-
-	return NULL;
-}
-
-int add_otg_probe_to_list(unsigned long addr, us_proc_otg_ip_t **pprobe)
-{
-	us_proc_otg_ip_t *new_probe;
-	us_proc_otg_ip_t *probe;
-
-	if (pprobe) {
-		*pprobe = NULL;
-	}
-	/* check if such probe does already exist */
-	probe = find_otg_probe(addr);
-	if (probe) {
-		return 1;
-	}
-
-	new_probe = kmalloc(sizeof(us_proc_otg_ip_t), GFP_KERNEL);
-	if (!new_probe)	{
-		EPRINTF ("no memory for new probe!");
-		return -ENOMEM;
-	}
-	memset(new_probe,0, sizeof(us_proc_otg_ip_t));
-
-	new_probe->ip.offset = addr;
-	new_probe->ip.jprobe.kp.addr =
-		new_probe->ip.retprobe.kp.addr = (kprobe_opcode_t *)addr;
-	new_probe->ip.jprobe.priv_arg =
-		new_probe->ip.retprobe.priv_arg = new_probe;
-
-	INIT_LIST_HEAD(&new_probe->list);
-	list_add_rcu(&new_probe->list, &otg_us_proc_info);
-
-	if (pprobe) {
-		*pprobe = new_probe;
-	}
-	return 0;
-}
-
-int remove_otg_probe_from_list(unsigned long addr)
-{
-	us_proc_otg_ip_t *p;
-
-	//check if such probe does exist
-	p = find_otg_probe(addr);
-	if (!p) {
-		/* We do not care about it. Nothing bad. */
-		return 0;
-	}
-
-	list_del_rcu(&p->list);
-
-	kfree (p);
-
-	return 0;
-}
-
-
 static struct proc_probes *proc_p_copy(struct proc_probes *proc_p);
 static void print_proc_probes(const struct proc_probes *proc_p);
 /**
@@ -578,7 +510,6 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 	int i, k, err;
 	unsigned long addr;
 	unsigned int old_ips_count, old_vtps_count;
-	us_proc_otg_ip_t *p;
 	struct task_struct *t;
 	struct mm_struct *mm;
 
@@ -737,26 +668,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 #endif /* __ANDROID */
 		vma = vma->vm_next;
 	}
-	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
-		if (p->ip.installed) {
-			continue;
-		}
 
-		if (!page_present(mm, p->ip.offset)) {
-			DPRINTF("Page isn't present for %p.",
-				p->ip.offset);
-			continue;
-		}
-
-		err = register_usprobe(task, &p->ip, atomic);
-		if (err != 0) {
-			DPRINTF("failed to install IP at %lx/%p. Error %d!",
-				p->ip.offset,
-				p->ip.jprobe.kp.addr, err);
-			continue;
-		}
-		task_inst_info->unres_otg_ips_count--;
-	}
 	if (!atomic) {
 		up_read (&mm->mmap_sem);
 		mmput (mm);
@@ -833,7 +745,6 @@ EXPORT_SYMBOL_GPL(install_otg_ip);
 static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task_inst_info, int atomic)
 {
 	int i, k, err;
-	us_proc_otg_ip_t *p;
 
 	for (i = 0; i < task_inst_info->libs_count; i++)
 	{
@@ -877,18 +788,6 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 		}
 	}
 #endif /* __ANDROID */
-	list_for_each_entry_rcu (p, &otg_us_proc_info, list) {
-		if (!p->ip.installed) {
-			continue;
-		}
-		DPRINTF("remove OTG IP at %p.",	p->ip.offset);
-		err = unregister_usprobe(task, &p->ip, atomic, 0);
-		if (err != 0) {
-			EPRINTF("failed to uninstall IP at %p. Error %d!",
-				 p->ip.jprobe.kp.addr, err);
-			continue;
-		}
-	}
 
 	DPRINTF ("Ures IPs  %d.", task_inst_info->unres_ips_count);
 	DPRINTF ("Ures VTPs %d.", task_inst_info->unres_vtps_count);
@@ -1507,8 +1406,7 @@ void do_page_fault_ret_pre_code (void)
 	} else {
 		if (!is_java_inst_enabled() &&
 			(us_proc_info.unres_ips_count +
-			 us_proc_info.unres_vtps_count +
-			 us_proc_info.unres_otg_ips_count) == 0) {
+			 us_proc_info.unres_vtps_count) == 0) {
 			return;
 		}
 
