@@ -17,10 +17,6 @@
 
 #include "module.h"
 
-int fp_kallsyms_lookup_name = 0;
-module_param (fp_kallsyms_lookup_name, uint, 0);
-MODULE_PARM_DESC (fp_kallsyms_lookup_name, "address of 'kallsyms_lookup_name' function");
-
 char gl_szDefaultDeviceName[128] = DEFAULT_DEVICE_NAME;
 char* device_name = NULL;
 module_param (device_name, charp, 0);
@@ -29,9 +25,6 @@ MODULE_PARM_DESC (device_name, "device name for '/proc/devices'");
 unsigned int device_major = 0;
 module_param (device_major, uint, 0);
 MODULE_PARM_DESC (device_major, "default device major number");
-
-fp_kallsyms_lookup_name_t lookup_name;
-EXPORT_SYMBOL_GPL(lookup_name);
 
 #if (LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 16))
 void (*__real_put_task_struct) (struct task_struct * tsk);
@@ -75,7 +68,7 @@ storage_arg_t sa_dpf;
 
 static int __init InitializeModule(void)
 {
-	if(!fp_kallsyms_lookup_name) {
+	if(lookup_name == NULL) {
 		EPRINTF("fp_kallsyms_lookup_name parameter undefined!");
 		return -1;
 	}
@@ -88,7 +81,6 @@ static int __init InitializeModule(void)
 		device_major = DEFAULT_DEVICE_MAJOR;
 	}
 
-	lookup_name = (fp_kallsyms_lookup_name_t) fp_kallsyms_lookup_name;
 	__real_put_task_struct = (void *) lookup_name (SWAPDRV_PUT_TASK_STRUCT);
 	if (!__real_put_task_struct)
 	{

@@ -294,17 +294,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		{
 			static ec_info_t ec_info_copy;
 			int nIgnoredBytes = 0;
-#ifndef __DISABLE_RELAYFS
-			struct rchan* pRelayChannel = NULL;
-			struct rchan_buf *buf = NULL;
-			unsigned int nNumOfSubbufs = 0;
-			void* pConsume = NULL;
-			unsigned int nPaddingLength = 0;
-			unsigned int nSubbufSize = 0;
-			unsigned int nDataSize = 0;
-			unsigned int nEffectSize = 0;
-			unsigned int nSubbufDiscardedCount = 0;
-#endif
+
 			nIgnoredBytes = copy_from_user (&ec_info_copy, (ec_info_t *) arg, sizeof (ec_info_t));
 			if(nIgnoredBytes > 0)
 			{
@@ -314,44 +304,18 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			}
 
 			spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-			if((ec_info_copy.m_nMode & MODEMASK_MULTIPLE_BUFFER) == 0) {
-				// Original buffer
-				if(ec_info.after_last > ec_info.first) {
-					ec_info.buffer_effect = ec_info.buffer_size;
-				}
-				if (ec_info.after_last == ec_info.buffer_effect) {
-				     ec_info.first = 0;
-				} else {
-				     ec_info.first = ec_info_copy.after_last;
-				}
-				ec_info.trace_size = ec_info.trace_size - ec_info_copy.trace_size;
 
-			} else {
-				// Relay FS buffer
-#ifndef __DISABLE_RELAYFS
-				pRelayChannel = GetRelayChannel();
-				if(pRelayChannel == NULL) {
-					EPRINTF("Null pointer to relay channel!");
-					result = -1;
-					break;
-				}
-				buf = pRelayChannel->buf[0];
-				nNumOfSubbufs = pRelayChannel->n_subbufs;
-
-				nSubbufSize = pRelayChannel->subbuf_size;
-				pConsume = buf->start + buf->subbufs_consumed % nNumOfSubbufs * nSubbufSize;
-				memcpy(&nPaddingLength, pConsume, sizeof(unsigned int));
-				memcpy(&nSubbufDiscardedCount, pConsume + sizeof(unsigned int), sizeof(unsigned int));
-				nEffectSize = nSubbufSize - nPaddingLength;
-				nDataSize = nEffectSize - RELAY_SUBBUF_HEADER_SIZE;
-				relay_subbufs_consumed(pRelayChannel, 0, 1);
-				ec_info.m_nBeginSubbufNum = buf->subbufs_consumed % nNumOfSubbufs;
-				ec_info.m_nEndSubbufNum = buf->subbufs_produced % nNumOfSubbufs;
-				ec_info.buffer_effect -= nEffectSize;
-				ec_info.trace_size -= nDataSize;
-				buf->dentry->d_inode->i_size = ec_info.trace_size;
-#endif
+			// Original buffer
+			if(ec_info.after_last > ec_info.first) {
+				ec_info.buffer_effect = ec_info.buffer_size;
 			}
+			if (ec_info.after_last == ec_info.buffer_effect) {
+				 ec_info.first = 0;
+			} else {
+				 ec_info.first = ec_info_copy.after_last;
+			}
+			ec_info.trace_size = ec_info.trace_size - ec_info_copy.trace_size;
+
 			spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 			result = 0;
 //			DPRINTF("Consume Buffer"); // Frequent call

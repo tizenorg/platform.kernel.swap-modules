@@ -60,20 +60,6 @@
 #include <linux/cdev.h>
 #include <linux/jiffies.h>
 #include <linux/time.h>
-#include <linux/proc_fs.h>
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 14))
-#ifndef __DISABLE_RELAYFS
-#define __DISABLE_RELAYFS
-#warning "RELAY FS was disabled since not supported!"
-#endif // __DISABLE_RELAYFS
-#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 14) & LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17))
-#include <linux/debugfs.h>
-#include <linux/relayfs_fs.h>
-#else
-#include <linux/debugfs.h>
-#include <linux/relay.h>
-#endif
 
 #include "events.h"
 
@@ -86,10 +72,19 @@
 #include "probes_manager.h"
 #include "probes.h"
 
-typedef unsigned long (*fp_kallsyms_lookup_name_t) (const char *name);
-extern int fp_kallsyms_lookup_name;
-extern fp_kallsyms_lookup_name_t lookup_name;
 extern char *device_name;
 extern unsigned int device_major;
+
+typedef unsigned long (*fp_kallsyms_lookup_name_t) (const char *name);
+
+//export by swap_kprobes.ko
+extern fp_kallsyms_lookup_name_t lookup_name;
+
+struct handler_map {
+	unsigned long func_addr;
+	unsigned long jp_handler_addr;
+	unsigned long rp_handler_addr;
+	char * func_name;
+};
 
 #endif /* !defined(module_h) */
