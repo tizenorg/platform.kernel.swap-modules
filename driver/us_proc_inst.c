@@ -132,7 +132,6 @@ struct proc_probes *get_proc_probes_by_task(struct task_struct *task)
 
 void add_proc_probes(struct task_struct *task, struct proc_probes *proc_p)
 {
-	proc_p->tgid = task->tgid;
 	list_add_tail(&proc_p->list, &proc_probes_list);
 }
 
@@ -140,7 +139,7 @@ struct proc_probes *get_proc_probes_by_task_or_new(struct task_struct *task)
 {
 	struct proc_probes *proc_p = get_proc_probes_by_task(task);
 	if (proc_p == NULL) {
-		proc_p = proc_p_copy(us_proc_info.pp);
+		proc_p = proc_p_copy(us_proc_info.pp, task);
 		add_proc_probes(task, proc_p);
 	}
 

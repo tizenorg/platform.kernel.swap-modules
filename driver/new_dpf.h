@@ -376,10 +376,10 @@ static void put_page_p(struct page_probes *page_p)
 // file_probes
 
 // proc_probes
-static void proc_p_init(struct proc_probes *proc_p, struct dentry* dentry)
+static void proc_p_init(struct proc_probes *proc_p, struct dentry* dentry, pid_t tgid)
 {
 	INIT_LIST_HEAD(&proc_p->list);
-	proc_p->tgid = 0;
+	proc_p->tgid = tgid;
 	proc_p->dentry = dentry;
 	INIT_LIST_HEAD(&proc_p->file_list);
 }
@@ -417,12 +417,12 @@ static void proc_p_add_dentry_probes(struct proc_probes *proc_p, const char *pac
 	}
 }
 
-static struct proc_probes *proc_p_copy(struct proc_probes *proc_p)
+static struct proc_probes *proc_p_copy(struct proc_probes *proc_p, struct task_struct *task)
 {
 	struct file_probes *file_p;
 	struct proc_probes *proc_p_out = kmalloc(sizeof(*proc_p_out), GFP_ATOMIC);
 
-	proc_p_init(proc_p_out, proc_p->dentry);
+	proc_p_init(proc_p_out, proc_p->dentry, task->tgid);
 
 	list_for_each_entry(file_p, &proc_p->file_list, list) {
 		proc_p_add_file_p(proc_p_out, file_p_copy(file_p));
@@ -457,7 +457,7 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 
 	if (proc_p) {
 		int i;
-		proc_p_init(proc_p, task_inst_info->m_f_dentry);
+		proc_p_init(proc_p, task_inst_info->m_f_dentry, 0);
 
 		printk("#2# get_file_probes: proc_p[dentry=%p]\n", proc_p->dentry);
 
