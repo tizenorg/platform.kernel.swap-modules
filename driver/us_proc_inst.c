@@ -89,6 +89,14 @@ struct dentry *libdvm_dentry = NULL;
 #endif /* __ANDROID */
 
 
+
+#define print_event(fmt, args...) 						\
+{ 										\
+	char *buf[1024];							\
+	sprintf(buf, fmt, ##args);						\
+	pack_event_info(US_PROBE_ID, RECORD_ENTRY, "ds", 0x0badc0de, buf);	\
+}
+
 static inline int is_libonly(void)
 {
 	return !strcmp(us_proc_info.path,"*");
@@ -103,6 +111,15 @@ static inline int is_us_instrumentation(void)
 struct proc_probes *get_proc_probes_by_task(struct task_struct *task)
 {
 	struct proc_probes *proc_p, *tmp;
+
+	if (!is_libonly()) {
+		if (task != current) {
+			printk("ERROR get_proc_probes_by_task: \'task != current\'\n");
+			return NULL;
+		}
+
+		return us_proc_info.pp;
+	}
 
 	list_for_each_entry_safe(proc_p, tmp, &proc_probes_list, list) {
 		if (proc_p->tgid == task->tgid) {
@@ -580,12 +597,13 @@ int install_otg_ip(unsigned long addr,
 			unsigned long offset_addr = addr - vma->vm_start;
 			struct dentry *dentry = vma->vm_file->f_dentry;
 			char *name = dentry->d_iname;
-			struct proc_probes *proc_p = us_proc_info.pp;
+			struct proc_probes *proc_p = get_proc_probes_by_task(task);
 			struct probe_data pd = {
 					.offset = offset_addr,
 					.pre_handler = pre_handler,
 					.jp_handler = jp_handler,
-					.rp_handler = rp_handler
+					.rp_handler = rp_handler,
+					.flags = FLAG_RETPROBE
 			};
 
 			struct file_probes *file_p = proc_p_find_file_p_by_dentry(proc_p, name, dentry);
@@ -600,6 +618,7 @@ int install_otg_ip(unsigned long addr,
 			if (ip == NULL) {
 				struct file_probes *file_p = proc_p_find_file_p_by_dentry(proc_p, name, dentry);
 				file_p_add_probe(file_p, &pd);
+
 				/* if addr mapping, that probe install, else it be installed in do_page_fault handler */
 				if (page_present(mm, addr)) {
 					ip = page_p_find_ip(page_p, offset_addr & ~PAGE_MASK);
@@ -607,11 +626,12 @@ int install_otg_ip(unsigned long addr,
 
 					// TODO: error
 					ret = register_usprobe_my(task, ip);
-					if (ret) {
+					if (ret == 0) {
+						page_p_installed(page_p);
+					} else {
 						printk("ERROR install_otg_ip: ret=%d\n", ret);
 					}
 				}
-
 			}
 
 			put_page_p(page_p);
@@ -1011,6 +1031,8 @@ static void set_mapping_file(struct file_probes *file_p,
 			vma->vm_end - vma->vm_start, app_flag);
 }
 
+void print_vma(struct mm_struct *mm);
+
 static int register_us_page_probe(struct page_probes *page_p,
 		const struct file_probes *file_p,
 		const struct task_struct *task)
@@ -1023,6 +1045,7 @@ static int register_us_page_probe(struct page_probes *page_p,
 	if (page_p_is_install(page_p)) {
 		printk("page %x in %s task[tgid=%u, pid=%u] already installed\n",
 				page_p->offset, file_p->dentry->d_iname, task->tgid, task->pid);
+		print_vma(task->mm);
 		return 0;
 	}
 
@@ -1050,7 +1073,9 @@ static int unregister_us_page_probe(const struct task_struct *task,
 	int err = 0;
 	us_proc_ip_t *ip;
 
-	if (page_p->install == 0) {
+	spin_lock(&page_p->lock);
+	if (!page_p_is_install(page_p)) {
+		spin_unlock(&page_p->lock);
 		return 0;
 	}
 
@@ -1058,13 +1083,14 @@ static int unregister_us_page_probe(const struct task_struct *task,
 		err = unregister_usprobe_my(task, ip, flag);
 		if (err != 0) {
 			//TODO: ERROR
-			return err;
+			break;
 		}
 	}
 
 	if (flag != US_DISARM) {
 		page_p_uninstalled(page_p);
 	}
+	spin_unlock(&page_p->lock);
 
 	return err;
 }
@@ -1244,15 +1270,16 @@ static pid_t find_proc_by_task(const struct task_struct *task, const struct dent
 
 void do_page_fault_ret_pre_code (void)
 {
-	struct mm_struct *mm;
+	struct task_struct *task = current->group_leader;
+	struct mm_struct *mm = task->mm;
 	struct vm_area_struct *vma = 0;
 	struct proc_probes *proc_p = NULL;
 	/*
 	 * Because process threads have same address space
 	 * we instrument only group_leader of all this threads
 	 */
-	struct task_struct *task = current->group_leader;
 	unsigned long addr = 0;
+	int valid_addr;
 
 	// overhead
 	struct timeval imi_tv1;
@@ -1272,6 +1299,14 @@ void do_page_fault_ret_pre_code (void)
 
 	if (addr == 0) {
 		printk("WARNING: do_page_fault_ret_pre_code addr = 0\n");
+		return;
+	}
+
+
+
+
+	valid_addr = mm && page_present(mm, addr);
+	if (!valid_addr) {
 		return;
 	}
 
@@ -1399,7 +1434,7 @@ void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t 
 	struct task_struct *task = current;
 
 	//if user-space instrumentation is not set
-	if (!us_proc_info.path || task->tgid != task->pid)
+	if (!us_proc_info.path)
 		return;
 
 	if (!strcmp(us_proc_info.path,"*")) {

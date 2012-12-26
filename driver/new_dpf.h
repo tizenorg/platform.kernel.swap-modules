@@ -16,6 +16,8 @@ struct probe_data {
 	kprobe_pre_entry_handler_t pre_handler;
 	unsigned long jp_handler;
 	kretprobe_handler_t rp_handler;
+
+	enum FLAG_PROBE flags;
 };
 
 struct page_probes {
@@ -348,7 +350,7 @@ void file_p_add_probe(struct file_probes *file_p, struct probe_data *pd)
 	memset(ip, 0, sizeof(*ip));
 
 	INIT_LIST_HEAD(&ip->list);
-	ip->flags = FLAG_RETPROBE;
+	ip->flags = pd->flags;//FLAG_RETPROBE;
 	ip->offset = pd->offset;
 	ip->jprobe.pre_entry = pd->pre_handler;
 	ip->jprobe.entry = pd->jp_handler;
@@ -469,6 +471,7 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 				struct probe_data pd;
 				us_proc_ip_t *ip = &p_libs->p_ips[k];
 
+				pd.flags = FLAG_RETPROBE;
 				pd.offset = ip->offset;
 				pd.pre_handler = ip->jprobe.pre_entry;
 				pd.jp_handler = ip->jprobe.entry;
