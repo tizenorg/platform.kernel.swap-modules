@@ -1313,12 +1313,6 @@ void do_page_fault_ret_pre_code (void)
 	if (is_libonly()) {
 		proc_p = get_proc_probes_by_task_or_new(task);
 	} else {
-		if (!is_java_inst_enabled() &&
-			(us_proc_info.unres_ips_count +
-			 us_proc_info.unres_vtps_count) == 0) {
-			return;
-		}
-
 		// find task
 		if (us_proc_info.tgid == 0) {
 			pid_t tgid = find_proc_by_task(task, us_proc_info.m_f_dentry);
@@ -1434,10 +1428,11 @@ void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t 
 	struct task_struct *task = current;
 
 	//if user-space instrumentation is not set
-	if (!us_proc_info.path)
+	if (!is_us_instrumentation()) {
 		return;
+	}
 
-	if (!strcmp(us_proc_info.path,"*")) {
+	if (is_libonly()) {
 		proc_p = get_proc_probes_by_task(task);
 	} else {
 		if (task->tgid == us_proc_info.tgid) {
@@ -1455,37 +1450,29 @@ EXPORT_SYMBOL_GPL(do_munmap_probe_pre_code);
 
 void mm_release_probe_pre_code(void)
 {
-	int iRet;
-	struct task_struct *task;
+	struct task_struct *task = current;
+	struct proc_probes *proc_p = NULL;
 
-	if (!is_us_instrumentation() || current->tgid != current->pid) {
+	if (!is_us_instrumentation() || task->tgid != task->pid) {
 		return;
 	}
 
 	if (is_libonly()) {
-		struct proc_probes *proc_p = get_proc_probes_by_task(current);
-		if (proc_p) {
-			iRet = uninstall_us_proc_probes(current, proc_p, US_NOT_RP2);
-			if (iRet != 0) {
-				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
-			}
-
-			dbi_unregister_all_uprobes(current, 1);
-		}
+		proc_p = get_proc_probes_by_task(task);
 	} else {
-		if (current->tgid == us_proc_info.tgid && current->tgid == current->pid) {
-			int i;
-			iRet = uninstall_us_proc_probes(current, us_proc_info.pp, US_NOT_RP2);
-			if (iRet != 0) {
-				EPRINTF ("failed to uninstall IPs (%d)!", iRet);
-			}
-
-			dbi_unregister_all_uprobes(current, 1);
+		if (task->tgid == us_proc_info.tgid) {
+			proc_p = get_proc_probes_by_task(task);
 			us_proc_info.tgid = 0;
-			for(i = 0; i < us_proc_info.libs_count; i++) {
-				us_proc_info.p_libs[i].loaded = 0;
-			}
 		}
+	}
+
+	if (proc_p) {
+		int ret = uninstall_us_proc_probes(task, proc_p, US_NOT_RP2);
+		if (ret != 0) {
+			EPRINTF ("failed to uninstall IPs (%d)!", ret);
+		}
+
+		dbi_unregister_all_uprobes(task, 1);
 	}
 }
 EXPORT_SYMBOL_GPL(mm_release_probe_pre_code);
