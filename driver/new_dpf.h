@@ -12,12 +12,13 @@ enum US_FLAGS {
 
 struct probe_data {
 	unsigned long offset;
+	unsigned long got_addr;
 
 	kprobe_pre_entry_handler_t pre_handler;
 	unsigned long jp_handler;
 	kretprobe_handler_t rp_handler;
 
-	enum FLAG_PROBE flags;
+	unsigned flag_retprobe:1;
 };
 
 struct page_probes {
@@ -65,6 +66,8 @@ us_proc_ip_t *us_proc_ip_copy(const us_proc_ip_t *ip)
 
 	// retprobe
 	retprobe_init(&ip_out->retprobe, ip->retprobe.handler);
+
+	ip_out->flag_got = 0;
 
 	ip_out->installed = 0;
 	INIT_LIST_HEAD(&ip_out->list);
@@ -350,8 +353,10 @@ void file_p_add_probe(struct file_probes *file_p, struct probe_data *pd)
 	memset(ip, 0, sizeof(*ip));
 
 	INIT_LIST_HEAD(&ip->list);
-	ip->flags = pd->flags;//FLAG_RETPROBE;
+	ip->flag_retprobe = pd->flag_retprobe;
+	ip->flag_got = 0;
 	ip->offset = pd->offset;
+	ip->got_addr = pd->got_addr;
 	ip->jprobe.pre_entry = pd->pre_handler;
 	ip->jprobe.entry = pd->jp_handler;
 	ip->retprobe.handler = pd->rp_handler;
@@ -462,7 +467,7 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 		printk("#2# get_file_probes: proc_p[dentry=%p]\n", proc_p->dentry);
 
 		for (i = 0; i < task_inst_info->libs_count; ++i) {
-			int k;
+			int k, j;
 			us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
 			struct dentry *dentry = p_libs->m_f_dentry;
 			const char *pach = p_libs->path;
@@ -470,9 +475,18 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 			for (k = 0; k < p_libs->ips_count; ++k) {
 				struct probe_data pd;
 				us_proc_ip_t *ip = &p_libs->p_ips[k];
+				unsigned long got_addr = 0;
 
-				pd.flags = FLAG_RETPROBE;
+				for (j = 0; j < p_libs->plt_count; ++j) {
+					if (ip->offset == p_libs->p_plt[j].func_addr) {
+						got_addr = p_libs->p_plt[j].got_addr;
+						break;
+					}
+				}
+
+				pd.flag_retprobe = 1;
 				pd.offset = ip->offset;
+				pd.got_addr = got_addr;
 				pd.pre_handler = ip->jprobe.pre_entry;
 				pd.jp_handler = ip->jprobe.entry;
 				pd.rp_handler = ip->retprobe.handler;

@@ -602,7 +602,7 @@ int install_otg_ip(unsigned long addr,
 					.pre_handler = pre_handler,
 					.jp_handler = jp_handler,
 					.rp_handler = rp_handler,
-					.flags = FLAG_RETPROBE
+					.flag_retprobe = 1
 			};
 
 			struct file_probes *file_p = proc_p_find_file_p_by_dentry(proc_p, name, dentry);
@@ -1025,6 +1025,7 @@ static void set_mapping_file(struct file_probes *file_p,
 
 	file_p->vm_start = vma->vm_start;
 	file_p->vm_end = vma->vm_end;
+
 	pack_event_info(DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
 			task->tgid, p, vma->vm_start,
 			vma->vm_end - vma->vm_start, app_flag);
@@ -1593,73 +1594,35 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 	dbi_uprobe_return ();
 }
 
-void find_plt_address(unsigned long addr)
+void send_plt(us_proc_ip_t *ip)
 {
-	inst_us_proc_t *task_inst_info = NULL;
-	int i;
-	unsigned real_addr;
-	struct vm_area_struct *vma;
-	us_proc_lib_t *p_lib = NULL;
-	char *szLibPath = NULL;
-
-	// Search for library structure to check whether this function plt or not
-	if (strcmp(us_proc_info.path, "*")){
-	// If app lib instrumentation
-		task_inst_info = &us_proc_info;
-	} else {
-	// If lib only instrumentation
-		// FIXME:
-		task_inst_info = NULL;//get_task_inst_node(current);
-	}
-	if ((task_inst_info != NULL) && (task_inst_info->is_plt != 0)) {
-		for (i = 0; i < task_inst_info->libs_count; i++)
-		{
-			if ((task_inst_info->p_libs[i].loaded)
-				&& (task_inst_info->p_libs[i].plt_count > 0)
-				&& (addr > task_inst_info->p_libs[i].vma_start)
-				&& (addr < task_inst_info->p_libs[i].vma_end))
-			{
-				p_lib = &(task_inst_info->p_libs[i]);
-				break;
-			}
+	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
+	struct vm_area_struct *vma = find_vma(current->mm, addr);
+	if (vma && check_vma(vma)) {
+		char *name = NULL;
+		unsigned long real_addr;
+		unsigned long real_got = ip->got_addr;
+		if (!(vma->vm_flags & VM_EXECUTABLE)) {
+			real_got += + vma->vm_start;
 		}
-		if (p_lib != NULL) {
-			for (i = 0; i < p_lib->plt_count; i++)
-			{
-				if (addr == p_lib->p_plt[i].func_addr + p_lib->vma_start) {
-					unsigned long real_got;
-					if (p_lib->vma_flag & VM_EXECUTABLE) {
-						real_got = p_lib->p_plt[i].got_addr;
-					} else {
-						real_got = p_lib->p_plt[i].got_addr + p_lib->vma_start;
-					}
-					if (!read_proc_vm_atomic(current, (unsigned long)(real_got), &real_addr, sizeof(unsigned long))) {
-						printk("Failed to read got %p at memory address %p!\n", p_lib->p_plt[i].got_addr, real_got);
-						return;
-					}
-					if (real_addr != p_lib->p_plt[i].real_func_addr) {
-						p_lib->p_plt[i].real_func_addr =  real_addr;
-						vma = find_vma(current->mm, real_addr);
-						if ((vma != NULL) && (vma->vm_start <= real_addr) && (vma->vm_end > real_addr)) {
-							if (vma->vm_file != NULL) {
-								szLibPath = &(vma->vm_file->f_dentry->d_iname);
-							}
-						} else {
-							printk("Failed to get vma, includes %x address\n", real_addr);
-							return;
-						}
-						if (szLibPath) {
-							pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp", addr, real_addr, szLibPath, real_addr - vma->vm_start);
-							return;
-						} else {
-							pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppp", addr, real_addr, real_addr - vma->vm_start);
-							return;
-						}
-					} else {
-						return;
-					}
-				}
-			}
+
+		if (!read_proc_vm_atomic(current, real_got, &real_addr, sizeof(real_addr))) {
+			printk("Failed to read got %p at memory address %p!\n", ip->got_addr, real_got);
+			return;
+		}
+
+		vma = find_vma(current->mm, real_addr);
+		if (vma && (vma->vm_start <= real_addr) && (vma->vm_end > real_addr)) {
+			name = vma->vm_file ? vma->vm_file->f_dentry->d_iname : NULL;
+		} else {
+			printk("Failed to get vma, includes %x address\n", real_addr);
+			return;
+		}
+
+		if (name) {
+			pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp", addr, real_addr, name, real_addr - vma->vm_start);
+		} else {
+			pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppp", addr, real_addr, real_addr - vma->vm_start);
 		}
 	}
 }
@@ -1669,7 +1632,12 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 	int retval = regs_return_value(regs);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 
-	find_plt_address(addr);
+//	find_plt_address(addr);
+
+	if (ip->got_addr && ip->flag_got == 0) {
+		send_plt(ip);
+		ip->flag_got = 1;
+	}
 
 #if defined(CONFIG_ARM)
 	if (ip->offset & 0x01)
@@ -1708,7 +1676,7 @@ static int register_usprobe(struct task_struct *task, us_proc_ip_t *ip, int atom
 		return ret;
 	}
 
-	if (ip->flags & FLAG_RETPROBE) {
+	if (ip->flag_retprobe) {
 		// Mr_Nobody: comment for valencia
 		ip->retprobe.kp.tgid = task->tgid;
 		if (ip->retprobe.handler == NULL) {
@@ -1733,7 +1701,7 @@ static int unregister_usprobe(struct task_struct *task, us_proc_ip_t * ip, int a
 {
 	dbi_unregister_ujprobe(task, &ip->jprobe, atomic);
 
-	if (ip->flags & FLAG_RETPROBE) {
+	if (ip->flag_retprobe) {
 		dbi_unregister_uretprobe(task, &ip->retprobe, atomic, not_rp2);
 	}
 
