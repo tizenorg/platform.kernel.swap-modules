@@ -1598,13 +1598,13 @@ void send_plt(us_proc_ip_t *ip)
 {
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 	struct vm_area_struct *vma = find_vma(current->mm, addr);
+
 	if (vma && check_vma(vma)) {
 		char *name = NULL;
 		unsigned long real_addr;
-		unsigned long real_got = ip->got_addr;
-		if (!(vma->vm_flags & VM_EXECUTABLE)) {
-			real_got += + vma->vm_start;
-		}
+		unsigned long real_got = vma->vm_flags & VM_EXECUTABLE ?
+				ip->got_addr :
+				ip->got_addr + vma->vm_start;
 
 		if (!read_proc_vm_atomic(current, real_got, &real_addr, sizeof(real_addr))) {
 			printk("Failed to read got %p at memory address %p!\n", ip->got_addr, real_got);
@@ -1631,8 +1631,6 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 {
 	int retval = regs_return_value(regs);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
-
-//	find_plt_address(addr);
 
 	if (ip->got_addr && ip->flag_got == 0) {
 		send_plt(ip);
