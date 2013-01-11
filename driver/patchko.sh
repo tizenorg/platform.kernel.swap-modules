@@ -73,7 +73,7 @@ if [ -f "$patch_file" ]; then
                 debug "patched=<$res>"
             else
                 error "Error on patching <${patch_file}>:data file <$data_file> NEW KEY TOO LONG"
-                error "CHECK YOUR KERNELL USED ON COMPILE SWAP IF YOU READ IT"
+                error "CHECK YOUR KERNEL USED ON COMPILE SWAP IF YOU READ IT"
                 exit -2
             fi
         else
