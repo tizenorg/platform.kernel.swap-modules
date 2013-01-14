@@ -76,7 +76,7 @@ extern int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 		void *addr, struct pt_regs *regs, unsigned long sz);
 
 /* Gets current function return address */
-extern unsigned long get_ret_addr(struct task_struct *task, us_proc_ip_t *ip);
+extern unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip);
 
 #define user_backtrace(size) \
 	do { \

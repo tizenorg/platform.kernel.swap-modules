@@ -49,9 +49,9 @@ struct proc_probes {
 	struct list_head file_list;
 };
 
-us_proc_ip_t *us_proc_ip_copy(const us_proc_ip_t *ip)
+struct us_ip *us_proc_ip_copy(const struct us_ip *ip)
 {
-	us_proc_ip_t *ip_out = kmalloc(sizeof(*ip_out), GFP_ATOMIC);
+	struct us_ip *ip_out = kmalloc(sizeof(*ip_out), GFP_ATOMIC);
 	if (ip_out == NULL) {
 		DPRINTF ("us_proc_ip_copy: No enough memory");
 		return NULL;
@@ -69,27 +69,24 @@ us_proc_ip_t *us_proc_ip_copy(const us_proc_ip_t *ip)
 
 	ip_out->flag_got = 0;
 
-	ip_out->installed = 0;
 	INIT_LIST_HEAD(&ip_out->list);
 
 	return ip_out;
 }
 
-us_proc_ip_t *us_proc_ips_copy(const us_proc_ip_t *ips, int cnt)
+struct us_ip *us_proc_ips_copy(const struct us_ip *ips, int cnt)
 {
 	int i;
-	us_proc_ip_t *ips_out =
-		kmalloc (cnt * sizeof (us_proc_ip_t), GFP_ATOMIC);
+	struct us_ip *ips_out =
+		kmalloc(cnt * sizeof(*ips), GFP_ATOMIC);
 
 	if (!ips_out) {
 		DPRINTF ("No enough memory for copy_info->p_libs[i].p_ips");
 		return NULL;
 	}
 
-	memcpy (ips_out, ips, cnt * sizeof (us_proc_ip_t));
+	memcpy(ips_out, ips, cnt * sizeof(*ips));
 	for (i = 0; i < cnt; ++i) {
-		ips_out[i].installed = 0;
-
 		// jprobe
 		memset(&ips_out[i].jprobe, 0, sizeof(struct jprobe));
 		ips_out[i].jprobe.entry = ips[i].jprobe.entry;
@@ -124,7 +121,7 @@ static void page_p_del(struct page_probes *page_p)
 
 static struct page_probes *page_p_copy(const struct page_probes *page_p)
 {
-	us_proc_ip_t *ip_in, *ip_out;
+	struct us_ip *ip_in, *ip_out;
 	struct page_probes *page_p_out = kmalloc(sizeof(*page_p), GFP_ATOMIC);
 
 	if (page_p_out) {
@@ -149,16 +146,16 @@ static struct page_probes *page_p_copy(const struct page_probes *page_p)
 	return page_p_out;
 }
 
-static void page_p_add_ip(struct page_probes *page_p, us_proc_ip_t *ip)
+static void page_p_add_ip(struct page_probes *page_p, struct us_ip *ip)
 {
 	ip->offset &= ~PAGE_MASK;
 	INIT_LIST_HEAD(&ip->list);
 	list_add(&ip->list, &page_p->ip_list);
 }
 
-static us_proc_ip_t *page_p_find_ip(struct page_probes *page_p, unsigned long offset)
+static struct us_ip *page_p_find_ip(struct page_probes *page_p, unsigned long offset)
 {
-	us_proc_ip_t *ip;
+	struct us_ip *ip;
 
 	list_for_each_entry(ip, &page_p->ip_list, list) {
 		if (ip->offset == offset) {
@@ -192,7 +189,7 @@ static void page_p_uninstalled(struct page_probes *page_p)
 }
 // page_probes
 
-static void set_ip_kp_addr(us_proc_ip_t *ip, struct page_probes *page_p, const struct file_probes *file_p)
+static void set_ip_kp_addr(struct us_ip *ip, struct page_probes *page_p, const struct file_probes *file_p)
 {
 	unsigned long addr = file_p->vm_start + page_p->offset + ip->offset;
 	ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
@@ -200,7 +197,7 @@ static void set_ip_kp_addr(us_proc_ip_t *ip, struct page_probes *page_p, const s
 
 static void page_p_set_all_kp_addr(struct page_probes *page_p, const struct file_probes *file_p)
 {
-	us_proc_ip_t *ip;
+	struct us_ip *ip;
 	unsigned long addr;
 
 	list_for_each_entry(ip, &page_p->ip_list, list) {
@@ -349,7 +346,7 @@ void file_p_add_probe(struct file_probes *file_p, struct probe_data *pd)
 	struct page_probes *page_p = file_p_find_page_p_or_new(file_p, offset);
 
 	// FIXME: ip
-	us_proc_ip_t *ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
+	struct us_ip *ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
 	memset(ip, 0, sizeof(*ip));
 
 	INIT_LIST_HEAD(&ip->list);
@@ -503,15 +500,12 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 	return proc_p;
 }
 
-static int register_usprobe_my(struct task_struct *task, us_proc_ip_t *ip)
+static int register_usprobe_my(struct task_struct *task, struct us_ip *ip)
 {
-	ip->installed = 0;
-	ip->name = 0;
-
 	return register_usprobe(task, ip, 1);
 }
 
-static int unregister_usprobe_my(struct task_struct *task, us_proc_ip_t *ip, enum US_FLAGS flag)
+static int unregister_usprobe_my(struct task_struct *task, struct us_ip *ip, enum US_FLAGS flag)
 {
 	int err = 0;
 
@@ -548,7 +542,7 @@ static void print_retprobe(struct kretprobe *rp)
 static void print_page_probes(const struct page_probes *page_p)
 {
 	int i = 0;
-	us_proc_ip_t *ip;
+	struct us_ip *ip;
 
 	printk("###     offset=%x\n", page_p->offset);
 	list_for_each_entry(ip, &page_p->ip_list, list) {
@@ -617,7 +611,7 @@ void print_inst_us_proc(const inst_us_proc_t *task_inst_info)
 		printk("###     path=%s, cnt_j=%d\n", path, cnt_j);
 
 		for (j = 0; j < cnt_j; ++j) {
-			us_proc_ip_t *ips = &lib->p_ips[j];
+			struct us_ip *ips = &lib->p_ips[j];
 			unsigned long offset = ips->offset;
 			printk("###         offset=%x\n", offset);
 		}

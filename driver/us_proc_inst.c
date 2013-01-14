@@ -56,12 +56,12 @@ DEFINE_PER_CPU (struct pt_regs *, gpCurVtpRegs) = NULL;
 #	warning ARCH_REG_VAL is not implemented for this architecture. FBI will work improperly or even crash!!!
 #endif // ARCH
 
-unsigned long ujprobe_event_pre_handler (us_proc_ip_t * ip, struct pt_regs *regs);
+unsigned long ujprobe_event_pre_handler (struct us_ip *ip, struct pt_regs *regs);
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
-int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, us_proc_ip_t * ip);
+int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip);
 
-static int register_usprobe(struct task_struct *task, us_proc_ip_t *ip, int atomic);
-static int unregister_usprobe(struct task_struct *task, us_proc_ip_t * ip, int atomic, int no_rp2);
+static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
+static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int no_rp2);
 
 #include "new_dpf.h"
 
@@ -607,7 +607,7 @@ int install_otg_ip(unsigned long addr,
 
 			struct file_probes *file_p = proc_p_find_file_p_by_dentry(proc_p, name, dentry);
 			struct page_probes *page_p = get_page_p(file_p, offset_addr);
-			us_proc_ip_t *ip = page_p_find_ip(page_p, offset_addr & ~PAGE_MASK);
+			struct us_ip *ip = page_p_find_ip(page_p, offset_addr & ~PAGE_MASK);
 
 			if (!file_p->loaded) {
 				set_mapping_file(file_p, proc_p, task, vma);
@@ -1038,7 +1038,7 @@ static int register_us_page_probe(struct page_probes *page_p,
 		const struct task_struct *task)
 {
 	int err = 0;
-	us_proc_ip_t *ip;
+	struct us_ip *ip;
 
 	spin_lock(&page_p->lock);
 
@@ -1071,7 +1071,7 @@ static int unregister_us_page_probe(const struct task_struct *task,
 		struct page_probes *page_p, enum US_FLAGS flag)
 {
 	int err = 0;
-	us_proc_ip_t *ip;
+	struct us_ip *ip;
 
 	spin_lock(&page_p->lock);
 	if (!page_p_is_install(page_p)) {
@@ -1507,13 +1507,13 @@ void copy_process_ret_pre_code(struct task_struct *p)
 }
 
 
-DEFINE_PER_CPU (us_proc_ip_t *, gpCurIp) = NULL;
+DEFINE_PER_CPU(struct us_ip *, gpCurIp) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpCurIp);
 DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpUserRegs);
 
 
-unsigned long ujprobe_event_pre_handler (us_proc_ip_t * ip, struct pt_regs *regs)
+unsigned long ujprobe_event_pre_handler(struct us_ip *ip, struct pt_regs *regs)
 {
 	__get_cpu_var (gpCurIp) = ip;
 	__get_cpu_var (gpUserRegs) = regs;
@@ -1569,7 +1569,7 @@ int handle_java_event(unsigned long addr)
 
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6)
 {
-	us_proc_ip_t *ip = __get_cpu_var (gpCurIp);
+	struct us_ip *ip = __get_cpu_var(gpCurIp);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 
 #ifdef __ANDROID
@@ -1594,7 +1594,7 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 	dbi_uprobe_return ();
 }
 
-void send_plt(us_proc_ip_t *ip)
+void send_plt(struct us_ip *ip)
 {
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 	struct vm_area_struct *vma = find_vma(current->mm, addr);
@@ -1627,7 +1627,7 @@ void send_plt(us_proc_ip_t *ip)
 	}
 }
 
-int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, us_proc_ip_t * ip)
+int uretprobe_event_handler(struct kretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip)
 {
 	int retval = regs_return_value(regs);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
@@ -1652,7 +1652,7 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 	return 0;
 }
 
-static int register_usprobe(struct task_struct *task, us_proc_ip_t *ip, int atomic)
+static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 {
 	int ret = 0;
 	ip->jprobe.kp.tgid = task->tgid;
@@ -1690,20 +1690,16 @@ static int register_usprobe(struct task_struct *task, us_proc_ip_t *ip, int atom
 		}
 	}
 
-	ip->installed = 1;
-
 	return 0;
 }
 
-static int unregister_usprobe(struct task_struct *task, us_proc_ip_t * ip, int atomic, int not_rp2)
+static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int not_rp2)
 {
 	dbi_unregister_ujprobe(task, &ip->jprobe, atomic);
 
 	if (ip->flag_retprobe) {
 		dbi_unregister_uretprobe(task, &ip->retprobe, atomic, not_rp2);
 	}
-
-	ip->installed = 0;
 
 	return 0;
 }
@@ -1793,7 +1789,7 @@ int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 }
 EXPORT_SYMBOL_GPL(dump_backtrace);
 
-unsigned long get_ret_addr(struct task_struct *task, us_proc_ip_t *ip)
+unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip)
 {
 	unsigned long retaddr = 0;
 	struct hlist_node *item, *tmp_node;
