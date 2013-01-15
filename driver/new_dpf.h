@@ -10,7 +10,7 @@ enum US_FLAGS {
 	US_DISARM
 };
 
-struct probe_data {
+struct ip_data {
 	unsigned long offset;
 	unsigned long got_addr;
 
@@ -49,15 +49,52 @@ struct proc_probes {
 	struct list_head file_list;
 };
 
+
+// ==================== us_ip ====================
+
+static struct us_ip *create_ip(unsigned long offset)
+{
+	struct us_ip *ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
+	memset(ip, 0, sizeof(*ip));
+
+	INIT_LIST_HEAD(&ip->list);
+	ip->offset = offset;
+
+	return ip;
+}
+
+static void free_ip(struct us_ip *ip)
+{
+	kfree(ip);
+}
+
+static void set_ip_jp_handler(struct us_ip *ip, kprobe_pre_entry_handler_t per_entry, void *entry)
+{
+	ip->jprobe.pre_entry = per_entry;
+	ip->jprobe.entry = entry;
+}
+
+static void set_ip_rp_handler(struct us_ip *ip, kretprobe_handler_t handler)
+{
+	ip->flag_retprobe = 1;
+	ip->retprobe.handler = handler;
+}
+
+static void set_ip_got_addr(struct us_ip *ip, unsigned long got_addr)
+{
+	ip->got_addr = got_addr;
+}
+
 struct us_ip *us_proc_ip_copy(const struct us_ip *ip)
 {
+	// FIXME: one malloc us_ip
 	struct us_ip *ip_out = kmalloc(sizeof(*ip_out), GFP_ATOMIC);
 	if (ip_out == NULL) {
 		DPRINTF ("us_proc_ip_copy: No enough memory");
 		return NULL;
 	}
 
-	memcpy (ip_out, ip, sizeof(*ip_out));
+	memcpy(ip_out, ip, sizeof(*ip_out));
 
 	// jprobe
 	memset(&ip_out->jprobe, 0, sizeof(struct jprobe));
@@ -74,30 +111,22 @@ struct us_ip *us_proc_ip_copy(const struct us_ip *ip)
 	return ip_out;
 }
 
-struct us_ip *us_proc_ips_copy(const struct us_ip *ips, int cnt)
+static struct us_ip *create_ip_by_ip_data(struct ip_data *ip_d)
 {
-	int i;
-	struct us_ip *ips_out =
-		kmalloc(cnt * sizeof(*ips), GFP_ATOMIC);
+	struct us_ip *ip = create_ip(ip_d->offset);
+	set_ip_jp_handler(ip, ip_d->pre_handler, ip_d->jp_handler);
 
-	if (!ips_out) {
-		DPRINTF ("No enough memory for copy_info->p_libs[i].p_ips");
-		return NULL;
+	if (ip_d->flag_retprobe) {
+		set_ip_rp_handler(ip, ip_d->rp_handler);
 	}
 
-	memcpy(ips_out, ips, cnt * sizeof(*ips));
-	for (i = 0; i < cnt; ++i) {
-		// jprobe
-		memset(&ips_out[i].jprobe, 0, sizeof(struct jprobe));
-		ips_out[i].jprobe.entry = ips[i].jprobe.entry;
-		ips_out[i].jprobe.pre_entry = ips[i].jprobe.pre_entry;
+	set_ip_got_addr(ip, ip_d->got_addr);
 
-		// retprobe
-		retprobe_init(&ips_out[i].retprobe, ips[i].retprobe.handler);
-	}
-
-	return ips_out;
+	return ip;
 }
+
+// ==================== us_ip ====================
+
 
 // page_probes
 static struct page_probes *page_p_new(unsigned long offset)
@@ -340,23 +369,13 @@ static struct page_probes *file_p_find_page_p_mapped(struct file_probes *file_p,
 	return file_p_find_page_p(file_p, offset);
 }
 
-void file_p_add_probe(struct file_probes *file_p, struct probe_data *pd)
+static void file_p_add_probe(struct file_probes *file_p, struct ip_data *ip_d)
 {
-	unsigned long offset = pd->offset & PAGE_MASK;
+	unsigned long offset = ip_d->offset & PAGE_MASK;
 	struct page_probes *page_p = file_p_find_page_p_or_new(file_p, offset);
 
-	// FIXME: ip
-	struct us_ip *ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
-	memset(ip, 0, sizeof(*ip));
-
-	INIT_LIST_HEAD(&ip->list);
-	ip->flag_retprobe = pd->flag_retprobe;
-	ip->flag_got = 0;
-	ip->offset = pd->offset;
-	ip->got_addr = pd->got_addr;
-	ip->jprobe.pre_entry = pd->pre_handler;
-	ip->jprobe.entry = pd->jp_handler;
-	ip->retprobe.handler = pd->rp_handler;
+	// FIXME: delete ip
+	struct us_ip *ip = create_ip_by_ip_data(ip_d);
 
 	page_p_add_ip(page_p, ip);
 }
@@ -409,13 +428,13 @@ static struct file_probes *proc_p_find_file_p_by_dentry(struct proc_probes *proc
 }
 
 static void proc_p_add_dentry_probes(struct proc_probes *proc_p, const char *pach,
-		struct dentry* dentry, struct probe_data *pd, int cnt)
+		struct dentry* dentry, struct ip_data *ip_d, int cnt)
 {
 	int i;
 	struct file_probes *file_p = proc_p_find_file_p_by_dentry(proc_p, pach, dentry);
 
 	for (i = 0; i < cnt; ++i) {
-		file_p_add_probe(file_p, &pd[i]);
+		file_p_add_probe(file_p, &ip_d[i]);
 	}
 }
 
@@ -470,7 +489,7 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 			const char *pach = p_libs->path;
 
 			for (k = 0; k < p_libs->ips_count; ++k) {
-				struct probe_data pd;
+				struct ip_data pd;
 				us_proc_ip_t *ip = &p_libs->p_ips[k];
 				unsigned long got_addr = 0;
 

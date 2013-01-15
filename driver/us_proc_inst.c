@@ -597,7 +597,7 @@ int install_otg_ip(unsigned long addr,
 			struct dentry *dentry = vma->vm_file->f_dentry;
 			char *name = dentry->d_iname;
 			struct proc_probes *proc_p = get_proc_probes_by_task(task);
-			struct probe_data pd = {
+			struct ip_data pd = {
 					.offset = offset_addr,
 					.pre_handler = pre_handler,
 					.jp_handler = jp_handler,
