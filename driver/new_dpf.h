@@ -145,7 +145,12 @@ static struct page_probes *page_p_new(unsigned long offset)
 
 static void page_p_del(struct page_probes *page_p)
 {
-	// TODO: del
+	struct us_ip *ip, *n;
+
+	list_for_each_entry_safe(ip, n, &page_p->ip_list, list) {
+		list_del(&ip->list);
+		free_ip(ip);
+	}
 }
 
 static struct page_probes *page_p_copy(const struct page_probes *page_p)
@@ -273,12 +278,26 @@ static struct file_probes *file_p_new(const char *path, struct dentry *dentry, i
 
 static void file_p_del(struct file_probes *file_p)
 {
-	// TODO: del
+	struct hlist_node *p, *n;
+	struct hlist_head *head;
+	struct page_probes *page_p;
+	int i, table_size = (1 << file_p->page_probes_hash_bits);
+
+	for (i = 0; i < table_size; ++i) {
+		head = &file_p->page_probes_table[i];
+		hlist_for_each_entry_safe(page_p, p, n, head, hlist) {
+			hlist_del(&page_p->hlist);
+			page_p_del(page_p);
+		}
+	}
+
+	kfree(file_p->page_probes_table);
+	kfree(file_p);
 }
 
 static void file_p_add_page_p(struct file_probes *file_p, struct page_probes *page_p)
 {
-	hlist_add_head_rcu(&page_p->hlist, &file_p->page_probes_table[hash_ptr(page_p->offset, file_p->page_probes_hash_bits)]);
+	hlist_add_head(&page_p->hlist, &file_p->page_probes_table[hash_ptr(page_p->offset, file_p->page_probes_hash_bits)]);
 }
 
 static struct file_probes *file_p_copy(const struct file_probes *file_p)
@@ -316,7 +335,7 @@ static struct file_probes *file_p_copy(const struct file_probes *file_p)
 		// copy pages
 		for (i = 0; i < table_size; ++i) {
 			head = &file_p->page_probes_table[i];
-			hlist_for_each_entry_rcu(page_p, node, head, hlist) {
+			hlist_for_each_entry(page_p, node, head, hlist) {
 				file_p_add_page_p(file_p_out, page_p_copy(page_p));
 			}
 		}
@@ -332,7 +351,7 @@ static struct page_probes *file_p_find_page_p(struct file_probes *file_p, unsign
 	struct page_probes *page_p;
 
 	head = &file_p->page_probes_table[hash_ptr(offset, file_p->page_probes_hash_bits)];
-	hlist_for_each_entry_rcu(page_p, node, head, hlist) {
+	hlist_for_each_entry(page_p, node, head, hlist) {
 		if (page_p->offset == offset) {
 			return page_p;
 		}
@@ -397,12 +416,47 @@ static void put_page_p(struct page_probes *page_p)
 // file_probes
 
 // proc_probes
-static void proc_p_init(struct proc_probes *proc_p, struct dentry* dentry, pid_t tgid)
+static struct proc_probes *proc_p_create(struct dentry* dentry, pid_t tgid)
 {
-	INIT_LIST_HEAD(&proc_p->list);
-	proc_p->tgid = tgid;
-	proc_p->dentry = dentry;
-	INIT_LIST_HEAD(&proc_p->file_list);
+	struct proc_probes *proc_p = kmalloc(sizeof(*proc_p), GFP_ATOMIC);
+
+	if (proc_p) {
+		INIT_LIST_HEAD(&proc_p->list);
+		proc_p->tgid = tgid;
+		proc_p->dentry = dentry;
+		INIT_LIST_HEAD(&proc_p->file_list);
+	}
+
+	return proc_p;
+}
+
+static void proc_p_free(struct proc_probes *proc_p)
+{
+	struct file_probes *file_p, *n;
+	list_for_each_entry_safe(file_p, n, &proc_p->file_list, list) {
+		list_del(&file_p->list);
+		file_p_del(file_p);
+	}
+
+	kfree(proc_p);
+}
+
+extern struct list_head proc_probes_list;
+
+void proc_p_free_all(void)
+{
+	if (strcmp(us_proc_info.path,"*") == 0) {
+		// app
+		proc_p_free(us_proc_info.pp);
+		us_proc_info.pp = NULL;
+	} else {
+		// libonly
+		struct proc_probes *proc_p, *tmp;
+		list_for_each_entry_safe(proc_p, tmp, &proc_probes_list, list) {
+			list_del(&proc_p->list);
+			proc_p_free(proc_p);
+		}
+	}
 }
 
 static void proc_p_add_file_p(struct proc_probes *proc_p, struct file_probes *file_p)
@@ -441,9 +495,7 @@ static void proc_p_add_dentry_probes(struct proc_probes *proc_p, const char *pac
 static struct proc_probes *proc_p_copy(struct proc_probes *proc_p, struct task_struct *task)
 {
 	struct file_probes *file_p;
-	struct proc_probes *proc_p_out = kmalloc(sizeof(*proc_p_out), GFP_ATOMIC);
-
-	proc_p_init(proc_p_out, proc_p->dentry, task->tgid);
+	struct proc_probes *proc_p_out = proc_p_create(proc_p->dentry, task->tgid);
 
 	list_for_each_entry(file_p, &proc_p->file_list, list) {
 		proc_p_add_file_p(proc_p_out, file_p_copy(file_p));
@@ -472,13 +524,12 @@ static void print_proc_probes(const struct proc_probes *proc_p);
 
 struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 {
-	struct proc_probes *proc_p = kmalloc(sizeof(*proc_p), GFP_ATOMIC);
+	struct proc_probes *proc_p = proc_p_create(task_inst_info->m_f_dentry, 0);
 
 	printk("####### get START #######\n");
 
 	if (proc_p) {
 		int i;
-		proc_p_init(proc_p, task_inst_info->m_f_dentry, 0);
 
 		printk("#2# get_file_probes: proc_p[dentry=%p]\n", proc_p->dentry);
 

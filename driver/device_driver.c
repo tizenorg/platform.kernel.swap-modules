@@ -50,6 +50,8 @@ static int device_release(struct inode *, struct file *);
 static ssize_t device_read(struct file *, char *, size_t, loff_t *);
 static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
 
+void proc_p_free_all(void);
+
 static int gl_nDeviceOpened = 0;
 static struct file_operations device_fops = {
 	.owner = THIS_MODULE,
@@ -540,6 +542,9 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			result = -1;
 			goto sad_cleanup;
 		}
+
+		proc_p_free_all();
+
 		vfree(bundle);
 		result = 0;
 		DPRINTF("Stop and Detach Probes");
