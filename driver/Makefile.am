@@ -10,7 +10,6 @@ if ANDROID
 android_opt = -D__ANDROID
 android = yes
 else
-dev_major = @TARGET_DEVICE_MAJOR@
 dev_path = @TARGET_DEVICE_PATH@
 endif
 
@@ -50,8 +49,7 @@ install-exec-local:
 	install -m 755 $(driver_module_dir)/insmod.sh $(prefix)/bin
 
 	if [ "$(android)" != "yes" ] ; then \
-	sed "s|__DEV_MAJOR__|$(dev_major)|" $(driver_module_dir)/$(module_name).sh | \
-	sed "s|__DEV_NAME__|`basename $(dev_path)`|" | \
+	sed "s|__DEV_NAME__|`basename $(dev_path)`|" $(driver_module_dir)/$(module_name).sh | \
 	sed "s|__DEV_DIR__|`dirname $(dev_path)`|" > \
 	$(prefix)/$(module_name).sh ; chmod +x $(prefix)/$(module_name).sh ; \
 	chmod +x $(driver_module_dir)/patchko.sh ; \
