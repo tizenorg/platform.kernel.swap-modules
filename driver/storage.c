@@ -1105,15 +1105,16 @@ u_int32_t get_probe_func_addr(const char *fmt, va_list args)
 	return va_arg(args, u_int32_t);
 }
 
-void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char *fmt, ...)
+void pack_task_event_info(struct task_struct *task, probe_id_t probe_id,
+		record_type_t record_type, const char *fmt, ...)
 {
 	unsigned long spinlock_flags = 0L;
 	static char buf[EVENT_MAX_SIZE] = "";
 	TYPEOF_EVENT_LENGTH event_len = 0L;
 	struct timeval tv = { 0, 0 };
-	TYPEOF_THREAD_ID current_pid = current->pid;
-	TYPEOF_PROCESS_ID current_tgid = current->tgid;
-	unsigned current_cpu = task_cpu(current);
+	TYPEOF_THREAD_ID current_pid = task->pid;
+	TYPEOF_PROCESS_ID current_tgid = task->tgid;
+	unsigned current_cpu = task_cpu(task);
 	va_list args;
 	unsigned long addr = 0;
 	struct cond *p_cond;
@@ -1158,7 +1159,7 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 				(!ET_FIELD_ISSET(p_tmpl->flags, ET_MATCH_CPU_NUM) ||
 				 (current_cpu == p_tmpl->cpu_num)) &&
 				(!ET_FIELD_ISSET(p_tmpl->flags, ET_MATCH_BIN_NAME) ||
-				 (strcmp(current->comm, p_tmpl->bin_name) == 0)) &&
+				 (strcmp(task->comm, p_tmpl->bin_name) == 0)) &&
 				(!ET_FIELD_ISSET(p_tmpl->flags, ET_MATCH_TIME) ||
 				 (tv.tv_sec > last_attach_time.tv_sec + p_tmpl->sec) ||
 				 (tv.tv_sec == last_attach_time.tv_sec + p_tmpl->sec &&
@@ -1182,7 +1183,7 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 				(!ET_FIELD_ISSET(p_tmpl->flags, ET_MATCH_CPU_NUM) ||
 				 (current_cpu == p_tmpl->cpu_num)) &&
 				(!ET_FIELD_ISSET(p_tmpl->flags, ET_MATCH_BIN_NAME) ||
-				 (strcmp(current->comm, p_tmpl->bin_name) == 0))) {
+				 (strcmp(task->comm, p_tmpl->bin_name) == 0))) {
 				spin_lock_irqsave(&ec_spinlock, spinlock_flags);
 				ec_info.ignored_events_count++;
 				spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
@@ -1237,7 +1238,7 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 				(!ET_FIELD_ISSET(p_tmpl->flags, ET_MATCH_CPU_NUM) ||
 				 (current_cpu == p_tmpl->cpu_num)) &&
 				(!ET_FIELD_ISSET(p_tmpl->flags, ET_MATCH_BIN_NAME) ||
-				(strcmp(current->comm, p_tmpl->bin_name) == 0)) &&
+				(strcmp(task->comm, p_tmpl->bin_name) == 0)) &&
 				(!ET_FIELD_ISSET(p_tmpl->flags, ET_MATCH_TIME) ||
 				 (tv.tv_sec > last_attach_time.tv_sec + p_tmpl->sec) ||
 				 (tv.tv_sec == last_attach_time.tv_sec + p_tmpl->sec &&
@@ -1252,7 +1253,7 @@ void pack_event_info (probe_id_t probe_id, record_type_t record_type, const char
 		}
 	}
 }
-EXPORT_SYMBOL_GPL(pack_event_info);
+EXPORT_SYMBOL_GPL(pack_task_event_info);
 
 kernel_probe_t* find_probe (unsigned long addr)
 {
