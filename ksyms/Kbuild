@@ -1,0 +1,4 @@
+ifneq ($(CONFIG_KALLSYMS),y)
+	obj-m := swap_ksyms.o
+	swap_ksyms-y := ksyms.o
+endif

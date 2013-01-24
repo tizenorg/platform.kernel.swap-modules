@@ -59,7 +59,6 @@ IMP_MOD_DEP_WRAPPER(copy_to_user_page, vma, page, uaddr, dst, src, len)
 #endif /* copy_to_user_page */
 
 
-DECLARE_MOD_CB_DEP(kallsyms_search, unsigned long, const char *name);
 DECLARE_MOD_FUNC_DEP(access_process_vm, int, struct task_struct * tsk, unsigned long addr, void *buf, int len, int write);
 
 DECLARE_MOD_FUNC_DEP(find_extend_vma, struct vm_area_struct *, struct mm_struct * mm, unsigned long addr);
@@ -106,10 +105,6 @@ DECLARE_MOD_FUNC_DEP(__flush_anon_page, \
 DECLARE_MOD_FUNC_DEP(vm_normal_page, \
 		struct page *, struct vm_area_struct *vma, \
 		unsigned long addr, pte_t pte);
-
-DECLARE_MOD_FUNC_DEP(flush_ptrace_access, \
-		void, struct vm_area_struct *vma, struct page *page, \
-		unsigned long uaddr, void *kaddr, unsigned long len, int write);
 
 
 #if (LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 16))
@@ -202,17 +197,12 @@ IMP_MOD_DEP_WRAPPER (__flush_anon_page, vma, page, vmaddr)
 			unsigned long addr, pte_t pte)
 IMP_MOD_DEP_WRAPPER (vm_normal_page, vma, addr, pte)
 
-	DECLARE_MOD_DEP_WRAPPER (flush_ptrace_access, \
-			void, struct vm_area_struct *vma, struct page *page, \
-			unsigned long uaddr, void *kaddr, unsigned long len, int write)
-IMP_MOD_DEP_WRAPPER (flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
-
 
 int init_module_dependencies()
 {
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-  	init_mm_ptr = (struct mm_struct*) kallsyms_search ("init_mm");
+	init_mm_ptr = (struct mm_struct*)swap_ksyms("init_mm");
 	memcmp(init_mm_ptr, &init_mm, sizeof(struct mm_struct));
 #endif
 
@@ -224,7 +214,6 @@ int init_module_dependencies()
 	INIT_MOD_DEP_VAR(copy_to_user_page, copy_to_user_page);
 #endif /* copy_to_user_page */
 
-	INIT_MOD_DEP_VAR(flush_ptrace_access, flush_ptrace_access);
 	INIT_MOD_DEP_VAR(find_extend_vma, find_extend_vma);
 	INIT_MOD_DEP_VAR(get_gate_vma, get_gate_vma);
 

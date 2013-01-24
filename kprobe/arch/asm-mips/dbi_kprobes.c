@@ -33,6 +33,7 @@
 #include "../../dbi_insn_slots.h"
 #include "../../dbi_kprobes_deps.h"
 #include "../../dbi_uprobes.h"
+#include <ksyms.h>
 
 #ifdef OVERHEAD_DEBUG
 #include <linux/time.h>
@@ -54,8 +55,6 @@ extern struct hlist_head uprobe_insn_pages;
 extern struct kprobe *kprobe_running (void);
 extern struct kprobe_ctlblk *get_kprobe_ctlblk (void);
 extern void reset_current_kprobe (void);
-
-extern unsigned long (*kallsyms_search) (const char *name);
 
 #ifdef OVERHEAD_DEBUG
 unsigned long swap_sum_time = 0;
@@ -816,7 +815,7 @@ int __init arch_init_kprobes (void)
 		return -1;
 	}
 
-	do_bp_handler = (unsigned int) kallsyms_search ("do_bp");
+	do_bp_handler = (unsigned int)swap_ksyms("do_bp");
 
 	kprobe_handler_addr = (unsigned int) &kprobe_handler;
 	insns_num = sizeof (arr_traps_template) / sizeof (arr_traps_template[0]);
@@ -855,7 +854,7 @@ void __exit dbi_arch_exit_kprobes (void)
 	unsigned int code_size = 0;
 
 	// Get instruction address
-	do_bp_handler = (unsigned int) kallsyms_search ("do_undefinstr");
+	do_bp_handler = (unsigned int)swap_ksyms("do_undefinstr");
 
 	//dbi_unregister_jprobe(&do_exit_p, 0);
 

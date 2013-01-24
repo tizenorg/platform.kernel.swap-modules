@@ -7,7 +7,7 @@
 //      SEE ALSO:       module.c
 //      AUTHOR:         L.Komkov, A.Gerenkov
 //      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group 
+//      DEPT NAME:      Advanced Software Group
 //      CREATED:        2008.02.15
 //      VERSION:        1.0
 //      REVISION DATE:  2008.12.03
@@ -74,11 +74,6 @@
 
 extern char *device_name;
 extern unsigned int device_major;
-
-typedef unsigned long (*fp_kallsyms_lookup_name_t) (const char *name);
-
-//export by swap_kprobes.ko
-extern fp_kallsyms_lookup_name_t lookup_name;
 
 struct handler_map {
 	unsigned long func_addr;

@@ -14,22 +14,6 @@ DEVICE_NAME=${DEVICE}
 # name of the device
 DEVICE_FILE=__DEV_DIR__/${DEVICE}
 
-KSYMS=kallsyms_lookup_name
-
-# ADDRESS for "kallsyms_lookup_name" function taken from /proc/kallsyms
-ADDRESS=0x`sed "/ kallsyms_lookup_name/ ! d" /proc/kallsyms | sed "s/ T kallsyms_lookup_name//"`
-
-if [ "${ADDRESS}" = "0x" ]; then
-    if [ "$1" = "" ]; then
-	echo "Enter kallsyms_lookup_name as parameter:"
-	echo "insmod.sh <kallsyms_lookup_name address>"
-	exit
-    else
-	ADDRESS=$1
-	echo "kallsyms_lookup_name address is ${ADDRESS}"
-    fi
-fi
-
 MAJOR=`sed "/${DEVICE_NAME}/ ! d" /proc/devices | sed "s/ ${DEVICE_NAME}//"`
 if [ "${MAJOR}" != "" ] ; then
     echo "SWAP Driver is already loaded!"

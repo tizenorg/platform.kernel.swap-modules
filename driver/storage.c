@@ -161,18 +161,10 @@ int dbi_register_handlers_module(struct dbi_modules_handlers_info *dbi_mhi)
 //	struct dbi_modules_handlers_info *local_mhi;
 	int i=0;
 	int nr_handlers=dbi_mhi->dbi_nr_handlers;
-	printk ("lookup_name=0x%08x\n", lookup_name);
 
-	if ( lookup_name != NULL){
-		for (i=0;i<nr_handlers;i++){
-			//handlers[i].func_addr = (void (*)(pte_t) ) lookup_name (handlers[i].func_name);
-			dbi_mhi->dbi_handlers[i].func_addr = (void (*)(pte_t) ) lookup_name (dbi_mhi->dbi_handlers[i].func_name);
-			printk("[0x%08x]-%s\n",dbi_mhi->dbi_handlers[i].func_addr,dbi_mhi->dbi_handlers[i].func_name);
-		}
-	}
-	else
-	{
-		printk("[ERROR] lookup_name is NULL\n");
+	for (i = 0; i < nr_handlers; ++i) {
+		dbi_mhi->dbi_handlers[i].func_addr = swap_ksyms(dbi_mhi->dbi_handlers[i].func_name);
+		printk("[0x%08x]-%s\n", dbi_mhi->dbi_handlers[i].func_addr, dbi_mhi->dbi_handlers[i].func_name);
 	}
 
 	spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
@@ -220,6 +212,31 @@ int dbi_unregister_handlers_module(struct dbi_modules_handlers_info *dbi_mhi)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(dbi_unregister_handlers_module);
+
+static inst_us_proc_t empty_uprobes_info =
+{
+	.libs_count = 0,
+	.p_libs = NULL,
+};
+
+static inst_us_proc_t *get_uprobes(void)
+{
+	unsigned long dbi_flags;
+	inst_us_proc_t *ret = &empty_uprobes_info;
+	struct dbi_modules_handlers_info *mhi;
+	struct list_head *head = &dbi_mh.modules_handlers;
+
+	spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
+	list_for_each_entry_rcu(mhi, head, dbi_list_head) {
+		if (mhi->get_uprobes) {
+			ret = mhi->get_uprobes();
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&dbi_mh.lock, dbi_flags);
+
+	return ret;
+}
 
 EXPORT_SYMBOL_GPL(us_proc_info);
 EXPORT_SYMBOL_GPL(dex_proc_info);
@@ -607,13 +624,7 @@ extern struct dentry *dentry_by_path(const char *path);
 
 int link_bundle()
 {
-	get_my_uprobes_info_t get_uprobes = NULL;
-	inst_us_proc_t *my_uprobes_info = 0;
-	inst_us_proc_t empty_uprobes_info =
-	{
-		.libs_count = 0,
-		.p_libs = NULL,
-	};
+	inst_us_proc_t *my_uprobes_info = get_uprobes();
 	char *p = bundle; /* read pointer for bundle */
 	int nr_kern_probes;
 	int i, j, l, k;
@@ -630,15 +641,6 @@ int link_bundle()
 	size_t nr_conds;
 	int lib_name_len;
 	int handler_index;
-
-
-	/* Get user-defined us handlers (if they are provided) */
-	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
-	if (get_uprobes)
-		my_uprobes_info = (inst_us_proc_t *)get_uprobes();
-
-	if (my_uprobes_info == 0)
-		my_uprobes_info = &empty_uprobes_info;
 
 	DPRINTF("Going to release us_proc_info");
 	if (us_proc_info.path)
@@ -1357,7 +1359,8 @@ int put_us_event (char *data, unsigned long len)
 		}
 		else
 		{
-			mec_post_event = lookup_name("mec_post_event");
+			// FIXME: 'mec_post_event' - not found
+			mec_post_event = swap_ksyms("mec_post_event");
 			if(mec_post_event == NULL)
 			{
 				EPRINTF ("Failed to find function 'mec_post_event' from mec_handlers.ko. Memory Error Checker will work incorrectly.");
@@ -1448,22 +1451,7 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 {
 	int i, k, size = 0, probe_size, result, j;
 	char *buf, *sep1, *sep2;
-	get_my_uprobes_info_t get_uprobes = NULL;
-	inst_us_proc_t *my_uprobes_info = NULL;
-
-        inst_us_proc_t empty_uprobes_info =
-        {
-                .libs_count = 0,
-                .p_libs = NULL,
-        };
-
-	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
-	if (get_uprobes)
-		my_uprobes_info = (inst_us_proc_t *)get_uprobes();
-
-	DPRINTF("my_uprobes_info lookup result: 0x%p", my_uprobes_info);
-	if (my_uprobes_info == 0)
-		my_uprobes_info = &empty_uprobes_info;
+	inst_us_proc_t *my_uprobes_info = get_uprobes();
 
 	for(j = 0; j < data->probes_count; j++)
 	{
@@ -1521,21 +1509,7 @@ int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
 int get_predef_uprobes_size(int *size)
 {
 	int i, k;
-	get_my_uprobes_info_t get_uprobes = NULL;
-	inst_us_proc_t *my_uprobes_info = NULL;
-
-        inst_us_proc_t empty_uprobes_info =
-        {
-                .libs_count = 0,
-                .p_libs = NULL,
-        };
-
-	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
-	if (get_uprobes)
-		my_uprobes_info = (inst_us_proc_t *)get_uprobes();
-
-	if (my_uprobes_info == 0)
-		my_uprobes_info = &empty_uprobes_info;
+	inst_us_proc_t *my_uprobes_info = get_uprobes();
 
 	*size = 0;
 	for(i = 0; i < my_uprobes_info->libs_count; i++)
@@ -1557,22 +1531,7 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 	int i, k, size, lib_size, func_size, result;
 	unsigned count = 0;
 	char sep[] = ":";
-
-        inst_us_proc_t empty_uprobes_info =
-        {
-                .libs_count = 0,
-                .p_libs = NULL,
-        };
-
-	get_my_uprobes_info_t get_uprobes = NULL;
-	inst_us_proc_t *my_uprobes_info = NULL;
-
-	get_uprobes = (get_my_uprobes_info_t)lookup_name("get_my_uprobes_info");
-	if (get_uprobes)
-		my_uprobes_info = (inst_us_proc_t *)get_uprobes();
-
-	if (my_uprobes_info == 0)
-		my_uprobes_info = &empty_uprobes_info;
+	inst_us_proc_t *my_uprobes_info = get_uprobes();
 
 	// get addr of array
 	if (copy_from_user ((void *)&data, udata, sizeof (data)))

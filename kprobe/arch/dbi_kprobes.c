@@ -56,10 +56,8 @@
 #include "../dbi_kprobes_deps.h"
 
 #include <linux/module.h>
+#include <ksyms.h>
 
-typedef unsigned long (*fp_kallsyms_lookup_name_t) (const char *name);
-//export by swap_kprobes.ko
-extern fp_kallsyms_lookup_name_t lookup_name;
 
 extern unsigned long sched_addr;
 extern unsigned long fork_addr;
@@ -67,15 +65,6 @@ extern unsigned long fork_addr;
 extern struct hlist_head kprobe_insn_pages;
 extern struct hlist_head uprobe_insn_pages;
 
-
-static int ksyms = INVALID_VALUE;
-module_param(ksyms, uint, 0);
-MODULE_PARM_DESC(ksyms, "kallsyms_lookup_name address");
-
-fp_kallsyms_lookup_name_t lookup_name;
-EXPORT_SYMBOL_GPL(lookup_name);
-
-extern unsigned long (*kallsyms_search) (const char *name);
 
 void arch_remove_kprobe (struct kprobe *p, struct task_struct *task)
 {
@@ -118,12 +107,8 @@ void arch_disarm_uretprobe (struct kretprobe *p, struct task_struct *tsk)
 
 int arch_init_module_dependencies()
 {
-	lookup_name = (void *) ksyms;
-	kallsyms_search = lookup_name;//(void *) ksyms;
-	DBPRINTF ("kallsyms=0x%08x\n", kallsyms_search);
-
-	sched_addr = kallsyms_search("__switch_to");//"schedule");
-	fork_addr = kallsyms_search("do_fork");
+	sched_addr = swap_ksyms("__switch_to");
+	fork_addr = swap_ksyms("do_fork");
 
 	init_module_dependencies();
 
