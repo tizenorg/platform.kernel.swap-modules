@@ -37,6 +37,7 @@ struct dbi_modules_handlers_info {
 	void *			dbi_module_callback_stop;
 	int			dbi_module_priority_start;
 	int			dbi_module_priority_stop;
+	void *			(*get_uprobes)(void);
 };
 
 extern int dbi_register_handlers_module(struct dbi_modules_handlers_info *dbi_mhi);

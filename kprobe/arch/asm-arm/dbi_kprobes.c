@@ -39,6 +39,7 @@
 #include "../../dbi_insn_slots.h"
 #include "../../dbi_kprobes_deps.h"
 #include "../../dbi_uprobes.h"
+#include <ksyms.h>
 
 #include <asm/cacheflush.h>
 
@@ -62,8 +63,6 @@ extern struct kretprobe *sched_rp;
 
 extern struct hlist_head kprobe_insn_pages;
 extern struct hlist_head uprobe_insn_pages;
-
-extern unsigned long (*kallsyms_search) (const char *name);
 
 extern struct kprobe *kprobe_running(void);
 extern void reset_current_kprobe(void);
@@ -1587,21 +1586,21 @@ int __init arch_init_kprobes (void)
 		return -1;
 	}
 
-	do_bp_handler = (unsigned int) kallsyms_search ("do_undefinstr");
+	do_bp_handler = swap_ksyms("do_undefinstr");
 	if (do_bp_handler == 0) {
 		DBPRINTF("no do_undefinstr symbol found!");
                 return -1;
         }
 	arr_traps_template[NOTIFIER_CALL_CHAIN_INDEX] = arch_construct_brunch ((unsigned int)kprobe_handler, do_bp_handler + NOTIFIER_CALL_CHAIN_INDEX * 4, 1);
 	// Register hooks (kprobe_handler)
-	do_kpro = (void *)kallsyms_search ("register_undef_hook");
+	do_kpro = swap_ksyms("register_undef_hook");
 	if (do_kpro == 0) {
 		printk("no register_undef_hook symbol found!\n");
                 return -1;
         }
 
         // Unregister hooks (kprobe_handler)
-        undo_kpro = (void *)kallsyms_search ("unregister_undef_hook");
+        undo_kpro = swap_ksyms("unregister_undef_hook");
         if (undo_kpro == 0) {
                 printk("no unregister_undef_hook symbol found!\n");
                 return -1;

@@ -16,6 +16,7 @@
 ////////////////////////////////////////////////////////////////////////////////////
 
 #include <linux/percpu.h>
+#include <ksyms.h>
 #include "module.h"
 #include "probes_manager.h"
 
@@ -54,36 +55,31 @@ probes_manager_init (void)
 	spin_lock_init(&ec_spinlock);
 	spin_lock_init(&ec_probe_spinlock);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#ifdef CONFIG_X86
-	//pf_addr = lookup_name("handle_mm_fault");
-	pf_addr = lookup_name("do_page_fault");
-#else
-	pf_addr = lookup_name("do_page_fault");
-#endif
+	pf_addr = swap_ksyms("do_page_fault");
 	if (pf_addr == 0) {
 		EPRINTF("Cannot find address for page fault function!");
 		return -EINVAL;
 	}
 
-	cp_addr = lookup_name("copy_process");
+	cp_addr = swap_ksyms("copy_process");
 	if (cp_addr == 0) {
 		EPRINTF("Cannot find address for copy_process function!");
 		return -EINVAL;
 	}
 
-	mr_addr = lookup_name("mm_release");
+	mr_addr = swap_ksyms("mm_release");
 	if (mr_addr == 0) {
 		EPRINTF("Cannot find address for mm_release function!");
 		return -EINVAL;
 	}
 
-	exit_addr = lookup_name("do_exit");
+	exit_addr = swap_ksyms("do_exit");
 	if (exit_addr == 0) {
 		EPRINTF("Cannot find address for do_exit function!");
 		return -EINVAL;
 	}
 
-	unmap_addr = lookup_name("do_munmap");
+	unmap_addr = swap_ksyms("do_munmap");
 	if (unmap_addr == 0) {
 		EPRINTF("Cannot find address for do_munmap function!");
 		return -EINVAL;
@@ -520,16 +516,17 @@ void dbi_install_user_handlers(void)
 	struct hlist_node *node;
 	unsigned long pre_handler_addr, jp_handler_addr, rp_handler_addr;
 
+	// FIXME: functions 'find_jp_handler', 'find_rp_handler', 'find_pre_handler' - not found
 	/* We must perform this lookup whenever this function is called
 	 * because the addresses of find_*_handler functions may differ. */
 	// swap_handlers removed
 	unsigned long (*find_jp_handler)(unsigned long) =
 	// swap_handlers removed
-		(unsigned long (*)(unsigned long))lookup_name("find_jp_handler");
+		(unsigned long (*)(unsigned long))swap_ksyms("find_jp_handler");
 	unsigned long (*find_rp_handler)(unsigned long) =
-			(unsigned long (*)(unsigned long))lookup_name("find_rp_handler");
+			(unsigned long (*)(unsigned long))swap_ksyms("find_rp_handler");
 	unsigned long (*find_pre_handler)(unsigned long) =
-			(unsigned long (*)(unsigned long))lookup_name("find_pre_handler");
+			(unsigned long (*)(unsigned long))swap_ksyms("find_pre_handler");
 	hlist_for_each_entry_rcu (probe, node, &kernel_probes, hlist) {
 		if(find_pre_handler)
 		{

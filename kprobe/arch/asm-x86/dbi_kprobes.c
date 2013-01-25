@@ -78,8 +78,6 @@ extern struct hlist_head uprobe_insn_pages;
 
 extern spinlock_t kretprobe_lock;
 
-extern unsigned long (*kallsyms_search) (const char *name);
-
 extern struct kprobe *kprobe_running (void);
 extern struct kprobe_ctlblk *get_kprobe_ctlblk (void);
 extern void reset_current_kprobe (void);

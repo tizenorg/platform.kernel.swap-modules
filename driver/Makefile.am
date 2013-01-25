@@ -10,7 +10,6 @@ if ANDROID
 android_opt = -D__ANDROID
 android = yes
 else
-dev_major = @TARGET_DEVICE_MAJOR@
 dev_path = @TARGET_DEVICE_PATH@
 endif
 
@@ -30,11 +29,14 @@ driver_module_dir = $(realpath $(srcdir))
 module_name = swap_driver
 cross_compiler = $(subst gcc,,$(CC))
 
+inlude_opt = -I$(top_srcdir)/src/modules/ksyms -I$(top_srcdir)/src/common -I$(top_srcdir)/src/profile
+extra_cflags = "$(inlude_opt) -DEC_ARCH_$(ARCH) -D__DEBUG $(memchecker) $(debug_opt) $(android_opt) $(slp_opt) $(android_app_opt) $(board_opt)"
+
 #bin_SCRIPTS = patchko.sh insmod.sh
 
 all-local:
 	cp $(top_srcdir)/src/modules/kprobe/Module.symvers $(driver_module_dir)
-	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) memchecker=$(memchecker) android_opt=$(android_opt) slp_opt=$(slp_opt) android_app_opt=$(android_app_opt) board_opt=$(board_opt) debug_opt=$(debug_opt) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) modules
+	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) extra_cflags=$(extra_cflags) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) modules
 
 	echo "generate data for version patching <$(OBJDUMP)><$(READELF)>"
 	$(top_srcdir)/src/modules/driver/patchko.sh -g $(driver_module_dir)/$(module_name).ko $(OBJDUMP) $(READELF)
@@ -50,8 +52,7 @@ install-exec-local:
 	install -m 755 $(driver_module_dir)/insmod.sh $(prefix)/bin
 
 	if [ "$(android)" != "yes" ] ; then \
-	sed "s|__DEV_MAJOR__|$(dev_major)|" $(driver_module_dir)/$(module_name).sh | \
-	sed "s|__DEV_NAME__|`basename $(dev_path)`|" | \
+	sed "s|__DEV_NAME__|`basename $(dev_path)`|" $(driver_module_dir)/$(module_name).sh | \
 	sed "s|__DEV_DIR__|`dirname $(dev_path)`|" > \
 	$(prefix)/$(module_name).sh ; chmod +x $(prefix)/$(module_name).sh ; \
 	chmod +x $(driver_module_dir)/patchko.sh ; \
