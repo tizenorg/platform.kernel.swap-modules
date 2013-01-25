@@ -21,6 +21,8 @@
 #include "../kprobe/dbi_kprobes_deps.h"
 #include "../kprobe/dbi_uprobes.h"
 
+#include "new_dpf.h"
+
 #define mm_read_lock(task, mm, atomic, lock) 			\
 	mm = atomic ? task->active_mm : get_task_mm(task); 	\
 	if (mm == NULL) {					\
@@ -62,8 +64,6 @@ int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *r
 
 static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
 static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int no_rp2);
-
-#include "new_dpf.h"
 
 int us_proc_probes;
 

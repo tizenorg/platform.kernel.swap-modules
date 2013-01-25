@@ -4,22 +4,14 @@
 #include <linux/hash.h>
 #include "storage.h"
 
+#include "struct/ip.h"
+
 enum US_FLAGS {
 	US_UNREGS_PROBE,
 	US_NOT_RP2,
 	US_DISARM
 };
 
-struct ip_data {
-	unsigned long offset;
-	unsigned long got_addr;
-
-	kprobe_pre_entry_handler_t pre_handler;
-	unsigned long jp_handler;
-	kretprobe_handler_t rp_handler;
-
-	unsigned flag_retprobe:1;
-};
 
 struct page_probes {
 	struct list_head ip_list;
@@ -48,84 +40,6 @@ struct proc_probes {
 	struct dentry *dentry;
 	struct list_head file_list;
 };
-
-
-// ==================== us_ip ====================
-
-static struct us_ip *create_ip(unsigned long offset)
-{
-	struct us_ip *ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
-	memset(ip, 0, sizeof(*ip));
-
-	INIT_LIST_HEAD(&ip->list);
-	ip->offset = offset;
-
-	return ip;
-}
-
-static void free_ip(struct us_ip *ip)
-{
-	kfree(ip);
-}
-
-static void set_ip_jp_handler(struct us_ip *ip, kprobe_pre_entry_handler_t per_entry, void *entry)
-{
-	ip->jprobe.pre_entry = per_entry;
-	ip->jprobe.entry = entry;
-}
-
-static void set_ip_rp_handler(struct us_ip *ip, kretprobe_handler_t handler)
-{
-	ip->flag_retprobe = 1;
-	ip->retprobe.handler = handler;
-}
-
-static void set_ip_got_addr(struct us_ip *ip, unsigned long got_addr)
-{
-	ip->got_addr = got_addr;
-}
-
-struct us_ip *us_proc_ip_copy(const struct us_ip *ip)
-{
-	// FIXME: one malloc us_ip
-	struct us_ip *ip_out = kmalloc(sizeof(*ip_out), GFP_ATOMIC);
-	if (ip_out == NULL) {
-		DPRINTF ("us_proc_ip_copy: No enough memory");
-		return NULL;
-	}
-
-	memcpy(ip_out, ip, sizeof(*ip_out));
-
-	// jprobe
-	memset(&ip_out->jprobe, 0, sizeof(struct jprobe));
-	ip_out->jprobe.entry = ip->jprobe.entry;
-	ip_out->jprobe.pre_entry = ip->jprobe.pre_entry;
-
-	// retprobe
-	retprobe_init(&ip_out->retprobe, ip->retprobe.handler);
-
-	ip_out->flag_got = 0;
-
-	INIT_LIST_HEAD(&ip_out->list);
-
-	return ip_out;
-}
-
-static struct us_ip *create_ip_by_ip_data(struct ip_data *ip_d)
-{
-	struct us_ip *ip = create_ip(ip_d->offset);
-	set_ip_jp_handler(ip, ip_d->pre_handler, ip_d->jp_handler);
-
-	if (ip_d->flag_retprobe) {
-		set_ip_rp_handler(ip, ip_d->rp_handler);
-	}
-
-	set_ip_got_addr(ip, ip_d->got_addr);
-
-	return ip;
-}
-
-// ==================== us_ip ====================
 
 
 // page_probes
@@ -569,6 +483,9 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 
 	return proc_p;
 }
+
+static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
+static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int no_rp2);
 
 static int register_usprobe_my(struct task_struct *task, struct us_ip *ip)
 {

@@ -158,19 +158,6 @@ typedef struct
 	unsigned flag_got:1;
 } us_proc_ip_t;
 
-struct us_ip {
-	struct list_head list;
-
-	struct jprobe jprobe;
-	struct kretprobe retprobe;
-
-	unsigned long offset;
-	unsigned long got_addr;
-
-	unsigned flag_retprobe:1;
-	unsigned flag_got:1;
-};
-
 typedef struct
 {
 	int installed;
