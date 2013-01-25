@@ -6,6 +6,7 @@
 
 #include "struct/ip.h"
 #include "struct/page_probes.h"
+#include "struct/file_probes.h"
 
 enum US_FLAGS {
 	US_UNREGS_PROBE,
@@ -14,19 +15,6 @@ enum US_FLAGS {
 };
 
 
-
-
-struct file_probes {
-	struct list_head list;			// for proc_probes
-	struct dentry *dentry;
-	char *path;
-	int loaded;
-	unsigned long vm_start;
-	unsigned long vm_end;
-
-	unsigned long page_probes_hash_bits;
-	struct hlist_head *page_probes_table; // for page_probes
-};
 
 struct proc_probes {
 	struct list_head list;
@@ -57,178 +45,8 @@ static void page_p_set_all_kp_addr(struct page_probes *page_p, const struct file
 	}
 }
 
-static int calculation_hash_bits(int cnt)
-{
-	int bits;
-	for (bits = 1; cnt >>= 1; ++bits);
 
-	return bits;
-}
 
-// file_probes
-static struct file_probes *file_p_new(const char *path, struct dentry *dentry, int page_cnt)
-{
-	struct file_probes *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
-
-	if (obj) {
-		int i, table_size;
-		obj->path = path;
-		obj->dentry = dentry;
-		obj->loaded = 0;
-		obj->vm_start = 0;
-		obj->vm_end = 0;
-
-		obj->page_probes_hash_bits = calculation_hash_bits(page_cnt);//PAGE_PROBES_HASH_BITS;
-		table_size = (1 << obj->page_probes_hash_bits);
-
-		obj->page_probes_table = kmalloc(sizeof(*obj->page_probes_table)*table_size, GFP_ATOMIC);
-
-		for (i = 0; i < table_size; ++i) {
-			INIT_HLIST_HEAD(&obj->page_probes_table[i]);
-		}
-	}
-
-	return obj;
-}
-
-static void file_p_del(struct file_probes *file_p)
-{
-	struct hlist_node *p, *n;
-	struct hlist_head *head;
-	struct page_probes *page_p;
-	int i, table_size = (1 << file_p->page_probes_hash_bits);
-
-	for (i = 0; i < table_size; ++i) {
-		head = &file_p->page_probes_table[i];
-		hlist_for_each_entry_safe(page_p, p, n, head, hlist) {
-			hlist_del(&page_p->hlist);
-			page_p_del(page_p);
-		}
-	}
-
-	kfree(file_p->page_probes_table);
-	kfree(file_p);
-}
-
-static void file_p_add_page_p(struct file_probes *file_p, struct page_probes *page_p)
-{
-	hlist_add_head(&page_p->hlist, &file_p->page_probes_table[hash_ptr(page_p->offset, file_p->page_probes_hash_bits)]);
-}
-
-static struct file_probes *file_p_copy(const struct file_probes *file_p)
-{
-	struct file_probes *file_p_out;
-
-	if (file_p == NULL) {
-		printk("### WARNING: file_p == NULL\n");
-		return NULL;
-	}
-
-	file_p_out = kmalloc(sizeof(*file_p_out), GFP_ATOMIC);
-	if (file_p_out) {
-		struct page_probes *page_p = NULL;
-		struct hlist_node *node = NULL;
-		struct hlist_head *head = NULL;
-		int i, table_size;
-		INIT_LIST_HEAD(&file_p_out->list);
-		file_p_out->dentry = file_p->dentry;
-		file_p_out->path = file_p->path;
-		file_p_out->loaded = 0;
-		file_p_out->vm_start = 0;
-		file_p_out->vm_end = 0;
-
-		file_p_out->page_probes_hash_bits = file_p->page_probes_hash_bits;
-		table_size = (1 << file_p_out->page_probes_hash_bits);
-
-		file_p_out->page_probes_table =
-				kmalloc(sizeof(*file_p_out->page_probes_table)*table_size, GFP_ATOMIC);
-
-		for (i = 0; i < table_size; ++i) {
-			INIT_HLIST_HEAD(&file_p_out->page_probes_table[i]);
-		}
-
-		// copy pages
-		for (i = 0; i < table_size; ++i) {
-			head = &file_p->page_probes_table[i];
-			hlist_for_each_entry(page_p, node, head, hlist) {
-				file_p_add_page_p(file_p_out, page_p_copy(page_p));
-			}
-		}
-	}
-
-	return file_p_out;
-}
-
-static struct page_probes *file_p_find_page_p(struct file_probes *file_p, unsigned long offset)
-{
-	struct hlist_node *node;
-	struct hlist_head *head;
-	struct page_probes *page_p;
-
-	head = &file_p->page_probes_table[hash_ptr(offset, file_p->page_probes_hash_bits)];
-	hlist_for_each_entry(page_p, node, head, hlist) {
-		if (page_p->offset == offset) {
-			return page_p;
-		}
-	}
-
-	return NULL;
-}
-
-static struct page_probes *file_p_find_page_p_or_new(struct file_probes *file_p, unsigned long offset)
-{
-	struct page_probes *page_p = file_p_find_page_p(file_p, offset);
-
-	if (page_p == NULL) {
-		page_p = page_p_new(offset);
-		file_p_add_page_p(file_p, page_p);
-	}
-
-	return page_p;
-}
-
-static struct page_probes *file_p_find_page_p_mapped(struct file_probes *file_p, unsigned long page)
-{
-	unsigned long offset;
-
-	if (file_p->vm_start > page || file_p->vm_end < page) {
-		// TODO: or panic?!
-		printk("ERROR: file_p[vm_start..vm_end] <> page: file_p[vm_start=%x, vm_end=%x, path=%s, d_iname=%s] page=%x\n",
-				file_p->vm_start, file_p->vm_end, file_p->path, file_p->dentry->d_iname, page);
-		return NULL;
-	}
-
-	offset = page - file_p->vm_start;
-
-	return file_p_find_page_p(file_p, offset);
-}
-
-static void file_p_add_probe(struct file_probes *file_p, struct ip_data *ip_d)
-{
-	unsigned long offset = ip_d->offset & PAGE_MASK;
-	struct page_probes *page_p = file_p_find_page_p_or_new(file_p, offset);
-
-	// FIXME: delete ip
-	struct us_ip *ip = create_ip_by_ip_data(ip_d);
-
-	page_p_add_ip(page_p, ip);
-}
-
-static struct page_probes *get_page_p(struct file_probes *file_p, unsigned long offset_addr)
-{
-	unsigned long offset = offset_addr & PAGE_MASK;
-	struct page_probes *page_p = file_p_find_page_p_or_new(file_p, offset);
-
-	spin_lock(&page_p->lock);
-
-	return page_p;
-}
-
-static void put_page_p(struct page_probes *page_p)
-{
-	spin_unlock(&page_p->lock);
-}
-// file_probes
 
 // proc_probes
 static struct proc_probes *proc_p_create(struct dentry* dentry, pid_t tgid)

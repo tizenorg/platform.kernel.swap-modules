@@ -2,4 +2,4 @@ EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_driver.o
 swap_driver-y := device_driver.o ec.o legacy.o module.o probes.o probes_manager.o storage.o us_proc_inst.o \
-                 struct/ip.o struct/page_probes.o
+                 struct/ip.o struct/page_probes.o struct/file_probes.o
