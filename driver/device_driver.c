@@ -195,9 +195,6 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 	unsigned long spinlock_flags = 0L;
 	int result = -1;
 //	DPRINTF("Command=%d", cmd);
-	printk("#1# Command=%d\n", cmd);
-	printk("#2# Command=%d\n", cmd);
-
 	switch (cmd)
 	{
 	case EC_IOCTL_SET_EC_MODE:
