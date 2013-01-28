@@ -18,14 +18,14 @@ struct sspt_file {
 };
 
 
-struct sspt_file *file_p_new(const char *path, struct dentry *dentry, int page_cnt);
-struct sspt_file *file_p_copy(const struct sspt_file *file);
-void file_p_del(struct sspt_file *file);
+struct sspt_file *sspt_file_create(const char *path, struct dentry *dentry, int page_cnt);
+struct sspt_file *sspt_file_copy(const struct sspt_file *file);
+void sspt_file_free(struct sspt_file *file);
 
-struct sspt_page *file_p_find_page_p_mapped(struct sspt_file *file, unsigned long page);
-void file_p_add_probe(struct sspt_file *file, struct ip_data *ip_d);
+struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long page);
+void sspt_file_add_ip(struct sspt_file *file, struct ip_data *ip_d);
 
-struct sspt_page *get_page_p(struct sspt_file *file, unsigned long offset_addr);
-void put_page_p(struct sspt_page *page);
+struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_addr);
+void sspt_put_page(struct sspt_page *page);
 
 #endif /* __FILE_PROBES__ */

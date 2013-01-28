@@ -13,7 +13,7 @@ static int calculation_hash_bits(int cnt)
 	return bits;
 }
 
-struct sspt_file *file_p_new(const char *path, struct dentry *dentry, int page_cnt)
+struct sspt_file *sspt_file_create(const char *path, struct dentry *dentry, int page_cnt)
 {
 	struct sspt_file *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 
@@ -38,7 +38,7 @@ struct sspt_file *file_p_new(const char *path, struct dentry *dentry, int page_c
 	return obj;
 }
 
-void file_p_del(struct sspt_file *file)
+void sspt_file_free(struct sspt_file *file)
 {
 	struct hlist_node *p, *n;
 	struct hlist_head *head;
@@ -62,7 +62,7 @@ static void file_p_add_page_p(struct sspt_file *file, struct sspt_page *page)
 	hlist_add_head(&page->hlist, &file->page_probes_table[hash_ptr(page->offset, file->page_probes_hash_bits)]);
 }
 
-struct sspt_file *file_p_copy(const struct sspt_file *file)
+struct sspt_file *sspt_file_copy(const struct sspt_file *file)
 {
 	struct sspt_file *file_out;
 
@@ -134,7 +134,7 @@ static struct sspt_page *file_p_find_page_p_or_new(struct sspt_file *file, unsig
 	return page;
 }
 
-struct sspt_page *file_p_find_page_p_mapped(struct sspt_file *file, unsigned long page)
+struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long page)
 {
 	unsigned long offset;
 
@@ -150,7 +150,7 @@ struct sspt_page *file_p_find_page_p_mapped(struct sspt_file *file, unsigned lon
 	return file_p_find_page_p(file, offset);
 }
 
-void file_p_add_probe(struct sspt_file *file, struct ip_data *ip_d)
+void sspt_file_add_ip(struct sspt_file *file, struct ip_data *ip_d)
 {
 	unsigned long offset = ip_d->offset & PAGE_MASK;
 	struct sspt_page *page = file_p_find_page_p_or_new(file, offset);
@@ -161,7 +161,7 @@ void file_p_add_probe(struct sspt_file *file, struct ip_data *ip_d)
 	page_p_add_ip(page, ip);
 }
 
-struct sspt_page *get_page_p(struct sspt_file *file, unsigned long offset_addr)
+struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_addr)
 {
 	unsigned long offset = offset_addr & PAGE_MASK;
 	struct sspt_page *page = file_p_find_page_p_or_new(file, offset);
@@ -171,7 +171,7 @@ struct sspt_page *get_page_p(struct sspt_file *file, unsigned long offset_addr)
 	return page;
 }
 
-void put_page_p(struct sspt_page *page)
+void sspt_put_page(struct sspt_page *page)
 {
 	spin_unlock(&page->lock);
 }

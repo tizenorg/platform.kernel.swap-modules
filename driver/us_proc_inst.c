@@ -606,7 +606,7 @@ int install_otg_ip(unsigned long addr,
 			};
 
 			struct sspt_file *file = proc_p_find_file_p_by_dentry(procs, name, dentry);
-			struct sspt_page *page = get_page_p(file, offset_addr);
+			struct sspt_page *page = sspt_get_page(file, offset_addr);
 			struct us_ip *ip = page_p_find_ip(page, offset_addr & ~PAGE_MASK);
 
 			if (!file->loaded) {
@@ -616,7 +616,7 @@ int install_otg_ip(unsigned long addr,
 
 			if (ip == NULL) {
 				struct sspt_file *file = proc_p_find_file_p_by_dentry(procs, name, dentry);
-				file_p_add_probe(file, &pd);
+				sspt_file_add_ip(file, &pd);
 
 				/* if addr mapping, that probe install, else it be installed in do_page_fault handler */
 				if (page_present(mm, addr)) {
@@ -633,7 +633,7 @@ int install_otg_ip(unsigned long addr,
 				}
 			}
 
-			put_page_p(page);
+			sspt_put_page(page);
 		}
 	}
 
@@ -1125,7 +1125,7 @@ static void install_page_probes(unsigned long page_addr, struct task_struct *tas
 				file->loaded = 1;
 			}
 
-			page = file_p_find_page_p_mapped(file, page_addr);
+			page = sspt_find_page_mapped(file, page_addr);
 			if (page) {
 				register_us_page_probe(page, file, task);
 			}
@@ -1406,7 +1406,7 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 				struct sspt_page *page;
 
 				for (page_addr = vma->vm_start; page_addr < vma->vm_end; page_addr += PAGE_SIZE) {
-					page = file_p_find_page_p_mapped(file, page_addr);
+					page = sspt_find_page_mapped(file, page_addr);
 					if (page) {
 						unregister_us_page_probe(task, page, US_NOT_RP2);
 					}
