@@ -21,19 +21,19 @@ enum US_FLAGS {
 
 
 
-static void set_ip_kp_addr(struct us_ip *ip, struct page_probes *page_p, const struct sspt_file *file)
+static void set_ip_kp_addr(struct us_ip *ip, struct sspt_page *page, const struct sspt_file *file)
 {
-	unsigned long addr = file->vm_start + page_p->offset + ip->offset;
+	unsigned long addr = file->vm_start + page->offset + ip->offset;
 	ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
 }
 
-static void page_p_set_all_kp_addr(struct page_probes *page_p, const struct sspt_file *file)
+static void page_p_set_all_kp_addr(struct sspt_page *page, const struct sspt_file *file)
 {
 	struct us_ip *ip;
 	unsigned long addr;
 
-	list_for_each_entry(ip, &page_p->ip_list, list) {
-		addr = file->vm_start + page_p->offset + ip->offset;
+	list_for_each_entry(ip, &page->ip_list, list) {
+		addr = file->vm_start + page->offset + ip->offset;
 		ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
 //		printk("###       pp_set_all_kp_addr: start=%x, page_offset=%x, ip_offset=%x, addr=%x\n",
 //				file_p->vm_start, page_p->offset, ip->offset, addr);
@@ -135,13 +135,13 @@ static void print_retprobe(struct kretprobe *rp)
 			rp->handler);
 }
 
-static void print_page_probes(const struct page_probes *page_p)
+static void print_page_probes(const struct sspt_page *page)
 {
 	int i = 0;
 	struct us_ip *ip;
 
-	printk("###     offset=%x\n", page_p->offset);
-	list_for_each_entry(ip, &page_p->ip_list, list) {
+	printk("###     offset=%x\n", page->offset);
+	list_for_each_entry(ip, &page->ip_list, list) {
 
 		printk("###       addr[%2d]=%x, J_addr=%x, R_addr=%x\n",
 				i, ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
@@ -156,7 +156,7 @@ static const char *NA = "N/A";
 static void print_file_probes(const struct sspt_file *file)
 {
 	int i, table_size;
-	struct page_probes *page_p = NULL;
+	struct sspt_page *page = NULL;
 	struct hlist_node *node = NULL;
 	struct hlist_head *head = NULL;
 
@@ -173,8 +173,8 @@ static void print_file_probes(const struct sspt_file *file)
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_rcu(page_p, node, head, hlist) {
-			print_page_probes(page_p);
+		hlist_for_each_entry_rcu(page, node, head, hlist) {
+			print_page_probes(page);
 		}
 	}
 }

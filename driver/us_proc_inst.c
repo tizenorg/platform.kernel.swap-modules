@@ -606,8 +606,8 @@ int install_otg_ip(unsigned long addr,
 			};
 
 			struct sspt_file *file = proc_p_find_file_p_by_dentry(procs, name, dentry);
-			struct page_probes *page_p = get_page_p(file, offset_addr);
-			struct us_ip *ip = page_p_find_ip(page_p, offset_addr & ~PAGE_MASK);
+			struct sspt_page *page = get_page_p(file, offset_addr);
+			struct us_ip *ip = page_p_find_ip(page, offset_addr & ~PAGE_MASK);
 
 			if (!file->loaded) {
 				set_mapping_file(file, procs, task, vma);
@@ -620,20 +620,20 @@ int install_otg_ip(unsigned long addr,
 
 				/* if addr mapping, that probe install, else it be installed in do_page_fault handler */
 				if (page_present(mm, addr)) {
-					ip = page_p_find_ip(page_p, offset_addr & ~PAGE_MASK);
-					set_ip_kp_addr(ip, page_p, file);
+					ip = page_p_find_ip(page, offset_addr & ~PAGE_MASK);
+					set_ip_kp_addr(ip, page, file);
 
 					// TODO: error
 					ret = register_usprobe_my(task, ip);
 					if (ret == 0) {
-						page_p_installed(page_p);
+						page_p_installed(page);
 					} else {
 						printk("ERROR install_otg_ip: ret=%d\n", ret);
 					}
 				}
 			}
 
-			put_page_p(page_p);
+			put_page_p(page);
 		}
 	}
 
@@ -1033,26 +1033,26 @@ static void set_mapping_file(struct sspt_file *file,
 
 void print_vma(struct mm_struct *mm);
 
-static int register_us_page_probe(struct page_probes *page_p,
+static int register_us_page_probe(struct sspt_page *page,
 		const struct sspt_file *file,
 		const struct task_struct *task)
 {
 	int err = 0;
 	struct us_ip *ip;
 
-	spin_lock(&page_p->lock);
+	spin_lock(&page->lock);
 
-	if (page_p_is_install(page_p)) {
+	if (page_p_is_install(page)) {
 		printk("page %x in %s task[tgid=%u, pid=%u] already installed\n",
-				page_p->offset, file->dentry->d_iname, task->tgid, task->pid);
+				page->offset, file->dentry->d_iname, task->tgid, task->pid);
 		print_vma(task->mm);
 		return 0;
 	}
 
-	page_p_assert_install(page_p);
-	page_p_set_all_kp_addr(page_p, file);
+	page_p_assert_install(page);
+	page_p_set_all_kp_addr(page, file);
 
-	list_for_each_entry(ip, &page_p->ip_list, list) {
+	list_for_each_entry(ip, &page->ip_list, list) {
 		err = register_usprobe_my(task, ip);
 		if (err != 0) {
 			//TODO: ERROR
@@ -1060,26 +1060,26 @@ static int register_us_page_probe(struct page_probes *page_p,
 		}
 	}
 
-	page_p_installed(page_p);
+	page_p_installed(page);
 
-	spin_unlock(&page_p->lock);
+	spin_unlock(&page->lock);
 
 	return 0;
 }
 
 static int unregister_us_page_probe(const struct task_struct *task,
-		struct page_probes *page_p, enum US_FLAGS flag)
+		struct sspt_page *page, enum US_FLAGS flag)
 {
 	int err = 0;
 	struct us_ip *ip;
 
-	spin_lock(&page_p->lock);
-	if (!page_p_is_install(page_p)) {
-		spin_unlock(&page_p->lock);
+	spin_lock(&page->lock);
+	if (!page_p_is_install(page)) {
+		spin_unlock(&page->lock);
 		return 0;
 	}
 
-	list_for_each_entry(ip, &page_p->ip_list, list) {
+	list_for_each_entry(ip, &page->ip_list, list) {
 		err = unregister_usprobe_my(task, ip, flag);
 		if (err != 0) {
 			//TODO: ERROR
@@ -1088,9 +1088,9 @@ static int unregister_us_page_probe(const struct task_struct *task,
 	}
 
 	if (flag != US_DISARM) {
-		page_p_uninstalled(page_p);
+		page_p_uninstalled(page);
 	}
-	spin_unlock(&page_p->lock);
+	spin_unlock(&page->lock);
 
 	return err;
 }
@@ -1107,7 +1107,7 @@ static int check_vma(struct vm_area_struct *vma)
 }
 
 
-static void install_page_probes(unsigned long page, struct task_struct *task, struct sspt_procs *procs, int atomic)
+static void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs, int atomic)
 {
 	int lock;
 	struct mm_struct *mm;
@@ -1115,19 +1115,19 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 
 	mm_read_lock(task, mm, atomic, lock);
 
-	vma = find_vma(mm, page);
+	vma = find_vma(mm, page_addr);
 	if (vma && check_vma(vma)) {
 		struct sspt_file *file = proc_p_find_file_p(procs, vma);
 		if (file) {
-			struct page_probes *page_p;
+			struct page_probes *page;
 			if (!file->loaded) {
 				set_mapping_file(file, procs, task, vma);
 				file->loaded = 1;
 			}
 
-			page_p = file_p_find_page_p_mapped(file, page);
-			if (page_p) {
-				register_us_page_probe(page_p, file, task);
+			page = file_p_find_page_p_mapped(file, page_addr);
+			if (page) {
+				register_us_page_probe(page, file, task);
 			}
 		}
 	}
@@ -1137,16 +1137,16 @@ static void install_page_probes(unsigned long page, struct task_struct *task, st
 
 static void install_file_probes(struct task_struct *task, struct mm_struct *mm, struct sspt_file *file)
 {
-	struct page_probes *page_p = NULL;
+	struct sspt_page *page = NULL;
 	struct hlist_node *node = NULL;
 	struct hlist_head *head = NULL;
 	int i, table_size = (1 << file->page_probes_hash_bits);
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_rcu(page_p, node, head, hlist) {
-			if (page_present(mm, page_p->offset)) {
-				register_us_page_probe(page_p, file, task);
+		hlist_for_each_entry_rcu(page, node, head, hlist) {
+			if (page_present(mm, page->offset)) {
+				register_us_page_probe(page, file, task);
 			}
 		}
 	}
@@ -1181,14 +1181,14 @@ static int check_install_pages_in_file(struct task_struct *task, struct sspt_fil
 {
 	int i;
 	int table_size = (1 << file->page_probes_hash_bits);
-	struct page_probes *page_p;
+	struct sspt_page *page;
 	struct hlist_node *node, *tmp;
 	struct hlist_head *head;
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_safe (page_p, node, tmp, head, hlist) {
-			if (page_p->install) {
+		hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
+			if (page->install) {
 				return 1;
 			}
 		}
@@ -1201,14 +1201,14 @@ static int unregister_us_file_probes(struct task_struct *task, struct sspt_file 
 {
 	int i, err = 0;
 	int table_size = (1 << file->page_probes_hash_bits);
-	struct page_probes *page_p;
+	struct sspt_page *page;
 	struct hlist_node *node, *tmp;
 	struct hlist_head *head;
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_safe (page_p, node, tmp, head, hlist) {
-			err = unregister_us_page_probe(task, page_p, flag);
+		hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
+			err = unregister_us_page_probe(task, page, flag);
 			if (err != 0) {
 				// TODO: ERROR
 				return err;
@@ -1402,13 +1402,13 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 				unregister_us_file_probes(task, file, US_NOT_RP2);
 				file->loaded = 0;
 			} else {
-				unsigned long page;
-				struct page_probes *page_p;
+				unsigned long page_addr;
+				struct sspt_page *page;
 
-				for (page = vma->vm_start; page < vma->vm_end; page += PAGE_SIZE) {
-					page_p = file_p_find_page_p_mapped(file, page);
-					if (page_p) {
-						unregister_us_page_probe(task, page_p, US_NOT_RP2);
+				for (page_addr = vma->vm_start; page_addr < vma->vm_end; page_addr += PAGE_SIZE) {
+					page = file_p_find_page_p_mapped(file, page_addr);
+					if (page) {
+						unregister_us_page_probe(task, page, US_NOT_RP2);
 					}
 				}
 
