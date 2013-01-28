@@ -26,7 +26,7 @@ void page_p_del(struct sspt_page *page)
 		free_ip(ip);
 	}
 
-	// FIXME: free page?!
+	kfree(page);
 }
 
 struct sspt_page *page_p_copy(const struct sspt_page *page)
