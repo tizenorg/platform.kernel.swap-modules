@@ -19,6 +19,7 @@
 #include "device_driver.h"	// device driver
 #include "handlers_core.h"
 #include <linux/notifier.h>
+#include "struct/proc_probes.h"
 
 #ifdef OVERHEAD_DEBUG
 extern unsigned long swap_sum_time;
@@ -49,8 +50,6 @@ static int device_open(struct inode *, struct file *);
 static int device_release(struct inode *, struct file *);
 static ssize_t device_read(struct file *, char *, size_t, loff_t *);
 static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
-
-void proc_p_free_all(void);
 
 static int gl_nDeviceOpened = 0;
 static struct file_operations device_fops = {
