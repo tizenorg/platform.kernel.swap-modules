@@ -220,7 +220,7 @@ typedef struct
 #endif /* __ANDROID */
 
 	// new_dpf
-	struct proc_probes *pp;
+	struct sspt_procs *pp;
 } inst_us_proc_t;
 
 typedef struct

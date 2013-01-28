@@ -43,18 +43,18 @@ static void page_p_set_all_kp_addr(struct page_probes *page_p, const struct file
 
 #include "storage.h"
 
-static void print_proc_probes(const struct proc_probes *proc_p);
+static void print_proc_probes(const struct sspt_procs *procs);
 
-struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
+struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 {
-	struct proc_probes *proc_p = proc_p_create(task_inst_info->m_f_dentry, 0);
+	struct sspt_procs *procs = proc_p_create(task_inst_info->m_f_dentry, 0);
 
 	printk("####### get START #######\n");
 
-	if (proc_p) {
+	if (procs) {
 		int i;
 
-		printk("#2# get_file_probes: proc_p[dentry=%p]\n", proc_p->dentry);
+		printk("#2# get_file_probes: proc_p[dentry=%p]\n", procs->dentry);
 
 		for (i = 0; i < task_inst_info->libs_count; ++i) {
 			int k, j;
@@ -81,16 +81,16 @@ struct proc_probes *get_file_probes(const inst_us_proc_t *task_inst_info)
 				pd.jp_handler = ip->jprobe.entry;
 				pd.rp_handler = ip->retprobe.handler;
 
-				proc_p_add_dentry_probes(proc_p, pach, dentry, &pd, 1);
+				proc_p_add_dentry_probes(procs, pach, dentry, &pd, 1);
 			}
 		}
 	}
 
-	print_proc_probes(proc_p);
+	print_proc_probes(procs);
 
 	printk("####### get  END  #######\n");
 
-	return proc_p;
+	return procs;
 }
 
 static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
@@ -179,12 +179,12 @@ static void print_file_probes(const struct file_probes *file_p)
 	}
 }
 
-static void print_proc_probes(const struct proc_probes *proc_p)
+static void print_proc_probes(const struct sspt_procs *procs)
 {
 	struct file_probes *file_p;
 
 	printk("### print_proc_probes\n");
-	list_for_each_entry(file_p, &proc_p->file_list, list) {
+	list_for_each_entry(file_p, &procs->file_list, list) {
 		print_file_probes(file_p);
 	}
 	printk("### print_proc_probes\n");
