@@ -37,7 +37,7 @@ struct sspt_page *sspt_page_copy(const struct sspt_page *page)
 	if (page_out) {
 		INIT_LIST_HEAD(&page_out->ip_list);
 		list_for_each_entry(ip_in, &page->ip_list, list) {
-			ip_out = us_proc_ip_copy(ip_in);
+			ip_out = copy_ip(ip_in);
 			if (ip_out == NULL) {
 				// FIXME: free ip_list in page_p_out
 				kfree(page_out);
