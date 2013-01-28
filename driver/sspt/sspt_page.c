@@ -31,29 +31,28 @@ void sspt_page_free(struct sspt_page *page)
 
 struct sspt_page *sspt_page_copy(const struct sspt_page *page)
 {
-	struct us_ip *ip_in, *ip_out;
-	struct sspt_page *page_out = kmalloc(sizeof(*page_out), GFP_ATOMIC);
+	struct us_ip *ip, *new_ip;
+	struct sspt_page *new_page = kmalloc(sizeof(*new_page), GFP_ATOMIC);
 
-	if (page_out) {
-		INIT_LIST_HEAD(&page_out->ip_list);
-		list_for_each_entry(ip_in, &page->ip_list, list) {
-			ip_out = copy_ip(ip_in);
-			if (ip_out == NULL) {
-				// FIXME: free ip_list in page_p_out
-				kfree(page_out);
+	if (new_page) {
+		INIT_LIST_HEAD(&new_page->ip_list);
+		list_for_each_entry(ip, &page->ip_list, list) {
+			new_ip = copy_ip(ip);
+			if (new_ip == NULL) {
+				sspt_page_free(new_page);
 				return NULL;
 			}
 
-			list_add(&ip_out->list, &page_out->ip_list);
+			list_add(&new_ip->list, &new_page->ip_list);
 		}
 
-		page_out->offset = page->offset;
-		page_out->install = 0;
-		spin_lock_init(&page_out->lock);
-		INIT_HLIST_NODE(&page_out->hlist);
+		new_page->offset = page->offset;
+		new_page->install = 0;
+		spin_lock_init(&new_page->lock);
+		INIT_HLIST_NODE(&new_page->hlist);
 	}
 
-	return page_out;
+	return new_page;
 }
 
 void sspt_add_ip(struct sspt_page *page, struct us_ip *ip)
