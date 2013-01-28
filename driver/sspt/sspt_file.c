@@ -57,7 +57,7 @@ void sspt_file_free(struct sspt_file *file)
 	kfree(file);
 }
 
-static void file_p_add_page_p(struct sspt_file *file, struct sspt_page *page)
+static void sspt_add_page(struct sspt_file *file, struct sspt_page *page)
 {
 	hlist_add_head(&page->hlist, &file->page_probes_table[hash_ptr(page->offset, file->page_probes_hash_bits)]);
 }
@@ -98,7 +98,7 @@ struct sspt_file *sspt_file_copy(const struct sspt_file *file)
 		for (i = 0; i < table_size; ++i) {
 			head = &file->page_probes_table[i];
 			hlist_for_each_entry(page, node, head, hlist) {
-				file_p_add_page_p(file_out, sspt_page_copy(page));
+				sspt_add_page(file_out, sspt_page_copy(page));
 			}
 		}
 	}
@@ -106,7 +106,7 @@ struct sspt_file *sspt_file_copy(const struct sspt_file *file)
 	return file_out;
 }
 
-static struct sspt_page *file_p_find_page_p(struct sspt_file *file, unsigned long offset)
+static struct sspt_page *sspt_find_page(struct sspt_file *file, unsigned long offset)
 {
 	struct hlist_node *node;
 	struct hlist_head *head;
@@ -122,13 +122,13 @@ static struct sspt_page *file_p_find_page_p(struct sspt_file *file, unsigned lon
 	return NULL;
 }
 
-static struct sspt_page *file_p_find_page_p_or_new(struct sspt_file *file, unsigned long offset)
+static struct sspt_page *sspt_find_page_or_new(struct sspt_file *file, unsigned long offset)
 {
-	struct sspt_page *page = file_p_find_page_p(file, offset);
+	struct sspt_page *page = sspt_find_page(file, offset);
 
 	if (page == NULL) {
 		page = sspt_page_create(offset);
-		file_p_add_page_p(file, page);
+		sspt_add_page(file, page);
 	}
 
 	return page;
@@ -147,13 +147,13 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long pa
 
 	offset = page - file->vm_start;
 
-	return file_p_find_page_p(file, offset);
+	return sspt_find_page(file, offset);
 }
 
 void sspt_file_add_ip(struct sspt_file *file, struct ip_data *ip_d)
 {
 	unsigned long offset = ip_d->offset & PAGE_MASK;
-	struct sspt_page *page = file_p_find_page_p_or_new(file, offset);
+	struct sspt_page *page = sspt_find_page_or_new(file, offset);
 
 	// FIXME: delete ip
 	struct us_ip *ip = create_ip_by_ip_data(ip_d);
@@ -164,7 +164,7 @@ void sspt_file_add_ip(struct sspt_file *file, struct ip_data *ip_d)
 struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_addr)
 {
 	unsigned long offset = offset_addr & PAGE_MASK;
-	struct sspt_page *page = file_p_find_page_p_or_new(file, offset);
+	struct sspt_page *page = sspt_find_page_or_new(file, offset);
 
 	spin_lock(&page->lock);
 
