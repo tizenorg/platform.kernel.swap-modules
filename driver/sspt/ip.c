@@ -16,47 +16,41 @@ void free_ip(struct us_ip *ip)
 	kfree(ip);
 }
 
-static void set_ip_jp_handler(struct us_ip *ip, kprobe_pre_entry_handler_t per_entry, void *entry)
+static inline void set_ip_jp_handler(struct us_ip *ip, kprobe_pre_entry_handler_t per_entry, void *entry)
 {
 	ip->jprobe.pre_entry = per_entry;
 	ip->jprobe.entry = entry;
 }
 
-static void set_ip_rp_handler(struct us_ip *ip, kretprobe_handler_t handler)
+static inline void set_ip_rp_handler(struct us_ip *ip, kretprobe_handler_t handler)
 {
 	ip->flag_retprobe = 1;
 	ip->retprobe.handler = handler;
 }
 
-static void set_ip_got_addr(struct us_ip *ip, unsigned long got_addr)
+static inline void set_ip_got_addr(struct us_ip *ip, unsigned long got_addr)
 {
 	ip->got_addr = got_addr;
 }
 
-struct us_ip *us_proc_ip_copy(const struct us_ip *ip)
+struct us_ip *copy_ip(const struct us_ip *ip)
 {
-	// FIXME: one malloc us_ip
-	struct us_ip *ip_out = kmalloc(sizeof(*ip_out), GFP_ATOMIC);
-	if (ip_out == NULL) {
+	struct us_ip *new_ip = create_ip(ip->offset);
+
+	if (new_ip == NULL) {
 		printk("us_proc_ip_copy: No enough memory\n");
 		return NULL;
 	}
 
-	memcpy(ip_out, ip, sizeof(*ip_out));
-
 	// jprobe
-	memset(&ip_out->jprobe, 0, sizeof(struct jprobe));
-	ip_out->jprobe.entry = ip->jprobe.entry;
-	ip_out->jprobe.pre_entry = ip->jprobe.pre_entry;
+	set_ip_jp_handler(new_ip, ip->jprobe.pre_entry, ip->jprobe.entry);
 
 	// retprobe
-	retprobe_init(&ip_out->retprobe, ip->retprobe.handler);
+	if (ip->flag_retprobe) {
+		retprobe_init(&new_ip->retprobe, ip->retprobe.handler);
+	}
 
-	ip_out->flag_got = 0;
-
-	INIT_LIST_HEAD(&ip_out->list);
-
-	return ip_out;
+	return new_ip;
 }
 
 struct us_ip *create_ip_by_ip_data(struct ip_data *ip_d)
