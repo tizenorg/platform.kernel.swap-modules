@@ -4,10 +4,10 @@
 #include <linux/hash.h>
 #include "storage.h"
 
-#include "struct/ip.h"
-#include "struct/page_probes.h"
-#include "struct/file_probes.h"
-#include "struct/proc_probes.h"
+#include "sspt/ip.h"
+#include "sspt/sspt_page.h"
+#include "sspt/sspt_file.h"
+#include "sspt/sspt_procs.h"
 
 enum US_FLAGS {
 	US_UNREGS_PROBE,

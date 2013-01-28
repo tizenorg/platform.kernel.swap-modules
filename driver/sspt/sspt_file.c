@@ -1,5 +1,5 @@
-#include "file_probes.h"
-#include "page_probes.h"
+#include "sspt_file.h"
+#include "sspt_page.h"
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/hash.h>

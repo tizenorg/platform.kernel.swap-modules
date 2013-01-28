@@ -19,7 +19,7 @@
 #include "device_driver.h"	// device driver
 #include "handlers_core.h"
 #include <linux/notifier.h>
-#include "struct/proc_probes.h"
+#include "sspt/sspt_procs.h"
 
 #ifdef OVERHEAD_DEBUG
 extern unsigned long swap_sum_time;

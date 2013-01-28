@@ -2,7 +2,7 @@
 #define __PROC_PROBES__
 
 #include <linux/types.h>
-#include "file_probes.h"
+#include "sspt_file.h"
 
 struct sspt_procs {
 	struct list_head list;
