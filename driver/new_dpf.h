@@ -21,19 +21,19 @@ enum US_FLAGS {
 
 
 
-static void set_ip_kp_addr(struct us_ip *ip, struct page_probes *page_p, const struct file_probes *file_p)
+static void set_ip_kp_addr(struct us_ip *ip, struct page_probes *page_p, const struct sspt_file *file)
 {
-	unsigned long addr = file_p->vm_start + page_p->offset + ip->offset;
+	unsigned long addr = file->vm_start + page_p->offset + ip->offset;
 	ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
 }
 
-static void page_p_set_all_kp_addr(struct page_probes *page_p, const struct file_probes *file_p)
+static void page_p_set_all_kp_addr(struct page_probes *page_p, const struct sspt_file *file)
 {
 	struct us_ip *ip;
 	unsigned long addr;
 
 	list_for_each_entry(ip, &page_p->ip_list, list) {
-		addr = file_p->vm_start + page_p->offset + ip->offset;
+		addr = file->vm_start + page_p->offset + ip->offset;
 		ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
 //		printk("###       pp_set_all_kp_addr: start=%x, page_offset=%x, ip_offset=%x, addr=%x\n",
 //				file_p->vm_start, page_p->offset, ip->offset, addr);
@@ -153,26 +153,26 @@ static void print_page_probes(const struct page_probes *page_p)
 
 static const char *NA = "N/A";
 
-static void print_file_probes(const struct file_probes *file_p)
+static void print_file_probes(const struct sspt_file *file)
 {
 	int i, table_size;
 	struct page_probes *page_p = NULL;
 	struct hlist_node *node = NULL;
 	struct hlist_head *head = NULL;
 
-	if (file_p == NULL) {
+	if (file == NULL) {
 		printk("### file_p == NULL\n");
 		return;
 	}
 
-	table_size = (1 << file_p->page_probes_hash_bits);
-	const char *name = (file_p->dentry) ? file_p->dentry->d_iname : NA;
+	table_size = (1 << file->page_probes_hash_bits);
+	const char *name = (file->dentry) ? file->dentry->d_iname : NA;
 
 	printk("### print_file_probes: path=%s, d_iname=%s, table_size=%d, vm_start=%x\n",
-			file_p->path, name, table_size, file_p->vm_start);
+			file->path, name, table_size, file->vm_start);
 
 	for (i = 0; i < table_size; ++i) {
-		head = &file_p->page_probes_table[i];
+		head = &file->page_probes_table[i];
 		hlist_for_each_entry_rcu(page_p, node, head, hlist) {
 			print_page_probes(page_p);
 		}
@@ -181,11 +181,11 @@ static void print_file_probes(const struct file_probes *file_p)
 
 static void print_proc_probes(const struct sspt_procs *procs)
 {
-	struct file_probes *file_p;
+	struct sspt_file *file;
 
 	printk("### print_proc_probes\n");
-	list_for_each_entry(file_p, &procs->file_list, list) {
-		print_file_probes(file_p);
+	list_for_each_entry(file, &procs->file_list, list) {
+		print_file_probes(file);
 	}
 	printk("### print_proc_probes\n");
 }

@@ -19,8 +19,8 @@ void proc_p_free_all(void);
 
 void proc_p_add_dentry_probes(struct sspt_procs *procs, const char *pach,
 		struct dentry* dentry, struct ip_data *ip_d, int cnt);
-struct file_probes *proc_p_find_file_p_by_dentry(struct sspt_procs *procs,
+struct sspt_file *proc_p_find_file_p_by_dentry(struct sspt_procs *procs,
 		const char *pach, struct dentry *dentry);
-struct file_probes *proc_p_find_file_p(struct sspt_procs *procs, struct vm_area_struct *vma);
+struct sspt_file *proc_p_find_file_p(struct sspt_procs *procs, struct vm_area_struct *vma);
 
 #endif /* __PROC_PROBES__ */
