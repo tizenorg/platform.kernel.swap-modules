@@ -15,31 +15,31 @@ struct sspt_page {
 	struct hlist_node hlist; // for file_probes
 };
 
-struct sspt_page *page_p_new(unsigned long offset);
-struct sspt_page *page_p_copy(const struct sspt_page *page);
-void page_p_del(struct sspt_page *page);
+struct sspt_page *sspt_page_create(unsigned long offset);
+struct sspt_page *sspt_page_copy(const struct sspt_page *page);
+void sspt_page_free(struct sspt_page *page);
 
-void page_p_add_ip(struct sspt_page *page, struct us_ip *ip);
-struct us_ip *page_p_find_ip(struct sspt_page *page, unsigned long offset);
+void sspt_add_ip(struct sspt_page *page, struct us_ip *ip);
+struct us_ip *sspt_find_ip(struct sspt_page *page, unsigned long offset);
 
-static void page_p_assert_install(const struct sspt_page *page)
+static inline void sspt_page_assert_install(const struct sspt_page *page)
 {
 	if (page->install != 0) {
 		panic("already installed page %x\n", page->offset);
 	}
 }
 
-static int page_p_is_install(struct sspt_page *page)
+static inline int sspt_page_is_install(struct sspt_page *page)
 {
 	return page->install;
 }
 
-static void page_p_installed(struct sspt_page *page)
+static inline void sspt_page_installed(struct sspt_page *page)
 {
 	page->install = 1;
 }
 
-static void page_p_uninstalled(struct sspt_page *page)
+static inline void sspt_page_uninstalled(struct sspt_page *page)
 {
 	page->install = 0;
 }

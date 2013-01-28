@@ -49,7 +49,7 @@ void sspt_file_free(struct sspt_file *file)
 		head = &file->page_probes_table[i];
 		hlist_for_each_entry_safe(page, p, n, head, hlist) {
 			hlist_del(&page->hlist);
-			page_p_del(page);
+			sspt_page_free(page);
 		}
 	}
 
@@ -98,7 +98,7 @@ struct sspt_file *sspt_file_copy(const struct sspt_file *file)
 		for (i = 0; i < table_size; ++i) {
 			head = &file->page_probes_table[i];
 			hlist_for_each_entry(page, node, head, hlist) {
-				file_p_add_page_p(file_out, page_p_copy(page));
+				file_p_add_page_p(file_out, sspt_page_copy(page));
 			}
 		}
 	}
@@ -127,7 +127,7 @@ static struct sspt_page *file_p_find_page_p_or_new(struct sspt_file *file, unsig
 	struct sspt_page *page = file_p_find_page_p(file, offset);
 
 	if (page == NULL) {
-		page = page_p_new(offset);
+		page = sspt_page_create(offset);
 		file_p_add_page_p(file, page);
 	}
 
@@ -158,7 +158,7 @@ void sspt_file_add_ip(struct sspt_file *file, struct ip_data *ip_d)
 	// FIXME: delete ip
 	struct us_ip *ip = create_ip_by_ip_data(ip_d);
 
-	page_p_add_ip(page, ip);
+	sspt_add_ip(page, ip);
 }
 
 struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_addr)

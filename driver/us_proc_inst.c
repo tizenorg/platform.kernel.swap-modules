@@ -607,7 +607,7 @@ int install_otg_ip(unsigned long addr,
 
 			struct sspt_file *file = proc_p_find_file_p_by_dentry(procs, name, dentry);
 			struct sspt_page *page = sspt_get_page(file, offset_addr);
-			struct us_ip *ip = page_p_find_ip(page, offset_addr & ~PAGE_MASK);
+			struct us_ip *ip = sspt_find_ip(page, offset_addr & ~PAGE_MASK);
 
 			if (!file->loaded) {
 				set_mapping_file(file, procs, task, vma);
@@ -620,13 +620,13 @@ int install_otg_ip(unsigned long addr,
 
 				/* if addr mapping, that probe install, else it be installed in do_page_fault handler */
 				if (page_present(mm, addr)) {
-					ip = page_p_find_ip(page, offset_addr & ~PAGE_MASK);
+					ip = sspt_find_ip(page, offset_addr & ~PAGE_MASK);
 					set_ip_kp_addr(ip, page, file);
 
 					// TODO: error
 					ret = register_usprobe_my(task, ip);
 					if (ret == 0) {
-						page_p_installed(page);
+						sspt_page_installed(page);
 					} else {
 						printk("ERROR install_otg_ip: ret=%d\n", ret);
 					}
@@ -1042,14 +1042,14 @@ static int register_us_page_probe(struct sspt_page *page,
 
 	spin_lock(&page->lock);
 
-	if (page_p_is_install(page)) {
+	if (sspt_page_is_install(page)) {
 		printk("page %x in %s task[tgid=%u, pid=%u] already installed\n",
 				page->offset, file->dentry->d_iname, task->tgid, task->pid);
 		print_vma(task->mm);
 		return 0;
 	}
 
-	page_p_assert_install(page);
+	sspt_page_assert_install(page);
 	page_p_set_all_kp_addr(page, file);
 
 	list_for_each_entry(ip, &page->ip_list, list) {
@@ -1060,7 +1060,7 @@ static int register_us_page_probe(struct sspt_page *page,
 		}
 	}
 
-	page_p_installed(page);
+	sspt_page_installed(page);
 
 	spin_unlock(&page->lock);
 
@@ -1074,7 +1074,7 @@ static int unregister_us_page_probe(const struct task_struct *task,
 	struct us_ip *ip;
 
 	spin_lock(&page->lock);
-	if (!page_p_is_install(page)) {
+	if (!sspt_page_is_install(page)) {
 		spin_unlock(&page->lock);
 		return 0;
 	}
@@ -1088,7 +1088,7 @@ static int unregister_us_page_probe(const struct task_struct *task,
 	}
 
 	if (flag != US_DISARM) {
-		page_p_uninstalled(page);
+		sspt_page_uninstalled(page);
 	}
 	spin_unlock(&page->lock);
 

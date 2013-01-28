@@ -3,7 +3,7 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 
-struct sspt_page *page_p_new(unsigned long offset)
+struct sspt_page *sspt_page_create(unsigned long offset)
 {
 	struct sspt_page *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 	if (obj) {
@@ -17,7 +17,7 @@ struct sspt_page *page_p_new(unsigned long offset)
 	return obj;
 }
 
-void page_p_del(struct sspt_page *page)
+void sspt_page_free(struct sspt_page *page)
 {
 	struct us_ip *ip, *n;
 
@@ -29,7 +29,7 @@ void page_p_del(struct sspt_page *page)
 	kfree(page);
 }
 
-struct sspt_page *page_p_copy(const struct sspt_page *page)
+struct sspt_page *sspt_page_copy(const struct sspt_page *page)
 {
 	struct us_ip *ip_in, *ip_out;
 	struct sspt_page *page_out = kmalloc(sizeof(*page_out), GFP_ATOMIC);
@@ -56,14 +56,14 @@ struct sspt_page *page_p_copy(const struct sspt_page *page)
 	return page_out;
 }
 
-void page_p_add_ip(struct sspt_page *page, struct us_ip *ip)
+void sspt_add_ip(struct sspt_page *page, struct us_ip *ip)
 {
 	ip->offset &= ~PAGE_MASK;
 	INIT_LIST_HEAD(&ip->list);
 	list_add(&ip->list, &page->ip_list);
 }
 
-struct us_ip *page_p_find_ip(struct sspt_page *page, unsigned long offset)
+struct us_ip *sspt_find_ip(struct sspt_page *page, unsigned long offset)
 {
 	struct us_ip *ip;
 
