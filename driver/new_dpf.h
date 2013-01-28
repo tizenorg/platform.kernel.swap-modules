@@ -47,7 +47,7 @@ static void print_proc_probes(const struct sspt_procs *procs);
 
 struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 {
-	struct sspt_procs *procs = proc_p_create(task_inst_info->m_f_dentry, 0);
+	struct sspt_procs *procs = sspt_procs_create(task_inst_info->m_f_dentry, 0);
 
 	printk("####### get START #######\n");
 

@@ -537,7 +537,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			goto sad_cleanup;
 		}
 
-		proc_p_free_all();
+		sspt_procs_free_all();
 
 		vfree(bundle);
 		result = 0;

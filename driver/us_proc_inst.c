@@ -139,7 +139,7 @@ struct sspt_procs *get_proc_probes_by_task_or_new(struct task_struct *task)
 {
 	struct sspt_procs *procs = get_proc_probes_by_task(task);
 	if (procs == NULL) {
-		procs = proc_p_copy(us_proc_info.pp, task);
+		procs = sspt_procs_copy(us_proc_info.pp, task);
 		add_proc_probes(task, procs);
 	}
 
@@ -1117,7 +1117,7 @@ static void install_page_probes(unsigned long page_addr, struct task_struct *tas
 
 	vma = find_vma(mm, page_addr);
 	if (vma && check_vma(vma)) {
-		struct sspt_file *file = proc_p_find_file_p(procs, vma);
+		struct sspt_file *file = sspt_procs_find_file(procs, vma);
 		if (file) {
 			struct page_probes *page;
 			if (!file->loaded) {
@@ -1162,7 +1162,7 @@ static void install_proc_probes(struct task_struct *task, struct sspt_procs *pro
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (check_vma(vma)) {
-			struct sspt_file *file = proc_p_find_file_p(procs, vma);
+			struct sspt_file *file = sspt_procs_find_file(procs, vma);
 			if (file) {
 				if (!file->loaded) {
 					set_mapping_file(file, procs, task, vma);
@@ -1396,7 +1396,7 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 		struct sspt_file *file;
 		unsigned long end = start + len;
 
-		file = proc_p_find_file_p(procs, vma);
+		file = sspt_procs_find_file(procs, vma);
 		if (file) {
 			if (vma->vm_start == start || vma->vm_end == end) {
 				unregister_us_file_probes(task, file, US_NOT_RP2);

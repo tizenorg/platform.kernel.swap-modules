@@ -4,7 +4,7 @@
 
 extern struct list_head proc_probes_list;
 
-struct sspt_procs *proc_p_create(struct dentry* dentry, pid_t tgid)
+struct sspt_procs *sspt_procs_create(struct dentry* dentry, pid_t tgid)
 {
 	struct sspt_procs *procs = kmalloc(sizeof(*procs), GFP_ATOMIC);
 
@@ -18,7 +18,7 @@ struct sspt_procs *proc_p_create(struct dentry* dentry, pid_t tgid)
 	return procs;
 }
 
-void proc_p_free(struct sspt_procs *procs)
+void sspt_procs_free(struct sspt_procs *procs)
 {
 	struct sspt_file *file, *n;
 	list_for_each_entry_safe(file, n, &procs->file_list, list) {
@@ -33,23 +33,23 @@ void proc_p_free(struct sspt_procs *procs)
 #include "../storage.h"
 extern inst_us_proc_t us_proc_info;
 
-void proc_p_free_all(void)
+void sspt_procs_free_all(void)
 {
 	if (strcmp(us_proc_info.path,"*") == 0) {
 		// app
-		proc_p_free(us_proc_info.pp);
+		sspt_procs_free(us_proc_info.pp);
 		us_proc_info.pp = NULL;
 	} else {
 		// libonly
 		struct sspt_procs *procs, *n;
 		list_for_each_entry_safe(procs, n, &proc_probes_list, list) {
 			list_del(&procs->list);
-			proc_p_free(procs);
+			sspt_procs_free(procs);
 		}
 	}
 }
 
-static void proc_p_add_file_p(struct sspt_procs *procs, struct sspt_file *file)
+static void sspt_procs_add_file(struct sspt_procs *procs, struct sspt_file *file)
 {
 	list_add(&file->list, &procs->file_list);
 }
@@ -66,7 +66,7 @@ struct sspt_file *proc_p_find_file_p_by_dentry(struct sspt_procs *procs,
 	}
 
 	file = file_p_new(pach, dentry, 10);
-	proc_p_add_file_p(procs, file);
+	sspt_procs_add_file(procs, file);
 
 	return file;
 }
@@ -82,19 +82,19 @@ void proc_p_add_dentry_probes(struct sspt_procs *procs, const char *pach,
 	}
 }
 
-struct sspt_procs *proc_p_copy(struct sspt_procs *procs, struct task_struct *task)
+struct sspt_procs *sspt_procs_copy(struct sspt_procs *procs, struct task_struct *task)
 {
 	struct sspt_file *file;
-	struct sspt_procs *procs_out = proc_p_create(procs->dentry, task->tgid);
+	struct sspt_procs *procs_out = sspt_procs_create(procs->dentry, task->tgid);
 
 	list_for_each_entry(file, &procs->file_list, list) {
-		proc_p_add_file_p(procs_out, file_p_copy(file));
+		sspt_procs_add_file(procs_out, file_p_copy(file));
 	}
 
 	return procs_out;
 }
 
-struct sspt_file *proc_p_find_file_p(struct sspt_procs *procs, struct vm_area_struct *vma)
+struct sspt_file *sspt_procs_find_file(struct sspt_procs *procs, struct vm_area_struct *vma)
 {
 	struct sspt_file *file;
 
