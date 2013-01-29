@@ -1,3 +1,27 @@
+/*
+ *  Dynamic Binary Instrumentation Module based on KProbes
+ *  modules/driver/sspt/sspt_page.c
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ * Copyright (C) Samsung Electronics, 2013
+ *
+ * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *
+ */
+
 #include "sspt_page.h"
 #include "sspt_file.h"
 #include "ip.h"
@@ -84,7 +108,5 @@ void sspt_set_all_ip_addr(struct sspt_page *page, const struct sspt_file *file)
 	list_for_each_entry(ip, &page->ip_list, list) {
 		addr = file->vm_start + page->offset + ip->offset;
 		ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
-//		printk("###       pp_set_all_kp_addr: start=%x, page_offset=%x, ip_offset=%x, addr=%x\n",
-//				file_p->vm_start, page_p->offset, ip->offset, addr);
 	}
 }
