@@ -36,13 +36,13 @@ static int calculation_hash_bits(int cnt)
 	return bits;
 }
 
-struct sspt_file *sspt_file_create(const char *path, struct dentry *dentry, int page_cnt)
+struct sspt_file *sspt_file_create(const char *name, struct dentry *dentry, int page_cnt)
 {
 	struct sspt_file *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 
 	if (obj) {
 		int i, table_size;
-		obj->path = path;
+		obj->name = name;
 		obj->dentry = dentry;
 		obj->loaded = 0;
 		obj->vm_start = 0;
@@ -102,7 +102,7 @@ struct sspt_file *sspt_file_copy(const struct sspt_file *file)
 		int i, table_size;
 		INIT_LIST_HEAD(&file_out->list);
 		file_out->dentry = file->dentry;
-		file_out->path = file->path;
+		file_out->name = file->name;
 		file_out->loaded = 0;
 		file_out->vm_start = 0;
 		file_out->vm_end = 0;
@@ -164,7 +164,7 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long pa
 	if (file->vm_start > page || file->vm_end < page) {
 		// TODO: or panic?!
 		printk("ERROR: file_p[vm_start..vm_end] <> page: file_p[vm_start=%x, vm_end=%x, path=%s, d_iname=%s] page=%x\n",
-				file->vm_start, file->vm_end, file->path, file->dentry->d_iname, page);
+				file->vm_start, file->vm_end, file->name, file->dentry->d_iname, page);
 		return NULL;
 	}
 

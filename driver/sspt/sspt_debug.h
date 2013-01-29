@@ -70,7 +70,7 @@ static void print_file_probes(const struct sspt_file *file)
 	const char *name = (file->dentry) ? file->dentry->d_iname : NA;
 
 	printk("### print_file_probes: path=%s, d_iname=%s, table_size=%d, vm_start=%x\n",
-			file->path, name, table_size, file->vm_start);
+			file->name, name, table_size, file->vm_start);
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];

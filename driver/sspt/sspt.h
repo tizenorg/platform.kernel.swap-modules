@@ -51,7 +51,9 @@ struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 			int k, j;
 			us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
 			struct dentry *dentry = p_libs->m_f_dentry;
-			const char *pach = p_libs->path;
+			const char *path = p_libs->path;
+			char *name = strrchr(path, '/');
+			name = name ? ++name : path;
 
 			for (k = 0; k < p_libs->ips_count; ++k) {
 				struct ip_data pd;
@@ -72,7 +74,7 @@ struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 				pd.jp_handler = ip->jprobe.entry;
 				pd.rp_handler = ip->retprobe.handler;
 
-				proc_p_add_dentry_probes(procs, pach, dentry, &pd, 1);
+				proc_p_add_dentry_probes(procs, name, dentry, &pd, 1);
 			}
 		}
 	}

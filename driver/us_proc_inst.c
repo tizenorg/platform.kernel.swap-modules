@@ -1014,20 +1014,12 @@ static void set_mapping_file(struct sspt_file *file,
 		const struct vm_area_struct *vma)
 {
 	int app_flag = (vma->vm_file->f_dentry == procs->dentry);
-	char *p;
-	// if we installed something, post library info for those IPs
-	p = strrchr(file->path, '/');
-	if(!p) {
-		p = file->path;
-	} else {
-		p++;
-	}
 
 	file->vm_start = vma->vm_start;
 	file->vm_end = vma->vm_end;
 
 	pack_event_info(DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
-			task->tgid, p, vma->vm_start,
+			task->tgid, file->name, vma->vm_start,
 			vma->vm_end - vma->vm_start, app_flag);
 }
 
