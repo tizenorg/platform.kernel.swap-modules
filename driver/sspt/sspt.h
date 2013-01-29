@@ -74,7 +74,7 @@ struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 				pd.jp_handler = ip->jprobe.entry;
 				pd.rp_handler = ip->retprobe.handler;
 
-				proc_p_add_dentry_probes(procs, name, dentry, &pd, 1);
+				sspt_procs_add_ip_data(procs, dentry, name, &pd);
 			}
 		}
 	}

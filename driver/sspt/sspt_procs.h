@@ -41,10 +41,10 @@ struct sspt_procs *sspt_procs_copy(struct sspt_procs *procs, struct task_struct 
 void sspt_procs_free(struct sspt_procs *procs);
 void sspt_procs_free_all(void);
 
-void proc_p_add_dentry_probes(struct sspt_procs *procs, const char *name,
-		struct dentry* dentry, struct ip_data *ip_d, int cnt);
+void sspt_procs_add_ip_data(struct sspt_procs *procs, struct dentry* dentry,
+		const char *name, struct ip_data *ip_d);
+struct sspt_file *sspt_procs_find_file(struct sspt_procs *procs, struct dentry *dentry);
 struct sspt_file *sspt_procs_find_file_or_new(struct sspt_procs *procs,
 		struct dentry *dentry, const char *name);
-struct sspt_file *sspt_procs_find_file(struct sspt_procs *procs, struct dentry *dentry);
 
 #endif /* __SSPT_PROC__ */

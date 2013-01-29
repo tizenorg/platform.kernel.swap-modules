@@ -95,15 +95,11 @@ struct sspt_file *sspt_procs_find_file_or_new(struct sspt_procs *procs,
 	return file;
 }
 
-void proc_p_add_dentry_probes(struct sspt_procs *procs, const char *name,
-		struct dentry* dentry, struct ip_data *ip_d, int cnt)
+void sspt_procs_add_ip_data(struct sspt_procs *procs, struct dentry* dentry,
+		const char *name, struct ip_data *ip_d)
 {
-	int i;
 	struct sspt_file *file = sspt_procs_find_file_or_new(procs, dentry, name);
-
-	for (i = 0; i < cnt; ++i) {
-		sspt_file_add_ip(file, &ip_d[i]);
-	}
+	sspt_file_add_ip(file, ip_d);
 }
 
 struct sspt_procs *sspt_procs_copy(struct sspt_procs *procs, struct task_struct *task)
