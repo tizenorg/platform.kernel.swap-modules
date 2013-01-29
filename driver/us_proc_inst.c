@@ -21,7 +21,7 @@
 #include "../kprobe/dbi_kprobes_deps.h"
 #include "../kprobe/dbi_uprobes.h"
 
-#include "new_dpf.h"
+#include "sspt/sspt.h"
 
 #define mm_read_lock(task, mm, atomic, lock) 			\
 	mm = atomic ? task->active_mm : get_task_mm(task); 	\
@@ -621,7 +621,7 @@ int install_otg_ip(unsigned long addr,
 				/* if addr mapping, that probe install, else it be installed in do_page_fault handler */
 				if (page_present(mm, addr)) {
 					ip = sspt_find_ip(page, offset_addr & ~PAGE_MASK);
-					set_ip_kp_addr(ip, page, file);
+					sspt_set_ip_addr(ip, page, file);
 
 					// TODO: error
 					ret = register_usprobe_my(task, ip);
@@ -1050,7 +1050,7 @@ static int register_us_page_probe(struct sspt_page *page,
 	}
 
 	sspt_page_assert_install(page);
-	page_p_set_all_kp_addr(page, file);
+	sspt_set_all_ip_addr(page, file);
 
 	list_for_each_entry(ip, &page->ip_list, list) {
 		err = register_usprobe_my(task, ip);

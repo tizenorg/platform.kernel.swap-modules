@@ -1,4 +1,6 @@
 #include "ip.h"
+#include "sspt_page.h"
+#include "sspt_file.h"
 
 struct us_ip *create_ip(unsigned long offset)
 {
@@ -65,4 +67,10 @@ struct us_ip *create_ip_by_ip_data(struct ip_data *ip_d)
 	set_ip_got_addr(ip, ip_d->got_addr);
 
 	return ip;
+}
+
+void sspt_set_ip_addr(struct us_ip *ip, const struct sspt_page *page, const struct sspt_file *file)
+{
+	unsigned long addr = file->vm_start + page->offset + ip->offset;
+	ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
 }

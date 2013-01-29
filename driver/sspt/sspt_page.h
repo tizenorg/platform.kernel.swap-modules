@@ -5,6 +5,7 @@
 #include <linux/spinlock.h>
 
 struct us_ip;
+struct sspt_file;
 
 struct sspt_page {
 	struct list_head ip_list;
@@ -43,5 +44,7 @@ static inline void sspt_page_uninstalled(struct sspt_page *page)
 {
 	page->install = 0;
 }
+
+void sspt_set_all_ip_addr(struct sspt_page *page, const struct sspt_file *file);
 
 #endif /* __PAGE_PROBES__ */

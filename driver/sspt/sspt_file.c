@@ -175,4 +175,3 @@ void sspt_put_page(struct sspt_page *page)
 {
 	spin_unlock(&page->lock);
 }
-

@@ -1,4 +1,5 @@
 #include "sspt_page.h"
+#include "sspt_file.h"
 #include "ip.h"
 #include <linux/slab.h>
 #include <linux/list.h>
@@ -75,3 +76,15 @@ struct us_ip *sspt_find_ip(struct sspt_page *page, unsigned long offset)
 	return NULL;
 }
 
+void sspt_set_all_ip_addr(struct sspt_page *page, const struct sspt_file *file)
+{
+	struct us_ip *ip;
+	unsigned long addr;
+
+	list_for_each_entry(ip, &page->ip_list, list) {
+		addr = file->vm_start + page->offset + ip->offset;
+		ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
+//		printk("###       pp_set_all_kp_addr: start=%x, page_offset=%x, ip_offset=%x, addr=%x\n",
+//				file_p->vm_start, page_p->offset, ip->offset, addr);
+	}
+}
