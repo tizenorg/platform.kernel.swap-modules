@@ -36,16 +36,16 @@
 
 #ifdef CONFIG_KALLSYMS
 
-static int swap_get_ksyms(void)
+static inline int swap_get_ksyms(void)
 {
 	return 0;
 }
 
-static void swap_put_ksyms(void)
+static inline void swap_put_ksyms(void)
 {
 }
 
-static unsigned long swap_ksyms(const char *name)
+static inline unsigned long swap_ksyms(const char *name)
 {
 	return kallsyms_lookup_name(name);
 }
