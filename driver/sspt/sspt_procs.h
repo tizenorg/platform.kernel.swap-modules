@@ -1,5 +1,5 @@
-#ifndef __PROC_PROBES__
-#define __PROC_PROBES__
+#ifndef __SSPT_PROC__
+#define __SSPT_PROC__
 
 #include <linux/types.h>
 #include "sspt_file.h"
@@ -23,4 +23,4 @@ struct sspt_file *proc_p_find_file_p_by_dentry(struct sspt_procs *procs,
 		const char *pach, struct dentry *dentry);
 struct sspt_file *sspt_procs_find_file(struct sspt_procs *procs, struct vm_area_struct *vma);
 
-#endif /* __PROC_PROBES__ */
+#endif /* __SSPT_PROC__ */

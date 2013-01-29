@@ -1,5 +1,5 @@
-#ifndef __PAGE_PROBES__
-#define __PAGE_PROBES__
+#ifndef __SSPT_PAGE__
+#define __SSPT_PAGE__
 
 #include <linux/types.h>
 #include <linux/spinlock.h>
@@ -47,4 +47,4 @@ static inline void sspt_page_uninstalled(struct sspt_page *page)
 
 void sspt_set_all_ip_addr(struct sspt_page *page, const struct sspt_file *file);
 
-#endif /* __PAGE_PROBES__ */
+#endif /* __SSPT_PAGE__ */

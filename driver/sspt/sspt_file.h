@@ -1,5 +1,5 @@
-#ifndef __FILE_PROBES__
-#define __FILE_PROBES__
+#ifndef __SSPT_FILE__
+#define __SSPT_FILE__
 
 #include "ip.h"
 #include <linux/types.h>
@@ -28,4 +28,4 @@ void sspt_file_add_ip(struct sspt_file *file, struct ip_data *ip_d);
 struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_addr);
 void sspt_put_page(struct sspt_page *page);
 
-#endif /* __FILE_PROBES__ */
+#endif /* __SSPT_FILE__ */
