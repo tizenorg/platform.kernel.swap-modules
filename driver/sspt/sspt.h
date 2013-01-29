@@ -79,7 +79,7 @@ struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 		}
 	}
 
-	print_proc_probes(procs);
+//	print_proc_probes(procs);
 
 	printk("####### get  END  #######\n");
 
