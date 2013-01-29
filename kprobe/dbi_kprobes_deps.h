@@ -23,9 +23,8 @@
  *
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
-
  */
 
 #include <linux/version.h>	// LINUX_VERSION_CODE, KERNEL_VERSION()
@@ -33,6 +32,7 @@
 #include <linux/mempolicy.h>
 #include <linux/highmem.h>
 #include <linux/pagemap.h>
+#include <ksyms.h>
 
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12))
@@ -58,7 +58,7 @@
 
 #define INIT_MOD_DEP_VAR(dep, name) \
 { \
-	__ref_##dep = (void *) kallsyms_search (#name); \
+	__ref_##dep = (void *) swap_ksyms (#name); \
 	if (!__ref_##dep) \
 	{ \
 		DBPRINTF (#name " is not found! Oops. Where is it?"); \
@@ -68,7 +68,7 @@
 
 #define INIT_MOD_DEP_CB(dep, name) \
 { \
-	dep = (void *) kallsyms_search (#name); \
+	dep = (void *) swap_ksyms (#name); \
 	if (!dep) \
 	{ \
 		DBPRINTF (#name " is not found! Oops. Where is it?"); \

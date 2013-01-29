@@ -56,7 +56,7 @@
 #include "dbi_kprobes_deps.h"
 #include "dbi_insn_slots.h"
 #include "dbi_uprobes.h"
-
+#include <ksyms.h>
 
 #include <linux/version.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
@@ -73,8 +73,6 @@
 extern unsigned long sched_addr;
 extern unsigned long fork_addr;
 extern struct hlist_head kprobe_insn_pages;
-
-extern unsigned long (*kallsyms_search) (const char *name);
 
 DEFINE_PER_CPU (struct kprobe *, current_kprobe) = NULL;
 DEFINE_PER_CPU (struct kprobe_ctlblk, kprobe_ctlblk);
@@ -468,7 +466,7 @@ int dbi_register_kprobe (struct kprobe *p)
     {
         if (p->addr)
             return -EINVAL;
-        p->addr = (kprobe_opcode_t *)kallsyms_search (p->symbol_name);
+        p->addr = (kprobe_opcode_t *)swap_ksyms(p->symbol_name);
     }
 
     if (!p->addr)

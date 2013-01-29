@@ -8,7 +8,7 @@
 //      SEE ALSO:       module.h
 //      AUTHOR:         L.Komkov, A.Gerenkov
 //      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group 
+//      DEPT NAME:      Advanced Software Group
 //      CREATED:        2008.02.15
 //      VERSION:        1.0
 //      REVISION DATE:  2008.12.03
@@ -64,10 +64,6 @@ void (*flush_cache_page) (struct vm_area_struct * vma, unsigned long page);
 
 static int __init InitializeModule(void)
 {
-	if(lookup_name == NULL) {
-		EPRINTF("fp_kallsyms_lookup_name parameter undefined!");
-		return -1;
-	}
 	if(device_name == NULL) {
 		EPRINTF("Using default device name!");
 		device_name = gl_szDefaultDeviceName;
@@ -77,7 +73,7 @@ static int __init InitializeModule(void)
 		device_major = DEFAULT_DEVICE_MAJOR;
 	}
 
-	__real_put_task_struct = (void *) lookup_name (SWAPDRV_PUT_TASK_STRUCT);
+	__real_put_task_struct = (void *)swap_ksyms(SWAPDRV_PUT_TASK_STRUCT);
 	if (!__real_put_task_struct)
 	{
 		EPRINTF (SWAPDRV_PUT_TASK_STRUCT " is not found! Oops. Where is it?");
@@ -85,7 +81,7 @@ static int __init InitializeModule(void)
 	}
 
 #if defined(CONFIG_MIPS)
-	flush_cache_page = (void *) lookup_name ("r4k_flush_cache_page");
+	flush_cache_page = (void *)swap_ksyms("r4k_flush_cache_page");
 	if (!flush_cache_page)
 	{
 		EPRINTF ("failed to resolve 'flush_cache_page'!\n");
