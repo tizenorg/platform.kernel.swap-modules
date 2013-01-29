@@ -6,6 +6,10 @@ if DEBUG
 debug_opt = -D__DEBUG
 endif
 
+if SPARSE
+sparse_output = C=2
+endif
+
 if ANDROID
 android_opt = -D__ANDROID
 android = yes
@@ -34,7 +38,7 @@ cross_compiler = $(subst gcc,,$(CC))
 
 all-local:
 	cp $(top_srcdir)/src/modules/kprobe/Module.symvers $(driver_module_dir)
-	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) memchecker=$(memchecker) android_opt=$(android_opt) slp_opt=$(slp_opt) android_app_opt=$(android_app_opt) board_opt=$(board_opt) debug_opt=$(debug_opt) $(AM_MAKEFLAGS) -C $(target_kernel_src) M=$(driver_module_dir) modules
+	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) memchecker=$(memchecker) android_opt=$(android_opt) slp_opt=$(slp_opt) android_app_opt=$(android_app_opt) board_opt=$(board_opt) debug_opt=$(debug_opt) $(AM_MAKEFLAGS) -C $(target_kernel_src) $(sparse_output) M=$(driver_module_dir) modules
 
 	echo "generate data for version patching <$(OBJDUMP)><$(READELF)>"
 	$(top_srcdir)/src/modules/driver/patchko.sh -g $(driver_module_dir)/$(module_name).ko $(OBJDUMP) $(READELF)
