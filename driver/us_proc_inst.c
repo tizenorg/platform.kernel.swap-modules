@@ -1117,7 +1117,8 @@ static void install_page_probes(unsigned long page_addr, struct task_struct *tas
 
 	vma = find_vma(mm, page_addr);
 	if (vma && check_vma(vma)) {
-		struct sspt_file *file = sspt_procs_find_file(procs, vma);
+		struct dentry *dentry = vma->vm_file->f_dentry;
+		struct sspt_file *file = sspt_procs_find_file(procs, dentry);
 		if (file) {
 			struct page_probes *page;
 			if (!file->loaded) {
@@ -1162,7 +1163,8 @@ static void install_proc_probes(struct task_struct *task, struct sspt_procs *pro
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (check_vma(vma)) {
-			struct sspt_file *file = sspt_procs_find_file(procs, vma);
+			struct dentry *dentry = vma->vm_file->f_dentry;
+			struct sspt_file *file = sspt_procs_find_file(procs, dentry);
 			if (file) {
 				if (!file->loaded) {
 					set_mapping_file(file, procs, task, vma);
@@ -1395,8 +1397,9 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 	if (vma && check_vma(vma)) {
 		struct sspt_file *file;
 		unsigned long end = start + len;
+		struct dentry *dentry = vma->vm_file->f_dentry;
 
-		file = sspt_procs_find_file(procs, vma);
+		file = sspt_procs_find_file(procs, dentry);
 		if (file) {
 			if (vma->vm_start == start || vma->vm_end == end) {
 				unregister_us_file_probes(task, file, US_NOT_RP2);

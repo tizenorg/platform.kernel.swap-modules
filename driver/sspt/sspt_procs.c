@@ -118,12 +118,12 @@ struct sspt_procs *sspt_procs_copy(struct sspt_procs *procs, struct task_struct 
 	return procs_out;
 }
 
-struct sspt_file *sspt_procs_find_file(struct sspt_procs *procs, struct vm_area_struct *vma)
+struct sspt_file *sspt_procs_find_file(struct sspt_procs *procs, struct dentry *dentry)
 {
 	struct sspt_file *file;
 
 	list_for_each_entry(file, &procs->file_list, list) {
-		if (vma->vm_file->f_dentry == file->dentry) {
+		if (dentry == file->dentry) {
 			return file;
 		}
 	}
