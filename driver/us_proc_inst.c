@@ -605,7 +605,7 @@ int install_otg_ip(unsigned long addr,
 					.flag_retprobe = 1
 			};
 
-			struct sspt_file *file = proc_p_find_file_p_by_dentry(procs, name, dentry);
+			struct sspt_file *file = sspt_procs_find_file_or_new(procs, dentry, name);
 			struct sspt_page *page = sspt_get_page(file, offset_addr);
 			struct us_ip *ip = sspt_find_ip(page, offset_addr & ~PAGE_MASK);
 
@@ -615,7 +615,8 @@ int install_otg_ip(unsigned long addr,
 			}
 
 			if (ip == NULL) {
-				struct sspt_file *file = proc_p_find_file_p_by_dentry(procs, name, dentry);
+				// TODO: sspt_procs_find_file_or_new --> sspt_procs_find_file ?!
+				struct sspt_file *file = sspt_procs_find_file_or_new(procs, dentry, name);
 				sspt_file_add_ip(file, &pd);
 
 				/* if addr mapping, that probe install, else it be installed in do_page_fault handler */

@@ -43,8 +43,8 @@ void sspt_procs_free_all(void);
 
 void proc_p_add_dentry_probes(struct sspt_procs *procs, const char *name,
 		struct dentry* dentry, struct ip_data *ip_d, int cnt);
-struct sspt_file *proc_p_find_file_p_by_dentry(struct sspt_procs *procs,
-		const char *name, struct dentry *dentry);
+struct sspt_file *sspt_procs_find_file_or_new(struct sspt_procs *procs,
+		struct dentry *dentry, const char *name);
 struct sspt_file *sspt_procs_find_file(struct sspt_procs *procs, struct dentry *dentry);
 
 #endif /* __SSPT_PROC__ */

@@ -78,8 +78,8 @@ static void sspt_procs_add_file(struct sspt_procs *procs, struct sspt_file *file
 	list_add(&file->list, &procs->file_list);
 }
 
-struct sspt_file *proc_p_find_file_p_by_dentry(struct sspt_procs *procs,
-		const char *name, struct dentry *dentry)
+struct sspt_file *sspt_procs_find_file_or_new(struct sspt_procs *procs,
+		struct dentry *dentry, const char *name)
 {
 	struct sspt_file *file;
 
@@ -99,7 +99,7 @@ void proc_p_add_dentry_probes(struct sspt_procs *procs, const char *name,
 		struct dentry* dentry, struct ip_data *ip_d, int cnt)
 {
 	int i;
-	struct sspt_file *file = proc_p_find_file_p_by_dentry(procs, name, dentry);
+	struct sspt_file *file = sspt_procs_find_file_or_new(procs, dentry, name);
 
 	for (i = 0; i < cnt; ++i) {
 		sspt_file_add_ip(file, &ip_d[i]);
