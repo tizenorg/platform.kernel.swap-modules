@@ -22,6 +22,7 @@
 #define __US_PROC_INST_H__
 
 #include <linux/signal.h>	// struct sigpending
+#include "sspt/ip.h"
 
 /* Instruments or schedules pending instrumentation of user space process. */
 extern int inst_usr_space_proc (void);
