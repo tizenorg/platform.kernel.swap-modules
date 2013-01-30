@@ -22,6 +22,7 @@
 #include "../kprobe/dbi_uprobes.h"
 
 #include "sspt/sspt.h"
+#include "java_inst.h"
 
 #define mm_read_lock(task, mm, atomic, lock) 			\
 	mm = atomic ? task->active_mm : get_task_mm(task); 	\
@@ -79,15 +80,6 @@ unsigned long android_app_vma_start = 0;
 unsigned long android_app_vma_end = 0;
 struct dentry *app_process_dentry = NULL;
 #endif /* ANDROID_APP */
-
-#ifdef __ANDROID
-struct dentry *libdvm_dentry = NULL;
-/* Defines below are for libdvm.so with md5sum:
- * 5941c87b49198368e7db726c2977bf1d */
-#define LIBDVM_ENTRY 0x30a64
-#define LIBDVM_RETURN 0x30bdc
-#endif /* __ANDROID */
-
 
 
 #define print_event(fmt, args...) 						\
@@ -192,30 +184,6 @@ static int is_android_app_with_dentry(struct vm_area_struct *vma,
 	return 0;
 }
 #endif /* ANDROID_APP */
-
-#ifdef __ANDROID
-void find_libdvm_for_task(struct task_struct *task, inst_us_proc_t *info)
-{
-	struct vm_area_struct *vma = NULL;
-	struct mm_struct *mm = NULL;
-
-	mm = get_task_mm(task);
-	if (mm) {
-		vma = mm->mmap;
-		while (vma) {
-			if (vma->vm_file) {
-				if (vma->vm_file->f_dentry == libdvm_dentry) {
-					info->libdvm_start = vma->vm_start;
-					info->libdvm_end = vma->vm_end;
-					break;
-				}
-			}
-			vma = vma->vm_next;
-		}
-		mmput(mm);
-	}
-}
-#endif /* __ANDROID */
 
 struct dentry *dentry_by_path(const char *path)
 {
@@ -518,53 +486,7 @@ static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_in
 				}
 			}
 		}
-#ifdef __ANDROID
-		if (is_java_inst_enabled()
-		    && vma->vm_file->f_dentry == libdvm_dentry) {
-			us_proc_ip_t *entp = &task_inst_info->libdvm_entry_ip;
-			if (!entp->installed
-			    && task_inst_info->libdvm_start) {
-				unsigned long addr = LIBDVM_ENTRY + task_inst_info->libdvm_start;
-				if (page_present(mm, addr)) {
-					entp->jprobe.kp.tgid = task->tgid;
-					entp->jprobe.pre_entry = ujprobe_event_pre_handler;
-					entp->jprobe.entry = ujprobe_event_handler;
-					entp->jprobe.priv_arg = entp;
-					entp->jprobe.kp.addr = addr;
-					entp->retprobe.kp.tgid = task->tgid;
-					entp->retprobe.handler = uretprobe_event_handler;
-					entp->retprobe.priv_arg = entp;
-					entp->retprobe.kp.addr = addr;
-					err = register_usprobe(task, mm, entp, atomic, 0);
-					if (err != 0) {
-						DPRINTF("failed to install IP at %p", addr);
-					}
-				}
-				entp->installed = 1;
-			}
-			us_proc_ip_t *retp = &task_inst_info->libdvm_return_ip;
-			if (!retp->installed
-			    && task_inst_info->libdvm_start) {
-				unsigned long addr = LIBDVM_RETURN + task_inst_info->libdvm_start;
-				if (page_present(mm, addr)) {
-					retp->jprobe.kp.tgid = task->tgid;
-					retp->jprobe.pre_entry = ujprobe_event_pre_handler;
-					retp->jprobe.entry = ujprobe_event_handler;
-					retp->jprobe.priv_arg = retp;
-					retp->jprobe.kp.addr = addr;
-					retp->retprobe.kp.tgid = task->tgid;
-					retp->retprobe.handler = uretprobe_event_handler;
-					retp->retprobe.priv_arg = retp;
-					retp->retprobe.kp.addr = addr;
-					err = register_usprobe(task, mm, retp, atomic, 0);
-					if (err != 0) {
-						DPRINTF("failed to install IP at %p", addr);
-					}
-				}
-				retp->installed = 1;
-			}
-		}
-#endif /* __ANDROID */
+
 		vma = vma->vm_next;
 	}
 
@@ -675,20 +597,6 @@ static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task
 		}
 		task_inst_info->p_libs[i].loaded = 0;
 	}
-#ifdef __ANDROID
-	if (is_java_inst_enabled()) {
-		us_proc_ip_t *entp = &task_inst_info->libdvm_entry_ip;
-		if (entp->installed) {
-			unregister_usprobe(task, entp, atomic);
-			entp->installed = 0;
-		}
-		us_proc_ip_t *retp = &task_inst_info->libdvm_return_ip;
-		if (retp->installed) {
-			unregister_usprobe(task, retp, atomic);
-			retp->installed = 0;
-		}
-	}
-#endif /* __ANDROID */
 
 	DPRINTF ("Ures IPs  %d.", task_inst_info->unres_ips_count);
 	DPRINTF ("Ures VTPs %d.", task_inst_info->unres_vtps_count);
@@ -879,20 +787,6 @@ int inst_usr_space_proc (void)
 	android_app_vma_end = 0;
 #endif /* ANDROID_APP */
 
-#ifdef __ANDROID
-	if (is_java_inst_enabled()) {
-		libdvm_dentry = dentry_by_path("/system/lib/libdvm.so");
-		if (libdvm_dentry == NULL) {
-			return -EINVAL;
-		}
-
-		memset(&us_proc_info.libdvm_entry_ip, 0, sizeof(us_proc_ip_t));
-		memset(&us_proc_info.libdvm_return_ip, 0, sizeof(us_proc_ip_t));
-		us_proc_info.libdvm_start = 0;
-		us_proc_info.libdvm_end = 0;
-	}
-#endif /* __ANDROID */
-
 	for (i = 0; i < us_proc_info.libs_count; i++) {
 		us_proc_info.p_libs[i].loaded = 0;
 	}
@@ -918,11 +812,6 @@ int inst_usr_space_proc (void)
 
 			procs = get_proc_probes_by_task_or_new(task);
 			DPRINTF("trying process");
-#ifdef __ANDROID
-			if (is_java_inst_enabled()) {
-				find_libdvm_for_task(task, task_inst_info);
-			}
-#endif /* __ANDROID */
 			install_proc_probes(task, procs, 1);
 			//put_task_struct (task);
 		}
@@ -934,11 +823,6 @@ int inst_usr_space_proc (void)
 		{
 			DPRINTF("task found. installing probes");
 			us_proc_info.tgid = task->pid;
-#ifdef __ANDROID
-			if (is_java_inst_enabled()) {
-				find_libdvm_for_task(task, &us_proc_info);
-			}
-#endif /* __ANDROID */
 			install_proc_probes(task, us_proc_info.pp, 0);
 			put_task_struct (task);
 		}
@@ -1324,12 +1208,6 @@ void do_page_fault_ret_pre_code (void)
 	if (procs) {
 		unsigned long page = addr & PAGE_MASK;
 
-#ifdef __ANDROID
-		if (is_java_inst_enabled()) {
-			find_libdvm_for_task(task, &us_proc_info);
-		}
-#endif /* __ANDROID */
-
 		// overhead
 		do_gettimeofday(&imi_tv1);
 		install_page_probes(page, task, procs, 1);
@@ -1516,60 +1394,14 @@ unsigned long ujprobe_event_pre_handler(struct us_ip *ip, struct pt_regs *regs)
 	return 0;
 }
 
-#ifdef __ANDROID
-int handle_java_event(unsigned long addr)
-{
-	unsigned long start = 0;
-	struct pt_regs *regs = __get_cpu_var(gpUserRegs);
-
-	if (is_libonly()) {
-		/* TODO: some stuff here */
-	} else {
-		start = us_proc_info.libdvm_start;
-	}
-	unsigned long end = us_proc_info.libdvm_end;
-
-	if (addr == start + LIBDVM_ENTRY) {
-		unsigned long *p_met = (unsigned long *)regs->ARM_r0;
-		char *met_name = p_met ? (char *)(p_met[4]) : 0;
-		unsigned long *p_cl = p_met ? (unsigned long *)p_met[0] : 0;
-		char *cl_name = p_cl ? (char *)(p_cl[6]) : 0;
-		if (!cl_name || !met_name) {
-			EPRINTF("warn: class name or method name null\n");
-		} else {
-			pack_event_info(JAVA_PROBE_ID, RECORD_ENTRY, "pss", addr, cl_name, met_name);
-		}
-		dbi_uprobe_return ();
-		return 1;
-	}
-
-	if (addr == start + LIBDVM_RETURN) {
-		unsigned long *p_th = (unsigned long *)regs->ARM_r6;
-		unsigned long *p_st = p_th;
-		unsigned long *p_met = p_st ? (unsigned long *)p_st[2] : 0;
-		char *met_name = p_met ? (char *)(p_met[4]) : 0;
-		unsigned long *p_cl = p_met ? (unsigned long *)p_met[0] : 0;
-		char *cl_name = p_cl ? (char *)(p_cl[6]) : 0;
-		if (!cl_name || !met_name) {
-			EPRINTF("warn: class name or method name null\n");
-		} else {
-			pack_event_info(JAVA_PROBE_ID, RECORD_RET, "pss", addr, cl_name, met_name);
-		}
-		dbi_uprobe_return ();
-		return 1;
-	}
-
-	return 0;
-}
-#endif /* __ANDROID */
-
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6)
 {
 	struct us_ip *ip = __get_cpu_var(gpCurIp);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 
 #ifdef __ANDROID
-	if (is_java_inst_enabled() && handle_java_event(addr)) {
+	struct pt_regs *regs = __get_cpu_var(gpUserRegs);
+	if (is_java_inst_enabled() && handle_java_event(regs)) {
 		return;
 	}
 #endif /* __ANDROID */

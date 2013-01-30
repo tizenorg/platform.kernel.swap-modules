@@ -212,12 +212,6 @@ typedef struct
 	int is_plt;
 	unsigned libs_count;
 	us_proc_lib_t *p_libs;
-#ifdef __ANDROID
-	unsigned long libdvm_start;
-	unsigned long libdvm_end;
-	us_proc_ip_t libdvm_entry_ip;
-	us_proc_ip_t libdvm_return_ip;
-#endif /* __ANDROID */
 
 	// new_dpf
 	struct sspt_procs *pp;
