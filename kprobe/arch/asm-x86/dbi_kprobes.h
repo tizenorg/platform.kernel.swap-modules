@@ -141,21 +141,17 @@ static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
 		int max_cnt)
 {
 	int i = 0;
+	struct pt_regs *regs;
 
 	struct {
 		unsigned long next;
 		unsigned long raddr;
 	} frame;
 
-	struct pt_regs *regs = task_pt_regs(task);
 
-	/* no frame pointer */
-	if (regs->EREG(bp) == 0)
-		return -EFAULT;
-
+	regs = task_pt_regs(task);
 	frame.next = regs->EREG(bp);
 	frame.raddr = dbi_get_ret_addr(regs);
-	buf[i++] = frame.raddr;
 
 	while (frame.next && i < max_cnt) {
 		if (read_proc_vm_atomic(task, frame.next, &frame, sizeof(frame))
