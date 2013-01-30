@@ -62,6 +62,10 @@ void __put_task_struct(struct task_struct *tsk)
 void (*flush_cache_page) (struct vm_area_struct * vma, unsigned long page);
 #endif
 
+#include "../../tools/gpmu/probes/entry_data.h"
+
+storage_arg_t sa_dpf;
+
 static int __init InitializeModule(void)
 {
 	if(device_name == NULL) {
@@ -101,11 +105,14 @@ static int __init InitializeModule(void)
 	INIT_LIST_HEAD(&cond_list.list);
 
 	DPRINTF ("is successfully initialized.");
+
+	swap_init_storage_arg(&sa_dpf);
 	return 0;
 }
 
 static void __exit UninitializeModule (void)
 {
+	swap_uninit_storage_arg(&sa_dpf);
 	ec_user_stop ();
 	device_down ();
 	probes_manager_down ();

@@ -194,6 +194,20 @@ struct kretprobe
 	struct hlist_head used_instances;
 };
 
+static void retprobe_init(struct kretprobe *rp, kretprobe_handler_t handler)
+{
+	memset(rp, 0, sizeof(*rp));
+	rp->handler = handler;
+}
+
+static struct kretprobe *retprobe_create(kretprobe_handler_t handler)
+{
+	struct kretprobe *rp = kmalloc(sizeof(rp), GFP_ATOMIC);
+	retprobe_init(rp, handler);
+
+	return rp;
+}
+
 struct kretprobe_instance
 {
 	// either on free list or used list

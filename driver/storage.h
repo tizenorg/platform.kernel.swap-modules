@@ -138,8 +138,6 @@ extern int dbi_unregister_handlers_module(struct dbi_modules_handlers_info *dbi_
 /* list of on-the-go installed kernel probes */
 extern struct hlist_head otg_kernel_probes;
 
-extern struct list_head otg_us_proc_info;
-
 // event mask
 extern int event_mask;
 
@@ -148,19 +146,17 @@ extern unsigned int inst_pid;
 
 typedef struct
 {
+	struct list_head list;
 	char *name;
 	int installed;
 	struct jprobe jprobe;
 	struct kretprobe retprobe;
 	unsigned long offset;
-} us_proc_ip_t;
+	unsigned long got_addr;
 
-typedef struct
-{
-	us_proc_ip_t ip;
-	pid_t tgid;
-	struct list_head list;
-} us_proc_otg_ip_t;
+	unsigned flag_retprobe:1;
+	unsigned flag_got:1;
+} us_proc_ip_t;
 
 typedef struct
 {
@@ -212,17 +208,13 @@ typedef struct
 	pid_t tgid;
 	unsigned unres_ips_count;
 	unsigned unres_vtps_count;
-	unsigned unres_otg_ips_count;
 	//kprobe_opcode_t *mapped_codelets;
 	int is_plt;
 	unsigned libs_count;
 	us_proc_lib_t *p_libs;
-#ifdef __ANDROID
-	unsigned long libdvm_start;
-	unsigned long libdvm_end;
-	us_proc_ip_t libdvm_entry_ip;
-	us_proc_ip_t libdvm_return_ip;
-#endif /* __ANDROID */
+
+	// new_dpf
+	struct sspt_procs *pp;
 } inst_us_proc_t;
 
 typedef struct

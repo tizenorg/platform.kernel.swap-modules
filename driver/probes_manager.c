@@ -414,6 +414,8 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 
 	if (pf_probe == probe)
 	{
+		if (us_proc_probes & US_PROC_PF_INSTLD)
+			do_page_fault_j_pre_code(arg1, arg2, arg3);
 #ifdef CONFIG_X86
 		/* FIXME on x86 targets do_page_fault instrumentation may lead to
 		 * abnormal termination of some applications (in most cases GUI apps).

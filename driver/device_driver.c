@@ -8,7 +8,7 @@
 //      SEE ALSO:       device_driver.h
 //      AUTHOR:         L.Komkov, S.Dianov, S.Grekhov, A.Gerenkov
 //      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group 
+//      DEPT NAME:      Advanced Software Group
 //      CREATED:        2008.02.15
 //      VERSION:        1.0
 //      REVISION DATE:  2008.12.03
@@ -19,11 +19,17 @@
 #include "device_driver.h"	// device driver
 #include "handlers_core.h"
 #include <linux/notifier.h>
+#include "sspt/sspt_procs.h"
 
 #ifdef OVERHEAD_DEBUG
 extern unsigned long swap_sum_time;
 extern unsigned long swap_sum_hit;
 #endif
+
+
+extern unsigned long imi_sum_time;
+extern unsigned long imi_sum_hit;
+
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 static BLOCKING_NOTIFIER_HEAD(swap_notifier_list);
@@ -160,20 +166,20 @@ static int device_open(struct inode *inode, struct file *file)
 	try_module_get(THIS_MODULE);
 	return 0;
 }
- 
+
 static int device_release(struct inode *inode, struct file *file)
 {
 	gl_nDeviceOpened--;
 	module_put(THIS_MODULE);
 	return 0;
 }
- 
+
 static ssize_t device_read(struct file *filp, char *buffer, size_t length, loff_t * offset)
 {
 	EPRINTF("Operation <<read>> not supported!");
 	return -1;
 }
- 
+
 static ssize_t device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
 {
 	EPRINTF("Operation <<write>> not supported!");
@@ -506,6 +512,17 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		swap_sum_time = 0;
 		swap_sum_hit = 0;
 #endif
+
+		printk("\n### imi_sum_time = %ld in install_mapped_ips()\n", imi_sum_time);
+		printk("### imi_sum_hit = %ld in install_mapped_ips()\n", imi_sum_hit);
+
+		if (imi_sum_hit != 0) {
+			printk("### time = %ld in install_mapped_ips()\n", imi_sum_time/imi_sum_hit);
+		}
+
+		imi_sum_time = 0;
+		imi_sum_hit = 0;
+
 		local_mh = get_dbi_modules_handlers();
 		if(ec_user_stop() != 0) {
 			result = -1;
@@ -516,6 +533,9 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			result = -1;
 			goto sad_cleanup;
 		}
+
+		sspt_procs_free_all();
+
 		vfree(bundle);
 		result = 0;
 		DPRINTF("Stop and Detach Probes");
@@ -610,13 +630,13 @@ sad_cleanup:
 			{
 				if(ioctl_args.len == 0){
 					result = -EINVAL;
-					EPRINTF ("invalid event length!");					
+					EPRINTF ("invalid event length!");
 				}
 				else {
 					char *buf = kmalloc(ioctl_args.len, GFP_KERNEL);
 					if(!buf){
 						result = -ENOMEM;
-						EPRINTF ("failed to alloc mem for event!");					
+						EPRINTF ("failed to alloc mem for event!");
 					}
 					else {
 						result = copy_from_user (buf, (void *) ioctl_args.data, ioctl_args.len);
@@ -633,7 +653,7 @@ sad_cleanup:
 //			DPRINTF("User Space Event"); // Frequent call
 			break;
 		}
-		
+
 	case EC_IOCTL_SET_EVENT_MASK:
 		{
 			int mask;
@@ -672,6 +692,9 @@ sad_cleanup:
 
 	case EC_IOCTL_SET_PREDEF_UPROBES:
 		{
+			result = -1;
+			break;
+
 			ioctl_predef_uprobes_info_t data;
 			result = copy_from_user (&data, (void *) arg, sizeof (data));
 			if (result)
@@ -688,9 +711,12 @@ sad_cleanup:
 			DPRINTF("Set Predefined User Space Probes");
 			break;
 		}
-		
+
 	case EC_IOCTL_GET_PREDEF_UPROBES:
 		{
+//			result = 0;
+//			break;
+
 			result = get_predef_uprobes((ioctl_predef_uprobes_info_t *)arg);
 			if (result)
 			{
@@ -699,7 +725,7 @@ sad_cleanup:
 			DPRINTF("Get Predefined User Space Probes");
 			break;
 		}
-		
+
 	case EC_IOCTL_GET_PREDEF_UPROBES_SIZE:
 		{
 			int size = 0;
@@ -716,7 +742,7 @@ sad_cleanup:
 			DPRINTF("Get Size of Predefined User Space Probes");
 			break;
 		}
-	
+
 	default:
 		EPRINTF ("Unknown driver command = %u", cmd);
 		result = -EINVAL;

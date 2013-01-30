@@ -28,6 +28,7 @@ extern int inst_usr_space_proc (void);
 extern int deinst_usr_space_proc (void);
 
 /* Detects when IPs are really loaded into phy mem and installs probes. */
+extern void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_regs *regs);
 extern void do_page_fault_ret_pre_code (void);
 
 /* Detects when target process exits. */
@@ -57,6 +58,7 @@ enum {
 struct task_struct;
 struct pt_regs;
 struct us_proc_ip_t;
+struct us_ip;
 
 /* Returns stack_size */
 extern unsigned long get_stack_size(struct task_struct *task,
@@ -75,7 +77,7 @@ extern int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 		void *addr, struct pt_regs *regs, unsigned long sz);
 
 /* Gets current function return address */
-extern unsigned long get_ret_addr(struct task_struct *task, us_proc_ip_t *ip);
+extern unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip);
 
 #define user_backtrace(size) \
 	do { \

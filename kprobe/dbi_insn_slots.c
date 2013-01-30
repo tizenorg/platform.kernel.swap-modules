@@ -189,7 +189,7 @@ static void *page_new(struct task_struct *task, int atomic)
 	if (task) {
 		return (void *)alloc_user_pages(task, PAGE_SIZE,
 				PROT_EXEC|PROT_READ|PROT_WRITE,
-				MAP_ANONYMOUS|MAP_SHARED, atomic);
+				MAP_ANONYMOUS|MAP_PRIVATE/*MAP_SHARED*/, atomic);
 	} else {
 		return kmalloc(PAGE_SIZE, GFP_ATOMIC);
 	}
