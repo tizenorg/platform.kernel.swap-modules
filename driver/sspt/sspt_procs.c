@@ -59,6 +59,11 @@ extern inst_us_proc_t us_proc_info;
 
 void sspt_procs_free_all(void)
 {
+	// is user-space instrumentation
+	if (us_proc_info.path == NULL) {
+		return;
+	}
+
 	if (strcmp(us_proc_info.path,"*") == 0) {
 		// app
 		sspt_procs_free(us_proc_info.pp);
