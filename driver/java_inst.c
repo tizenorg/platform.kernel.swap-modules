@@ -34,6 +34,7 @@
 #include "storage.h"
 #include "debug.h"
 #include "sspt/ip.h"
+#include "sspt/sspt_procs.h"
 
 struct dentry *libdvm_dentry = NULL;
 
@@ -71,6 +72,8 @@ void add_java_inst(struct sspt_procs *procs)
 
 	sspt_procs_add_ip_data(procs, dentry, name, &ipd_return);
 }
+
+extern void dbi_uprobe_return(void);
 
 static inline int pre_handle_java_event(unsigned long start, unsigned long addr, struct pt_regs *regs)
 {
