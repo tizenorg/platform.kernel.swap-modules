@@ -45,6 +45,28 @@ struct mm_struct init_mm;
 #endif
 
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36)
+static inline void *dbi_kmap_atomic(struct page *page)
+{
+	return kmap_atomic(page);
+}
+static inline void dbi_kunmap_atomic(void *kvaddr)
+{
+	kunmap_atomic(kvaddr);
+}
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36) */
+static inline void *dbi_kmap_atomic(struct page *page)
+{
+	return kmap_atomic(page, KM_USER0);
+}
+
+static inline void dbi_kunmap_atomic(void *kvaddr)
+{
+	kunmap_atomic(kvaddr, KM_USER0);
+}
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36) */
+
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 DECLARE_MOD_FUNC_DEP(do_mmap_pgoff, unsigned long, struct file *file, unsigned long addr, unsigned long len, unsigned long prot, unsigned long flags, unsigned long pgoff);
 DECLARE_MOD_DEP_WRAPPER(do_mmap_pgoff, unsigned long, struct file *file, unsigned long addr, unsigned long len, unsigned long prot, unsigned long flags, unsigned long pgoff)
@@ -105,6 +127,9 @@ DECLARE_MOD_FUNC_DEP(__flush_anon_page, \
 DECLARE_MOD_FUNC_DEP(vm_normal_page, \
 		struct page *, struct vm_area_struct *vma, \
 		unsigned long addr, pte_t pte);
+DECLARE_MOD_FUNC_DEP(flush_ptrace_access, \
+		void, struct vm_area_struct *vma, struct page *page, \
+		unsigned long uaddr, void *kaddr, unsigned long len, int write);
 
 
 #if (LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 16))
@@ -197,6 +222,11 @@ IMP_MOD_DEP_WRAPPER (__flush_anon_page, vma, page, vmaddr)
 			unsigned long addr, pte_t pte)
 IMP_MOD_DEP_WRAPPER (vm_normal_page, vma, addr, pte)
 
+DECLARE_MOD_DEP_WRAPPER(flush_ptrace_access, \
+	void, struct vm_area_struct *vma, struct page *page, \
+	unsigned long uaddr, void *kaddr, unsigned long len, int write)
+IMP_MOD_DEP_WRAPPER(flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
+
 
 int init_module_dependencies()
 {
@@ -216,6 +246,7 @@ int init_module_dependencies()
 
 	INIT_MOD_DEP_VAR(find_extend_vma, find_extend_vma);
 	INIT_MOD_DEP_VAR(get_gate_vma, get_gate_vma);
+	INIT_MOD_DEP_VAR(flush_ptrace_access, flush_ptrace_access);
 
 #ifdef CONFIG_HUGETLB_PAGE
 	INIT_MOD_DEP_VAR(follow_hugetlb_page, follow_hugetlb_page);
@@ -843,7 +874,7 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 			if (bytes > PAGE_SIZE-offset)
 				bytes = PAGE_SIZE-offset;
 
-			maddr = kmap_atomic(page);
+			maddr = dbi_kmap_atomic(page);
 
 			if (write) {
 				copy_to_user_page(vma, page, addr,
@@ -854,7 +885,7 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 						    buf, maddr + offset, bytes);
 			}
 
-			kunmap_atomic(maddr);
+			dbi_kunmap_atomic(maddr);
 			page_cache_release(page);
 		}
 		len -= bytes;
