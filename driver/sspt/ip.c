@@ -73,7 +73,7 @@ struct us_ip *copy_ip(const struct us_ip *ip)
 
 	// retprobe
 	if (ip->flag_retprobe) {
-		retprobe_init(&new_ip->retprobe, ip->retprobe.handler);
+		set_ip_rp_handler(new_ip, ip->retprobe.handler);
 	}
 
 	return new_ip;
