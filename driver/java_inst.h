@@ -29,18 +29,9 @@ struct pt_regs;
 struct sspt_procs;
 
 #ifdef __ANDROID
-
-extern struct dentry *libdvm_dentry;
-/* Defines below are for libdvm.so with md5sum:
- * 5941c87b49198368e7db726c2977bf1d */
-#define LIBDVM_ENTRY 0x30a64
-#define LIBDVM_RETURN 0x30bdc
-
 void add_java_inst(struct sspt_procs *procs);
 int handle_java_event(struct pt_regs *regs);
-
 #else /* __ANDROID */
-
 static inline void add_java_inst(struct sspt_procs *procs)
 {
 }
@@ -49,7 +40,6 @@ static inline int handle_java_event(struct pt_regs *regs)
 {
 	return 0;
 }
-
 #endif /* __ANDROID */
 
 #endif /* __JAVA_INST__ */

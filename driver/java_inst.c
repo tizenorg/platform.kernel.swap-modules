@@ -36,6 +36,12 @@
 #include "sspt/ip.h"
 #include "sspt/sspt_procs.h"
 
+
+/* Defines below are for libdvm.so with md5sum:
+ * 5941c87b49198368e7db726c2977bf1d */
+#define LIBDVM_ENTRY  0x30a64
+#define LIBDVM_RETURN 0x30bdc
+
 struct dentry *libdvm_dentry = NULL;
 
 struct dentry *dentry_by_path(const char *path);
