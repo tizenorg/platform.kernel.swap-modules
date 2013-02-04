@@ -1197,6 +1197,9 @@ void do_page_fault_ret_pre_code (void)
 			pid_t tgid = find_proc_by_task(task, us_proc_info.m_f_dentry);
 			if (tgid) {
 				us_proc_info.tgid = gl_nNotifyTgid = tgid;
+
+				/* install probes in already mapped memory */
+				install_proc_probes(task, us_proc_info.pp, 1);
 			}
 		}
 
