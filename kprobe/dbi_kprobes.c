@@ -849,8 +849,12 @@ static void unpatch_suspended_task_ret_addr(struct task_struct *p, struct kretpr
 	{
 		ri = find_ri_pc_mod(p, rp);
 		if(ri) {
+			unsigned long flags;
 			rm_task_trampoline(p, ri);
+
+			spin_lock_irqsave(&kretprobe_lock, flags);
 			recycle_rp_inst(ri);
+			spin_unlock_irqrestore(&kretprobe_lock, flags);
 		}
 	}
 }
