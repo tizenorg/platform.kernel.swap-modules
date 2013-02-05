@@ -152,14 +152,15 @@ static char *PackArguments (char *pBuffer, unsigned long nLen, const char *szFor
 			}
 #ifdef __KERNEL__
 			if((void *)s < (void *)TASK_SIZE) {
-				nLengthOfString = strlen_user (s);
+				const char __user *S = (const char __user *) va_arg (args, const char *);
+				nLengthOfString = strlen_user (S);
 				if(nFree < nLengthOfString)
 					return NULL; // no space for arg
 				if(strncpy_from_user(pResult,
-						     s,
+						     S,
 						     nLengthOfString) != (nLengthOfString-1)) {
 					EPRINTF("failed to copy string from user %p, bytes %d",
-						s, nLengthOfString);
+						S, nLengthOfString);
 				}
 			}
 			else
@@ -189,9 +190,10 @@ static char *PackArguments (char *pBuffer, unsigned long nLen, const char *szFor
 				pResult += sizeof (int);
 				p = va_arg (args, void *);
 #ifdef __KERNEL__
-				if(p < (void *)TASK_SIZE) {
-					if(copy_from_user(pResult, p, nLength)!= 0)
-						EPRINTF ("failed to copy array from user %p, bytes %d", p, nLength);
+				if((void *)p < (void *)TASK_SIZE) {
+					const void __user *P = (void __user *) va_arg(args, void*);
+					if(copy_from_user(pResult, P, nLength)!= 0)
+						EPRINTF ("failed to copy array from user %p, bytes %d", P, nLength);
 				}
 				else
 #endif
