@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 opt=$1
 patch_file=$2
 output_file=$3
@@ -74,11 +74,11 @@ if [ -f "$patch_file" ]; then
             else
                 error "Error on patching <${patch_file}>:data file <$data_file> NEW KEY TOO LONG"
                 error "CHECK YOUR KERNEL USED ON COMPILE SWAP IF YOU READ IT"
-                exit -2
+                exit 254
             fi
         else
             error "Error on patching <${patch_file}>:data file <$data_file> not found"
-            exit -1
+            exit 255
         fi
     else
     #if[ "$opt" != "-p" ];then
