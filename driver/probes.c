@@ -58,7 +58,7 @@ const char *ec_probe_name[] = {
 };
 
 //TODO: the same function should be used from utils.cpp
-int name2index (unsigned *p_index, unsigned count, const char **names, const char *name)
+static int name2index (unsigned *p_index, unsigned count, const char **names, const char *name)
 {
 	unsigned index;
 	for (index = 0; index < count; ++index) {
