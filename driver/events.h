@@ -62,7 +62,7 @@ static char *PackArguments (char *pBuffer, unsigned long nLen, const char *szFor
 	nLengthOfDescriptor = strlen (szFormat) + 1;
 	nSizeOfDescriptor = ALIGN_VALUE(nLengthOfDescriptor);
 	if(nFree < nSizeOfDescriptor)
-		return NULL; // no space for descriptor	
+		return NULL; // no space for descriptor
 	memcpy (pResult, szFormat, nLengthOfDescriptor);
 	pResult += nSizeOfDescriptor;
 	nFree -= nSizeOfDescriptor;
@@ -152,15 +152,15 @@ static char *PackArguments (char *pBuffer, unsigned long nLen, const char *szFor
 			}
 #ifdef __KERNEL__
 			if((void *)s < (void *)TASK_SIZE) {
-				const char __user *S = (const char __user *) va_arg (args, const char *);
-				nLengthOfString = strlen_user (S);
+				const char __user *user_s = (const char __user *)s;
+				nLengthOfString = strlen_user(user_s);
 				if(nFree < nLengthOfString)
 					return NULL; // no space for arg
 				if(strncpy_from_user(pResult,
-						     S,
+						     user_s,
 						     nLengthOfString) != (nLengthOfString-1)) {
 					EPRINTF("failed to copy string from user %p, bytes %d",
-						S, nLengthOfString);
+						user_s, nLengthOfString);
 				}
 			}
 			else
@@ -209,8 +209,8 @@ static char *PackArguments (char *pBuffer, unsigned long nLen, const char *szFor
 	return pResult;
 }
 
-static UNUSED TYPEOF_EVENT_LENGTH VPackEvent(char *buf, unsigned long buf_len, int mask, TYPEOF_PROBE_ID probe_id, 
-				TYPEOF_EVENT_TYPE record_type, TYPEOF_TIME *tv, TYPEOF_PROCESS_ID pid, 
+static UNUSED TYPEOF_EVENT_LENGTH VPackEvent(char *buf, unsigned long buf_len, int mask, TYPEOF_PROBE_ID probe_id,
+				TYPEOF_EVENT_TYPE record_type, TYPEOF_TIME *tv, TYPEOF_PROCESS_ID pid,
 				TYPEOF_THREAD_ID tid, TYPEOF_CPU_NUMBER cpu, const char *fmt, va_list args)
 {
 	char *cur = buf;
@@ -218,7 +218,7 @@ static UNUSED TYPEOF_EVENT_LENGTH VPackEvent(char *buf, unsigned long buf_len, i
 
 	if(buf_len < sizeof(SWAP_TYPE_EVENT_HEADER))
 		return 0; // no space for header
-	
+
 	pEventHeader->m_nLength = 0;
 	cur += sizeof(TYPEOF_EVENT_LENGTH);
 	pEventHeader->m_nType = record_type;
@@ -227,22 +227,22 @@ static UNUSED TYPEOF_EVENT_LENGTH VPackEvent(char *buf, unsigned long buf_len, i
 	cur += sizeof(TYPEOF_PROBE_ID);
 	//pEventHeader->m_time.tv_sec = tv->tv_sec;
 	//pEventHeader->m_time.tv_usec = tv->tv_usec;
-	if((probe_id == EVENT_FMT_PROBE_ID) || !(mask & IOCTL_EMASK_TIME)){		
+	if((probe_id == EVENT_FMT_PROBE_ID) || !(mask & IOCTL_EMASK_TIME)){
 		memcpy(cur, tv, sizeof(TYPEOF_TIME));
 		cur += sizeof(TYPEOF_TIME);
 	}
 	//pEventHeader->m_nProcessID = pid;
-	if((probe_id == EVENT_FMT_PROBE_ID) || !(mask & IOCTL_EMASK_PID)){		
+	if((probe_id == EVENT_FMT_PROBE_ID) || !(mask & IOCTL_EMASK_PID)){
 		(*(TYPEOF_PROCESS_ID *)cur) = pid;
 		cur += sizeof(TYPEOF_PROCESS_ID);
 	}
 	//pEventHeader->m_nThreadID = tid;
-	if((probe_id == EVENT_FMT_PROBE_ID) || !(mask & IOCTL_EMASK_TID)){		
+	if((probe_id == EVENT_FMT_PROBE_ID) || !(mask & IOCTL_EMASK_TID)){
 		(*(TYPEOF_THREAD_ID *)cur) = tid;
 		cur += sizeof(TYPEOF_THREAD_ID);
 	}
 	//pEventHeader->m_nCPU = cpu;
-	if((probe_id == EVENT_FMT_PROBE_ID) || !(mask & IOCTL_EMASK_CPU)){		
+	if((probe_id == EVENT_FMT_PROBE_ID) || !(mask & IOCTL_EMASK_CPU)){
 		(*(TYPEOF_CPU_NUMBER *)cur) = cpu;
 		cur += sizeof(TYPEOF_CPU_NUMBER);
 	}
@@ -255,22 +255,22 @@ static UNUSED TYPEOF_EVENT_LENGTH VPackEvent(char *buf, unsigned long buf_len, i
 	}
 	else {
 		// user space and dynamic kernel probes should have at least one argument
-		// to identify them 
+		// to identify them
 		if((probe_id == US_PROBE_ID) || (probe_id == VTP_PROBE_ID) || (probe_id == KS_PROBE_ID)){
 			char fmt2[2];
 			(*(TYPEOF_NUMBER_OF_ARGS *)cur) = 1;
 			cur += sizeof(TYPEOF_NUMBER_OF_ARGS);
 			// pack args using format string for the 1st arg only
-			fmt2[0] = fmt[0]; fmt2[1] = '\0';			
+			fmt2[0] = fmt[0]; fmt2[1] = '\0';
 			cur = PackArguments(cur, buf_len-(cur-buf), fmt2, args);
-			if(!cur) return 0; // no space for args			
+			if(!cur) return 0; // no space for args
 		}
 		else {
 			(*(TYPEOF_NUMBER_OF_ARGS *)cur) = 0;
 			cur += sizeof(TYPEOF_NUMBER_OF_ARGS);
 		}
 	}
-	
+
 	pEventHeader->m_nLength = cur - buf + sizeof(TYPEOF_EVENT_LENGTH);
 	if(buf_len < pEventHeader->m_nLength)
 		return 0;// no space for back length
@@ -280,17 +280,17 @@ static UNUSED TYPEOF_EVENT_LENGTH VPackEvent(char *buf, unsigned long buf_len, i
 	return pEventHeader->m_nLength;
 }
 
-/*static TYPEOF_EVENT_LENGTH PackEvent(char *buf, unsigned long buf_len, TYPEOF_PROBE_ID probe_id, 
-				TYPEOF_EVENT_TYPE record_type, TYPEOF_TIME *tv, TYPEOF_PROCESS_ID pid, 
+/*static TYPEOF_EVENT_LENGTH PackEvent(char *buf, unsigned long buf_len, TYPEOF_PROBE_ID probe_id,
+				TYPEOF_EVENT_TYPE record_type, TYPEOF_TIME *tv, TYPEOF_PROCESS_ID pid,
 				TYPEOF_THREAD_ID tid, TYPEOF_CPU_NUMBER cpu, const char *fmt, ...)
 {
 	va_list args;
 	TYPEOF_EVENT_LENGTH len;
-	
+
 	va_start (args, fmt);
 	len = VPackEvent(buf, buf_len, probe_id, record_type, tv, pid, tid, cpu, fmt, args);
 	va_end (args);
-	
+
 	return len;
 }*/
 
