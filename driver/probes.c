@@ -56,17 +56,3 @@ const char *ec_probe_name[] = {
 	"rq_profile",
 	"pid_rq_profile"
 };
-
-//TODO: the same function should be used from utils.cpp
-static int name2index (unsigned *p_index, unsigned count, const char **names, const char *name)
-{
-	unsigned index;
-	for (index = 0; index < count; ++index) {
-		if (!strcmp (names[index], name)) {
-			*p_index = index;
-			return 0;
-		}
-	}
-	return -EINVAL;
-}
-
