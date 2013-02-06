@@ -212,6 +212,17 @@ struct dentry *dentry_by_path(const char *path)
 	return dentry;
 }
 
+static int check_vma(struct vm_area_struct *vma)
+{
+#ifndef __ANDROID
+	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
+			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
+			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
+#else // __ANDROID
+	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC));
+#endif // __ANDROID
+}
+
 static int find_task_by_path (const char *path, struct task_struct **p_task, struct list_head *tids)
 {
 	int found = 0;
@@ -240,7 +251,7 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 			continue;
 		vma = mm->mmap;
 		while (vma) {
-			if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file) {
+			if (check_vma(vma)) {
 				if (vma->vm_file->f_dentry == dentry) {
 					if (!*p_task) {
 						*p_task = task;
@@ -972,18 +983,6 @@ static int unregister_us_page_probe(const struct task_struct *task,
 	return err;
 }
 
-static int check_vma(struct vm_area_struct *vma)
-{
-#ifndef __ANDROID
-	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
-			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
-			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
-#else // __ANDROID
-	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC));
-#endif // __ANDROID
-}
-
-
 static void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs, int atomic)
 {
 	int lock;
@@ -1127,7 +1126,7 @@ static pid_t find_proc_by_task(const struct task_struct *task, const struct dent
 	}
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file) {
+		if (check_vma(vma)) {
 			if (vma->vm_file->f_dentry == dentry) {
 				return task->tgid;
 			}
