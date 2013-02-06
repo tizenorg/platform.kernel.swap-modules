@@ -34,3 +34,7 @@ extern char *bundle;
 extern struct dbi_modules_handlers *get_dbi_modules_handlers(void);
 
 #endif /* !defined(device_driver_h) */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
+void swap_register_notify (struct notifier_block *nb);
+void swap_unregister_notify (struct notifier_block *nb);
+#endif
