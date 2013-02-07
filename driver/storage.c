@@ -26,6 +26,7 @@
 #include "storage.h"
 #include "handlers_core.h"
 #include "CProfile.h"
+#include "sspt/sspt.h"
 
 #define after_buffer ec_info.buffer_size
 
@@ -608,7 +609,6 @@ void unlink_bundle(void)
 	us_proc_info.tgid = 0;
 }
 
-struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info);
 void print_inst_us_proc(const inst_us_proc_t *task_inst_info);
 
 extern struct dentry *dentry_by_path(const char *path);
