@@ -17,7 +17,7 @@
 
 #include "module.h"
 
-char gl_szDefaultDeviceName[128] = DEFAULT_DEVICE_NAME;
+static char gl_szDefaultDeviceName[128] = DEFAULT_DEVICE_NAME;
 char* device_name = NULL;
 module_param (device_name, charp, 0);
 MODULE_PARM_DESC (device_name, "device name for '/proc/devices'");
@@ -27,7 +27,7 @@ module_param (device_major, uint, 0);
 MODULE_PARM_DESC (device_major, "default device major number");
 
 #if (LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 16))
-void (*__real_put_task_struct) (struct task_struct * tsk);
+static void (*__real_put_task_struct) (struct task_struct * tsk);
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 11))
 #define SWAPDRV_PUT_TASK_STRUCT	"put_task_struct"
 void
