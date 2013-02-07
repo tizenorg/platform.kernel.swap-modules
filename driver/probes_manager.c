@@ -394,7 +394,7 @@ remove_probe (unsigned long addr)
 	return result;
 }
 
-static DEFINE_PER_CPU(kernel_probe_t *, gpKernProbe) = NULL;
+DEFINE_PER_CPU(kernel_probe_t *, gpKernProbe) = NULL;
 
 unsigned long
 def_jprobe_event_pre_handler (kernel_probe_t * probe, struct pt_regs *regs)

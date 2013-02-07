@@ -25,35 +25,36 @@
  *
  */
 
-static void print_jprobe(struct jprobe *jp)
+static inline void print_jprobe(struct jprobe *jp)
 {
-	printk("###         JP: entry=%x, pre_entry=%x\n",
-			jp->entry, jp->pre_entry);
+	printk("###         JP: entry=%lx, pre_entry=%lx\n",
+			(unsigned long)jp->entry, (unsigned long)jp->pre_entry);
 }
 
-static void print_retprobe(struct kretprobe *rp)
+static inline void print_retprobe(struct kretprobe *rp)
 {
-	printk("###         RP: handler=%x\n",
-			rp->handler);
+	printk("###         RP: handler=%lx\n",
+			(unsigned long)rp->handler);
 }
 
-static void print_page_probes(const struct sspt_page *page)
+static inline void print_page_probes(const struct sspt_page *page)
 {
 	int i = 0;
 	struct us_ip *ip;
 
-	printk("###     offset=%x\n", page->offset);
+	printk("###     offset=%lx\n", page->offset);
 	list_for_each_entry(ip, &page->ip_list, list) {
 
-		printk("###       addr[%2d]=%x, J_addr=%x, R_addr=%x\n",
-				i, ip->offset, ip->jprobe.kp.addr, ip->retprobe.kp.addr);
+		printk("###       addr[%2d]=%lx, J_addr=%lx, R_addr=%lx\n",
+				i, (unsigned long)ip->offset, (unsigned long)ip->jprobe.kp.addr,
+				(unsigned long)ip->retprobe.kp.addr);
 		print_jprobe(&ip->jprobe);
 		print_retprobe(&ip->retprobe);
 		++i;
 	}
 }
 
-static void print_file_probes(const struct sspt_file *file)
+static inline void print_file_probes(const struct sspt_file *file)
 {
 	int i;
 	unsigned long table_size;
@@ -71,7 +72,7 @@ static void print_file_probes(const struct sspt_file *file)
 	table_size = (1 << file->page_probes_hash_bits);
 	name = (file->dentry) ? file->dentry->d_iname : NA;
 
-	printk("### print_file_probes: path=%s, d_iname=%s, table_size=%u, vm_start=%x\n",
+	printk("### print_file_probes: path=%s, d_iname=%s, table_size=%lu, vm_start=%lx\n",
 			file->name, name, table_size, file->vm_start);
 
 	for (i = 0; i < table_size; ++i) {
@@ -82,7 +83,7 @@ static void print_file_probes(const struct sspt_file *file)
 	}
 }
 
-static void print_proc_probes(const struct sspt_procs *procs)
+static inline void print_proc_probes(const struct sspt_procs *procs)
 {
 	struct sspt_file *file;
 
@@ -93,7 +94,7 @@ static void print_proc_probes(const struct sspt_procs *procs)
 	printk("### print_proc_probes\n");
 }
 
-static void print_inst_us_proc(const inst_us_proc_t *task_inst_info)
+static inline void print_inst_us_proc(const inst_us_proc_t *task_inst_info)
 {
 	int i;
 	int cnt = task_inst_info->libs_count;
@@ -112,7 +113,7 @@ static void print_inst_us_proc(const inst_us_proc_t *task_inst_info)
 		for (j = 0; j < cnt_j; ++j) {
 			us_proc_ip_t *ips = &lib->p_ips[j];
 			unsigned long offset = ips->offset;
-			printk("###         offset=%x\n", offset);
+			printk("###         offset=%lx\n", offset);
 		}
 	}
 	printk("### BUNDLE PRINT  END  ###\n");

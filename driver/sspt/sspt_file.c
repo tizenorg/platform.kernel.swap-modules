@@ -36,7 +36,7 @@ static int calculation_hash_bits(int cnt)
 	return bits;
 }
 
-struct sspt_file *sspt_file_create(const char *name, struct dentry *dentry, int page_cnt)
+struct sspt_file *sspt_file_create(char *name, struct dentry *dentry, int page_cnt)
 {
 	struct sspt_file *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 
@@ -82,7 +82,8 @@ void sspt_file_free(struct sspt_file *file)
 
 static void sspt_add_page(struct sspt_file *file, struct sspt_page *page)
 {
-	hlist_add_head(&page->hlist, &file->page_probes_table[hash_ptr(page->offset, file->page_probes_hash_bits)]);
+	hlist_add_head(&page->hlist, &file->page_probes_table[hash_ptr((void *)page->offset,
+				file->page_probes_hash_bits)]);
 }
 
 struct sspt_file *sspt_file_copy(const struct sspt_file *file)
@@ -135,7 +136,7 @@ static struct sspt_page *sspt_find_page(struct sspt_file *file, unsigned long of
 	struct hlist_head *head;
 	struct sspt_page *page;
 
-	head = &file->page_probes_table[hash_ptr(offset, file->page_probes_hash_bits)];
+	head = &file->page_probes_table[hash_ptr((void *)offset, file->page_probes_hash_bits)];
 	hlist_for_each_entry(page, node, head, hlist) {
 		if (page->offset == offset) {
 			return page;
@@ -163,7 +164,7 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long pa
 
 	if (file->vm_start > page || file->vm_end < page) {
 		// TODO: or panic?!
-		printk("ERROR: file_p[vm_start..vm_end] <> page: file_p[vm_start=%x, vm_end=%x, path=%s, d_iname=%s] page=%x\n",
+		printk("ERROR: file_p[vm_start..vm_end] <> page: file_p[vm_start=%lx, vm_end=%lx, path=%s, d_iname=%s] page=%lx\n",
 				file->vm_start, file->vm_end, file->name, file->dentry->d_iname, page);
 		return NULL;
 	}

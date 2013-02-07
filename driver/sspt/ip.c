@@ -82,7 +82,7 @@ struct us_ip *copy_ip(const struct us_ip *ip)
 struct us_ip *create_ip_by_ip_data(struct ip_data *ip_d)
 {
 	struct us_ip *ip = create_ip(ip_d->offset);
-	set_ip_jp_handler(ip, ip_d->pre_handler, ip_d->jp_handler);
+	set_ip_jp_handler(ip, ip_d->pre_handler, (void *)ip_d->jp_handler);
 
 	if (ip_d->flag_retprobe) {
 		set_ip_rp_handler(ip, ip_d->rp_handler);
@@ -96,5 +96,5 @@ struct us_ip *create_ip_by_ip_data(struct ip_data *ip_d)
 void sspt_set_ip_addr(struct us_ip *ip, const struct sspt_page *page, const struct sspt_file *file)
 {
 	unsigned long addr = file->vm_start + page->offset + ip->offset;
-	ip->retprobe.kp.addr = ip->jprobe.kp.addr = addr;
+	ip->retprobe.kp.addr = ip->jprobe.kp.addr = (kprobe_opcode_t *)addr;
 }
