@@ -37,7 +37,7 @@
 
 static void print_proc_probes(const struct sspt_procs *procs);
 
-struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
+static struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 {
 	struct sspt_procs *procs = sspt_procs_create(task_inst_info->m_f_dentry, 0);
 
@@ -52,7 +52,7 @@ struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 			int k, j;
 			us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
 			struct dentry *dentry = p_libs->m_f_dentry;
-			const char *path = p_libs->path;
+			char *path = p_libs->path;
 			char *name = strrchr(path, '/');
 			name = name ? ++name : path;
 
@@ -72,7 +72,7 @@ struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 				pd.offset = ip->offset;
 				pd.got_addr = got_addr;
 				pd.pre_handler = ip->jprobe.pre_entry;
-				pd.jp_handler = ip->jprobe.entry;
+				pd.jp_handler = (unsigned long) ip->jprobe.entry;
 				pd.rp_handler = ip->retprobe.handler;
 
 				sspt_procs_add_ip_data(procs, dentry, name, &pd);

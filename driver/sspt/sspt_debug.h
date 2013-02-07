@@ -55,11 +55,13 @@ static void print_page_probes(const struct sspt_page *page)
 
 static void print_file_probes(const struct sspt_file *file)
 {
-	int i, table_size;
+	int i;
+	unsigned long table_size;
 	struct sspt_page *page = NULL;
 	struct hlist_node *node = NULL;
 	struct hlist_head *head = NULL;
-	static const char *NA = "N/A";
+	static unsigned char *NA = "N/A";
+	unsigned char *name;
 
 	if (file == NULL) {
 		printk("### file_p == NULL\n");
@@ -67,9 +69,9 @@ static void print_file_probes(const struct sspt_file *file)
 	}
 
 	table_size = (1 << file->page_probes_hash_bits);
-	const char *name = (file->dentry) ? file->dentry->d_iname : NA;
+	name = (file->dentry) ? file->dentry->d_iname : NA;
 
-	printk("### print_file_probes: path=%s, d_iname=%s, table_size=%d, vm_start=%x\n",
+	printk("### print_file_probes: path=%s, d_iname=%s, table_size=%u, vm_start=%x\n",
 			file->name, name, table_size, file->vm_start);
 
 	for (i = 0; i < table_size; ++i) {
@@ -91,7 +93,7 @@ static void print_proc_probes(const struct sspt_procs *procs)
 	printk("### print_proc_probes\n");
 }
 
-void print_inst_us_proc(const inst_us_proc_t *task_inst_info)
+static void print_inst_us_proc(const inst_us_proc_t *task_inst_info)
 {
 	int i;
 	int cnt = task_inst_info->libs_count;
@@ -108,7 +110,7 @@ void print_inst_us_proc(const inst_us_proc_t *task_inst_info)
 		printk("###     path=%s, cnt_j=%d\n", path, cnt_j);
 
 		for (j = 0; j < cnt_j; ++j) {
-			struct us_ip *ips = &lib->p_ips[j];
+			us_proc_ip_t *ips = &lib->p_ips[j];
 			unsigned long offset = ips->offset;
 			printk("###         offset=%x\n", offset);
 		}
