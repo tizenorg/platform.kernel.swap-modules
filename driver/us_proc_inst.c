@@ -47,9 +47,6 @@
 		mmput(mm);					\
 	}
 
-DEFINE_PER_CPU (us_proc_vtp_t *, gpVtp) = NULL;
-DEFINE_PER_CPU (struct pt_regs *, gpCurVtpRegs) = NULL;
-
 #if defined(CONFIG_MIPS)
 #	define ARCH_REG_VAL(regs, idx)	regs->regs[idx]
 #elif defined(CONFIG_ARM)
@@ -70,10 +67,6 @@ int us_proc_probes;
 
 LIST_HEAD(proc_probes_list);
 
-#ifdef SLP_APP
-struct dentry *launchpad_daemon_dentry = NULL;
-EXPORT_SYMBOL_GPL(launchpad_daemon_dentry);
-#endif /* SLP_APP */
 
 #ifdef ANDROID_APP
 unsigned long android_app_vma_start = 0;
@@ -81,6 +74,10 @@ unsigned long android_app_vma_end = 0;
 struct dentry *app_process_dentry = NULL;
 #endif /* ANDROID_APP */
 
+#ifdef SLP_APP
+static struct dentry *launchpad_daemon_dentry = NULL;
+EXPORT_SYMBOL_GPL(launchpad_daemon_dentry);
+#endif /* SLP_APP */
 
 #define print_event(fmt, args...) 						\
 { 										\
@@ -649,8 +646,6 @@ EXPORT_SYMBOL_GPL(do_page_fault_j_pre_code);
 
 unsigned long imi_sum_time = 0;
 unsigned long imi_sum_hit = 0;
-EXPORT_SYMBOL_GPL (imi_sum_time);
-EXPORT_SYMBOL_GPL (imi_sum_hit);
 
 static void set_mapping_file(struct sspt_file *file,
 		const struct sspt_procs *procs,
@@ -1124,12 +1119,10 @@ void copy_process_ret_pre_code(struct task_struct *p)
 		rm_uprobes_child(p);
 }
 
-
-DEFINE_PER_CPU(struct us_ip *, gpCurIp) = NULL;
+static DEFINE_PER_CPU(struct us_ip *, gpCurIp) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpCurIp);
-DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;
+static DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpUserRegs);
-
 
 unsigned long ujprobe_event_pre_handler(struct us_ip *ip, struct pt_regs *regs)
 {
