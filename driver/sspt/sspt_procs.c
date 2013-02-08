@@ -84,7 +84,7 @@ static void sspt_procs_add_file(struct sspt_procs *procs, struct sspt_file *file
 }
 
 struct sspt_file *sspt_procs_find_file_or_new(struct sspt_procs *procs,
-		struct dentry *dentry, const char *name)
+		struct dentry *dentry, char *name)
 {
 	struct sspt_file *file;
 
@@ -101,7 +101,7 @@ struct sspt_file *sspt_procs_find_file_or_new(struct sspt_procs *procs,
 }
 
 void sspt_procs_add_ip_data(struct sspt_procs *procs, struct dentry* dentry,
-		const char *name, struct ip_data *ip_d)
+		char *name, struct ip_data *ip_d)
 {
 	struct sspt_file *file = sspt_procs_find_file_or_new(procs, dentry, name);
 	sspt_file_add_ip(file, ip_d);

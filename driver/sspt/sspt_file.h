@@ -42,7 +42,7 @@ struct sspt_file {
 };
 
 
-struct sspt_file *sspt_file_create(const char *name, struct dentry *dentry, int page_cnt);
+struct sspt_file *sspt_file_create(char *name, struct dentry *dentry, int page_cnt);
 struct sspt_file *sspt_file_copy(const struct sspt_file *file);
 void sspt_file_free(struct sspt_file *file);
 

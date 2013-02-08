@@ -42,9 +42,9 @@ void sspt_procs_free(struct sspt_procs *procs);
 void sspt_procs_free_all(void);
 
 void sspt_procs_add_ip_data(struct sspt_procs *procs, struct dentry* dentry,
-		const char *name, struct ip_data *ip_d);
+		char *name, struct ip_data *ip_d);
 struct sspt_file *sspt_procs_find_file(struct sspt_procs *procs, struct dentry *dentry);
 struct sspt_file *sspt_procs_find_file_or_new(struct sspt_procs *procs,
-		struct dentry *dentry, const char *name);
+		struct dentry *dentry, char *name);
 
 #endif /* __SSPT_PROC__ */
