@@ -87,4 +87,10 @@ extern unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip);
 		dump_backtrace(US_PROBE_ID, current, ip->jprobe.kp.addr, regs, size); \
 	} while (0)
 
+struct dentry *dentry_by_path(const char *path);
+int install_otg_ip(unsigned long addr,
+			kprobe_pre_entry_handler_t pre_handler,
+			unsigned long jp_handler,
+			kretprobe_handler_t rp_handler);
+
 #endif /* !defined(__US_PROC_INST_H__) */
