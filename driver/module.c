@@ -62,8 +62,6 @@ void __put_task_struct(struct task_struct *tsk)
 void (*flush_cache_page) (struct vm_area_struct * vma, unsigned long page);
 #endif
 
-#include "../../tools/gpmu/probes/entry_data.h"
-
 storage_arg_t sa_dpf;
 
 static int __init InitializeModule(void)
