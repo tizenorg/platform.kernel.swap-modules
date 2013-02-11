@@ -30,6 +30,7 @@
 #include "sspt_file.h"
 #include "sspt_procs.h"
 #include "sspt_debug.h"
+#include "../us_proc_inst.h"
 
 
 #include "../storage.h"
@@ -96,15 +97,12 @@ enum US_FLAGS {
 	US_DISARM
 };
 
-static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
-static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int no_rp2);
-
-static int register_usprobe_my(struct task_struct *task, struct us_ip *ip)
+static inline int register_usprobe_my(struct task_struct *task, struct us_ip *ip)
 {
 	return register_usprobe(task, ip, 1);
 }
 
-static int unregister_usprobe_my(struct task_struct *task, struct us_ip *ip, enum US_FLAGS flag)
+static inline int unregister_usprobe_my(struct task_struct *task, struct us_ip *ip, enum US_FLAGS flag)
 {
 	int err = 0;
 

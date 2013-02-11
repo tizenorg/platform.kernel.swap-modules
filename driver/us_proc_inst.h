@@ -80,6 +80,14 @@ extern int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 /* Gets current function return address */
 extern unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip);
 
+extern unsigned long imi_sum_time;
+extern unsigned long imi_sum_hit;
+
+extern struct list_head proc_probes_list;
+
+int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
+int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int no_rp2);
+
 #define user_backtrace(size) \
 	do { \
 		us_proc_ip_t *ip = __get_cpu_var(gpCurIp); \

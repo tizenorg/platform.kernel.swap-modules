@@ -60,8 +60,6 @@ unsigned long ujprobe_event_pre_handler (struct us_ip *ip, struct pt_regs *regs)
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
 int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip);
 
-static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
-static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int no_rp2);
 
 int us_proc_probes;
 
@@ -1215,7 +1213,7 @@ int uretprobe_event_handler(struct kretprobe_instance *probe, struct pt_regs *re
 	return 0;
 }
 
-static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
+int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 {
 	int ret = 0;
 	ip->jprobe.kp.tgid = task->tgid;
@@ -1256,7 +1254,7 @@ static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atom
 	return 0;
 }
 
-static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int not_rp2)
+int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int not_rp2)
 {
 	dbi_unregister_ujprobe(task, &ip->jprobe, atomic);
 
