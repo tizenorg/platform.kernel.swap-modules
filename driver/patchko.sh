@@ -47,8 +47,8 @@ if [ -f "$patch_file" ]; then
             cp -f "${patch_file}" "${output_file}"
 
             #get patching adderes
-            let pos=`cat $patch_file.addr | awk '{print \$1}'`
-            let abs_len=`cat $patch_file.addr | awk '{print \$2}'`
+            pos=$((`cat $patch_file.addr | awk '{print \$1}'`))
+            abs_len=$((`cat $patch_file.addr | awk '{print \$2}'`))
 
             key_before=`dd if="$patch_file" bs=1 skip=${pos}c count=${abs_len}c 2>/dev/null`
             debug "key_before<$key_before>"
@@ -57,7 +57,7 @@ if [ -f "$patch_file" ]; then
             echo -ne "`cat $data_file` $key_before_tail\000">$data_file
 
             key_len="`cat $data_file`"
-            let key_len=${#key_len}+1
+            key_len=$((${#key_len}+1))
 
             debug "POS>$pos<"
             debug "OLDLEN>$abs_len<"
@@ -95,24 +95,24 @@ if [ -f "$patch_file" ]; then
             exit 1
         fi
 
-        let file_size=`ls -la "$patch_file" | awk '{print \$5}'`
+        file_size=$((`ls -la "$patch_file" | awk '{print \$5}'`))
         debugmk "file_size=$file_size"
 
         section=`$readelf -e $patch_file | grep ${sect_name}`
         section=${section##*${sect_name}}
         debugmk "section=$section"
 
-        let addr=0x`echo $section | awk '{print $2}'`
-        let offs=0x`echo $section | awk '{print $3}'`
-        let size=0x`echo $section | awk '{print $4}'`
+        addr=$((0x`echo $section | awk '{print $2}'`))
+        offs=$((0x`echo $section | awk '{print $3}'`))
+        size=$((0x`echo $section | awk '{print $4}'`))
         debugmk $addr:$offs:$size
 
-        let abs_len=0x`$objdump -t -j .${sect_name} "$patch_file" | grep _${varname} | awk '{print $5}'`
-        let abs_len=$abs_len-${#varname}-1
-        let sect_off=0x`$objdump -t -j .${sect_name} "$patch_file" | grep _${varname} | awk '{print $1}'`
-        let add_off=${#varname}+1
+        abs_len=$((0x`$objdump -t -j .${sect_name} "$patch_file" | grep _${varname} | awk '{print $5}'`))
+        abs_len=$(($abs_len-${#varname}-1))
+        sect_off=$((0x`$objdump -t -j .${sect_name} "$patch_file" | grep _${varname} | awk '{print $1}'`))
+        add_off=$((${#varname}+1))
 
-        let abs_addr=${addr}+${offs}+${sect_off}+${add_off}
+        abs_addr=$((${addr}+${offs}+${sect_off}+${add_off}))
         debugmk "abs_addr=$abs_addr;"
         debugmk "abs_len=$abs_len"
         if [ "$opt" = "-r" ];then
@@ -124,7 +124,15 @@ if [ -f "$patch_file" ]; then
         #gen file version (use only on host)
             debugmk "Generate version data for <$patch_file>"
             #res=`dd if="$patch_file" of="$patch_file.addr" bs=1 skip=${abs_addr}c count=${abs_len}c`
-            echo "$abs_addr $abs_len">"$patch_file.addr"
+            if [ "$abs_addr" = "" ];then
+                debugmk "ERROR cannot get absolute addres of module info line for patching"
+                exit 253
+            elif [ "$abs_len" = "" ];then
+                debugmk "ERROR cannot get length of module info line for patching"
+                exit 252
+            else
+                echo "$abs_addr $abs_len">"$patch_file.addr"
+            fi
             debugmk "patch_addr=`cat $patch_file.addr`"
         else
             error "Wrong param <$opt>"
@@ -132,4 +140,4 @@ if [ -f "$patch_file" ]; then
     fi
 else
     error "file for patchig not found <$patch_file>"
-fi
+    fi
