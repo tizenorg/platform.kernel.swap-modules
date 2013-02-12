@@ -75,32 +75,35 @@ IMP_MOD_DEP_WRAPPER(do_mmap_pgoff, file, addr, len, prot, flags, pgoff)
 
 /* copy_to_user_page */
 #ifndef copy_to_user_page
-DECLARE_MOD_FUNC_DEP(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len);
+static DECLARE_MOD_FUNC_DEP(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len);
 DECLARE_MOD_DEP_WRAPPER(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len)
 IMP_MOD_DEP_WRAPPER(copy_to_user_page, vma, page, uaddr, dst, src, len)
 #endif /* copy_to_user_page */
 
 
-DECLARE_MOD_FUNC_DEP(access_process_vm, int, struct task_struct * tsk, unsigned long addr, void *buf, int len, int write);
+static DECLARE_MOD_FUNC_DEP(access_process_vm, int, struct task_struct * tsk, unsigned long addr, void *buf, int len, int write);
 
-DECLARE_MOD_FUNC_DEP(find_extend_vma, struct vm_area_struct *, struct mm_struct * mm, unsigned long addr);
+static DECLARE_MOD_FUNC_DEP(find_extend_vma, struct vm_area_struct *, struct mm_struct * mm, unsigned long addr);
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18)
-DECLARE_MOD_FUNC_DEP(handle_mm_fault, int, struct mm_struct *mm, struct vm_area_struct *vma, unsigned long address, int write_access);
+static DECLARE_MOD_FUNC_DEP(handle_mm_fault, int, struct mm_struct *mm, struct vm_area_struct *vma, unsigned long address, int write_access);
 #endif
 #else
-DECLARE_MOD_FUNC_DEP(handle_mm_fault, int, struct mm_struct *mm, struct vm_area_struct *vma, unsigned long address, unsigned int flags);
+static DECLARE_MOD_FUNC_DEP(handle_mm_fault, int, struct mm_struct *mm, struct vm_area_struct *vma, unsigned long address, unsigned int flags);
 #endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30) */
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *, struct mm_struct *mm);
+static DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *, struct mm_struct *mm);
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *, struct task_struct *tsk);
+static DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *, struct task_struct *tsk);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 #ifdef CONFIG_HUGETLB_PAGE
-DECLARE_MOD_FUNC_DEP(follow_hugetlb_page, int, struct mm_struct *mm, struct vm_area_struct *vma, struct page **pages, struct vm_area_struct **vmas, unsigned long *position, int *length, int i, int write);
+DECLARE_MOD_FUNC_DEP(follow_hugetlb_page, int, struct mm_struct *mm, \
+		struct vm_area_struct *vma, struct page **pages, \
+		struct vm_area_struct **vmas, unsigned long *position, int *length, \
+		int i, int write);
 #endif
 
 #ifdef __HAVE_ARCH_GATE_AREA
@@ -112,31 +115,31 @@ DECLARE_MOD_FUNC_DEP(in_gate_area, int, struct task_struct *task, unsigned long 
 #endif /* __HAVE_ARCH_GATE_AREA */
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-DECLARE_MOD_FUNC_DEP(in_gate_area_no_mm, int, unsigned long addr);
+static DECLARE_MOD_FUNC_DEP(in_gate_area_no_mm, int, unsigned long addr);
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-DECLARE_MOD_FUNC_DEP(in_gate_area_no_task, int, unsigned long addr);
+static DECLARE_MOD_FUNC_DEP(in_gate_area_no_task, int, unsigned long addr);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 
-DECLARE_MOD_FUNC_DEP(follow_page, \
+static DECLARE_MOD_FUNC_DEP(follow_page, \
 		struct page *, struct vm_area_struct * vma, \
 		unsigned long address, unsigned int foll_flags);
-DECLARE_MOD_FUNC_DEP(__flush_anon_page, \
+static DECLARE_MOD_FUNC_DEP(__flush_anon_page, \
 		void, struct vm_area_struct *vma, struct page *page, \
 		unsigned long vmaddr);
-DECLARE_MOD_FUNC_DEP(vm_normal_page, \
+static DECLARE_MOD_FUNC_DEP(vm_normal_page, \
 		struct page *, struct vm_area_struct *vma, \
 		unsigned long addr, pte_t pte);
-DECLARE_MOD_FUNC_DEP(flush_ptrace_access, \
+static DECLARE_MOD_FUNC_DEP(flush_ptrace_access, \
 		void, struct vm_area_struct *vma, struct page *page, \
 		unsigned long uaddr, void *kaddr, unsigned long len, int write);
 
 
 #if (LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 16))
-DECLARE_MOD_FUNC_DEP(put_task_struct, \
+static DECLARE_MOD_FUNC_DEP(put_task_struct, \
 		void, struct task_struct *tsk);
 #else
-DECLARE_MOD_FUNC_DEP(put_task_struct, \
+static DECLARE_MOD_FUNC_DEP(put_task_struct, \
 		void, struct rcu_head * rhp);
 #endif
 
@@ -207,17 +210,17 @@ static inline int dbi_in_gate_area_no_xxx(unsigned long addr)
 
 
 #if (LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 11))
-	DECLARE_MOD_DEP_WRAPPER (follow_page, \
+DECLARE_MOD_DEP_WRAPPER (follow_page, \
 			struct page *, struct vm_area_struct * vma, \
 			unsigned long address, unsigned int foll_flags)
 IMP_MOD_DEP_WRAPPER (follow_page, vma, address, foll_flags)
 #endif
-	DECLARE_MOD_DEP_WRAPPER (__flush_anon_page, \
+DECLARE_MOD_DEP_WRAPPER (__flush_anon_page, \
 			void, struct vm_area_struct *vma, \
 			struct page *page, unsigned long vmaddr)
 IMP_MOD_DEP_WRAPPER (__flush_anon_page, vma, page, vmaddr)
 
-	DECLARE_MOD_DEP_WRAPPER(vm_normal_page, \
+DECLARE_MOD_DEP_WRAPPER(vm_normal_page, \
 			struct page *, struct vm_area_struct *vma, \
 			unsigned long addr, pte_t pte)
 IMP_MOD_DEP_WRAPPER (vm_normal_page, vma, addr, pte)
@@ -233,7 +236,7 @@ int init_module_dependencies(void)
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	init_mm_ptr = (struct mm_struct*)swap_ksyms("init_mm");
-	memcmp(init_mm_ptr, &init_mm, sizeof(struct mm_struct));
+	memcpy(init_mm_ptr, &init_mm, sizeof(struct mm_struct));
 #endif
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18)

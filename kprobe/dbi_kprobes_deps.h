@@ -93,4 +93,13 @@ int page_present (struct mm_struct *mm, unsigned long addr);
 extern unsigned long sched_addr;
 extern unsigned long fork_addr;
 
+
+DECLARE_MOD_DEP_WRAPPER (__flush_anon_page, \
+			void, struct vm_area_struct *vma, \
+			struct page *page, unsigned long vmaddr);
+
+DECLARE_MOD_DEP_WRAPPER(flush_ptrace_access, \
+	void, struct vm_area_struct *vma, struct page *page, \
+	unsigned long uaddr, void *kaddr, unsigned long len, int write);
+
 #endif /* _DBI_KPROBES_DEPS_H */
