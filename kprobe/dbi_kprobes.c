@@ -69,19 +69,14 @@
 #include <linux/pagemap.h>
 
 
-
-extern unsigned long sched_addr;
-extern unsigned long fork_addr;
-extern struct hlist_head kprobe_insn_pages;
-
 DEFINE_PER_CPU (struct kprobe *, current_kprobe) = NULL;
-DEFINE_PER_CPU (struct kprobe_ctlblk, kprobe_ctlblk);
+static DEFINE_PER_CPU (struct kprobe_ctlblk, kprobe_ctlblk);
 
 DEFINE_SPINLOCK (kretprobe_lock);	/* Protects kretprobe_inst_table */
-DEFINE_PER_CPU (struct kprobe *, kprobe_instance) = NULL;
+static DEFINE_PER_CPU (struct kprobe *, kprobe_instance) = NULL;
 
 struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
-struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
+static struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 
 atomic_t kprobe_count;
 
@@ -369,7 +364,7 @@ void copy_kprobe (struct kprobe *old_p, struct kprobe *p)
  * Add the new probe to old_p->list. Fail if this is the
  * second jprobe at the address - two jprobes can't coexist
  */
-int add_new_kprobe (struct kprobe *old_p, struct kprobe *p)
+static int add_new_kprobe (struct kprobe *old_p, struct kprobe *p)
 {
 	if (p->break_handler)
 	{
@@ -601,7 +596,7 @@ int dbi_register_jprobe (struct jprobe *jp)
 
 void dbi_unregister_jprobe (struct jprobe *jp)
 {
-	dbi_unregister_kprobe (&jp->kp, 0);
+	dbi_unregister_kprobe (&jp->kp, NULL);
 }
 
 /*
@@ -726,7 +721,7 @@ void dbi_unregister_kretprobe (struct kretprobe *rp)
 	unsigned long flags;
 	struct kretprobe_instance *ri;
 
-	dbi_unregister_kprobe (&rp->kp, 0);
+	dbi_unregister_kprobe (&rp->kp, NULL);
 
 	if ((unsigned long)rp->kp.addr == sched_addr) {
 		unpatch_suspended_all_task_ret_addr(rp);
@@ -899,7 +894,7 @@ static void unpatch_suspended_all_task_ret_addr(struct kretprobe *rp)
 	rcu_read_unlock();
 }
 
-int __init init_kprobes (void)
+static int __init init_kprobes (void)
 {
 	int i, err = 0;
 
@@ -921,7 +916,7 @@ int __init init_kprobes (void)
 	return err;
 }
 
-void __exit exit_kprobes (void)
+static void __exit exit_kprobes (void)
 {
 	dbi_arch_exit_kprobes ();
 }

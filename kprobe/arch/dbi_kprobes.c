@@ -59,13 +59,6 @@
 #include <ksyms.h>
 
 
-extern unsigned long sched_addr;
-extern unsigned long fork_addr;
-
-extern struct hlist_head kprobe_insn_pages;
-extern struct hlist_head uprobe_insn_pages;
-
-
 void arch_remove_kprobe (struct kprobe *p, struct task_struct *task)
 {
 	// TODO: check boostable for x86 and MIPS
@@ -105,7 +98,7 @@ void arch_disarm_uretprobe (struct kretprobe *p, struct task_struct *tsk)
 {
 }
 
-int arch_init_module_dependencies()
+int arch_init_module_dependencies(void)
 {
 	sched_addr = swap_ksyms("__switch_to");
 	fork_addr = swap_ksyms("do_fork");

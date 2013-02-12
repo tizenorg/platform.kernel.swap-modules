@@ -40,7 +40,7 @@ unsigned long sched_addr;
 unsigned long fork_addr;
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-struct mm_struct* init_mm_ptr;
+static struct mm_struct* init_mm_ptr;
 struct mm_struct init_mm;
 #endif
 
@@ -312,7 +312,7 @@ static inline int use_zero_page(struct vm_area_struct *vma)
 
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-unsigned long zero_pfn __read_mostly;
+static unsigned long zero_pfn __read_mostly;
 
 #ifndef is_zero_pfn
 static inline int is_zero_pfn(unsigned long pfn)
@@ -327,7 +327,7 @@ static inline int stack_guard_page(struct vm_area_struct *vma, unsigned long add
 	       stack_guard_page_end(vma, addr+PAGE_SIZE);
 }
 
-int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
+static int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		     unsigned long start, int nr_pages, unsigned int gup_flags,
 		     struct page **pages, struct vm_area_struct **vmas,
 		     int *nonblocking)
@@ -523,7 +523,7 @@ next_page:
 }
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
-int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
+static int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		     unsigned long start, int len, int flags,
 		struct page **pages, struct vm_area_struct **vmas)
 {
@@ -748,7 +748,7 @@ int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 	return __get_user_pages_uprobe(tsk, mm,
 				start, len, flags,
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-				       pages, vmas, 0);
+				       pages, vmas, NULL);
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 				       pages, vmas);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */

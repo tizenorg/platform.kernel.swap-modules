@@ -44,6 +44,6 @@ void init_uprobes_insn_slots(int i) ;
 
 void dbi_uprobe_return(void);
 
-
+extern struct hlist_head uprobe_insn_slot_table[KPROBE_TABLE_SIZE];
 
 #endif /*  _DBI_UPROBES_H */
