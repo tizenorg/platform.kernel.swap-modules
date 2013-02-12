@@ -26,6 +26,8 @@
 #include "storage.h"
 #include "handlers_core.h"
 #include "CProfile.h"
+#include "sspt/sspt.h"
+#include "sspt/sspt_debug.h"
 
 #define after_buffer ec_info.buffer_size
 
@@ -42,7 +44,7 @@ struct cond cond_list;
 int paused = 0; /* a state after a stop condition (events are not collected) */
 struct timeval last_attach_time = {0, 0};
 
-struct dbi_modules_handlers dbi_mh;
+static struct dbi_modules_handlers dbi_mh;
 
 struct dbi_modules_handlers *get_dbi_modules_handlers(void)
 {
@@ -81,7 +83,7 @@ inline unsigned long find_dbi_rp_handler(unsigned long p_addr, struct dbi_module
 /**
  * Search of handler in global list of modules for defined probe
  */
-void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
+static void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
 {
 	unsigned long jp_handler_addr, rp_handler_addr;
 	struct dbi_modules_handlers_info *local_mhi;
@@ -94,7 +96,7 @@ void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
 			(local_mhi->dbi_module)->name, p->addr);
 		// XXX: absent code for pre_handlers because we suppose that they are not used
 		if ((jp_handler_addr = find_dbi_jp_handler(p->addr, local_mhi)) != 0) {
-			if (p->jprobe.entry != 0) {
+			if (p->jprobe.entry != NULL) {
 				printk("Skipping jp_handler for %s module (address %0lX)\n",
 						(local_mhi->dbi_module)->name, p->addr);
 			}
@@ -114,7 +116,7 @@ void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
 			}
 		}
 		if ((rp_handler_addr = find_dbi_rp_handler(p->addr, local_mhi)) != 0) {
-			if (p->retprobe.handler != 0) {
+			if (p->retprobe.handler != NULL) {
 				printk("Skipping kretprobe_handler for %s module (address %0lX)\n",
 						(local_mhi->dbi_module)->name, p->addr);
 			}
@@ -135,17 +137,17 @@ void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
 		}
 	}
 	// not found pre_handler - set default (always true for now since pre_handlers not used)
-	if (p->jprobe.pre_entry == 0) {
+	if (p->jprobe.pre_entry == NULL) {
 		p->jprobe.pre_entry = (kprobe_pre_entry_handler_t) def_jprobe_event_pre_handler;
 		printk("Set default pre_handler (address %0lX)\n", p->addr);
 	}
 	// not found jp_handler - set default
-	if (p->jprobe.entry == 0) {
+	if (p->jprobe.entry == NULL) {
 		p->jprobe.entry = (kprobe_opcode_t *) def_jprobe_event_handler;
 		printk("Set default jp_handler (address %0lX)\n", p->addr);
 	}
 	// not found kretprobe_handler - set default
-	if (p->retprobe.handler == 0) {
+	if (p->retprobe.handler == NULL) {
 		p->retprobe.handler = (kretprobe_handler_t) def_retprobe_event_handler;
 		printk("Set default rp_handler (address %0lX)\n", p->addr);
 	}
@@ -163,7 +165,7 @@ int dbi_register_handlers_module(struct dbi_modules_handlers_info *dbi_mhi)
 
 	for (i = 0; i < nr_handlers; ++i) {
 		dbi_mhi->dbi_handlers[i].func_addr = swap_ksyms(dbi_mhi->dbi_handlers[i].func_name);
-		printk("[0x%08x]-%s\n", dbi_mhi->dbi_handlers[i].func_addr, dbi_mhi->dbi_handlers[i].func_name);
+		printk("[0x%08lx]-%s\n", dbi_mhi->dbi_handlers[i].func_addr, dbi_mhi->dbi_handlers[i].func_name);
 	}
 
 	spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
@@ -240,9 +242,12 @@ static inst_us_proc_t *get_uprobes(void)
 EXPORT_SYMBOL_GPL(us_proc_info);
 EXPORT_SYMBOL_GPL(dex_proc_info);
 typedef void *(*get_my_uprobes_info_t)(void);
-int (*mec_post_event)(char *data, unsigned long len) = NULL;
+#ifdef MEMORY_CHECKER
+typedef int (*mec_post_event_pointer)(char *data, unsigned long len);
+static mec_post_event_pointer mec_post_event = NULL;
+#endif
 
-unsigned copy_into_cyclic_buffer (char *buffer, unsigned dst_offset, char *src, unsigned size)
+static unsigned copy_into_cyclic_buffer (char *buffer, unsigned dst_offset, char *src, unsigned size)
 {
 	unsigned nOffset = dst_offset;
 	char* pSource = src;
@@ -251,16 +256,7 @@ unsigned copy_into_cyclic_buffer (char *buffer, unsigned dst_offset, char *src, 
 	return nOffset;
 }
 
-unsigned copy_from_cyclic_buffer (char *dst, char *buffer, unsigned src_offset, unsigned size)
-{
-	unsigned nOffset = src_offset;
-	char* pDestination = dst;
-	while (size--)
-		*pDestination++ = buffer[nOffset++];
-	return nOffset;
-}
-
-int CheckBufferSize (unsigned int nSize)
+static int CheckBufferSize (unsigned int nSize)
 {
 	if (nSize < EC_BUFFER_SIZE_MIN) {
 		EPRINTF("Too small buffer size! [Size=%u KB]", nSize / 1024);
@@ -273,13 +269,13 @@ int CheckBufferSize (unsigned int nSize)
 	return 0;
 }
 
-int AllocateSingleBuffer(unsigned int nSize)
+static int AllocateSingleBuffer(unsigned int nSize)
 {
 	unsigned long spinlock_flags = 0L;
 
 	p_buffer = vmalloc_user(nSize);
 	if(!p_buffer) {
-		EPRINTF("Memory allocation error! [Size=%lu KB]", nSize / 1024);
+		EPRINTF("Memory allocation error! [Size=%u KB]", nSize / 1024);
 		return -1;
 	}
 
@@ -290,7 +286,7 @@ int AllocateSingleBuffer(unsigned int nSize)
 	return 0;
 }
 
-void FreeSingleBuffer (void)
+static void FreeSingleBuffer (void)
 {
 	VFREE_USER(p_buffer, ec_info.buffer_size);
 	CleanECInfo();
@@ -298,7 +294,8 @@ void FreeSingleBuffer (void)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-int EnableContinuousRetrieval() {
+int EnableContinuousRetrieval(void)
+{
 	unsigned long spinlock_flags = 0L;
 
 	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
@@ -308,7 +305,8 @@ int EnableContinuousRetrieval() {
 	return 0;
 }
 
-int DisableContinuousRetrieval() {
+int DisableContinuousRetrieval(void)
+{
 	unsigned long spinlock_flags = 0L;
 
 	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
@@ -320,11 +318,11 @@ int DisableContinuousRetrieval() {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-int InitializeBuffer(unsigned int nSize) {
+static int InitializeBuffer(unsigned int nSize) {
 	return AllocateSingleBuffer(nSize);
 }
 
-int UninitializeBuffer(void) {
+static int UninitializeBuffer(void) {
 	FreeSingleBuffer();
 	return 0;
 }
@@ -365,7 +363,7 @@ int SetPid(unsigned int pid)
 	return 0;
 }
 
-void ResetSingleBuffer(void) {
+static void ResetSingleBuffer(void) {
 }
 
 int ResetBuffer(void) {
@@ -389,7 +387,7 @@ int ResetBuffer(void) {
 	return 0;
 }
 
-int WriteEventIntoSingleBuffer(char* pEvent, unsigned long nEventSize) {
+static int WriteEventIntoSingleBuffer(char* pEvent, unsigned long nEventSize) {
 	unsigned int unused_space;
 
 	if(!p_buffer) {
@@ -443,7 +441,7 @@ int WriteEventIntoSingleBuffer(char* pEvent, unsigned long nEventSize) {
 	return 0;
 }
 
-int WriteEventIntoBuffer(char* pEvent, unsigned long nEventSize) {
+static int WriteEventIntoBuffer(char* pEvent, unsigned long nEventSize) {
 
 	/*unsigned long i;
 	for(i = 0; i < nEventSize; i++)
@@ -522,7 +520,7 @@ static int addr_cmp (const void *a, const void *b)
 	return *(unsigned long *) a > *(unsigned long *) b ? -1 : 1;
 }
 
-char *find_lib_path(const char *lib_name)
+static char *find_lib_path(const char *lib_name)
 {
 	char *p = deps + sizeof(size_t);
 	char *match;
@@ -557,7 +555,7 @@ void unlink_bundle(void)
 	struct list_head *pos;	//, *tmp;
 
 	path = us_proc_info.path;
-	us_proc_info.path = 0;
+	us_proc_info.path = NULL;
 
 	// first make sure "d_lib" is not used any more and only
 	// then release storage
@@ -602,7 +600,7 @@ void unlink_bundle(void)
 			us_proc_info.is_plt = 0;
 		}
 		kfree ((void *) us_proc_info.p_libs);
-		us_proc_info.p_libs = 0;
+		us_proc_info.p_libs = NULL;
 	}
 	/* if (path) */
 	/* { */
@@ -613,12 +611,9 @@ void unlink_bundle(void)
 	us_proc_info.tgid = 0;
 }
 
-struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info);
-void print_inst_us_proc(const inst_us_proc_t *task_inst_info);
-
 extern struct dentry *dentry_by_path(const char *path);
 
-int link_bundle()
+int link_bundle(void)
 {
 	inst_us_proc_t *my_uprobes_info = get_uprobes();
 	char *p = bundle; /* read pointer for bundle */
@@ -626,7 +621,6 @@ int link_bundle()
 	int i, j, l, k;
 	int len;
 	us_proc_lib_t *d_lib, *pd_lib;
-	dex_proc_ip_t *dex_proc;
 	ioctl_usr_space_lib_t s_lib;
 	ioctl_usr_space_vtp_t *s_vtp;
 	us_proc_vtp_t *mvtp;
@@ -1100,7 +1094,7 @@ void storage_down (void)
 		EPRINTF ("ec_info.lost_events_count=%d", ec_info.lost_events_count);
 }
 
-u_int32_t get_probe_func_addr(const char *fmt, va_list args)
+static u_int32_t get_probe_func_addr(const char *fmt, va_list args)
 {
 	if (fmt[0] != 'p')
 		return 0;
@@ -1361,7 +1355,7 @@ int put_us_event (char *data, unsigned long len)
 		else
 		{
 			// FIXME: 'mec_post_event' - not found
-			mec_post_event = swap_ksyms("mec_post_event");
+			mec_post_event = (mec_post_event_pointer) swap_ksyms("mec_post_event");
 			if(mec_post_event == NULL)
 			{
 				EPRINTF ("Failed to find function 'mec_post_event' from mec_handlers.ko. Memory Error Checker will work incorrectly.");
@@ -1448,64 +1442,6 @@ int put_us_event (char *data, unsigned long len)
 	return 0;
 }
 
-int set_predef_uprobes (ioctl_predef_uprobes_info_t *data)
-{
-	int i, k, size = 0, probe_size, result, j;
-	char *buf, *sep1, *sep2;
-	inst_us_proc_t *my_uprobes_info = get_uprobes();
-
-	for(j = 0; j < data->probes_count; j++)
-	{
-		probe_size = strlen_user(data->p_probes+size);
-		buf = kmalloc(probe_size, GFP_KERNEL);
-
-		if(!buf)
-		{
-			EPRINTF("failed to alloc mem!");
-			return -EFAULT;
-		}
-
-		result = strncpy_from_user(buf, data->p_probes+size, probe_size);
-		if (result != (probe_size-1))
-		{
-			EPRINTF("failed to copy from user!");
-			kfree(buf);
-			return -EFAULT;
-		}
-		//DPRINTF("%s", buf);
-		sep1 = strchr(buf, ':');
-		if(!sep1)
-		{
-			EPRINTF("skipping invalid predefined uprobe string '%s'!", buf);
-			kfree(buf);
-			size += probe_size;
-			continue;
-		}
-		sep2 = strchr(sep1+1, ':');
-		if(!sep2 || (sep2 == sep1) || (sep2+2 == buf+probe_size))
-		{
-			EPRINTF("skipping invalid predefined uprobe string '%s'!", buf);
-			kfree(buf);
-			size += probe_size;
-			continue;
-		}
-		for(i = 0; i < my_uprobes_info->libs_count; i++)
-		{
-			if(strncmp(buf, my_uprobes_info->p_libs[i].path, sep1-buf) != 0)
-				continue;
-			for(k = 0; k < my_uprobes_info->p_libs[i].ips_count; k++)
-			{
-				if(strncmp(sep1+1, my_uprobes_info->p_libs[i].p_ips[k].name, sep2-sep1-1) != 0)
-					continue;
-				my_uprobes_info->p_libs[i].p_ips[k].offset = simple_strtoul(sep2+1, NULL, 16);
-			}
-		}
-
-		kfree(buf);
-		size += probe_size;
-	}
-	return 0;
-}
 
 int get_predef_uprobes_size(int *size)
 {
@@ -1535,7 +1471,7 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 	inst_us_proc_t *my_uprobes_info = get_uprobes();
 
 	// get addr of array
-	if (copy_from_user ((void *)&data, udata, sizeof (data)))
+	if (copy_from_user ((void *)&data, (void __user *) udata, sizeof (data)))
 	{
 		EPRINTF("failed to copy from user!");
 		return -EFAULT;
@@ -1548,7 +1484,8 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 		for(k = 0; k < my_uprobes_info->p_libs[i].ips_count; k++)
 		{
 			// libname
-			result = copy_to_user ((void *)(data.p_probes+size), my_uprobes_info->p_libs[i].path, lib_size);
+			result = copy_to_user ((void __user *)(data.p_probes+size),
+					(void *) my_uprobes_info->p_libs[i].path, lib_size);
 			if (result)
 			{
 				EPRINTF("failed to copy to user!");
@@ -1556,7 +1493,7 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 			}
 			size += lib_size;
 			// ":"
-			result = copy_to_user ((void *)(data.p_probes+size), sep, 1);
+			result = copy_to_user ((void __user *)(data.p_probes+size), sep, 1);
 			if (result)
 			{
 				EPRINTF("failed to copy to user!");
@@ -1566,7 +1503,7 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 			// probename
 			//DPRINTF("'%s'", my_uprobes_info->p_libs[i].p_ips[k].name);
 			func_size = strlen(my_uprobes_info->p_libs[i].p_ips[k].name);
-			result = copy_to_user ((void *)(data.p_probes+size), my_uprobes_info->p_libs[i].p_ips[k].name, func_size);
+			result = copy_to_user ((void __user *)(data.p_probes+size), my_uprobes_info->p_libs[i].p_ips[k].name, func_size);
 			if (result)
 			{
 				EPRINTF("failed to copy to user!");
@@ -1574,7 +1511,7 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 			}
 			size += func_size;
 			// ":\0"
-			result = copy_to_user ((void *)(data.p_probes+size), sep, 2);
+			result = copy_to_user ((void __user *)(data.p_probes+size), sep, 2);
 			if (result)
 			{
 				EPRINTF("failed to copy to user!");
@@ -1586,7 +1523,7 @@ int get_predef_uprobes(ioctl_predef_uprobes_info_t *udata)
 	}
 
 	// set probes_count
-	result = copy_to_user ((void *)&(udata->probes_count), &count, sizeof(count));
+	result = copy_to_user ((void __user *)&(udata->probes_count), &count, sizeof(count));
 	if (result)
 	{
 		EPRINTF("failed to copy to user!");

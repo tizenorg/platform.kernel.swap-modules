@@ -228,7 +228,7 @@ DECLARE_MOD_DEP_WRAPPER(flush_ptrace_access, \
 IMP_MOD_DEP_WRAPPER(flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
 
 
-int init_module_dependencies()
+int init_module_dependencies(void)
 {
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)

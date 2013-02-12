@@ -32,7 +32,7 @@
 #include <linux/mempolicy.h>
 #include <linux/highmem.h>
 #include <linux/pagemap.h>
-#include <ksyms.h>
+#include "../ksyms/ksyms.h"
 
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12))

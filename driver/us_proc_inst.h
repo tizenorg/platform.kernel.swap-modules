@@ -80,11 +80,25 @@ extern int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 /* Gets current function return address */
 extern unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip);
 
+extern unsigned long imi_sum_time;
+extern unsigned long imi_sum_hit;
+
+extern struct list_head proc_probes_list;
+
+int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
+int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int no_rp2);
+
 #define user_backtrace(size) \
 	do { \
 		us_proc_ip_t *ip = __get_cpu_var(gpCurIp); \
 		struct pt_regs *regs = __get_cpu_var(gpUserRegs); \
 		dump_backtrace(US_PROBE_ID, current, ip->jprobe.kp.addr, regs, size); \
 	} while (0)
+
+struct dentry *dentry_by_path(const char *path);
+int install_otg_ip(unsigned long addr,
+			kprobe_pre_entry_handler_t pre_handler,
+			unsigned long jp_handler,
+			kretprobe_handler_t rp_handler);
 
 #endif /* !defined(__US_PROC_INST_H__) */

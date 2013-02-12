@@ -152,7 +152,7 @@ static char *PackArguments (char *pBuffer, unsigned long nLen, const char *szFor
 			}
 #ifdef __KERNEL__
 			if((void *)s < (void *)TASK_SIZE) {
-				const char __user *S = (const char __user *) va_arg (args, const char *);
+				const char __user *S = (const char __user *) s;
 				nLengthOfString = strlen_user (S);
 				if(nFree < nLengthOfString)
 					return NULL; // no space for arg

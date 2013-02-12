@@ -288,7 +288,7 @@ add_probe (unsigned long addr)
 	return result;
 }
 
-int reset_probes()
+int reset_probes(void)
 {
 	struct hlist_node *node, *tnode;
 	kernel_probe_t *p;
@@ -394,8 +394,7 @@ remove_probe (unsigned long addr)
 	return result;
 }
 
-DEFINE_PER_CPU (kernel_probe_t *, gpKernProbe) = NULL;
-EXPORT_PER_CPU_SYMBOL_GPL(gpKernProbe);
+static DEFINE_PER_CPU(kernel_probe_t *, gpKernProbe) = NULL;
 
 unsigned long
 def_jprobe_event_pre_handler (kernel_probe_t * probe, struct pt_regs *regs)
@@ -415,7 +414,7 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 	if (pf_probe == probe)
 	{
 		if (us_proc_probes & US_PROC_PF_INSTLD)
-			do_page_fault_j_pre_code(arg1, arg2, arg3);
+			do_page_fault_j_pre_code(arg1, arg2, (struct pt_regs *) arg3);
 #ifdef CONFIG_X86
 		/* FIXME on x86 targets do_page_fault instrumentation may lead to
 		 * abnormal termination of some applications (in most cases GUI apps).
@@ -531,7 +530,7 @@ void dbi_install_user_handlers(void)
 		if(find_pre_handler)
 		{
 			pre_handler_addr = find_pre_handler(probe->addr);
-			if (find_pre_handler != 0) {
+			if (find_pre_handler != NULL) {
 				DPRINTF("Added user pre handler for 0x%lx: 0x%lx",
 						probe->addr, find_pre_handler);
 				probe->jprobe.pre_entry = (kprobe_pre_entry_handler_t)pre_handler_addr;

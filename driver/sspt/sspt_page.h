@@ -50,7 +50,7 @@ struct us_ip *sspt_find_ip(struct sspt_page *page, unsigned long offset);
 static inline void sspt_page_assert_install(const struct sspt_page *page)
 {
 	if (page->install != 0) {
-		panic("already installed page %x\n", page->offset);
+		panic("already installed page %lx\n", page->offset);
 	}
 }
 

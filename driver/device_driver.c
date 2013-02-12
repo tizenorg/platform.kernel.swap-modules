@@ -648,34 +648,8 @@ sad_cleanup:
 			break;
 		}
 
-	case EC_IOCTL_SET_PREDEF_UPROBES:
-		{
-			ioctl_predef_uprobes_info_t data;
-
-			result = -1;
-			break;
-
-			result = copy_from_user (&data, arg_pointer, sizeof (data));
-			if (result)
-			{
-				result = -EFAULT;
-				break;
-			}
-
-			result = set_predef_uprobes (&data);
-			if (result)
-			{
-				break;
-			}
-			DPRINTF("Set Predefined User Space Probes");
-			break;
-		}
-
 	case EC_IOCTL_GET_PREDEF_UPROBES:
 		{
-//			result = 0;
-//			break;
-
 			result = get_predef_uprobes((ioctl_predef_uprobes_info_t *)arg);
 			if (result)
 			{
