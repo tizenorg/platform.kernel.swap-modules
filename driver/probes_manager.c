@@ -507,62 +507,6 @@ def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs,
 	return 0;
 }
 
-/* This is a callback that is called by module 'swap_handlers'
- * in order to register user defined handlers */
-void dbi_install_user_handlers(void)
-{
-	kernel_probe_t *probe;
-	struct hlist_node *node;
-	unsigned long pre_handler_addr, jp_handler_addr, rp_handler_addr;
-
-	// FIXME: functions 'find_jp_handler', 'find_rp_handler', 'find_pre_handler' - not found
-	/* We must perform this lookup whenever this function is called
-	 * because the addresses of find_*_handler functions may differ. */
-	// swap_handlers removed
-	unsigned long (*find_jp_handler)(unsigned long) =
-	// swap_handlers removed
-		(unsigned long (*)(unsigned long))swap_ksyms("find_jp_handler");
-	unsigned long (*find_rp_handler)(unsigned long) =
-			(unsigned long (*)(unsigned long))swap_ksyms("find_rp_handler");
-	unsigned long (*find_pre_handler)(unsigned long) =
-			(unsigned long (*)(unsigned long))swap_ksyms("find_pre_handler");
-	hlist_for_each_entry_rcu (probe, node, &kernel_probes, hlist) {
-		if(find_pre_handler)
-		{
-			pre_handler_addr = find_pre_handler(probe->addr);
-			if (find_pre_handler != NULL) {
-				DPRINTF("Added user pre handler for 0x%lx: 0x%lx",
-						probe->addr, find_pre_handler);
-				probe->jprobe.pre_entry = (kprobe_pre_entry_handler_t)pre_handler_addr;
-			}
-		}
-		jp_handler_addr = find_jp_handler(probe->addr);
-		if (jp_handler_addr != 0) {
-			DPRINTF("Added user jp handler for 0x%lx: 0x%lx",
-					probe->addr, jp_handler_addr);
-			probe->jprobe.entry = (kprobe_opcode_t *)jp_handler_addr;
-		}
-		rp_handler_addr = find_rp_handler(probe->addr);
-		if (rp_handler_addr != 0)
-			probe->retprobe.handler = (kretprobe_handler_t)rp_handler_addr;
-	}
-}
-EXPORT_SYMBOL_GPL(dbi_install_user_handlers);
-
-void dbi_uninstall_user_handlers(void)
-{
-	kernel_probe_t *probe;
-	struct hlist_node *node;
-
-	hlist_for_each_entry_rcu (probe, node, &kernel_probes, hlist) {
-		DPRINTF("Removed user jp handler for 0x%lx", probe->addr);
-		probe->jprobe.pre_entry = (kprobe_pre_entry_handler_t)def_jprobe_event_pre_handler;
-		probe->jprobe.entry = (kprobe_opcode_t *)def_jprobe_event_handler;
-		probe->retprobe.handler = (kretprobe_handler_t)def_retprobe_event_handler;
-	}
-}
-EXPORT_SYMBOL_GPL(dbi_uninstall_user_handlers);
-
 int is_pf_installed_by_user(void)
 {
 	return (probes_flags & PROBE_FLAG_PF_INSTLD) ? 1: 0;
