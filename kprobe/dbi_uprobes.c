@@ -33,14 +33,6 @@
 #include <linux/mempolicy.h>
 #include <linux/module.h>
 
-
-extern atomic_t kprobe_count;
-extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
-extern struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
-extern spinlock_t kretprobe_lock;
-
-extern struct kretprobe *sched_rp;
-
 struct hlist_head uprobe_insn_slot_table[KPROBE_TABLE_SIZE];
 
 
@@ -359,8 +351,8 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
 		head = &kprobe_table[i];
 		hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
 			if (p->tgid == task->tgid) {
-				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%x] for %s/%d\n",
-						p->addr, p->opcode, task->comm, task->pid);
+				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%lx] for %s/%d\n",
+						p->addr, (unsigned long)p->opcode, task->comm, task->pid);
 				unregister_uprobe(p, task, atomic);
 			}
 		}

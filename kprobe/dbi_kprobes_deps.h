@@ -90,6 +90,7 @@ int page_present (struct mm_struct *mm, unsigned long addr);
 
 #define get_user_pages_atomic  get_user_pages_uprobe
 
-
+extern unsigned long sched_addr;
+extern unsigned long fork_addr;
 
 #endif /* _DBI_KPROBES_DEPS_H */

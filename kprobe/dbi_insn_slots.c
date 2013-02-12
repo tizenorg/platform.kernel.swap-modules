@@ -61,7 +61,6 @@ extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
                         unsigned long len, unsigned long prot,
                         unsigned long flags, unsigned long pgoff);
 
-extern struct hlist_head uprobe_insn_slot_table[KPROBE_TABLE_SIZE];
 
 struct hlist_head kprobe_insn_pages;
 struct hlist_head uprobe_insn_pages;
@@ -171,7 +170,7 @@ static unsigned long alloc_user_pages(struct task_struct *task, unsigned long le
 		}
 		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily
 		current_thread_info()->task = task;
-		ret = do_mmap_pgoff(0, 0, len, prot, flags, 0);
+		ret = do_mmap_pgoff(NULL, 0, len, prot, flags, 0);
 		current_thread_info()->task = otask;
 		if (!atomic) {
 			downgrade_write (&mm->mmap_sem);
