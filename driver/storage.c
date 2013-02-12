@@ -243,7 +243,8 @@ EXPORT_SYMBOL_GPL(us_proc_info);
 EXPORT_SYMBOL_GPL(dex_proc_info);
 typedef void *(*get_my_uprobes_info_t)(void);
 #ifdef MEMORY_CHECKER
-static int (*mec_post_event)(char *data, unsigned long len) = NULL;
+typedef int (*mec_post_event_pointer)(char *data, unsigned long len);
+static mec_post_event_pointer mec_post_event = NULL;
 #endif
 
 static unsigned copy_into_cyclic_buffer (char *buffer, unsigned dst_offset, char *src, unsigned size)
@@ -1354,7 +1355,7 @@ int put_us_event (char *data, unsigned long len)
 		else
 		{
 			// FIXME: 'mec_post_event' - not found
-			mec_post_event = swap_ksyms("mec_post_event");
+			mec_post_event = (mec_post_event_pointer) swap_ksyms("mec_post_event");
 			if(mec_post_event == NULL)
 			{
 				EPRINTF ("Failed to find function 'mec_post_event' from mec_handlers.ko. Memory Error Checker will work incorrectly.");

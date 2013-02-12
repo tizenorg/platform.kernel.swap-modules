@@ -47,9 +47,6 @@
 		mmput(mm);					\
 	}
 
-DEFINE_PER_CPU (us_proc_vtp_t *, gpVtp) = NULL;
-DEFINE_PER_CPU (struct pt_regs *, gpCurVtpRegs) = NULL;
-
 #if defined(CONFIG_MIPS)
 #	define ARCH_REG_VAL(regs, idx)	regs->regs[idx]
 #elif defined(CONFIG_ARM)
@@ -63,17 +60,11 @@ unsigned long ujprobe_event_pre_handler (struct us_ip *ip, struct pt_regs *regs)
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
 int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip);
 
-static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
-static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int no_rp2);
 
 int us_proc_probes;
 
 LIST_HEAD(proc_probes_list);
 
-#ifdef SLP_APP
-struct dentry *launchpad_daemon_dentry = NULL;
-EXPORT_SYMBOL_GPL(launchpad_daemon_dentry);
-#endif /* SLP_APP */
 
 #ifdef ANDROID_APP
 unsigned long android_app_vma_start = 0;
@@ -81,6 +72,10 @@ unsigned long android_app_vma_end = 0;
 struct dentry *app_process_dentry = NULL;
 #endif /* ANDROID_APP */
 
+#ifdef SLP_APP
+static struct dentry *launchpad_daemon_dentry = NULL;
+EXPORT_SYMBOL_GPL(launchpad_daemon_dentry);
+#endif /* SLP_APP */
 
 #define print_event(fmt, args...) 						\
 { 										\
@@ -629,8 +624,6 @@ int inst_usr_space_proc (void)
 
 #include "../../tools/gpmu/probes/entry_data.h"
 
-extern storage_arg_t sa_dpf;
-
 void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 {
 	struct task_struct *task = current->group_leader;
@@ -649,8 +642,6 @@ EXPORT_SYMBOL_GPL(do_page_fault_j_pre_code);
 
 unsigned long imi_sum_time = 0;
 unsigned long imi_sum_hit = 0;
-EXPORT_SYMBOL_GPL (imi_sum_time);
-EXPORT_SYMBOL_GPL (imi_sum_hit);
 
 static void set_mapping_file(struct sspt_file *file,
 		const struct sspt_procs *procs,
@@ -1124,12 +1115,10 @@ void copy_process_ret_pre_code(struct task_struct *p)
 		rm_uprobes_child(p);
 }
 
-
-DEFINE_PER_CPU(struct us_ip *, gpCurIp) = NULL;
+static DEFINE_PER_CPU(struct us_ip *, gpCurIp) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpCurIp);
-DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;
+static DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpUserRegs);
-
 
 unsigned long ujprobe_event_pre_handler(struct us_ip *ip, struct pt_regs *regs)
 {
@@ -1224,7 +1213,7 @@ int uretprobe_event_handler(struct kretprobe_instance *probe, struct pt_regs *re
 	return 0;
 }
 
-static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
+int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 {
 	int ret = 0;
 	ip->jprobe.kp.tgid = task->tgid;
@@ -1265,7 +1254,7 @@ static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atom
 	return 0;
 }
 
-static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int not_rp2)
+int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int not_rp2)
 {
 	dbi_unregister_ujprobe(task, &ip->jprobe, atomic);
 

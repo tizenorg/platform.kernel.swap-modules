@@ -268,6 +268,16 @@ int pre_handler_kretprobe (struct kprobe *p, struct pt_regs *regs, struct vm_are
 void set_normalized_timeval (struct timeval *tv, time_t sec, suseconds_t usec);
 #endif
 
+extern DEFINE_PER_CPU (struct kprobe *, current_kprobe);
+extern spinlock_t kretprobe_lock;
+extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
+//extern struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
+extern atomic_t kprobe_count;
+extern struct kretprobe *sched_rp;
+
+struct kprobe *kprobe_running (void);
+void reset_current_kprobe (void);
+struct kprobe_ctlblk *get_kprobe_ctlblk (void);
 
 #endif /* _DBI_KPROBES_H */
 

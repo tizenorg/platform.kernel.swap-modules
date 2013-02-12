@@ -43,18 +43,7 @@
 
 unsigned int *arr_traps_original;
 
-extern unsigned long sched_addr;
-
 extern struct kprobe * per_cpu__current_kprobe;
-extern spinlock_t kretprobe_lock;
-extern struct kretprobe *sched_rp;
-
-extern struct hlist_head kprobe_insn_pages;
-extern struct hlist_head uprobe_insn_pages;
-
-extern struct kprobe *kprobe_running (void);
-extern struct kprobe_ctlblk *get_kprobe_ctlblk (void);
-extern void reset_current_kprobe (void);
 
 #ifdef OVERHEAD_DEBUG
 unsigned long swap_sum_time = 0;
