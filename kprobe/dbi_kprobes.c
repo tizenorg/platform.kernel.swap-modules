@@ -72,6 +72,7 @@
 
 extern unsigned long sched_addr;
 extern unsigned long fork_addr;
+extern unsigned long exit_addr;
 extern struct hlist_head kprobe_insn_pages;
 
 DEFINE_PER_CPU (struct kprobe *, current_kprobe) = NULL;
@@ -684,6 +685,10 @@ int dbi_register_kretprobe (struct kretprobe *rp)
 	/* Pre-allocate memory for max kretprobe instances */
 	if ((unsigned long)rp->kp.addr == sched_addr) {
 		rp->maxactive = SCHED_RP_NR;//max (100, 2 * NR_CPUS);
+		rp->kp.pre_handler = NULL; //not needed for __switch_to
+	} else if ((unsigned long)rp->kp.addr == exit_addr) {
+		rp->kp.pre_handler = NULL; //not needed for do_exit
+		rp->maxactive = 0;
 	} else if (rp->maxactive <= 0) {
 #if 1//def CONFIG_PREEMPT
 		rp->maxactive = max (COMMON_RP_NR, 2 * NR_CPUS);
@@ -720,6 +725,7 @@ int dbi_register_kretprobe (struct kretprobe *rp)
 }
 
 static void unpatch_suspended_all_task_ret_addr(struct kretprobe *rp);
+static int dbi_disarm_krp_inst(struct kretprobe_instance *ri);
 
 void dbi_unregister_kretprobe (struct kretprobe *rp)
 {
@@ -735,10 +741,12 @@ void dbi_unregister_kretprobe (struct kretprobe *rp)
 
 	/* No race here */
 	spin_lock_irqsave (&kretprobe_lock, flags);
-	while ((ri = get_used_rp_inst (rp)) != NULL)
-	{
-		ri->rp = NULL;
-		hlist_del (&ri->uflist);
+	while ((ri = get_used_rp_inst (rp)) != NULL) {
+		if (dbi_disarm_krp_inst(ri) == 0)
+			recycle_rp_inst(ri);
+		else
+			panic("%s (%d/%d): cannot disarm krp instance (%08lx)",
+					ri->task->comm, ri->task->tgid, ri->task->pid, rp->kp.addr);
 	}
 	spin_unlock_irqrestore (&kretprobe_lock, flags);
 	free_rp_inst (rp);
@@ -776,6 +784,42 @@ struct kretprobe * clone_kretprobe (struct kretprobe *rp)
 	return clone;
 }
 
+static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
+{
+	kprobe_opcode_t *tramp = (kprobe_opcode_t *)&kretprobe_trampoline;
+	kprobe_opcode_t *sp = ri->sp;
+	kprobe_opcode_t *found = NULL;
+	int retval = -ENOENT;
+
+	if (!sp) {
+		printk("---> %s (%d/%d) sp == NULL (%08lx)!!!!\n",
+				ri->task->comm, ri->task->tgid, ri->task->pid,
+				ri->rp ? ri->rp->kp.addr: NULL);
+		return -EINVAL;
+	}
+
+	while (sp > ri->sp - RETPROBE_STACK_DEPTH) {
+		if (*sp == tramp) {
+			found = sp;
+			break;
+		}
+		sp--;
+	}
+
+	if (found) {
+		printk("---> %s (%d/%d): trampoline found at %08lx (%08lx /%+d) - %p\n",
+				ri->task->comm, ri->task->tgid, ri->task->pid,
+				found, ri->sp, found - ri->sp, ri->rp ? ri->rp->kp.addr: NULL);
+		*found = ri->ret_addr;
+		retval = 0;
+	} else {
+		printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx - %p\n",
+				ri->task->comm, ri->task->tgid, ri->task->pid,
+				ri->sp, ri->rp ? ri->rp->kp.addr: NULL);
+	}
+
+	return retval;
+}
 
 static void inline set_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri, unsigned long tramp_addr)
 {
@@ -818,6 +862,7 @@ static void add_ri_pc_mod(struct task_struct *p, struct kretprobe *rp, unsigned 
 		ri->rp = rp;
 		ri->rp2 = NULL;
 		ri->task = p;
+		ri->sp = NULL;
 		// set PC
 		set_task_trampoline(p, ri, tramp_addr);
 		add_rp_inst(ri);

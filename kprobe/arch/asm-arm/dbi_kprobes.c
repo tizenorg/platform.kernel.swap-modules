@@ -1518,6 +1518,7 @@ void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 		ri->rp2 = NULL;
 		ri->task = current;
 		ri->ret_addr = (kprobe_opcode_t *) regs->uregs[14];
+		ri->sp = (kprobe_opcode_t *)regs->ARM_sp; //uregs[13];
 
 		if (rp->kp.tgid)
 			if (!thumb_mode( regs ))

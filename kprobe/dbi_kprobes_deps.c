@@ -38,6 +38,7 @@
 
 unsigned long sched_addr;
 unsigned long fork_addr;
+unsigned long exit_addr;
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 struct mm_struct* init_mm_ptr;

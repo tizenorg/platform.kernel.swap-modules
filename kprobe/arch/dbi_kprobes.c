@@ -61,6 +61,7 @@
 
 extern unsigned long sched_addr;
 extern unsigned long fork_addr;
+extern unsigned long exit_addr;
 
 extern struct hlist_head kprobe_insn_pages;
 extern struct hlist_head uprobe_insn_pages;
@@ -109,6 +110,7 @@ int arch_init_module_dependencies()
 {
 	sched_addr = swap_ksyms("__switch_to");
 	fork_addr = swap_ksyms("do_fork");
+	exit_addr = swap_ksyms("do_exit");
 
 	init_module_dependencies();
 
