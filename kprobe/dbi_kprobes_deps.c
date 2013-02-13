@@ -236,7 +236,7 @@ int init_module_dependencies(void)
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 	init_mm_ptr = (struct mm_struct*)swap_ksyms("init_mm");
-	memcpy(init_mm_ptr, &init_mm, sizeof(struct mm_struct));
+//	memcmp(init_mm_ptr, &init_mm, sizeof(struct mm_struct));
 #endif
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18)
