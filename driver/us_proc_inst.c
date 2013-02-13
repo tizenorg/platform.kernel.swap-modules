@@ -1350,26 +1350,42 @@ int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 }
 EXPORT_SYMBOL_GPL(dump_backtrace);
 
-unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip)
+struct kretprobe_instance *find_ri(struct task_struct *task, struct us_ip *ip)
 {
-	unsigned long retaddr = 0;
 	struct hlist_node *item, *tmp_node;
 	struct kretprobe_instance *ri;
 
-	if (ip) {
-		hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances) {
-			ri = hlist_entry (item, struct kretprobe_instance, uflist);
+	if (ip == NULL)
+		return NULL;
 
-			if (ri->task && ri->task->pid == task->pid &&
-					ri->task->tgid == task->tgid)
-				retaddr = (unsigned long)ri->ret_addr;
-		}
+	hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances) {
+		ri = hlist_entry (item, struct kretprobe_instance, uflist);
+
+		if (ri->task && ri->task->pid == task->pid &&
+				ri->task->tgid == task->tgid)
+			return ri;
 	}
 
-	if (retaddr)
-		return retaddr;
+	return NULL;
+}
+EXPORT_SYMBOL_GPL(find_ri);
+
+unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip)
+{
+	struct kretprobe_instance *ri = find_ri(task, ip);;
+	if (ri)
+		return (unsigned long)ri->ret_addr;
 	else
-		return dbi_get_ret_addr(task_pt_regs(task));
+		dbi_get_ret_addr(task_pt_regs(task));
 }
 EXPORT_SYMBOL_GPL(get_ret_addr);
 
+unsigned long get_entry_sp(struct task_struct *task, struct us_ip *ip)
+{
+	struct kretprobe_instance *ri = find_ri(task, ip);
+	if (ri)
+		return ri->sp;
+	else
+		return dbi_get_stack_ptr(task_pt_regs(task));
+}
+EXPORT_SYMBOL_GPL(get_entry_sp);

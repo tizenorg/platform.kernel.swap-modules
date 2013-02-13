@@ -64,6 +64,8 @@ typedef unsigned long kprobe_opcode_t;
 # define KPROBES_TRAMP_SS_BREAK_IDX     UPROBES_TRAMP_SS_BREAK_IDX
 # define KPROBES_TRAMP_RET_BREAK_IDX	UPROBES_TRAMP_RET_BREAK_IDX
 
+#define UREGS_OFFSET 8
+
 static inline unsigned long arch_get_task_pc(struct task_struct *p)
 {
 	return task_thread_info(p)->cpu_context.pc;
@@ -72,6 +74,11 @@ static inline unsigned long arch_get_task_pc(struct task_struct *p)
 static inline void arch_set_task_pc(struct task_struct *p, unsigned long val)
 {
 	task_thread_info(p)->cpu_context.pc = val;
+}
+
+static inline struct pt_regs *dbi_get_syscall_uregs(unsigned long sp)
+{
+	return (struct pt_regs *)(sp + UREGS_OFFSET);
 }
 
 static inline unsigned long dbi_get_stack_ptr(struct pt_regs *regs)

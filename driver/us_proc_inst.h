@@ -77,8 +77,14 @@ extern int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
 extern int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 		void *addr, struct pt_regs *regs, unsigned long sz);
 
+/* Finds task's kretprobe_instance object */
+struct kretprobe_instance *find_ri(struct task_struct *task, struct us_ip *ip);
+
 /* Gets current function return address */
 extern unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip);
+
+/* Gets current function entry stack pointer */
+extern unsigned long get_entry_sp(struct task_struct *task, struct us_ip *ip);
 
 extern unsigned long imi_sum_time;
 extern unsigned long imi_sum_hit;

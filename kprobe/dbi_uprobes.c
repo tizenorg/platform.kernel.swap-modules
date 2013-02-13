@@ -270,6 +270,54 @@ out:
 	return ret;
 }
 
+static int dbi_disarm_urp_inst(struct kretprobe_instance *ri)
+{
+	struct task_struct *task = ri->task;
+	kprobe_opcode_t *tramp = (kprobe_opcode_t *)(ri->rp->kp.ainsn.insn +
+			UPROBES_TRAMP_RET_BREAK_IDX);
+	kprobe_opcode_t *stack = ri->sp - RETPROBE_STACK_DEPTH;
+	kprobe_opcode_t *found = NULL;
+	kprobe_opcode_t *buf[RETPROBE_STACK_DEPTH];
+	int i, retval;
+
+	retval = read_proc_vm_atomic(task, stack, buf, sizeof(buf));
+	if (retval != sizeof(buf)) {
+		printk("---> %s (%d/%d): failed to read stack from %08lx",
+			task->comm, task->tgid, task->pid, stack);
+		retval = -EFAULT;
+		goto out;
+	}
+
+	/* search the stack from the bottom */
+	for (i = RETPROBE_STACK_DEPTH - 1; i >= 0; i--) {
+		if (buf[i] = tramp) {
+			found = stack + i;
+			break;
+		}
+	}
+
+	if (found) {
+		printk("---> %s (%d/%d): trampoline found at %08lx (%08lx /%+d) - %p\n",
+				task->comm, task->tgid, task->pid,
+				found, ri->sp, found - ri->sp, ri->rp->kp.addr);
+		retval = write_proc_vm_atomic(task, found, &ri->ret_addr,
+				sizeof(ri->ret_addr));
+		if (retval != sizeof(ri->ret_addr)) {
+			printk("---> %s (%d/%d): failed to write value to %08lx",
+				task->comm, task->tgid, task->pid, found);
+			retval = -EFAULT;
+		} else {
+			retval = 0;
+		}
+	} else {
+		printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx - %p\n",
+				task->comm, task->tgid, task->pid, ri->sp, ri->rp->kp.addr);
+		retval = -ENOENT;
+	}
+
+out:
+	return retval;
+}
 
 void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, int atomic, int not_rp2)
 {
@@ -278,6 +326,14 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 	struct kretprobe *rp2 = NULL;
 
 	spin_lock_irqsave (&kretprobe_lock, flags);
+
+	while ((ri = get_used_rp_inst(rp)) != NULL) {
+		if (dbi_disarm_urp_inst(ri) == 0)
+			recycle_rp_inst(ri);
+		else
+			panic("%s (%d/%d): cannot disarm urp instance (%08lx)",
+					ri->task->comm, ri->task->tgid, ri->task->pid, rp->kp.addr);
+	}
 
 	if (hlist_empty(&rp->used_instances) || not_rp2) {
 		struct kprobe *p = &rp->kp;

@@ -74,6 +74,8 @@
 
 #define JPROBE_ENTRY(pentry)    (kprobe_opcode_t *)pentry
 
+#define RETPROBE_STACK_DEPTH 64
+
 struct kprobe;
 struct pt_regs;
 struct kretprobe;
@@ -201,6 +203,7 @@ struct kretprobe_instance
 	struct hlist_node hlist;
 	struct kretprobe *rp;
 	kprobe_opcode_t *ret_addr;
+	kprobe_opcode_t *sp;
 	struct kretprobe *rp2;
 	struct task_struct *task;
 };
