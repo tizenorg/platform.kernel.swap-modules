@@ -30,6 +30,7 @@
 #include "sspt_file.h"
 #include "sspt_procs.h"
 #include "sspt_debug.h"
+#include "../us_proc_inst.h"
 
 
 #include "../storage.h"
@@ -37,7 +38,7 @@
 
 static void print_proc_probes(const struct sspt_procs *procs);
 
-struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
+static inline struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 {
 	struct sspt_procs *procs = sspt_procs_create(task_inst_info->m_f_dentry, 0);
 
@@ -52,9 +53,9 @@ struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 			int k, j;
 			us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
 			struct dentry *dentry = p_libs->m_f_dentry;
-			const char *path = p_libs->path;
+			char *path = p_libs->path;
 			char *name = strrchr(path, '/');
-			name = name ? ++name : path;
+			name = name ? name + 1 : path;
 
 			for (k = 0; k < p_libs->ips_count; ++k) {
 				struct ip_data pd;
@@ -72,7 +73,7 @@ struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
 				pd.offset = ip->offset;
 				pd.got_addr = got_addr;
 				pd.pre_handler = ip->jprobe.pre_entry;
-				pd.jp_handler = ip->jprobe.entry;
+				pd.jp_handler = (unsigned long) ip->jprobe.entry;
 				pd.rp_handler = ip->retprobe.handler;
 
 				sspt_procs_add_ip_data(procs, dentry, name, &pd);
@@ -96,15 +97,12 @@ enum US_FLAGS {
 	US_DISARM
 };
 
-static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
-static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int no_rp2);
-
-static int register_usprobe_my(struct task_struct *task, struct us_ip *ip)
+static inline int register_usprobe_my(struct task_struct *task, struct us_ip *ip)
 {
 	return register_usprobe(task, ip, 1);
 }
 
-static int unregister_usprobe_my(struct task_struct *task, struct us_ip *ip, enum US_FLAGS flag)
+static inline int unregister_usprobe_my(struct task_struct *task, struct us_ip *ip, enum US_FLAGS flag)
 {
 	int err = 0;
 

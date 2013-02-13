@@ -34,6 +34,7 @@
 
 #include "dbi_kprobes.h"
 #include "../dbi_kprobes.h"
+#include "../../dbi_kprobes.h"
 
 #include "../../dbi_kdebug.h"
 #include "../../dbi_insn_slots.h"
@@ -54,21 +55,7 @@
 
 #define SUPRESS_BUG_MESSAGES
 
-extern unsigned long sched_addr;
-extern unsigned long fork_addr;
-
 extern struct kprobe * per_cpu__current_kprobe;
-extern spinlock_t kretprobe_lock;
-extern struct kretprobe *sched_rp;
-
-extern struct hlist_head kprobe_insn_pages;
-extern struct hlist_head uprobe_insn_pages;
-
-extern struct kprobe *kprobe_running(void);
-extern void reset_current_kprobe(void);
-extern struct kprobe_ctlblk *get_kprobe_ctlblk(void);
-extern struct kprobe * current_kprobe;
-
 extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 
 #ifdef OVERHEAD_DEBUG
@@ -87,7 +74,7 @@ static kprobe_opcode_t get_addr_b(kprobe_opcode_t insn, kprobe_opcode_t *addr)
 	return (kprobe_opcode_t)((long)addr + 8 + branch_displacement(insn));
 }
 
-unsigned int arr_traps_template[] = {
+static unsigned int arr_traps_template[] = {
 		0xe1a0c00d,    // mov          ip, sp
 		0xe92dd800,    // stmdb        sp!, {fp, ip, lr, pc}
 		0xe24cb004,    // sub          fp, ip, #4      ; 0x4
@@ -99,14 +86,14 @@ unsigned int arr_traps_template[] = {
 };
 
 
-struct kprobe trampoline_p =
+static struct kprobe trampoline_p =
 {
 	.addr = (kprobe_opcode_t *) & kretprobe_trampoline,
 	.pre_handler = trampoline_probe_handler
 };
 
 // is instruction Thumb2 and NOT a branch, etc...
-int isThumb2(kprobe_opcode_t insn)
+static int isThumb2(kprobe_opcode_t insn)
 {
 	if((	(insn & 0xf800) == 0xe800 ||
 		(insn & 0xf800) == 0xf000 ||
@@ -115,7 +102,7 @@ int isThumb2(kprobe_opcode_t insn)
 }
 
 
-int prep_pc_dep_insn_execbuf (kprobe_opcode_t * insns, kprobe_opcode_t insn, int uregs)
+static int prep_pc_dep_insn_execbuf (kprobe_opcode_t * insns, kprobe_opcode_t insn, int uregs)
 {
 	int i;
 
@@ -180,7 +167,7 @@ int prep_pc_dep_insn_execbuf (kprobe_opcode_t * insns, kprobe_opcode_t insn, int
 
 
 
-int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t insn, int uregs)
+static int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t insn, int uregs)
 {
 	unsigned char mreg = 0;
 	unsigned char reg = 0;
@@ -403,7 +390,7 @@ int prep_pc_dep_insn_execbuf_thumb (kprobe_opcode_t * insns, kprobe_opcode_t ins
 
 
 
-int arch_check_insn_arm (struct arch_specific_insn *ainsn)
+static int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 {
 	int ret = 0;
 
@@ -448,7 +435,7 @@ int arch_check_insn_arm (struct arch_specific_insn *ainsn)
 	return ret;
 }
 
-int arch_check_insn_thumb (struct arch_specific_insn *ainsn)
+static int arch_check_insn_thumb (struct arch_specific_insn *ainsn)
 {
 	int ret = 0;
 
@@ -674,8 +661,8 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 		return -EFAULT;
 	}
 	if ((p->safe_arm == -1) && (p->safe_thumb == -1)) {
-		printk("Error in %s at %d: failed arch_copy_trampoline_*_uprobe() (both) [tgid=%u, addr=%x, data=%x]\n",
-				__FILE__, __LINE__, task->tgid, p->addr, p->opcode);
+		printk("Error in %s at %d: failed arch_copy_trampoline_*_uprobe() (both) [tgid=%u, addr=%lx, data=%lx]\n",
+				__FILE__, __LINE__, task->tgid, (unsigned long)p->addr, (unsigned long)p->opcode);
 		if (!write_proc_vm_atomic (task, (unsigned long) p->addr, &p->opcode, sizeof (p->opcode)))
 			panic ("Failed to write memory %p!\n", p->addr);
 		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
@@ -1060,7 +1047,7 @@ int kprobe_handler(struct pt_regs *regs)
 
 	struct kprobe *p = NULL, *p_run = NULL;
 	int ret = 0, retprobe = 0, reenter = 0;
-	kprobe_opcode_t *ssaddr = 0;
+	kprobe_opcode_t *ssaddr = NULL;
 	struct kprobe_ctlblk *kcb;
 
 #ifdef SUPRESS_BUG_MESSAGES
@@ -1539,18 +1526,18 @@ void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 }
 
 
-int asm_init_module_dependencies()
+int asm_init_module_dependencies(void)
 {
 	//No module dependencies
 	return 0;
 }
 
-
-void (* do_kpro)(struct undef_hook *);
-void (* undo_kpro)(struct undef_hook *);
+typedef void (* kpro_type)(struct undef_hook *);
+static kpro_type do_kpro;
+static kpro_type undo_kpro;
 
 // kernel probes hook
-struct undef_hook undef_ho_k = {
+static struct undef_hook undef_ho_k = {
     .instr_mask	= 0xffffffff,
     .instr_val	= BREAKPOINT_INSTRUCTION,
     .cpsr_mask	= MODE_MASK,
@@ -1559,7 +1546,7 @@ struct undef_hook undef_ho_k = {
 };
 
 // userspace probes hook (arm)
-struct undef_hook undef_ho_u = {
+static struct undef_hook undef_ho_u = {
     .instr_mask	= 0xffffffff,
     .instr_val	= BREAKPOINT_INSTRUCTION,
     .cpsr_mask	= MODE_MASK,
@@ -1568,7 +1555,7 @@ struct undef_hook undef_ho_u = {
 };
 
 // userspace probes hook (thumb)
-struct undef_hook undef_ho_u_t = {
+static struct undef_hook undef_ho_u_t = {
     .instr_mask	= 0xffffffff,
     .instr_val	= BREAKPOINT_INSTRUCTION & 0x0000ffff,
     .cpsr_mask	= MODE_MASK,
@@ -1594,15 +1581,15 @@ int __init arch_init_kprobes (void)
         }
 	arr_traps_template[NOTIFIER_CALL_CHAIN_INDEX] = arch_construct_brunch ((unsigned int)kprobe_handler, do_bp_handler + NOTIFIER_CALL_CHAIN_INDEX * 4, 1);
 	// Register hooks (kprobe_handler)
-	do_kpro = swap_ksyms("register_undef_hook");
-	if (do_kpro == 0) {
+	do_kpro = (kpro_type)swap_ksyms("register_undef_hook");
+	if (do_kpro == NULL) {
 		printk("no register_undef_hook symbol found!\n");
                 return -1;
         }
 
         // Unregister hooks (kprobe_handler)
-        undo_kpro = swap_ksyms("unregister_undef_hook");
-        if (undo_kpro == 0) {
+        undo_kpro = (kpro_type)swap_ksyms("unregister_undef_hook");
+        if (undo_kpro == NULL) {
                 printk("no unregister_undef_hook symbol found!\n");
                 return -1;
         }

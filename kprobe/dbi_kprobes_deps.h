@@ -32,7 +32,7 @@
 #include <linux/mempolicy.h>
 #include <linux/highmem.h>
 #include <linux/pagemap.h>
-#include <ksyms.h>
+#include "../ksyms/ksyms.h"
 
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12))
@@ -90,6 +90,16 @@ int page_present (struct mm_struct *mm, unsigned long addr);
 
 #define get_user_pages_atomic  get_user_pages_uprobe
 
+extern unsigned long sched_addr;
+extern unsigned long fork_addr;
 
+
+DECLARE_MOD_DEP_WRAPPER (__flush_anon_page, \
+			void, struct vm_area_struct *vma, \
+			struct page *page, unsigned long vmaddr);
+
+DECLARE_MOD_DEP_WRAPPER(flush_ptrace_access, \
+	void, struct vm_area_struct *vma, struct page *page, \
+	unsigned long uaddr, void *kaddr, unsigned long len, int write);
 
 #endif /* _DBI_KPROBES_DEPS_H */

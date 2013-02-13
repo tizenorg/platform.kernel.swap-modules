@@ -196,20 +196,6 @@ struct kretprobe
 	struct hlist_head used_instances;
 };
 
-static void retprobe_init(struct kretprobe *rp, kretprobe_handler_t handler)
-{
-	memset(rp, 0, sizeof(*rp));
-	rp->handler = handler;
-}
-
-static struct kretprobe *retprobe_create(kretprobe_handler_t handler)
-{
-	struct kretprobe *rp = kmalloc(sizeof(rp), GFP_ATOMIC);
-	retprobe_init(rp, handler);
-
-	return rp;
-}
-
 struct kretprobe_instance
 {
 	// either on free list or used list
@@ -285,6 +271,16 @@ int pre_handler_kretprobe (struct kprobe *p, struct pt_regs *regs, struct vm_are
 void set_normalized_timeval (struct timeval *tv, time_t sec, suseconds_t usec);
 #endif
 
+extern DEFINE_PER_CPU (struct kprobe *, current_kprobe);
+extern spinlock_t kretprobe_lock;
+extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
+//extern struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
+extern atomic_t kprobe_count;
+extern struct kretprobe *sched_rp;
+
+struct kprobe *kprobe_running (void);
+void reset_current_kprobe (void);
+struct kprobe_ctlblk *get_kprobe_ctlblk (void);
 
 #endif /* _DBI_KPROBES_H */
 

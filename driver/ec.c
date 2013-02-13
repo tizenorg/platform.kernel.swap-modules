@@ -40,7 +40,7 @@ ec_probe_info_t ec_probe_info = {
 	.probe_selected = 0,
 	.jprobe_active = 0,
 	.retprobe_active = 0,
-	.address = 0,
+	.address = NULL,
 };
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
@@ -63,7 +63,8 @@ void reset_ec_info_nolock(void)
 	ec_info.lost_events_count = 0;
 }
 
-void ResetECInfo(void) {
+void ResetECInfo(void) 
+{
 	unsigned long spinlock_flags = 0L;
 
 	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
@@ -71,7 +72,8 @@ void ResetECInfo(void) {
 	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
 }
 
-void CleanECInfo(void) {
+void CleanECInfo(void) 
+{
 	unsigned long spinlock_flags = 0L;
 
 	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
@@ -82,11 +84,18 @@ void CleanECInfo(void) {
 
 }
 
-int IsECMode(unsigned long nMask) { return ((ec_info.m_nMode & nMask) != 0); }
+int IsECMode(unsigned long nMask)
+{
+	return ((ec_info.m_nMode & nMask) != 0);
+}
 
-int IsContinuousRetrieval() { return IsECMode(MODEMASK_CONTINUOUS_RETRIEVAL); }
+int IsContinuousRetrieval(void)
+{
+	return IsECMode(MODEMASK_CONTINUOUS_RETRIEVAL);
+}
 
-int SetECMode(unsigned long nECMode) {
+int SetECMode(unsigned long nECMode)
+{
 	unsigned long spinlock_flags = 0L;
 
 	if((nECMode & MODEMASK_CONTINUOUS_RETRIEVAL) != 0) {
@@ -379,7 +388,7 @@ int copy_ec_info_to_user_space (ec_info_t * p_user_ec_info)
 	spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);	// open our data for other CPUs
 
 
-	result = copy_to_user (p_user_ec_info, &ec_info_copy, sizeof (ec_info_t));
+	result = copy_to_user ((void __user *) p_user_ec_info, &ec_info_copy, sizeof (ec_info_t));
 
 	// LEAVE_CRITICAL_SECTION
 	// unlock semaphore here
@@ -387,45 +396,6 @@ int copy_ec_info_to_user_space (ec_info_t * p_user_ec_info)
 	if (result)
 	{
 		EPRINTF ("copy_to_user(%08X,%08X)=%d", (unsigned) p_user_ec_info, (unsigned) &ec_info_copy, result);
-		result = -EFAULT;
-	}
-	return result;
-}
-
-int copy_ec_probe_info_to_user_space (ec_probe_info_t * p_user_ec_probe_info)
-{
-	/*
-	   WARNING: to avoid stack overflow the following data structure was made
-	   static. As result, simultaneous users of this function will share it
-	   and must use additional synchronization to avoid collisions.
-	 */
-	// FIXME: synchronization is necessary here (ec_info_copy must be locked).
-	ec_probe_info_t ec_probe_info_copy;
-	unsigned long spinlock_flags;
-	int result;
-
-	// ENTER_CRITICAL_SECTION
-	// lock semaphore here
-
-
-	// ENTER_CRITICAL_SECTION
-	spin_lock_irqsave (&ec_probe_spinlock, spinlock_flags);	// make other CPUs wait
-
-	// copy
-	memcpy (&ec_probe_info_copy, &ec_probe_info, sizeof (ec_probe_info_copy));
-
-	// LEAVE_CRITICAL_SECTION
-	spin_unlock_irqrestore (&ec_probe_spinlock, spinlock_flags);	// open our data for other CPUs
-
-
-	result = copy_to_user (p_user_ec_probe_info, &ec_probe_info_copy, sizeof (ec_probe_info_t));
-
-	// LEAVE_CRITICAL_SECTION
-	// unlock semaphore here
-
-	if (result)
-	{
-		EPRINTF ("copy_to_user(%08X,%08X)=%d", (unsigned) p_user_ec_probe_info, (unsigned) &ec_probe_info_copy, result);
 		result = -EFAULT;
 	}
 	return result;

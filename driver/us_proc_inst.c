@@ -47,9 +47,6 @@
 		mmput(mm);					\
 	}
 
-DEFINE_PER_CPU (us_proc_vtp_t *, gpVtp) = NULL;
-DEFINE_PER_CPU (struct pt_regs *, gpCurVtpRegs) = NULL;
-
 #if defined(CONFIG_MIPS)
 #	define ARCH_REG_VAL(regs, idx)	regs->regs[idx]
 #elif defined(CONFIG_ARM)
@@ -63,17 +60,11 @@ unsigned long ujprobe_event_pre_handler (struct us_ip *ip, struct pt_regs *regs)
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
 int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip);
 
-static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
-static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int no_rp2);
 
 int us_proc_probes;
 
 LIST_HEAD(proc_probes_list);
 
-#ifdef SLP_APP
-struct dentry *launchpad_daemon_dentry = NULL;
-EXPORT_SYMBOL_GPL(launchpad_daemon_dentry);
-#endif /* SLP_APP */
 
 #ifdef ANDROID_APP
 unsigned long android_app_vma_start = 0;
@@ -81,6 +72,10 @@ unsigned long android_app_vma_end = 0;
 struct dentry *app_process_dentry = NULL;
 #endif /* ANDROID_APP */
 
+#ifdef SLP_APP
+static struct dentry *launchpad_daemon_dentry = NULL;
+EXPORT_SYMBOL_GPL(launchpad_daemon_dentry);
+#endif /* SLP_APP */
 
 #define print_event(fmt, args...) 						\
 { 										\
@@ -100,7 +95,7 @@ static inline int is_us_instrumentation(void)
 	return !!us_proc_info.path;
 }
 
-struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
+static struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
 {
 	struct sspt_procs *procs, *tmp;
 
@@ -122,12 +117,12 @@ struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
 	return NULL;
 }
 
-void add_proc_probes(struct task_struct *task, struct sspt_procs *procs)
+static void add_proc_probes(struct task_struct *task, struct sspt_procs *procs)
 {
 	list_add_tail(&procs->list, &proc_probes_list);
 }
 
-struct sspt_procs *get_proc_probes_by_task_or_new(struct task_struct *task)
+static struct sspt_procs *get_proc_probes_by_task_or_new(struct task_struct *task)
 {
 	struct sspt_procs *procs = get_proc_probes_by_task(task);
 	if (procs == NULL) {
@@ -212,6 +207,17 @@ struct dentry *dentry_by_path(const char *path)
 	return dentry;
 }
 
+static int check_vma(struct vm_area_struct *vma)
+{
+#ifndef __ANDROID
+	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
+			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
+			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
+#else // __ANDROID
+	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC));
+#endif // __ANDROID
+}
+
 static int find_task_by_path (const char *path, struct task_struct **p_task, struct list_head *tids)
 {
 	int found = 0;
@@ -220,7 +226,7 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 	struct mm_struct *mm;
 	struct dentry *dentry = dentry_by_path(path);
 
-	*p_task = 0;
+	*p_task = NULL;
 
 	/* find corresponding dir entry, this is also check for valid path */
 	// TODO: test - try to instrument process with non-existing path
@@ -240,7 +246,7 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 			continue;
 		vma = mm->mmap;
 		while (vma) {
-			if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file) {
+			if (check_vma(vma)) {
 				if (vma->vm_file->f_dentry == dentry) {
 					if (!*p_task) {
 						*p_task = task;
@@ -283,218 +289,6 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 	}
 
 	return 0;
-}
-
-
-static void us_vtp_event_pre_handler (us_proc_vtp_t * vtp, struct pt_regs *regs)
-{
-	__get_cpu_var(gpVtp) = vtp;
-	__get_cpu_var(gpCurVtpRegs) = regs;
-}
-
-static void us_vtp_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6)
-{
-	us_proc_vtp_t *vtp = __get_cpu_var(gpVtp);
-#if !defined(CONFIG_X86)
-	struct pt_regs *regs = __get_cpu_var(gpCurVtpRegs);
-#endif
-	char fmt[4];
-	unsigned long vaddr;
-	long ival;
-	char cval, *sval;
-	us_proc_vtp_data_t *vtp_data;
-unsigned long ll;
-	fmt[0] = 'p';
-	fmt[3] = 0;
-	fmt[2] = 's';
-
-	list_for_each_entry_rcu (vtp_data, &vtp->list, list) {
-		//		DPRINTF ("[%d]proc %s(%d): %lx", nCount++, current->comm, current->pid, vtp->addr);
-		fmt[1] = vtp_data->type;
-		if (vtp_data->reg == -1)
-			vaddr = vtp_data->off;
-		else
-			vaddr = ARCH_REG_VAL (regs, vtp_data->reg) + vtp_data->off;
-		//		DPRINTF ("VTP type '%c'", vtp_data->type);
-		switch (vtp_data->type)
-		{
-			case 'd':
-			case 'x':
-			case 'p':
-				if (read_proc_vm_atomic (current, vaddr, &ival, sizeof (ival)) < sizeof (ival))
-					EPRINTF ("failed to read vm of proc %s/%u addr %lu!", current->comm, current->pid, vaddr);
-				else
-					pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, ival, vtp_data->name);
-				break;
-			case 'f':
-				if (read_proc_vm_atomic (current, vaddr, &ival, sizeof (ival)) < sizeof (ival))
-					EPRINTF ("failed to read vm of proc %s/%u addr %lu!", current->comm, current->pid, vaddr);
-				else
-					pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, ival, vtp_data->name);
-				break;
-			case 'c':
-				if (read_proc_vm_atomic (current, vaddr, &cval, sizeof (cval)) < sizeof (cval))
-					EPRINTF ("failed to read vm of proc %s/%u addr %lu!", current->comm, current->pid, vaddr);
-				else
-					pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, cval, vtp_data->name);
-				break;
-			case 's':
-				if (current->active_mm) {
-					struct page *page;
-					struct vm_area_struct *vma;
-					void *maddr;
-					int len;
-					if (get_user_pages_atomic (current, current->active_mm, vaddr, 1, 0, 1, &page, &vma) <= 0) {
-						EPRINTF ("get_user_pages_atomic failed for proc %s/%u addr %lu!", current->comm, current->pid, vaddr);
-						break;
-					}
-					maddr = kmap_atomic (page, KM_USER0);
-					len = strlen (maddr + (vaddr & ~PAGE_MASK));
-					sval = kmalloc (len + 1, GFP_KERNEL);
-					if (!sval)
-						EPRINTF ("failed to alloc memory for string in proc %s/%u addr %lu!", current->comm, current->pid, vaddr);
-					else {
-						copy_from_user_page (vma, page, vaddr, sval, maddr + (vaddr & ~PAGE_MASK), len + 1);
-						pack_event_info (VTP_PROBE_ID, RECORD_ENTRY, fmt, vtp->jprobe.kp.addr, sval,  vtp_data->name);
-						kfree (sval);
-					}
-					kunmap_atomic (maddr, KM_USER0);
-					page_cache_release (page);
-				}
-				else
-					EPRINTF ("task %s/%u has no mm!", current->comm, current->pid);
-				break;
-			default:
-				EPRINTF ("unknown variable type '%c'", vtp_data->type);
-		}
-	}
-	dbi_uprobe_return ();
-}
-
-static int install_mapped_ips (struct task_struct *task, inst_us_proc_t* task_inst_info, int atomic)
-{
-	struct vm_area_struct *vma;
-	int i, k, err;
-	unsigned long addr;
-	unsigned int old_ips_count, old_vtps_count;
-	struct task_struct *t;
-	struct mm_struct *mm;
-
-	mm = atomic ? task->active_mm : get_task_mm (task);
-	if (!mm) {
-		return task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count;
-	}
-	old_ips_count = task_inst_info->unres_ips_count;
-	old_vtps_count = task_inst_info->unres_vtps_count;
-	if(!atomic)
-		down_read (&mm->mmap_sem);
-	vma = mm->mmap;
-	while (vma) {
-		// skip non-text section
-#ifndef __ANDROID
-		if (vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || !vma->vm_file || (vma->vm_flags & VM_ACCOUNT) ||
-			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
-			!(vma->vm_flags & (VM_READ | VM_MAYREAD))) {
-#else // __ANDROID
-		if (vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || !vma->vm_file) {
-#endif // __ANDROID
-			vma = vma->vm_next;
-			continue;
-		}
-		/**
-		 * After process was forked, some time it inherits parent process environment.
-		 * We need to renew instrumentation when we detect that process gets own environment.
-		 */
-		for (i = 0; i < task_inst_info->libs_count; i++) {
-//			struct path tmp_path;
-//			tmp_path.dentry = task_inst_info->p_libs[i].m_f_dentry;
-//			tmp_path.mnt = task_inst_info->p_libs[i].m_vfs_mount;
-//			char* p_path = d_path ( &tmp_path, path_buffer, 255 );
-//			DPRINTF("f_dentry:%x m_f_dentry:%x path:%s", vma->vm_file->f_dentry,
-//				task_inst_info->p_libs[i].m_f_dentry, p_path );
-
-			//TODO: test - try to instrument non-existing libs
-			if (vma->vm_file->f_dentry == task_inst_info->p_libs[i].m_f_dentry) {
-//				DPRINTF("vm_flags:%x loaded:%x ips_count:%d vtps_count:%d",
-//						vma->vm_flags, task_inst_info->p_libs[i].loaded,
-//						task_inst_info->p_libs[i].ips_count, task_inst_info->p_libs[i].vtps_count );
-				if (!task_inst_info->p_libs[i].loaded) {
-//					DPRINTF("!VM_EXECUTABLE && !loaded");
-					char *p;
-					int app_flag = (vma->vm_file->f_dentry == task_inst_info->m_f_dentry);
-					DPRINTF ("post dyn lib event %s/%s", current->comm, task_inst_info->p_libs[i].path);
-					// if we installed something, post library info for those IPs
-					p = strrchr(task_inst_info->p_libs[i].path, '/');
-					if(!p)
-						p = task_inst_info->p_libs[i].path;
-					else
-						p++;
-					task_inst_info->p_libs[i].loaded = 1;
-					task_inst_info->p_libs[i].vma_start = vma->vm_start;
-					task_inst_info->p_libs[i].vma_end = vma->vm_end;
-					task_inst_info->p_libs[i].vma_flag = vma->vm_flags;
-					pack_event_info (DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
-							task->tgid, p, vma->vm_start, vma->vm_end-vma->vm_start, app_flag);
-				}
-				for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++) {
-					DPRINTF("ips_count current:%d", k);
-					if (!task_inst_info->p_libs[i].p_ips[k].installed) {
-						DPRINTF("!installed");
-						addr = task_inst_info->p_libs[i].p_ips[k].offset;
-						addr += vma->vm_start;
-						if (page_present (mm, addr)) {
-							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.",
-								task->pid, task_inst_info->p_libs[i].path,
-								task_inst_info->p_libs[i].p_ips[k].offset, addr);
-							task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
-							task_inst_info->p_libs[i].p_ips[k].retprobe.kp.addr = (kprobe_opcode_t *) addr;
-							task_inst_info->unres_ips_count--;
-							err = register_usprobe(task, &task_inst_info->p_libs[i].p_ips[k], atomic);
-							if (err != 0) {
-								DPRINTF ("failed to install IP at %lx/%p. Error %d!",
-									task_inst_info->p_libs[i].p_ips[k].offset,
-									task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr, err);
-							}
-						}
-					}
-				}
-				for (k = 0; k < task_inst_info->p_libs[i].vtps_count; k++) {
-					DPRINTF("vtps_count current:%d", k);
-					if (!task_inst_info->p_libs[i].p_vtps[k].installed) {
-						DPRINTF("!installed");
-						addr = task_inst_info->p_libs[i].p_vtps[k].addr;
-						if (!(vma->vm_flags & VM_EXECUTABLE))
-							addr += vma->vm_start;
-						if (page_present (mm, addr)) {
-							DPRINTF ("pid %d, %s sym is loaded at %lx/%lx.",
-								task->pid, task_inst_info->p_libs[i].path,
-								task_inst_info->p_libs[i].p_ips[k].offset, addr);
-							task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.tgid = task_inst_info->tgid;
-							task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr = (kprobe_opcode_t *) addr;
-							task_inst_info->p_libs[i].p_vtps[k].jprobe.entry = (kprobe_opcode_t *) us_vtp_event_handler;
-							task_inst_info->p_libs[i].p_vtps[k].jprobe.pre_entry = (kprobe_pre_entry_handler_t) us_vtp_event_pre_handler;
-							task_inst_info->p_libs[i].p_vtps[k].jprobe.priv_arg = &task_inst_info->p_libs[i].p_vtps[k];
-							task_inst_info->p_libs[i].p_vtps[k].installed = 1;
-							task_inst_info->unres_vtps_count--;
-							err = dbi_register_ujprobe(task, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
-							if ( err != 0 ) {
-								EPRINTF ("failed to install VTP at %p. Error %d!",
-										task_inst_info->p_libs[i].p_vtps[k].jprobe.kp.addr, err);
-							}
-						}
-					}
-				}
-			}
-		}
-
-		vma = vma->vm_next;
-	}
-
-	if (!atomic) {
-		up_read (&mm->mmap_sem);
-		mmput (mm);
-	}
-	return task_inst_info->unres_ips_count + task_inst_info->unres_vtps_count;
 }
 
 static void set_mapping_file(struct sspt_file *file,
@@ -564,45 +358,6 @@ int install_otg_ip(unsigned long addr,
 }
 EXPORT_SYMBOL_GPL(install_otg_ip);
 
-
-static int uninstall_mapped_ips (struct task_struct *task,  inst_us_proc_t* task_inst_info, int atomic)
-{
-	int i, k, err;
-
-	for (i = 0; i < task_inst_info->libs_count; i++)
-	{
-		DPRINTF ("clear lib %s.", task_inst_info->p_libs[i].path);
-		for (k = 0; k < task_inst_info->p_libs[i].ips_count; k++)
-		{
-			if (task_inst_info->p_libs[i].p_ips[k].installed)
-			{
-				DPRINTF ("remove IP at %p.", task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr);
-				err = unregister_usprobe (task, &task_inst_info->p_libs[i].p_ips[k], atomic, 0);
-				if (err != 0)
-				{
-					EPRINTF ("failed to uninstall IP at %p. Error %d!", task_inst_info->p_libs[i].p_ips[k].jprobe.kp.addr, err);
-					continue;
-				}
-				task_inst_info->unres_ips_count++;
-			}
-		}
-		for (k = 0; k < task_inst_info->p_libs[i].vtps_count; k++)
-		{
-			if (task_inst_info->p_libs[i].p_vtps[k].installed)
-			{
-				dbi_unregister_ujprobe (task, &task_inst_info->p_libs[i].p_vtps[k].jprobe, atomic);
-				task_inst_info->unres_vtps_count++;
-				task_inst_info->p_libs[i].p_vtps[k].installed = 0;
-			}
-		}
-		task_inst_info->p_libs[i].loaded = 0;
-	}
-
-	DPRINTF ("Ures IPs  %d.", task_inst_info->unres_ips_count);
-	DPRINTF ("Ures VTPs %d.", task_inst_info->unres_vtps_count);
-	return 0;
-}
-
 static int uninstall_kernel_probe (unsigned long addr, int uflag, int kflag, kernel_probe_t ** pprobe)
 {
 	kernel_probe_t *probe = NULL;
@@ -639,8 +394,7 @@ static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs 
 int deinst_usr_space_proc (void)
 {
 	int iRet = 0, found = 0;
-	struct task_struct *task = 0;
-	inst_us_proc_t *task_inst_info = NULL;
+	struct task_struct *task = NULL;
 
 	if (!is_us_instrumentation()) {
 		return 0;
@@ -761,7 +515,7 @@ static void install_proc_probes(struct task_struct *task, struct sspt_procs *pro
 int inst_usr_space_proc (void)
 {
 	int ret, i;
-	struct task_struct *task = 0;
+	struct task_struct *task = NULL;
 
 	if (!is_us_instrumentation()) {
 		return 0;
@@ -870,8 +624,6 @@ int inst_usr_space_proc (void)
 
 #include "../../tools/gpmu/probes/entry_data.h"
 
-extern storage_arg_t sa_dpf;
-
 void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
 {
 	struct task_struct *task = current->group_leader;
@@ -890,8 +642,6 @@ EXPORT_SYMBOL_GPL(do_page_fault_j_pre_code);
 
 unsigned long imi_sum_time = 0;
 unsigned long imi_sum_hit = 0;
-EXPORT_SYMBOL_GPL (imi_sum_time);
-EXPORT_SYMBOL_GPL (imi_sum_hit);
 
 static void set_mapping_file(struct sspt_file *file,
 		const struct sspt_procs *procs,
@@ -912,7 +662,7 @@ void print_vma(struct mm_struct *mm);
 
 static int register_us_page_probe(struct sspt_page *page,
 		const struct sspt_file *file,
-		const struct task_struct *task)
+		struct task_struct *task)
 {
 	int err = 0;
 	struct us_ip *ip;
@@ -920,10 +670,10 @@ static int register_us_page_probe(struct sspt_page *page,
 	spin_lock(&page->lock);
 
 	if (sspt_page_is_install(page)) {
-		printk("page %x in %s task[tgid=%u, pid=%u] already installed\n",
+		printk("page %lx in %s task[tgid=%u, pid=%u] already installed\n",
 				page->offset, file->dentry->d_iname, task->tgid, task->pid);
 		print_vma(task->mm);
-		return 0;
+		goto unlock;
 	}
 
 	sspt_page_assert_install(page);
@@ -933,18 +683,19 @@ static int register_us_page_probe(struct sspt_page *page,
 		err = register_usprobe_my(task, ip);
 		if (err != 0) {
 			//TODO: ERROR
-			return err;
+			goto unlock;
 		}
 	}
 
 	sspt_page_installed(page);
 
+unlock:
 	spin_unlock(&page->lock);
 
-	return 0;
+	return err;
 }
 
-static int unregister_us_page_probe(const struct task_struct *task,
+static int unregister_us_page_probe(struct task_struct *task,
 		struct sspt_page *page, enum US_FLAGS flag)
 {
 	int err = 0;
@@ -972,18 +723,6 @@ static int unregister_us_page_probe(const struct task_struct *task,
 	return err;
 }
 
-static int check_vma(struct vm_area_struct *vma)
-{
-#ifndef __ANDROID
-	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
-			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
-			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
-#else // __ANDROID
-	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC));
-#endif // __ANDROID
-}
-
-
 static void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs, int atomic)
 {
 	int lock;
@@ -997,7 +736,7 @@ static void install_page_probes(unsigned long page_addr, struct task_struct *tas
 		struct dentry *dentry = vma->vm_file->f_dentry;
 		struct sspt_file *file = sspt_procs_find_file(procs, dentry);
 		if (file) {
-			struct page_probes *page;
+			struct sspt_page *page;
 			if (!file->loaded) {
 				set_mapping_file(file, procs, task, vma);
 				file->loaded = 1;
@@ -1104,7 +843,7 @@ static int unregister_us_file_probes(struct task_struct *task, struct sspt_file 
 
 static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag)
 {
-	int err;
+	int err = 0;
 	struct sspt_file *file;
 
 	list_for_each_entry_rcu(file, &procs->file_list, list) {
@@ -1118,7 +857,7 @@ static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs 
 	return err;
 }
 
-static pid_t find_proc_by_task(const struct task_struct *task, const struct dentry *dentry)
+static pid_t find_proc_by_task(const struct task_struct *task, struct dentry *dentry)
 {
 	struct vm_area_struct *vma;
 	struct mm_struct *mm = task->active_mm;
@@ -1127,7 +866,7 @@ static pid_t find_proc_by_task(const struct task_struct *task, const struct dent
 	}
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if ((vma->vm_flags & VM_EXECUTABLE) && vma->vm_file) {
+		if (check_vma(vma)) {
 			if (vma->vm_file->f_dentry == dentry) {
 				return task->tgid;
 			}
@@ -1151,7 +890,6 @@ void do_page_fault_ret_pre_code (void)
 {
 	struct task_struct *task = current->group_leader;
 	struct mm_struct *mm = task->mm;
-	struct vm_area_struct *vma = 0;
 	struct sspt_procs *procs = NULL;
 	/*
 	 * Because process threads have same address space
@@ -1230,11 +968,6 @@ void do_exit_probe_pre_code (void)
 }
 EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
 
-int check_vma_area(struct vm_area_struct *vma, unsigned long start, unsigned long end)
-{
-	return (vma->vm_start >= start && vma->vm_end <= end);
-}
-
 void print_vma(struct mm_struct *mm)
 {
 	struct vm_area_struct *vma;
@@ -1245,9 +978,9 @@ void print_vma(struct mm_struct *mm)
 		char *x = vma->vm_flags & VM_EXEC ? "x" : "-";
 		char *r = vma->vm_flags & VM_READ ? "r" : "-";
 		char *w = vma->vm_flags & VM_WRITE ? "w" : "-";
-		char *name = vma->vm_file ? vma->vm_file->f_dentry->d_iname : "N/A";
+		char *name = vma->vm_file ? (char *)vma->vm_file->f_dentry->d_iname : "N/A";
 
-		printk("### [%8x..%8x] %s%s%s pgoff=\'%8u\' %s\n",
+		printk("### [%8lx..%8lx] %s%s%s pgoff=\'%8lu\' %s\n",
 				vma->vm_start, vma->vm_end, x, r, w, vma->vm_pgoff, name);
 	}
 	printk("### print_vma:  END\n");
@@ -1257,7 +990,6 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 {
 	struct mm_struct *mm = task->mm;
 	struct vm_area_struct *vma;
-	unsigned long end, pointer, step;
 
 	if ((start & ~PAGE_MASK) || start > TASK_SIZE || len > TASK_SIZE - start) {
 		return -EINVAL;
@@ -1319,7 +1051,7 @@ void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t 
 
 	if (procs) {
 		if (remove_unmap_probes(task, procs, start, len)) {
-			printk("ERROR do_munmap: start=%x, len=%x\n", start, len);
+			printk("ERROR do_munmap: start=%lx, len=%x\n", start, len);
 		}
 	}
 }
@@ -1383,12 +1115,10 @@ void copy_process_ret_pre_code(struct task_struct *p)
 		rm_uprobes_child(p);
 }
 
-
-DEFINE_PER_CPU(struct us_ip *, gpCurIp) = NULL;
+static DEFINE_PER_CPU(struct us_ip *, gpCurIp) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpCurIp);
-DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;
+static DEFINE_PER_CPU(struct pt_regs *, gpUserRegs) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpUserRegs);
-
 
 unsigned long ujprobe_event_pre_handler(struct us_ip *ip, struct pt_regs *regs)
 {
@@ -1425,7 +1155,7 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 	dbi_uprobe_return ();
 }
 
-void send_plt(struct us_ip *ip)
+static void send_plt(struct us_ip *ip)
 {
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
 	struct vm_area_struct *vma = find_vma(current->mm, addr);
@@ -1438,7 +1168,7 @@ void send_plt(struct us_ip *ip)
 				ip->got_addr + vma->vm_start;
 
 		if (!read_proc_vm_atomic(current, real_got, &real_addr, sizeof(real_addr))) {
-			printk("Failed to read got %p at memory address %p!\n", ip->got_addr, real_got);
+			printk("Failed to read got %lx at memory address %lx!\n", ip->got_addr, real_got);
 			return;
 		}
 
@@ -1446,7 +1176,7 @@ void send_plt(struct us_ip *ip)
 		if (vma && (vma->vm_start <= real_addr) && (vma->vm_end > real_addr)) {
 			name = vma->vm_file ? vma->vm_file->f_dentry->d_iname : NULL;
 		} else {
-			printk("Failed to get vma, includes %x address\n", real_addr);
+			printk("Failed to get vma, includes %lx address\n", real_addr);
 			return;
 		}
 
@@ -1483,7 +1213,7 @@ int uretprobe_event_handler(struct kretprobe_instance *probe, struct pt_regs *re
 	return 0;
 }
 
-static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
+int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 {
 	int ret = 0;
 	ip->jprobe.kp.tgid = task->tgid;
@@ -1524,7 +1254,7 @@ static int register_usprobe(struct task_struct *task, struct us_ip *ip, int atom
 	return 0;
 }
 
-static int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int not_rp2)
+int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int not_rp2)
 {
 	dbi_unregister_ujprobe(task, &ip->jprobe, atomic);
 

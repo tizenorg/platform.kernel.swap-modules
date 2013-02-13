@@ -37,8 +37,8 @@ static BLOCKING_NOTIFIER_HEAD(swap_notifier_list);
 pid_t gl_nNotifyTgid;
 EXPORT_SYMBOL_GPL(gl_nNotifyTgid);
 
-DECLARE_WAIT_QUEUE_HEAD (notification_waiters_queue);
-volatile unsigned notification_count;
+static DECLARE_WAIT_QUEUE_HEAD (notification_waiters_queue);
+static volatile unsigned notification_count;
 
 static int device_mmap (struct file *filp, struct vm_area_struct *vma);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
@@ -48,8 +48,8 @@ static long device_ioctl (struct file *file, unsigned int cmd, unsigned long arg
 #endif
 static int device_open(struct inode *, struct file *);
 static int device_release(struct inode *, struct file *);
-static ssize_t device_read(struct file *, char *, size_t, loff_t *);
-static ssize_t device_write(struct file *, const char *, size_t, loff_t *);
+static ssize_t device_read(struct file *, char __user *, size_t, loff_t *);
+static ssize_t device_write(struct file *, const char __user *, size_t, loff_t *);
 
 static int gl_nDeviceOpened = 0;
 static struct file_operations device_fops = {
@@ -66,7 +66,7 @@ static struct file_operations device_fops = {
 	.release = device_release
 };
 
-typedef void (* dbi_module_callback)();
+typedef void (* dbi_module_callback)(void);
 
 int device_init (void)
 {
@@ -174,13 +174,13 @@ static int device_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static ssize_t device_read(struct file *filp, char *buffer, size_t length, loff_t * offset)
+static ssize_t device_read(struct file *filp, char __user *buffer, size_t length, loff_t * offset)
 {
 	EPRINTF("Operation <<read>> not supported!");
 	return -1;
 }
 
-static ssize_t device_write(struct file *filp, const char *buff, size_t len, loff_t * off)
+static ssize_t device_write(struct file *filp, const char __user *buff, size_t len, loff_t * off)
 {
 	EPRINTF("Operation <<write>> not supported!");
 	return -1;
@@ -194,6 +194,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 {
 	unsigned long spinlock_flags = 0L;
 	int result = -1;
+    void __user * arg_pointer = (void __user *) arg;
 //	DPRINTF("Command=%d", cmd);
 	switch (cmd)
 	{
@@ -202,7 +203,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			ioctl_general_t param;
 			unsigned long nIgnoredBytes = 0;
 			memset(&param, '0', sizeof(ioctl_general_t));
-			nIgnoredBytes = copy_from_user (&param, (void*)arg, sizeof(ioctl_general_t));
+			nIgnoredBytes = copy_from_user (&param, arg_pointer, sizeof(ioctl_general_t));
 			if (nIgnoredBytes > 0) {
 				result = -1;
 				break;
@@ -221,7 +222,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			unsigned long nIgnoredBytes = 0;
 			memset(&param, '0', sizeof(ioctl_general_t));
 			param.m_unsignedLong = GetECMode();
-			nIgnoredBytes = copy_to_user ((void*)arg, &param, sizeof (ioctl_general_t));
+			nIgnoredBytes = copy_to_user (arg_pointer, &param, sizeof (ioctl_general_t));
 			if (nIgnoredBytes > 0) {
 				result = -1;
 				break;
@@ -235,7 +236,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			ioctl_general_t param;
 			unsigned long nIgnoredBytes = 0;
 			memset(&param, '0', sizeof(ioctl_general_t));
-			nIgnoredBytes = copy_from_user (&param, (void*)arg, sizeof(ioctl_general_t));
+			nIgnoredBytes = copy_from_user (&param, arg_pointer, sizeof(ioctl_general_t));
 			if (nIgnoredBytes > 0) {
 				result = -1;
 				break;
@@ -254,7 +255,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			unsigned long nIgnoredBytes = 0;
 			memset(&param, '0', sizeof(ioctl_general_t));
 			param.m_unsignedLong = GetBufferSize();
-			nIgnoredBytes = copy_to_user ((void*)arg, &param, sizeof (ioctl_general_t));
+			nIgnoredBytes = copy_to_user (arg_pointer, &param, sizeof (ioctl_general_t));
 			if (nIgnoredBytes > 0) {
 				result = -1;
 				break;
@@ -288,7 +289,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			static ec_info_t ec_info_copy;
 			int nIgnoredBytes = 0;
 
-			nIgnoredBytes = copy_from_user (&ec_info_copy, (ec_info_t *) arg, sizeof (ec_info_t));
+			nIgnoredBytes = copy_from_user (&ec_info_copy, (const void __user *) arg, sizeof (ec_info_t));
 			if(nIgnoredBytes > 0)
 			{
 				EPRINTF ("copy_from_user(%08X,%08X)=%d", (unsigned) arg, (unsigned) &ec_info_copy, nIgnoredBytes);
@@ -332,7 +333,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 	case EC_IOCTL_SET_APPDEPS:
 	{
 		size_t size;
-		result = copy_from_user(&size, (void *)arg, sizeof(size_t));
+		result = copy_from_user(&size, arg_pointer, sizeof(size_t));
 		if (result) {
 			EPRINTF("Cannot copy deps size!");
 			result = -1;
@@ -353,7 +354,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		}
 		DPRINTF("Mem for deps has been allocated");
 
-		result = copy_from_user(deps, (void *)arg, size);
+		result = copy_from_user(deps, arg_pointer, size);
 		if (result) {
 			EPRINTF("Cannot copy deps!");
 			result = -1;
@@ -367,7 +368,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 	{
 		unsigned int _pid;
 
-		result = copy_from_user(&_pid, (void *)arg, sizeof(unsigned int));
+		result = copy_from_user(&_pid, arg_pointer, sizeof(unsigned int));
 		if (result) {
 			EPRINTF("Cannot copy pid!");
 			result = -1;
@@ -384,7 +385,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 	{
 		size_t size;
 
-		result = copy_from_user(&size, (void *)arg, sizeof(size_t));
+		result = copy_from_user(&size, arg_pointer, sizeof(size_t));
 		if (result) {
 			EPRINTF("Cannot copy bundle size!");
 			result = -1;
@@ -400,7 +401,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		}
 		DPRINTF("Mem for bundle has been alloced");
 
-		result = copy_from_user(bundle, (void *)arg, size);
+		result = copy_from_user(bundle, arg_pointer, size);
 		if (result) {
 			EPRINTF("Cannot copy bundle!");
 			result = -1;
@@ -429,7 +430,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			unsigned char *p_data;
 			int err;
 			result = 0;
-			err = copy_from_user(&args_cnt, (void *)arg, sizeof(int));
+			err = copy_from_user(&args_cnt, arg_pointer, sizeof(int));
 			if (err) {
 				result = -1;
 				break;
@@ -448,7 +449,8 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 					result = -1;
 					break;
 				}
-				err = copy_from_user(&p_cond->tmpl, p_data, sizeof(struct event_tmpl));
+				err = copy_from_user(&p_cond->tmpl, (const void __user *)p_data,
+						sizeof(struct event_tmpl));
 				if (err) {
 					DPRINTF("Cannot copy cond from user!");
 					result = -1;
@@ -573,54 +575,10 @@ sad_cleanup:
 		spin_unlock_irqrestore(&local_mh->lock, dbi_flags);
 		break;
 	}
-	case EC_IOCTL_WAIT_NOTIFICATION:
-		{
-			static ec_info_t ec_info_copy;
-
-			ioctl_wait_notification_t ioctl_args;
-
-			result = copy_from_user (&ioctl_args, (void *) arg, sizeof (ioctl_args));
-			if (result)
-			{
-				result = -1;
-				break;
-			}
-
-			result = wait_event_interruptible (notification_waiters_queue, ioctl_args.notification_count != notification_count);
-			if (result)
-			{
-				result = -EINTR;	// woken by signal (ERESTARTSYS 512)
-				break;
-			}
-
-			ioctl_args.notification_count = notification_count;
-
-			result = copy_to_user ((void *) arg, &ioctl_args, sizeof (ioctl_args));
-			if (result)
-			{
-				result = -1;
-				break;
-			}
-
-			// FIXME: synchronization is necessary here (ec_info must be locked).
-			// ENTER_CRITICAL_SECTION
-			memcpy (&ec_info_copy, &ec_info, sizeof (ec_info_copy));
-			// LEAVE_CRITICAL_SECTION
-
-			result = copy_to_user ((void *) ioctl_args.p_ec_info, &ec_info_copy, sizeof (ec_info_t));
-			if (result)
-			{
-				EPRINTF ("copy_to_user(%08X,%08X)=%d", (unsigned) ioctl_args.p_ec_info, (unsigned) &ec_info_copy, result);
-				result = -1;
-				break;
-			}
-			DPRINTF("Wake up");
-			break;
-		}
 	case EC_IOCTL_US_EVENT:
 		{
 			ioctl_us_event_t ioctl_args;
-			result = copy_from_user (&ioctl_args, (void *) arg, sizeof (ioctl_args));
+			result = copy_from_user (&ioctl_args, (const void __user *) arg, sizeof (ioctl_args));
 			if (result)
 			{
 				result = -1;
@@ -639,7 +597,7 @@ sad_cleanup:
 						EPRINTF ("failed to alloc mem for event!");
 					}
 					else {
-						result = copy_from_user (buf, (void *) ioctl_args.data, ioctl_args.len);
+						result = copy_from_user (buf, (const void __user *) ioctl_args.data, ioctl_args.len);
 						if (result){
 							result = -1;
 							EPRINTF ("failed to copy event from user space!");
@@ -657,7 +615,7 @@ sad_cleanup:
 	case EC_IOCTL_SET_EVENT_MASK:
 		{
 			int mask;
-			result = copy_from_user (&mask, (void *) arg, sizeof (mask));
+			result = copy_from_user (&mask, arg_pointer, sizeof (mask));
 			if (result)
 			{
 				result = -EFAULT;
@@ -681,7 +639,7 @@ sad_cleanup:
 			{
 				result = -EFAULT;
 			}
-			result = copy_to_user ((void *) arg, &mask, sizeof (mask));
+			result = copy_to_user (arg_pointer, &mask, sizeof (mask));
 			if (result)
 			{
 				result = -EFAULT;
@@ -690,33 +648,8 @@ sad_cleanup:
 			break;
 		}
 
-	case EC_IOCTL_SET_PREDEF_UPROBES:
-		{
-			result = -1;
-			break;
-
-			ioctl_predef_uprobes_info_t data;
-			result = copy_from_user (&data, (void *) arg, sizeof (data));
-			if (result)
-			{
-				result = -EFAULT;
-				break;
-			}
-
-			result = set_predef_uprobes (&data);
-			if (result)
-			{
-				break;
-			}
-			DPRINTF("Set Predefined User Space Probes");
-			break;
-		}
-
 	case EC_IOCTL_GET_PREDEF_UPROBES:
 		{
-//			result = 0;
-//			break;
-
 			result = get_predef_uprobes((ioctl_predef_uprobes_info_t *)arg);
 			if (result)
 			{
@@ -734,7 +667,7 @@ sad_cleanup:
 			{
 				result = -EFAULT;
 			}
-			result = copy_to_user ((void *) arg, &size, sizeof (size));
+			result = copy_to_user (arg_pointer, &size, sizeof (size));
 			if (result)
 			{
 				result = -EFAULT;
