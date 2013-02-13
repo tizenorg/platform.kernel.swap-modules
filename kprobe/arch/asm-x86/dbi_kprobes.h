@@ -101,6 +101,11 @@ static inline void arch_set_task_pc(struct task_struct *p, unsigned long val)
 	p->thread.ip = val;
 }
 
+static inline struct pt_regs *dbi_get_syscall_uregs(unsigned long sp)
+{
+	return NULL; //FIXME currently not implemented for x86
+}
+
 static inline unsigned long dbi_get_stack_ptr(struct pt_regs *regs)
 {
 	return regs->EREG(sp);
