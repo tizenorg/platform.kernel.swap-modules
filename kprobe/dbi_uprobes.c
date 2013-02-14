@@ -280,17 +280,17 @@ static int dbi_disarm_urp_inst(struct kretprobe_instance *ri)
 	kprobe_opcode_t *buf[RETPROBE_STACK_DEPTH];
 	int i, retval;
 
-	retval = read_proc_vm_atomic(task, stack, buf, sizeof(buf));
+	retval = read_proc_vm_atomic(task, (unsigned long)stack, buf, sizeof(buf));
 	if (retval != sizeof(buf)) {
 		printk("---> %s (%d/%d): failed to read stack from %08lx",
-			task->comm, task->tgid, task->pid, stack);
+			task->comm, task->tgid, task->pid, (unsigned long)stack);
 		retval = -EFAULT;
 		goto out;
 	}
 
 	/* search the stack from the bottom */
 	for (i = RETPROBE_STACK_DEPTH - 1; i >= 0; i--) {
-		if (buf[i] = tramp) {
+		if (buf[i] == tramp) {
 			found = stack + i;
 			break;
 		}
@@ -299,19 +299,19 @@ static int dbi_disarm_urp_inst(struct kretprobe_instance *ri)
 	if (found) {
 		printk("---> %s (%d/%d): trampoline found at %08lx (%08lx /%+d) - %p\n",
 				task->comm, task->tgid, task->pid,
-				found, ri->sp, found - ri->sp, ri->rp->kp.addr);
-		retval = write_proc_vm_atomic(task, found, &ri->ret_addr,
+				(unsigned long)found, (unsigned long)ri->sp, found - ri->sp, ri->rp->kp.addr);
+		retval = write_proc_vm_atomic(task, (unsigned long)found, &ri->ret_addr,
 				sizeof(ri->ret_addr));
 		if (retval != sizeof(ri->ret_addr)) {
 			printk("---> %s (%d/%d): failed to write value to %08lx",
-				task->comm, task->tgid, task->pid, found);
+				task->comm, task->tgid, task->pid, (unsigned long)found);
 			retval = -EFAULT;
 		} else {
 			retval = 0;
 		}
 	} else {
 		printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx - %p\n",
-				task->comm, task->tgid, task->pid, ri->sp, ri->rp->kp.addr);
+				task->comm, task->tgid, task->pid, (unsigned long)ri->sp, ri->rp->kp.addr);
 		retval = -ENOENT;
 	}
 
@@ -332,7 +332,8 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 			recycle_rp_inst(ri);
 		else
 			panic("%s (%d/%d): cannot disarm urp instance (%08lx)",
-					ri->task->comm, ri->task->tgid, ri->task->pid, rp->kp.addr);
+					ri->task->comm, ri->task->tgid, ri->task->pid, 
+					(unsigned long)rp->kp.addr);
 	}
 
 	if (hlist_empty(&rp->used_instances) || not_rp2) {

@@ -68,9 +68,6 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 
-extern unsigned long sched_addr;
-extern unsigned long fork_addr;
-extern unsigned long exit_addr;
 extern struct hlist_head kprobe_insn_pages;
 
 DEFINE_PER_CPU (struct kprobe *, current_kprobe) = NULL;
@@ -744,7 +741,8 @@ void dbi_unregister_kretprobe (struct kretprobe *rp)
 			recycle_rp_inst(ri);
 		else
 			panic("%s (%d/%d): cannot disarm krp instance (%08lx)",
-					ri->task->comm, ri->task->tgid, ri->task->pid, rp->kp.addr);
+					ri->task->comm, ri->task->tgid, ri->task->pid,
+					(unsigned long)rp->kp.addr);
 	}
 	spin_unlock_irqrestore (&kretprobe_lock, flags);
 	free_rp_inst (rp);
@@ -792,12 +790,12 @@ static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
 	if (!sp) {
 		printk("---> %s (%d/%d) sp == NULL (%08lx)!!!!\n",
 				ri->task->comm, ri->task->tgid, ri->task->pid,
-				ri->rp ? ri->rp->kp.addr: NULL);
+				(unsigned long)(ri->rp ? ri->rp->kp.addr: NULL));
 		return -EINVAL;
 	}
 
 	while (sp > ri->sp - RETPROBE_STACK_DEPTH) {
-		if (*sp == tramp) {
+		if ((unsigned long)*sp == (unsigned long)tramp) {
 			found = sp;
 			break;
 		}
@@ -807,13 +805,14 @@ static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
 	if (found) {
 		printk("---> %s (%d/%d): trampoline found at %08lx (%08lx /%+d) - %p\n",
 				ri->task->comm, ri->task->tgid, ri->task->pid,
-				found, ri->sp, found - ri->sp, ri->rp ? ri->rp->kp.addr: NULL);
-		*found = ri->ret_addr;
+				(unsigned long)found, (unsigned long)ri->sp, found - ri->sp, 
+				ri->rp ? ri->rp->kp.addr: NULL);
+		*found = (unsigned long)ri->ret_addr;
 		retval = 0;
 	} else {
 		printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx - %p\n",
 				ri->task->comm, ri->task->tgid, ri->task->pid,
-				ri->sp, ri->rp ? ri->rp->kp.addr: NULL);
+				(unsigned long)ri->sp, ri->rp ? ri->rp->kp.addr: NULL);
 	}
 
 	return retval;
