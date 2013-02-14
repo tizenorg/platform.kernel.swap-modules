@@ -1376,7 +1376,7 @@ unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip)
 	if (ri)
 		return (unsigned long)ri->ret_addr;
 	else
-		dbi_get_ret_addr(task_pt_regs(task));
+		return dbi_get_ret_addr(task_pt_regs(task));
 }
 EXPORT_SYMBOL_GPL(get_ret_addr);
 
@@ -1384,7 +1384,7 @@ unsigned long get_entry_sp(struct task_struct *task, struct us_ip *ip)
 {
 	struct kretprobe_instance *ri = find_ri(task, ip);
 	if (ri)
-		return ri->sp;
+		return (unsigned long)ri->sp;
 	else
 		return dbi_get_stack_ptr(task_pt_regs(task));
 }
