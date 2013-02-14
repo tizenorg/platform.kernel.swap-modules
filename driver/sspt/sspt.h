@@ -83,7 +83,7 @@ static inline struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst
 
 	add_java_inst(procs);
 
-	print_proc_probes(procs);
+//	print_proc_probes(procs);
 
 	printk("####### get  END  #######\n");
 
