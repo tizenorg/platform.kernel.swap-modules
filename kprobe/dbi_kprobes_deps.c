@@ -41,8 +41,8 @@ unsigned long fork_addr;
 unsigned long exit_addr;
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-static struct mm_struct* init_mm_ptr;
-struct mm_struct init_mm;
+/* kernel define 'pgd_offset_k' redefinition */
+#define pgd_offset_k(addr)	pgd_offset(init_task.active_mm, addr)
 #endif
 
 
@@ -234,11 +234,6 @@ IMP_MOD_DEP_WRAPPER(flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
 
 int init_module_dependencies(void)
 {
-
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
-	init_mm_ptr = (struct mm_struct*)swap_ksyms("init_mm");
-#endif
-
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18)
 	INIT_MOD_DEP_VAR(handle_mm_fault, handle_mm_fault);
 #endif
