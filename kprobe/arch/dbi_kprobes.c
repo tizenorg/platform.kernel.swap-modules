@@ -106,11 +106,22 @@ void arch_disarm_uretprobe (struct kretprobe *p, struct task_struct *tsk)
 
 int arch_init_module_dependencies(void)
 {
+	int ret;
+
 	sched_addr = swap_ksyms("__switch_to");
 	fork_addr = swap_ksyms("do_fork");
 	exit_addr = swap_ksyms("do_exit");
 
-	init_module_dependencies();
+	if (sched_addr == NULL ||
+	    fork_addr == NULL ||
+	    exit_addr == NULL) {
+		return -ESRCH;
+	}
+
+	ret = init_module_dependencies();
+	if (ret) {
+		return ret;
+	}
 
 	return asm_init_module_dependencies();
 }
