@@ -63,8 +63,6 @@
 
 #define SUPRESS_BUG_MESSAGES
 
-extern unsigned long exit_addr;
-
 extern struct kprobe * per_cpu__current_kprobe;
 
 extern struct kprobe * per_cpu__current_kprobe;

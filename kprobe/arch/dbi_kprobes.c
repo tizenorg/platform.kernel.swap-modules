@@ -58,10 +58,6 @@
 #include <linux/module.h>
 #include <ksyms.h>
 
-extern unsigned long sched_addr;
-extern unsigned long fork_addr;
-extern unsigned long exit_addr;
-
 extern struct hlist_head kprobe_insn_pages;
 extern struct hlist_head uprobe_insn_pages;
 

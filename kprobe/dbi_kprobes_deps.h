@@ -92,6 +92,7 @@ int page_present (struct mm_struct *mm, unsigned long addr);
 
 extern unsigned long sched_addr;
 extern unsigned long fork_addr;
+extern unsigned long exit_addr;
 
 
 DECLARE_MOD_DEP_WRAPPER (__flush_anon_page, \
