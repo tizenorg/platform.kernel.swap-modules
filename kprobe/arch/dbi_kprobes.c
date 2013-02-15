@@ -108,9 +108,9 @@ int arch_init_module_dependencies(void)
 	fork_addr = swap_ksyms("do_fork");
 	exit_addr = swap_ksyms("do_exit");
 
-	if (sched_addr == NULL ||
-	    fork_addr == NULL ||
-	    exit_addr == NULL) {
+	if ((void *)sched_addr == NULL ||
+				(void *)fork_addr == NULL ||
+				(void *)exit_addr == NULL) {
 		return -ESRCH;
 	}
 
