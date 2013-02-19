@@ -328,12 +328,11 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 	spin_lock_irqsave (&kretprobe_lock, flags);
 
 	while ((ri = get_used_rp_inst(rp)) != NULL) {
-		if (dbi_disarm_urp_inst(ri) == 0)
-			recycle_rp_inst(ri);
-		else
-			panic("%s (%d/%d): cannot disarm urp instance (%08lx)",
+		if (dbi_disarm_urp_inst(ri) != 0)
+			/*panic*/printk("%s (%d/%d): cannot disarm urp instance (%08lx)\n",
 					ri->task->comm, ri->task->tgid, ri->task->pid, 
 					(unsigned long)rp->kp.addr);
+		recycle_rp_inst(ri);
 	}
 
 	if (hlist_empty(&rp->used_instances) || not_rp2) {
