@@ -1240,7 +1240,8 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	if (!p->tgid || (p->tgid == current->tgid))
 	{
 		if(!p->tgid && ((unsigned int)p->addr == sched_addr) && sched_rp) {
-		    patch_suspended_all_task_ret_addr(sched_rp);
+			struct thread_info *tinfo = (struct thread_info *)regs->ARM_r2;
+			patch_suspended_task(sched_rp, tinfo->task);
 		}
 		if (pre_entry)
 			p->ss_addr = (void *)pre_entry (jp->priv_arg, regs);

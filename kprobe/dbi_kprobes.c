@@ -719,7 +719,6 @@ int dbi_register_kretprobe (struct kretprobe *rp)
 	return ret;
 }
 
-static void unpatch_suspended_all_task_ret_addr(struct kretprobe *rp);
 static int dbi_disarm_krp_inst(struct kretprobe_instance *ri);
 
 void dbi_unregister_kretprobe (struct kretprobe *rp)
@@ -729,13 +728,12 @@ void dbi_unregister_kretprobe (struct kretprobe *rp)
 
 	dbi_unregister_kprobe (&rp->kp, NULL);
 
-	if ((unsigned long)rp->kp.addr == sched_addr) {
-		unpatch_suspended_all_task_ret_addr(rp);
-		sched_rp = NULL;
-	}
-
 	/* No race here */
 	spin_lock_irqsave (&kretprobe_lock, flags);
+
+	if ((unsigned long)rp->kp.addr == sched_addr)
+		sched_rp = NULL;
+
 	while ((ri = get_used_rp_inst (rp)) != NULL) {
 		if (dbi_disarm_krp_inst(ri) == 0)
 			recycle_rp_inst(ri);
@@ -744,6 +742,7 @@ void dbi_unregister_kretprobe (struct kretprobe *rp)
 					ri->task->comm, ri->task->tgid, ri->task->pid,
 					(unsigned long)rp->kp.addr);
 	}
+
 	spin_unlock_irqrestore (&kretprobe_lock, flags);
 	free_rp_inst (rp);
 }
@@ -780,6 +779,22 @@ struct kretprobe * clone_kretprobe (struct kretprobe *rp)
 	return clone;
 }
 
+static void inline set_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri, unsigned long tramp_addr)
+{
+	unsigned long pc = arch_get_task_pc(p);
+	if (pc == tramp_addr)
+		panic("[%d] %s (%d/%d): pc = %08lx --- [%d] %s (%d/%d)\n",
+				task_cpu(p), p->comm, p->tgid, p->pid, pc,
+				task_cpu(current), current->comm, current->tgid, current->pid);
+	ri->ret_addr = (kprobe_opcode_t *)pc;
+	arch_set_task_pc(p, tramp_addr);
+}
+
+static void inline rm_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri)
+{
+	arch_set_task_pc(p, (unsigned long)ri->ret_addr);
+}
+
 static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
 {
 	kprobe_opcode_t *tramp = (kprobe_opcode_t *)&kretprobe_trampoline;
@@ -788,9 +803,21 @@ static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
 	int retval = -ENOENT;
 
 	if (!sp) {
-		printk("---> %s (%d/%d) sp == NULL (%08lx)!!!!\n",
+		unsigned long pc = arch_get_task_pc(ri->task);
+
+		printk("---> [%d] %s (%d/%d): pc = %08lx, ra = %08lx, tramp= %08lx (%08lx)\n",
+				task_cpu(ri->task),
 				ri->task->comm, ri->task->tgid, ri->task->pid,
+				pc, (unsigned long)ri->ret_addr,
+				(unsigned long)tramp,
 				(unsigned long)(ri->rp ? ri->rp->kp.addr: NULL));
+
+		/* __switch_to retprobe handling */
+		if (pc == (unsigned long)tramp) {
+			rm_task_trampoline(ri->task, ri);
+			return 0;
+		}
+
 		return -EINVAL;
 	}
 
@@ -803,142 +830,46 @@ static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
 	}
 
 	if (found) {
-		printk("---> %s (%d/%d): trampoline found at %08lx (%08lx /%+d) - %p\n",
+		printk("---> [%d] %s (%d/%d): tramp (%08lx) found at %08lx (%08lx /%+d) - %p\n",
+				task_cpu(ri->task),
 				ri->task->comm, ri->task->tgid, ri->task->pid,
+				(unsigned long)tramp,
 				(unsigned long)found, (unsigned long)ri->sp, found - ri->sp, 
 				ri->rp ? ri->rp->kp.addr: NULL);
 		*found = (unsigned long)ri->ret_addr;
 		retval = 0;
 	} else {
-		printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx - %p\n",
+		printk("---> [%d] %s (%d/%d): tramp (%08lx) NOT found at sp = %08lx - %p\n",
+				task_cpu(ri->task),
 				ri->task->comm, ri->task->tgid, ri->task->pid,
+				(unsigned long)tramp,
 				(unsigned long)ri->sp, ri->rp ? ri->rp->kp.addr: NULL);
 	}
 
 	return retval;
 }
 
-static void inline set_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri, unsigned long tramp_addr)
-{
-	ri->ret_addr = (kprobe_opcode_t *)arch_get_task_pc(p);
-	arch_set_task_pc(p, tramp_addr);
-}
-
-static void inline rm_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri)
-{
-	arch_set_task_pc(p, (unsigned long)ri->ret_addr);
-}
-
-static struct kretprobe_instance* find_ri_pc_mod(struct task_struct *p, struct kretprobe *rp)
-{
-	struct kretprobe_instance *ri;
-	struct hlist_node *node, *tmp;
-	struct hlist_head *head;
-	unsigned long flags;
-
-	spin_lock_irqsave (&kretprobe_lock, flags);
-	head = kretprobe_inst_table_head (p);
-	hlist_for_each_entry_safe (ri, node, tmp, head, hlist) {
-		if ((ri->rp == rp) && (p == ri->task)) {
-			spin_unlock_irqrestore (&kretprobe_lock, flags);
-			return ri;
-		}
-	}
-	spin_unlock_irqrestore (&kretprobe_lock, flags);
-
-	return NULL;
-}
-
-static void add_ri_pc_mod(struct task_struct *p, struct kretprobe *rp, unsigned long tramp_addr)
+int patch_suspended_task(struct kretprobe *rp, struct task_struct *task)
 {
 	struct kretprobe_instance *ri;
 	unsigned long flags;
+	kprobe_opcode_t *tramp = (kprobe_opcode_t *)&kretprobe_trampoline;
 
 	spin_lock_irqsave(&kretprobe_lock, flags);
-	if ((ri = get_free_rp_inst(rp)) != NULL) {
-		ri->rp = rp;
-		ri->rp2 = NULL;
-		ri->task = p;
-		ri->sp = NULL;
-		// set PC
-		set_task_trampoline(p, ri, tramp_addr);
-		add_rp_inst(ri);
-	} else {
-		printk("no ri for %d\n", p->pid);
-		BUG();
-	}
+
+	ri = get_free_rp_inst(rp);
+	if (!ri)
+		return -ENOMEM;
+
+	ri->rp = rp;
+	ri->rp2 = NULL;
+	ri->task = task;
+	ri->sp = NULL;
+	set_task_trampoline(task, ri, (unsigned long)tramp);
+	add_rp_inst(ri);
+
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
-}
-
-static void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
-{
-	struct kretprobe_instance *ri = find_ri_pc_mod(p, rp);
-
-	if(ri) {
-		// update PC
-		if( arch_get_task_pc(p) != (unsigned long) &kretprobe_trampoline)
-			set_task_trampoline(p, ri, (unsigned long) &kretprobe_trampoline);
-	} else {
-		add_ri_pc_mod(p, rp, (unsigned long) &kretprobe_trampoline);
-	}
-}
-
-static void unpatch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp)
-{
-	struct kretprobe_instance *ri;
-
-	if( arch_get_task_pc(p) == (unsigned long)&kretprobe_trampoline )
-	{
-		ri = find_ri_pc_mod(p, rp);
-		if(ri) {
-			unsigned long flags;
-			rm_task_trampoline(p, ri);
-
-			spin_lock_irqsave(&kretprobe_lock, flags);
-			recycle_rp_inst(ri);
-			spin_unlock_irqrestore(&kretprobe_lock, flags);
-		}
-	}
-}
-
-void patch_suspended_all_task_ret_addr(struct kretprobe *rp)
-{
-	struct task_struct *p, *g;
-
-	rcu_read_lock();
-	// swapper task
-	if(current != &init_task)
-		patch_suspended_task_ret_addr(&init_task, rp);
-
-	// other tasks
-	do_each_thread(g, p) {
-		if(p == current)
-			continue;
-		patch_suspended_task_ret_addr(p, rp);
-	} while_each_thread(g, p);
-
-#ifdef CONFIG_X86
-	/* workaround for do_exit probe on x86 targets */
-	if ((current->flags & PF_EXITING) || (current->flags & PF_EXITPIDONE)) {
-		patch_suspended_task_ret_addr(current, rp);
-	}
-#endif
-	rcu_read_unlock();
-}
-
-static void unpatch_suspended_all_task_ret_addr(struct kretprobe *rp)
-{
-	struct task_struct *p, *g;
-
-	rcu_read_lock();
-	// swapper task
-	unpatch_suspended_task_ret_addr(&init_task, rp);
-
-	// other tasks
-	do_each_thread(g, p) {
-		unpatch_suspended_task_ret_addr(p, rp);
-	} while_each_thread(g, p);
-	rcu_read_unlock();
+	return 0;
 }
 
 static int __init init_kprobes (void)
