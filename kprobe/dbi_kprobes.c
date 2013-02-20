@@ -329,6 +329,33 @@ void recycle_rp_inst (struct kretprobe_instance *ri)
 	}
 }
 
+int dbi_disarm_urp_inst(struct kretprobe_instance *ri, struct task_struct *rm_task);
+
+int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task)
+{
+	int i, ret;
+	unsigned long table_size, flags;
+	struct kretprobe_instance *ri;
+	struct hlist_node *node, *tmp;
+	struct hlist_head *head;
+
+	table_size = (1 << KPROBE_HASH_BITS);
+
+	spin_lock_irqsave(&kretprobe_lock, flags);
+	for (i = 0; i < table_size; ++i) {
+		head = &kretprobe_inst_table[i];
+		hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
+			if (parent == ri->task) {
+				dbi_disarm_urp_inst(ri, task);
+			}
+		}
+	}
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(dbi_disarm_urp_inst_for_task);
+
 struct hlist_head  * kretprobe_inst_table_head (void *hash_key)
 {
 	return &kretprobe_inst_table[hash_ptr (hash_key, KPROBE_HASH_BITS)];
@@ -834,7 +861,7 @@ static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
 				task_cpu(ri->task),
 				ri->task->comm, ri->task->tgid, ri->task->pid,
 				(unsigned long)tramp,
-				(unsigned long)found, (unsigned long)ri->sp, found - ri->sp, 
+				(unsigned long)found, (unsigned long)ri->sp, found - ri->sp,
 				ri->rp ? ri->rp->kp.addr: NULL);
 		*found = (unsigned long)ri->ret_addr;
 		retval = 0;

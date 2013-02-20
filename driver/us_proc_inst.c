@@ -1090,6 +1090,7 @@ EXPORT_SYMBOL_GPL(mm_release_probe_pre_code);
 static void recover_child(struct task_struct *child_task, struct sspt_procs *procs)
 {
 	uninstall_us_proc_probes(child_task, procs, US_DISARM);
+	dbi_disarm_urp_inst_for_task(current, child_task);
 }
 
 static void rm_uprobes_child(struct task_struct *new_task)

@@ -270,9 +270,9 @@ out:
 	return ret;
 }
 
-static int dbi_disarm_urp_inst(struct kretprobe_instance *ri)
+int dbi_disarm_urp_inst(struct kretprobe_instance *ri, struct task_struct *rm_task)
 {
-	struct task_struct *task = ri->task;
+	struct task_struct *task = rm_task ? rm_task : ri->task;
 	kprobe_opcode_t *tramp = (kprobe_opcode_t *)(ri->rp->kp.ainsn.insn +
 			UPROBES_TRAMP_RET_BREAK_IDX);
 	kprobe_opcode_t *stack = ri->sp - RETPROBE_STACK_DEPTH;
@@ -328,9 +328,9 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 	spin_lock_irqsave (&kretprobe_lock, flags);
 
 	while ((ri = get_used_rp_inst(rp)) != NULL) {
-		if (dbi_disarm_urp_inst(ri) != 0)
+		if (dbi_disarm_urp_inst(ri, NULL) != 0)
 			/*panic*/printk("%s (%d/%d): cannot disarm urp instance (%08lx)\n",
-					ri->task->comm, ri->task->tgid, ri->task->pid, 
+					ri->task->comm, ri->task->tgid, ri->task->pid,
 					(unsigned long)rp->kp.addr);
 		recycle_rp_inst(ri);
 	}
