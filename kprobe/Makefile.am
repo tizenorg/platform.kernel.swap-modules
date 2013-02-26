@@ -20,7 +20,7 @@ inlude_opt = -I$(top_srcdir)/src/modules/ksyms
 extra_cflags = "$(inlude_opt) $(android_opt) $(board_opt)"
 
 all-local:
-	rm -f $(top_srcdir)/src/modules/kprobe/arch/asm && $(LN_S) asm-${target_arch} $(top_srcdir)/src/modules/kprobe/arch/asm
+	rm -rf $(top_srcdir)/src/modules/kprobe/arch/asm && $(LN_S) asm-${target_arch} $(top_srcdir)/src/modules/kprobe/arch/asm
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) extra_cflags=$(extra_cflags) $(AM_MAKEFLAGS) -C $(target_kernel_src) $(sparse_output) M=$(kprobes_module_dir) modules
 
 
