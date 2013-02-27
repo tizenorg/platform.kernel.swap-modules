@@ -177,8 +177,8 @@ register_kernel_probe (kernel_probe_t * probe)
 int
 unregister_kernel_probe (kernel_probe_t * probe)
 {
-	unregister_kernel_jprobe (probe);
-	unregister_kernel_retprobe (probe);
+	unregister_kernel_retprobe(probe);
+	unregister_kernel_jprobe(probe);
 	return 0;
 }
 

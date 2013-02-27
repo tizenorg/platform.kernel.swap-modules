@@ -81,7 +81,6 @@ static struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 
 atomic_t kprobe_count;
 
-
 void kretprobe_assert (struct kretprobe_instance *ri, unsigned long orig_ret_address, unsigned long trampoline_address)
 {
 	if (!orig_ret_address || (orig_ret_address == trampoline_address)) {
@@ -591,6 +590,11 @@ valid_p:
 			list_del_rcu (&p->list);
 			kfree (old_p);
 		}
+
+		if (!in_atomic()) {
+			synchronize_sched();
+		}
+
 		arch_remove_kprobe (p, task);
 	}
 	else
