@@ -128,6 +128,11 @@ static inline unsigned long dbi_get_ret_addr(struct pt_regs *regs)
 	return addr;
 }
 
+static inline void dbi_set_ret_addr(struct pt_regs *regs, unsigned long val)
+{
+	write_proc_vm_atomic(current, regs->EREG(sp), &val, sizeof(val));
+}
+
 static inline unsigned long dbi_get_arg(struct pt_regs *regs, int num)
 {
 	unsigned long arg = 0;
