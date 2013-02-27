@@ -299,7 +299,8 @@ int dbi_disarm_urp_inst(struct kretprobe_instance *ri, struct task_struct *rm_ta
 	if (found) {
 		printk("---> %s (%d/%d): trampoline found at %08lx (%08lx /%+d) - %p\n",
 				task->comm, task->tgid, task->pid,
-				(unsigned long)found, (unsigned long)ri->sp, found - ri->sp, ri->rp->kp.addr);
+				(unsigned long)found, (unsigned long)ri->sp,
+				found - ri->sp, ri->rp->kp.addr);
 		retval = write_proc_vm_atomic(task, (unsigned long)found, &ri->ret_addr,
 				sizeof(ri->ret_addr));
 		if (retval != sizeof(ri->ret_addr)) {
@@ -310,9 +311,19 @@ int dbi_disarm_urp_inst(struct kretprobe_instance *ri, struct task_struct *rm_ta
 			retval = 0;
 		}
 	} else {
-		printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx - %p\n",
-				task->comm, task->tgid, task->pid, (unsigned long)ri->sp, ri->rp->kp.addr);
-		retval = -ENOENT;
+		struct pt_regs *uregs = task_pt_regs(ri->task);
+		unsigned long ra = dbi_get_ret_addr(uregs);
+		if (ra == (unsigned long)tramp) {
+			printk("---> %s (%d/%d): trampoline found at lr = %08lx - %p\n",
+					task->comm, task->tgid, task->pid, ra, ri->rp->kp.addr);
+			dbi_set_ret_addr(uregs, (unsigned long)tramp);
+			retval = 0;
+		} else {
+			printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx, lr = %08lx - %p\n",
+					task->comm, task->tgid, task->pid,
+					(unsigned long)ri->sp, ra, ri->rp->kp.addr);
+			retval = -ENOENT;
+		}
 	}
 
 out:
