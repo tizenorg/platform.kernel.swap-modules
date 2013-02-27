@@ -16,7 +16,7 @@ kprobes_module_dir = $(realpath $(top_srcdir)/src/modules/kprobe)
 module_name = swap_kprobe
 cross_compiler = $(subst gcc,,$(CC))
 
-inlude_opt = -I$(top_srcdir)/src/modules/ksyms
+inlude_opt = -I$(realpath $(top_srcdir)/src/modules/ksyms)
 extra_cflags = "$(inlude_opt) $(android_opt) $(board_opt)"
 
 all-local:
