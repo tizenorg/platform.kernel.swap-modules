@@ -1117,10 +1117,6 @@ void pack_task_event_info(struct task_struct *task, probe_id_t probe_id,
 	struct cond *p_cond;
 	struct event_tmpl *p_tmpl;
 
-	spin_lock_irqsave(&ec_spinlock, spinlock_flags);
-	memset(buf, 0, EVENT_MAX_SIZE);
-	spin_unlock_irqrestore(&ec_spinlock, spinlock_flags);
-
 	do_gettimeofday (&tv);
 
 	if (probe_id == KS_PROBE_ID) {

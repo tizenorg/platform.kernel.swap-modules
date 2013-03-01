@@ -44,6 +44,11 @@
 
 #include <asm/cacheflush.h>
 
+#ifdef TRAP_OVERHEAD_DEBUG
+#include <linux/pid.h>
+#include <linux/signal.h>
+#endif
+
 #ifdef OVERHEAD_DEBUG
 #include <linux/time.h>
 #endif
@@ -1037,6 +1042,11 @@ static int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
         return ret;
 }
 
+#ifdef TRAP_OVERHEAD_DEBUG
+static unsigned long trap_handler_counter_debug = 0;
+#define SAMPLING_COUNTER                               100000
+#endif
+
 int kprobe_handler(struct pt_regs *regs)
 {
 	int err_out = 0;
@@ -1055,6 +1065,20 @@ int kprobe_handler(struct pt_regs *regs)
 	// oops_in_progress used to avoid BUG() messages that slow down kprobe_handler() execution
 	swap_oops_in_progress = oops_in_progress;
 	oops_in_progress = 1;
+#endif
+#ifdef TRAP_OVERHEAD_DEBUG
+	trap_handler_counter_debug++;
+	if ( trap_handler_counter_debug < SAMPLING_COUNTER ) {
+		err_out = 0;
+	}
+	else {
+		// XXX NOTE - user must care about catching signal via signal handler to avoid hanging!
+		printk("Trap %ld reached - send SIGUSR1\n", trap_handler_counter_debug);
+		kill_pid(get_task_pid(current, PIDTYPE_PID), SIGUSR1, 1);
+		trap_handler_counter_debug = 0;
+		err_out = 0;
+	}
+	return err_out;
 #endif
 #ifdef OVERHEAD_DEBUG
 	struct timeval swap_tv1;
