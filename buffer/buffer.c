@@ -1,6 +1,5 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/atomic.h>
 #include <linux/spinlock.h>
 #include <linux/vmalloc.h>
 #include <linux/cdev.h>
@@ -108,7 +107,7 @@ static inline void buf_use_chunk(struct chunk *chunk)
 	chunk->size = 0;
 }
 
-static inline void buf_check_chunk_size(struct chunk *chunk, unsigned long size)
+static inline int buf_check_chunk_size(struct chunk *chunk, unsigned long size)
 {
 	return (bdevice.chunk_size - chunk->size <= size);
 }
