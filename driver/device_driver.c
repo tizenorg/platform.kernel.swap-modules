@@ -414,6 +414,9 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			result = -1;
 			break;
 		}
+		if (has_last_error() == -1) {
+			result = -1;
+		}
 
 		break;
 	}
@@ -675,7 +678,11 @@ sad_cleanup:
 			DPRINTF("Get Size of Predefined User Space Probes");
 			break;
 		}
-
+	case EC_IOCTL_GET_LAST_ERROR:
+		{
+			result = get_last_error((void*)arg);
+			break;
+		}
 	default:
 		EPRINTF ("Unknown driver command = %u", cmd);
 		result = -EINVAL;

@@ -74,6 +74,8 @@ typedef enum
 
 	EC_IOCTL_SET_PID,
 
+	// error consist of wrong path to apps or libs
+	EC_IOCTL_GET_LAST_ERROR,
 } EC_IOCTL_CMD;
 
 typedef struct

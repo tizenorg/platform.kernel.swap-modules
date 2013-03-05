@@ -29,6 +29,9 @@
 #include "probes.h"
 #include "event_tmpl.h"
 
+extern int update_errno_buffer(const char *buffer);
+extern int get_last_error(void* u_addr);
+extern int has_last_error(void);
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 extern int EnableContinuousRetrieval(void);
@@ -64,7 +67,6 @@ extern void pack_task_event_info (struct task_struct *task, probe_id_t probe_id,
 
 /* Set most links from us_proc_info to data in the bundle */
 int link_bundle(void);
-
 /* Undo the actions of link_bundle() */
 void unlink_bundle(void);
 
