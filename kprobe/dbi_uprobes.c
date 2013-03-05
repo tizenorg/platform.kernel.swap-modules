@@ -275,7 +275,7 @@ int dbi_disarm_urp_inst(struct kretprobe_instance *ri, struct task_struct *rm_ta
 	struct task_struct *task = rm_task ? rm_task : ri->task;
 	kprobe_opcode_t *tramp = (kprobe_opcode_t *)(ri->rp->kp.ainsn.insn +
 			UPROBES_TRAMP_RET_BREAK_IDX);
-	kprobe_opcode_t *stack = ri->sp - RETPROBE_STACK_DEPTH;
+	kprobe_opcode_t *stack = ri->sp - RETPROBE_STACK_DEPTH + 1;
 	kprobe_opcode_t *found = NULL;
 	kprobe_opcode_t *buf[RETPROBE_STACK_DEPTH];
 	int i, retval;
