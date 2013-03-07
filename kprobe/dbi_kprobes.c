@@ -55,7 +55,6 @@
 #include "dbi_kdebug.h"
 #include "dbi_kprobes_deps.h"
 #include "dbi_insn_slots.h"
-#include "dbi_uprobes.h"
 #include <ksyms.h>
 
 #include <linux/version.h>
@@ -74,12 +73,15 @@ DEFINE_PER_CPU (struct kprobe *, current_kprobe) = NULL;
 static DEFINE_PER_CPU (struct kprobe_ctlblk, kprobe_ctlblk);
 
 DEFINE_SPINLOCK (kretprobe_lock);	/* Protects kretprobe_inst_table */
+EXPORT_SYMBOL_GPL(kretprobe_lock);
 static DEFINE_PER_CPU (struct kprobe *, kprobe_instance) = NULL;
 
 struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
+EXPORT_SYMBOL_GPL(kprobe_table);
 static struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 
 atomic_t kprobe_count;
+EXPORT_SYMBOL_GPL(kprobe_count);
 
 void kretprobe_assert (struct kretprobe_instance *ri, unsigned long orig_ret_address, unsigned long trampoline_address)
 {
@@ -157,6 +159,7 @@ struct kprobe *get_kprobe(kprobe_opcode_t *addr, pid_t tgid)
 	DBPRINTF ("get_kprobe: probe %p", retVal);
 	return retVal;
 }
+EXPORT_SYMBOL_GPL(get_kprobe);
 
 /*
  * Aggregate handlers for multiple kprobes support - these handlers
@@ -280,6 +283,7 @@ struct kretprobe_instance *get_used_rp_inst (struct kretprobe *rp)
 	hlist_for_each_entry (ri, node, &rp->used_instances, uflist) return ri;
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(get_used_rp_inst);
 
 /* Called with kretprobe_lock held */
 void add_rp_inst (struct kretprobe_instance *ri)
@@ -327,30 +331,13 @@ void recycle_rp_inst (struct kretprobe_instance *ri)
 		hlist_del (&ri->hlist);
 	}
 }
-
-int dbi_disarm_urp_inst(struct kretprobe_instance *ri, struct task_struct *rm_task);
-
-/* Called with kretprobe_lock held */
-int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task)
-{
-	struct kretprobe_instance *ri;
-	struct hlist_node *node, *tmp;
-	struct hlist_head *head = kretprobe_inst_table_head(parent->mm);
-
-	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
-		if (parent == ri->task && ri->rp->kp.tgid) {
-			dbi_disarm_urp_inst(ri, task);
-		}
-	}
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(dbi_disarm_urp_inst_for_task);
+EXPORT_SYMBOL_GPL(recycle_rp_inst);
 
 struct hlist_head  * kretprobe_inst_table_head (void *hash_key)
 {
 	return &kretprobe_inst_table[hash_ptr (hash_key, KPROBE_HASH_BITS)];
 }
+EXPORT_SYMBOL_GPL(kretprobe_inst_table_head);
 
 void free_rp_inst (struct kretprobe *rp)
 {
@@ -361,6 +348,7 @@ void free_rp_inst (struct kretprobe *rp)
 		kfree (ri);
 	}
 }
+EXPORT_SYMBOL_GPL(free_rp_inst);
 
 /*
  * Keep all fields in the kprobe consistent
@@ -482,6 +470,7 @@ int register_aggr_kprobe (struct kprobe *old_p, struct kprobe *p)
 	}
 	return ret;
 }
+EXPORT_SYMBOL_GPL(register_aggr_kprobe);
 
 int dbi_register_kprobe (struct kprobe *p)
 {
@@ -641,6 +630,7 @@ int pre_handler_kretprobe (struct kprobe *p, struct pt_regs *regs)
 	DBPRINTF ("END\n");
 	return 0;
 }
+EXPORT_SYMBOL_GPL(pre_handler_kretprobe);
 
 struct kretprobe *sched_rp;
 
@@ -801,6 +791,7 @@ struct kretprobe * clone_kretprobe (struct kretprobe *rp)
 
 	return clone;
 }
+EXPORT_SYMBOL_GPL(clone_kretprobe);
 
 static void inline set_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri, unsigned long tramp_addr)
 {
@@ -905,8 +896,6 @@ static int __init init_kprobes (void)
 	{
 		INIT_HLIST_HEAD (&kprobe_table[i]);
 		INIT_HLIST_HEAD (&kretprobe_inst_table[i]);
-
-		init_uprobes_insn_slots(i);
 	}
 	atomic_set (&kprobe_count, 0);
 

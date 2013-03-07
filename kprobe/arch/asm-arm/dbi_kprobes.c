@@ -39,7 +39,6 @@
 #include "../../dbi_kdebug.h"
 #include "../../dbi_insn_slots.h"
 #include "../../dbi_kprobes_deps.h"
-#include "../../dbi_uprobes.h"
 #include <ksyms.h>
 
 #include <asm/cacheflush.h>
@@ -676,12 +675,14 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 	}
 	return ret;
 }
+EXPORT_SYMBOL_GPL(arch_prepare_uprobe);
 
 int arch_prepare_uretprobe (struct kretprobe *p, struct task_struct *task)
 {
 	DBPRINTF("Warrning: arch_prepare_uretprobe is not implemented\n");
 	return 0;
 }
+EXPORT_SYMBOL_GPL(arch_prepare_uretprobe);
 
 void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 {
@@ -1286,6 +1287,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 
 	return 1;
 }
+EXPORT_SYMBOL_GPL(setjmp_pre_handler);
 
 void dbi_jprobe_return (void)
 {
@@ -1294,6 +1296,7 @@ void dbi_jprobe_return (void)
 void dbi_arch_uprobe_return (void)
 {
 }
+EXPORT_SYMBOL_GPL(dbi_arch_uprobe_return);
 
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 {
@@ -1335,7 +1338,7 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 
 	return 0;
 }
-
+EXPORT_SYMBOL_GPL(longjmp_break_handler);
 
 void arch_arm_kprobe (struct kprobe *p)
 {
@@ -1493,7 +1496,8 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 					if (!(hlist_unhashed(&is_p->is_hlist_thumb))) {
 						hlist_del_rcu(&is_p->is_hlist_thumb);
 					}
-					unregister_uprobe (&crp->kp, current, 1);
+
+					dbi_unregister_kprobe(&crp->kp, current);
 					kfree (crp);
 				}
 				hlist_del(current_node);

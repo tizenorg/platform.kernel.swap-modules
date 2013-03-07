@@ -46,7 +46,6 @@
  */
 
 #include "dbi_insn_slots.h"
-#include "dbi_uprobes.h"
 #include "dbi_kdebug.h"
 
 #include <linux/hash.h>
@@ -55,12 +54,15 @@
 
 #include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <linux/module.h>
 
 
 extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
                         unsigned long len, unsigned long prot,
                         unsigned long flags, unsigned long pgoff);
 
+struct hlist_head uprobe_insn_slot_table[KPROBE_TABLE_SIZE];
+EXPORT_SYMBOL_GPL(uprobe_insn_slot_table);
 
 struct hlist_head kprobe_insn_pages;
 struct hlist_head uprobe_insn_pages;

@@ -19,7 +19,7 @@
 #include "us_proc_inst.h"
 
 #include "../kprobe/dbi_kprobes_deps.h"
-#include "../kprobe/dbi_uprobes.h"
+#include "../uprobe/swap_uprobes.h"
 
 #include "sspt/sspt.h"
 #include "java_inst.h"
