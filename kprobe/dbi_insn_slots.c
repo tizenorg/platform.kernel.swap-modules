@@ -66,6 +66,7 @@ EXPORT_SYMBOL_GPL(uprobe_insn_slot_table);
 
 struct hlist_head kprobe_insn_pages;
 struct hlist_head uprobe_insn_pages;
+EXPORT_SYMBOL_GPL(uprobe_insn_pages);
 
 struct chunk {
 	unsigned long *data;
@@ -288,6 +289,7 @@ kprobe_opcode_t *get_insn_slot(struct task_struct *task, int atomic)
 
 	return chunk_allocate(&kip->chunk, slot_size(task));
 }
+EXPORT_SYMBOL_GPL(get_insn_slot);
 
 void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot)
 {
@@ -313,6 +315,7 @@ void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kpro
 
 	panic("free_insn_slot: slot=%p is not data base\n", slot);
 }
+EXPORT_SYMBOL_GPL(free_insn_slot);
 
 #ifdef CONFIG_ARM
 static struct kprobe *get_kprobe_by_insn_slot_arm(kprobe_opcode_t *addr, pid_t tgid)

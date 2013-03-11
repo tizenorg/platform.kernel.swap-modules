@@ -28,6 +28,8 @@
 #include "swap_uprobes.h"
 #include "dbi_kdebug.h"
 
+#include <asm/swap_uprobes.h>
+
 #include <linux/hash.h>
 #include <linux/mempolicy.h>
 #include <linux/module.h>

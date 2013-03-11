@@ -32,8 +32,6 @@
 #include <linux/sched.h>
 #include "../../dbi_kprobes_deps.h"
 #include "../dbi_kprobes.h"
-#include "dbi_kprobes_arm.h"
-#include "dbi_kprobes_thumb.h"
 
 typedef unsigned long kprobe_opcode_t;
 
