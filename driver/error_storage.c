@@ -7,7 +7,7 @@ static int create_errno_buffer(void);
 static void delete_errno_buffer(void);
 static unsigned int get_max_error_buffer_size(void);
 
-static struct errno_struct
+struct errno_struct
 {
         unsigned int size;
         char *buffer;
