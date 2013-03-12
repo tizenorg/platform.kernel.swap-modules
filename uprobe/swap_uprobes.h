@@ -40,10 +40,6 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 
 void dbi_unregister_all_uprobes(struct task_struct *task, int atomic);
 
-void init_uprobes_insn_slots(int i) ;
-
 void dbi_uprobe_return(void);
-
-extern struct hlist_head uprobe_insn_slot_table[KPROBE_TABLE_SIZE];
 
 #endif /*  _DBI_UPROBES_H */

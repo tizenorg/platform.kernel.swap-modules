@@ -34,6 +34,12 @@
 #include <linux/mempolicy.h>
 #include <linux/module.h>
 
+enum {
+	UPROBE_HASH_BITS  = 10,
+	UPROBE_TABLE_SIZE = (1 << UPROBE_HASH_BITS)
+};
+
+struct hlist_head uprobe_insn_slot_table[UPROBE_TABLE_SIZE];
 
 #define DEBUG_PRINT_HASH_TABLE 0
 
@@ -80,7 +86,7 @@ void print_uprobe_hash_table(void)
 	struct kprobe *p;
 
 	// print uprobe table
-	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
+	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
 		head = &uprobe_insn_slot_table[i];
 		hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
 			printk("####### find U tgid=%u, addr=%x\n",
@@ -90,20 +96,95 @@ void print_uprobe_hash_table(void)
 }
 #endif
 
+static void init_uprobes_insn_slots(void)
+{
+	int i;
+	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
+		INIT_HLIST_HEAD(&uprobe_insn_slot_table[i]);
+	}
+}
 
 static void add_uprobe_table(struct kprobe *p)
 {
 #ifdef CONFIG_ARM
 	INIT_HLIST_NODE(&p->is_hlist_arm);
-	hlist_add_head_rcu(&p->is_hlist_arm, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_arm, KPROBE_HASH_BITS)]);
+	hlist_add_head_rcu(&p->is_hlist_arm, &uprobe_insn_slot_table[hash_ptr(p->ainsn.insn_arm, UPROBE_HASH_BITS)]);
 	INIT_HLIST_NODE(&p->is_hlist_thumb);
-	hlist_add_head_rcu(&p->is_hlist_thumb, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn_thumb, KPROBE_HASH_BITS)]);
+	hlist_add_head_rcu(&p->is_hlist_thumb, &uprobe_insn_slot_table[hash_ptr(p->ainsn.insn_thumb, UPROBE_HASH_BITS)]);
 #else /* CONFIG_ARM */
 	INIT_HLIST_NODE(&p->is_hlist);
-	hlist_add_head_rcu(&p->is_hlist, &uprobe_insn_slot_table[hash_ptr (p->ainsn.insn, KPROBE_HASH_BITS)]);
+	hlist_add_head_rcu(&p->is_hlist, &uprobe_insn_slot_table[hash_ptr(p->ainsn.insn, UPROBE_HASH_BITS)]);
 #endif /* CONFIG_ARM */
 }
 
+#ifdef CONFIG_ARM
+static struct kprobe *get_kprobe_by_insn_slot_arm(kprobe_opcode_t *addr, pid_t tgid)
+{
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct kprobe *p, *ret = NULL;
+
+	/* TODO: test - two processes invokes instrumented function */
+	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
+	hlist_for_each_entry_rcu(p, node, head, is_hlist_arm) {
+		if (p->ainsn.insn == addr && tgid == p->tgid) {
+			ret = p;
+			break;
+		}
+	}
+
+	return ret;
+}
+
+static struct kprobe *get_kprobe_by_insn_slot_thumb(kprobe_opcode_t *addr, pid_t tgid)
+{
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct kprobe *p, *ret = NULL;
+
+	/* TODO: test - two processes invokes instrumented function */
+	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
+	hlist_for_each_entry_rcu(p, node, head, is_hlist_thumb) {
+		if (p->ainsn.insn == addr && tgid == p->tgid) {
+			ret = p;
+			break;
+		}
+	}
+
+	return ret;
+}
+
+struct kprobe *get_kprobe_by_insn_slot(kprobe_opcode_t *addr, pid_t tgid, struct pt_regs *regs)
+{
+	struct kprobe *p = NULL;
+
+	if (!thumb_mode(regs)) {
+		p = get_kprobe_by_insn_slot_arm(addr - UPROBES_TRAMP_RET_BREAK_IDX, tgid);
+	} else {
+		p = get_kprobe_by_insn_slot_thumb((kprobe_opcode_t *)((unsigned long)addr - 0x1a), tgid);
+	}
+
+	return p;
+}
+#else /* CONFIG_ARM */
+struct kprobe *get_kprobe_by_insn_slot(void *addr, int tgid, struct task_struct *ctask)
+{
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct kprobe *p, *ret = NULL;
+
+	/* TODO: test - two processes invokes instrumented function */
+	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
+	hlist_for_each_entry_rcu(p, node, head, is_hlist) {
+		if (p->ainsn.insn == addr && tgid == p->tgid) {
+			ret = p;
+			break;
+		}
+	}
+
+	return ret;
+}
+#endif /* CONFIG_ARM */
 
 static int __register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 {
@@ -442,11 +523,6 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
 	}
 }
 
-void init_uprobes_insn_slots(int i)
-{
-	INIT_HLIST_HEAD(&uprobe_insn_slot_table[i]);
-}
-
 void dbi_uprobe_return(void)
 {
 	dbi_arch_uprobe_return();
@@ -454,10 +530,7 @@ void dbi_uprobe_return(void)
 
 static int __init init_uprobes(void)
 {
-	int i;
-	for (i = 0; i < KPROBE_TABLE_SIZE; i++) {
-		init_uprobes_insn_slots(i);
-	}
+	init_uprobes_insn_slots();
 
 	return swap_arch_init_uprobes();
 }

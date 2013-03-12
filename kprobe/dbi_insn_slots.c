@@ -61,9 +61,6 @@ extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
                         unsigned long len, unsigned long prot,
                         unsigned long flags, unsigned long pgoff);
 
-struct hlist_head uprobe_insn_slot_table[KPROBE_TABLE_SIZE];
-EXPORT_SYMBOL_GPL(uprobe_insn_slot_table);
-
 struct hlist_head kprobe_insn_pages;
 struct hlist_head uprobe_insn_pages;
 EXPORT_SYMBOL_GPL(uprobe_insn_pages);
@@ -315,76 +312,3 @@ void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kpro
 	panic("free_insn_slot: slot=%p is not data base\n", slot);
 }
 EXPORT_SYMBOL_GPL(free_insn_slot);
-
-#ifdef CONFIG_ARM
-static struct kprobe *get_kprobe_by_insn_slot_arm(kprobe_opcode_t *addr, pid_t tgid)
-{
-	struct hlist_head *head;
-	struct hlist_node *node;
-	struct kprobe *p, *retVal = NULL;
-
-	//TODO: test - two processes invokes instrumented function
-	head = &uprobe_insn_slot_table[hash_ptr (addr, KPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
-		if (p->ainsn.insn == addr && tgid == p->tgid) {
-			retVal = p;
-			break;
-		}
-	}
-
-	DBPRINTF ("get_kprobe: probe %p", retVal);
-	return retVal;
-}
-
-static struct kprobe *get_kprobe_by_insn_slot_thumb(kprobe_opcode_t *addr, pid_t tgid)
-{
-	struct hlist_head *head;
-	struct hlist_node *node;
-	struct kprobe *p, *retVal = NULL;
-
-	//TODO: test - two processes invokes instrumented function
-	head = &uprobe_insn_slot_table[hash_ptr (addr, KPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu (p, node, head, is_hlist_thumb) {
-		if (p->ainsn.insn == addr && tgid == p->tgid) {
-			retVal = p;
-			break;
-		}
-	}
-
-	DBPRINTF ("get_kprobe: probe %p", retVal);
-	return retVal;
-}
-
-struct kprobe *get_kprobe_by_insn_slot(kprobe_opcode_t *addr, pid_t tgid, struct pt_regs *regs)
-{
-	struct kprobe *p = NULL;
-
-	if (!thumb_mode(regs)) {
-		p = get_kprobe_by_insn_slot_arm(addr - UPROBES_TRAMP_RET_BREAK_IDX, tgid);
-	} else {
-		p = get_kprobe_by_insn_slot_thumb((kprobe_opcode_t *)((unsigned long)addr - 0x1a), tgid);
-	}
-
-	return p;
-}
-#else /* CONFIG_ARM */
-struct kprobe *get_kprobe_by_insn_slot (void *addr, int tgid, struct task_struct *ctask)
-{
-	struct hlist_head *head;
-	struct hlist_node *node;
-	struct kprobe *p, *retVal = NULL;
-
-	//TODO: test - two processes invokes instrumented function
-	head = &uprobe_insn_slot_table[hash_ptr (addr, KPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu (p, node, head, is_hlist) {
-		if (p->ainsn.insn == addr && tgid == p->tgid) {
-			retVal = p;
-			break;
-		}
-	}
-
-	DBPRINTF ("get_kprobe: probe %p", retVal);
-	return retVal;
-}
-#endif /* CONFIG_ARM */
-EXPORT_SYMBOL_GPL(get_kprobe_by_insn_slot);
