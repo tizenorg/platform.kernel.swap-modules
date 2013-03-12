@@ -51,7 +51,7 @@
 #include "dbi_kprobes.h"
 
 
-kprobe_opcode_t *get_insn_slot(struct task_struct *task, int atomic);
+kprobe_opcode_t *get_insn_slot(struct task_struct *task, struct hlist_head *page_list, int atomic);
 void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot);
 
 extern struct hlist_head kprobe_insn_pages;

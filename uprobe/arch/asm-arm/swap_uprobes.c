@@ -5,7 +5,7 @@
 // FIXME:
 #include <dbi_kdebug.h>
 extern struct hlist_head uprobe_insn_pages;
-kprobe_opcode_t *get_insn_slot(struct task_struct *task, int atomic);
+kprobe_opcode_t *get_insn_slot(struct task_struct *task, struct hlist_head *page_list, int atomic);
 int arch_check_insn_arm(struct arch_specific_insn *ainsn);
 int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int uregs);
 void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot);
@@ -544,7 +544,7 @@ int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 	}
 
 	p->opcode = insn[0];
-	p->ainsn.insn_arm = get_insn_slot(task, atomic);
+	p->ainsn.insn_arm = get_insn_slot(task, &uprobe_insn_pages, atomic);
 	if (!p->ainsn.insn_arm) {
 		printk("Error in %s at %d: kprobe slot allocation error (arm)\n", __FILE__, __LINE__);
 		return -ENOMEM;
@@ -556,7 +556,7 @@ int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 		return -EFAULT;
 	}
 
-	p->ainsn.insn_thumb = get_insn_slot(task, atomic);
+	p->ainsn.insn_thumb = get_insn_slot(task, &uprobe_insn_pages, atomic);
 	if (!p->ainsn.insn_thumb) {
 		printk("Error in %s at %d: kprobe slot allocation error (thumb)\n", __FILE__, __LINE__);
 		return -ENOMEM;

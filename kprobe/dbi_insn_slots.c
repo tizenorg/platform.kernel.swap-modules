@@ -262,12 +262,11 @@ static void kip_free(struct kprobe_insn_page * kip)
  * get_us_insn_slot() - Find a slot on an executable page for an instruction.
  * We allocate an executable page if there's no room on existing ones.
  */
-kprobe_opcode_t *get_insn_slot(struct task_struct *task, int atomic)
+kprobe_opcode_t *get_insn_slot(struct task_struct *task, struct hlist_head *page_list, int atomic)
 {
 	kprobe_opcode_t * free_slot;
 	struct kprobe_insn_page *kip;
 	struct hlist_node *pos;
-	struct hlist_head *page_list = task ? &uprobe_insn_pages : &kprobe_insn_pages;
 
 	hlist_for_each_entry_rcu(kip, pos, page_list, hlist) {
 		if (!task || (kip->task->tgid == task->tgid)) {

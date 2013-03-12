@@ -226,7 +226,7 @@ int arch_prepare_kprobe (struct kprobe *p)
     struct arch_specific_insn ainsn;
 
     /* insn: must be on special executable page on i386. */
-    p->ainsn.insn = get_insn_slot (NULL, 0);
+    p->ainsn.insn = get_insn_slot(NULL, &kprobe_insn_pages, 0);
     if (!p->ainsn.insn)
         return -ENOMEM;
 
