@@ -394,7 +394,7 @@ static int kprobe_handler(struct pt_regs *regs)
 	kprobe_opcode_t *addr = (kprobe_opcode_t *) (regs->ARM_pc);
 
 	struct kprobe *p = NULL, *p_run = NULL;
-	int ret = 0, retprobe = 0, reenter = 0;
+	int ret = 0, reenter = 0;
 	kprobe_opcode_t *ssaddr = NULL;
 	struct kprobe_ctlblk *kcb;
 
@@ -493,9 +493,8 @@ static int kprobe_handler(struct pt_regs *regs)
 	set_current_kprobe(p, NULL, NULL);
 	if(!reenter)
 		kcb->kprobe_status = KPROBE_HIT_ACTIVE;
-	if (retprobe) {		//(einsn == UNDEF_INSTRUCTION)
-		ret = trampoline_probe_handler (p, regs);
-	} else if (p->pre_handler) {
+
+	if (p->pre_handler) {
 		ret = p->pre_handler (p, regs);
 		if(p->pre_handler != trampoline_probe_handler) {
 			reset_current_kprobe();
