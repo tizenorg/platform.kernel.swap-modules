@@ -61,19 +61,24 @@
 extern struct hlist_head kprobe_insn_pages;
 extern struct hlist_head uprobe_insn_pages;
 
-void arch_remove_kprobe (struct kprobe *p, struct task_struct *task)
+void arch_remove_kprobe(struct kprobe *p)
 {
 	// TODO: check boostable for x86 and MIPS
-	if (p->tgid) {
-#ifdef CONFIG_ARM
-		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
-		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
-#else /* CONFIG_ARM */
-		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn);
-#endif /* CONFIG_ARM */
-	} else {
-		free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
+	free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
+}
+
+void arch_remove_uprobe(struct kprobe *p, struct task_struct *task)
+{
+	if (p->tgid == 0) {
+		panic("arch_remove_uprobe for tgid == 0!!!");
 	}
+
+#ifdef CONFIG_ARM
+	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
+	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
+#else /* CONFIG_ARM */
+	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn);
+#endif /* CONFIG_ARM */
 }
 
 void arch_arm_uprobe (struct kprobe *p, struct task_struct *tsk)

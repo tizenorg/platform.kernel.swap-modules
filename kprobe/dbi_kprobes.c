@@ -576,7 +576,11 @@ valid_p:
 			synchronize_sched();
 		}
 
-		arch_remove_kprobe (p, task);
+		if (pid) {
+			arch_remove_uprobe(p, task);
+		} else {
+			arch_remove_kprobe(p);
+		}
 	}
 	else
 	{
