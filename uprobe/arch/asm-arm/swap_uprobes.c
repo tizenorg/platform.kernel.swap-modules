@@ -9,7 +9,6 @@ kprobe_opcode_t *get_insn_slot(struct task_struct *task, struct hlist_head *page
 int arch_check_insn_arm(struct arch_specific_insn *ainsn);
 int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int uregs);
 void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot);
-int isThumb2(kprobe_opcode_t insn);
 void pc_dep_insn_execbuf(void);
 void gen_insn_execbuf(void);
 void gen_insn_execbuf_thumb(void);
@@ -24,6 +23,14 @@ static kprobe_opcode_t get_addr_b(kprobe_opcode_t insn, kprobe_opcode_t *addr)
 {
 	// real position less then PC by 8
 	return (kprobe_opcode_t)((long)addr + 8 + branch_displacement(insn));
+}
+
+/* is instruction Thumb2 and NOT a branch, etc... */
+static int is_thumb2(kprobe_opcode_t insn)
+{
+	return ((insn & 0xf800) == 0xe800 ||
+		(insn & 0xf800) == 0xf000 ||
+		(insn & 0xf800) == 0xf800);
 }
 
 static int arch_copy_trampoline_arm_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
@@ -494,7 +501,7 @@ static int arch_copy_trampoline_thumb_uprobe(struct kprobe *p, struct task_struc
 		*((unsigned short*)insns + 13) = 0xdeff;
 		*((unsigned short*)insns + 14) = addr & 0x0000ffff;
 		*((unsigned short*)insns + 15) = addr >> 16;
-		if (!isThumb2(insn[0])) {
+		if (!is_thumb2(insn[0])) {
 			addr = ((unsigned int)p->addr) + 2;
 			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 			*((unsigned short*)insns + 17) = addr >> 16;
@@ -506,7 +513,7 @@ static int arch_copy_trampoline_thumb_uprobe(struct kprobe *p, struct task_struc
 	} else {
 		memcpy(insns, gen_insn_execbuf_thumb, 18 * 2);
 		*((unsigned short*)insns + 13) = 0xdeff;
-		if (!isThumb2(insn[0])) {
+		if (!is_thumb2(insn[0])) {
 			addr = ((unsigned int)p->addr) + 2;
 			*((unsigned short*)insns + 2) = insn[0];
 			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
@@ -585,13 +592,150 @@ int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 	return ret;
 }
 
+static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct task_struct *task)
+{
+	struct kprobe *kp;
+
+	if (unlikely(thumb_mode(regs))) {
+		if (p->safe_thumb != -1) {
+			p->ainsn.insn = p->ainsn.insn_thumb;
+			list_for_each_entry_rcu(kp, &p->list, list) {
+				kp->ainsn.insn = p->ainsn.insn_thumb;
+			}
+		} else {
+			printk("Error in %s at %d: we are in thumb mode (!) and check instruction was fail \
+				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
+			// Test case when we do our actions on already running application
+			arch_disarm_uprobe(p, task);
+			return -1;
+		}
+	} else {
+		if (p->safe_arm != -1) {
+			p->ainsn.insn = p->ainsn.insn_arm;
+			list_for_each_entry_rcu(kp, &p->list, list) {
+				kp->ainsn.insn = p->ainsn.insn_arm;
+			}
+		} else {
+			printk("Error in %s at %d: we are in arm mode (!) and check instruction was fail \
+				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
+			// Test case when we do our actions on already running application
+			arch_disarm_uprobe(p, task);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int uprobe_handler(struct pt_regs *regs)
+{
+	int err_out = 0;
+	char *msg_out = NULL;
+	struct task_struct *task = current;
+	pid_t tgid = task->tgid;
+	kprobe_opcode_t *addr = (kprobe_opcode_t *)(regs->ARM_pc);
+	struct kprobe *p = NULL;
+	int ret = 0, retprobe = 0;
+	struct kprobe_ctlblk *kcb;
+
+#ifdef SUPRESS_BUG_MESSAGES
+	int swap_oops_in_progress;
+	// oops_in_progress used to avoid BUG() messages that slow down kprobe_handler() execution
+	swap_oops_in_progress = oops_in_progress;
+	oops_in_progress = 1;
+#endif
+
+	p = get_kprobe(addr, tgid);
+
+	if (p && (check_validity_insn(p, regs, task) != 0)) {
+		goto no_uprobe_live;
+	}
+
+	/* We're in an interrupt, but this is clear and BUG()-safe. */
+	kcb = get_kprobe_ctlblk();
+
+	if (p == NULL) {
+		p = get_kprobe_by_insn_slot(addr, tgid, regs);
+		if (p == NULL) {
+			/* Not one of ours: let kernel handle it */
+			goto no_uprobe;
+		}
+
+		retprobe = 1;
+	}
+
+	/* restore opcode for thumb app */
+	if (thumb_mode(regs)) {
+		if (!is_thumb2(p->opcode)) {
+			unsigned long tmp = p->opcode >> 16;
+			write_proc_vm_atomic(task, (unsigned long)((unsigned short*)p->addr + 1), &tmp, 2);
+
+			// "2*sizeof(kprobe_opcode_t)" - strange. Should be "sizeof(kprobe_opcode_t)", need to test
+			flush_icache_range((unsigned int)p->addr, ((unsigned int)p->addr) + (2 * sizeof(kprobe_opcode_t)));
+		}
+	}
+
+	set_current_kprobe(p, NULL, NULL);
+	kcb->kprobe_status = KPROBE_HIT_ACTIVE;
+
+	if (retprobe) {
+		ret = trampoline_probe_handler(p, regs);
+	} else if (p->pre_handler) {
+		ret = p->pre_handler(p, regs);
+		if(p->pre_handler != trampoline_probe_handler) {
+			reset_current_kprobe();
+		}
+	}
+
+	if (ret) {
+		/* handler has already set things up, so skip ss setup */
+		err_out = 0;
+		goto out;
+	}
+
+no_uprobe:
+	msg_out = "no_uprobe\n";
+	err_out = 1; 		// return with death
+	goto out;
+
+no_uprobe_live:
+	msg_out = "no_uprobe live\n";
+	err_out = 0; 		// ok - life is life
+	goto out;
+
+out:
+#ifdef SUPRESS_BUG_MESSAGES
+	oops_in_progress = swap_oops_in_progress;
+#endif
+
+	if(msg_out) {
+		printk(msg_out);
+	}
+
+	return err_out;
+}
+
+int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
+{
+	int ret;
+	unsigned long flags;
+	local_irq_save(flags);
+
+	preempt_disable();
+	ret = uprobe_handler(regs);
+	preempt_enable_no_resched();
+
+	local_irq_restore(flags);
+	return ret;
+}
+
 /* userspace probes hook (arm) */
 static struct undef_hook undef_hook_for_us_arm = {
 	.instr_mask	= 0xffffffff,
 	.instr_val	= BREAKPOINT_INSTRUCTION,
 	.cpsr_mask	= MODE_MASK,
 	.cpsr_val	= USR_MODE,
-	.fn		= kprobe_trap_handler
+	.fn		= uprobe_trap_handler
 };
 
 /* userspace probes hook (thumb) */
@@ -600,7 +744,7 @@ static struct undef_hook undef_hook_for_us_thumb = {
 	.instr_val	= BREAKPOINT_INSTRUCTION & 0x0000ffff,
 	.cpsr_mask	= MODE_MASK,
 	.cpsr_val	= USR_MODE,
-	.fn		= kprobe_trap_handler
+	.fn		= uprobe_trap_handler
 };
 
 int swap_arch_init_uprobes(void)

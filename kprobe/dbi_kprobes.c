@@ -130,11 +130,13 @@ void reset_current_kprobe (void)
 {
 	__get_cpu_var (current_kprobe) = NULL;
 }
+EXPORT_SYMBOL_GPL(reset_current_kprobe);
 
 struct kprobe_ctlblk *get_kprobe_ctlblk (void)
 {
 	return (&__get_cpu_var (kprobe_ctlblk));
 }
+EXPORT_SYMBOL_GPL(get_kprobe_ctlblk);
 
 /*
  * This routine is called either:

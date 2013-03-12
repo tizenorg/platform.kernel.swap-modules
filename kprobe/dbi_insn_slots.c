@@ -387,4 +387,4 @@ struct kprobe *get_kprobe_by_insn_slot (void *addr, int tgid, struct task_struct
 	return retVal;
 }
 #endif /* CONFIG_ARM */
-
+EXPORT_SYMBOL_GPL(get_kprobe_by_insn_slot);

@@ -92,16 +92,6 @@ static struct kprobe trampoline_p =
 	.pre_handler = trampoline_probe_handler
 };
 
-// is instruction Thumb2 and NOT a branch, etc...
-int isThumb2(kprobe_opcode_t insn)
-{
-	if((	(insn & 0xf800) == 0xe800 ||
-		(insn & 0xf800) == 0xf000 ||
-		(insn & 0xf800) == 0xf800)) return 1;
-	return 0;
-}
-EXPORT_SYMBOL_GPL(isThumb2);
-
 int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int uregs)
 {
 	int i;
@@ -390,41 +380,7 @@ void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ct
 	__get_cpu_var(current_kprobe) = p;
 	DBPRINTF ("set_current_kprobe: p=%p addr=%p\n", p, p->addr);
 }
-
-static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct task_struct *task)
-{
-	struct kprobe *kp;
-
-	if (unlikely(thumb_mode(regs))) {
-		if (p->safe_thumb != -1) {
-			p->ainsn.insn = p->ainsn.insn_thumb;
-			list_for_each_entry_rcu(kp, &p->list, list) {
-				kp->ainsn.insn = p->ainsn.insn_thumb;
-			}
-		} else {
-			printk("Error in %s at %d: we are in thumb mode (!) and check instruction was fail \
-				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
-			// Test case when we do our actions on already running application
-			arch_disarm_uprobe(p, task);
-			return -1;
-		}
-	} else {
-		if (p->safe_arm != -1) {
-			p->ainsn.insn = p->ainsn.insn_arm;
-			list_for_each_entry_rcu(kp, &p->list, list) {
-				kp->ainsn.insn = p->ainsn.insn_arm;
-			}
-		} else {
-			printk("Error in %s at %d: we are in arm mode (!) and check instruction was fail \
-				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
-			// Test case when we do our actions on already running application
-			arch_disarm_uprobe(p, task);
-			return -1;
-		}
-	}
-
-	return 0;
-}
+EXPORT_SYMBOL_GPL(set_current_kprobe);
 
 #ifdef TRAP_OVERHEAD_DEBUG
 static unsigned long trap_handler_counter_debug = 0;
@@ -435,8 +391,6 @@ static int kprobe_handler(struct pt_regs *regs)
 {
 	int err_out = 0;
 	char *msg_out = NULL;
-	unsigned long user_m = user_mode(regs);
-	pid_t tgid = (user_m) ? current->tgid : 0;
 	kprobe_opcode_t *addr = (kprobe_opcode_t *) (regs->ARM_pc);
 
 	struct kprobe *p = NULL, *p_run = NULL;
@@ -472,12 +426,7 @@ static int kprobe_handler(struct pt_regs *regs)
 #endif
 	preempt_disable();
 
-//	printk("### kprobe_handler: task[tgid=%u (%s)] addr=%p\n", tgid, current->comm, addr);
-	p = get_kprobe(addr, tgid);
-
-	if (user_m && p && (check_validity_insn(p, regs, current) != 0)) {
-		goto no_kprobe_live;
-	}
+	p = get_kprobe(addr, 0);
 
 	/* We're in an interrupt, but this is clear and BUG()-safe. */
 	kcb = get_kprobe_ctlblk ();
@@ -490,7 +439,7 @@ static int kprobe_handler(struct pt_regs *regs)
 		DBPRINTF("lock???");
 		if (p)
 		{
-			if (!tgid && (addr == (kprobe_opcode_t *)kretprobe_trampoline)) {
+			if (addr == (kprobe_opcode_t *)kretprobe_trampoline) {
 				save_previous_kprobe(kcb, p_run);
 				kcb->kprobe_status = KPROBE_REENTER;
 				reenter = 1;
@@ -508,19 +457,6 @@ static int kprobe_handler(struct pt_regs *regs)
 				goto out;
 			}
 		} else {
-			if(tgid) { //we can reenter probe upon uretprobe exception
-				DBPRINTF ("check for UNDEF_INSTRUCTION %p\n", addr);
-				// UNDEF_INSTRUCTION from user space
-
-				p = get_kprobe_by_insn_slot(addr, tgid, regs);
-				if (p) {
-					save_previous_kprobe(kcb, p_run);
-					kcb->kprobe_status = KPROBE_REENTER;
-					reenter = 1;
-					retprobe = 1;
-					DBPRINTF ("uretprobe %p\n", addr);
-				}
-			}
 			if(!p) {
 				p = p_run;
 				DBPRINTF ("kprobe_running !!! p = 0x%p p->break_handler = 0x%p", p, p->break_handler);
@@ -529,10 +465,7 @@ static int kprobe_handler(struct pt_regs *regs)
 				  goto ss_probe;
 				  } */
 				DBPRINTF ("unknown uprobe at %p cur at %p/%p\n", addr, p->addr, p->ainsn.insn);
-				if (tgid)
-					ssaddr = p->ainsn.insn + UPROBES_TRAMP_SS_BREAK_IDX;
-				else
-					ssaddr = p->ainsn.insn + KPROBES_TRAMP_SS_BREAK_IDX;
+				ssaddr = p->ainsn.insn + KPROBES_TRAMP_SS_BREAK_IDX;
 				if (addr == ssaddr) {
 					regs->ARM_pc = (unsigned long) (p->addr + 1);
 					DBPRINTF ("finish step at %p cur at %p/%p, redirect to %lx\n", addr, p->addr, p->ainsn.insn, regs->ARM_pc);
@@ -552,34 +485,11 @@ static int kprobe_handler(struct pt_regs *regs)
 	}
 
 	if (!p) {
-		if (tgid) {
-			DBPRINTF ("search UNDEF_INSTRUCTION %p\n", addr);
-			// UNDEF_INSTRUCTION from user space
-
-			p = get_kprobe_by_insn_slot(addr, tgid, regs);
-			if (!p) {
-				/* Not one of ours: let kernel handle it */
-				DBPRINTF ("no_kprobe");
-				goto no_kprobe;
-			}
-			retprobe = 1;
-			DBPRINTF ("uretprobe %p\n", addr);
-		} else {
-			/* Not one of ours: let kernel handle it */
-			DBPRINTF ("no_kprobe");
-			goto no_kprobe;
-		}
+		/* Not one of ours: let kernel handle it */
+		DBPRINTF ("no_kprobe");
+		goto no_kprobe;
 	}
-	// restore opcode for thumb app
-	if (user_mode( regs ) && thumb_mode( regs )) {
-		if (!isThumb2(p->opcode)) {
-			unsigned long tmp = p->opcode >> 16;
-			write_proc_vm_atomic(current, (unsigned long)((unsigned short*)p->addr + 1), &tmp, 2);
 
-			// "2*sizeof(kprobe_opcode_t)" - strange. Should be "sizeof(kprobe_opcode_t)", need to test
-			flush_icache_range((unsigned int) p->addr, ((unsigned int)p->addr) + (2 * sizeof(kprobe_opcode_t)));
-		}
-	}
 	set_current_kprobe(p, NULL, NULL);
 	if(!reenter)
 		kcb->kprobe_status = KPROBE_HIT_ACTIVE;
@@ -601,11 +511,6 @@ static int kprobe_handler(struct pt_regs *regs)
 no_kprobe:
 	msg_out = "no_kprobe\n";
 	err_out = 1; 		// return with death
-	goto out;
-
-no_kprobe_live:
-	msg_out = "no_kprobe live\n";
-	err_out = 0; 		// ok - life is life
 	goto out;
 
 out:
@@ -636,7 +541,6 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 	local_irq_restore(flags);
 	return ret;
 }
-EXPORT_SYMBOL_GPL(kprobe_trap_handler);
 
 int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 {
@@ -915,6 +819,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 
 	return 1;
 }
+EXPORT_SYMBOL_GPL(trampoline_probe_handler);
 
 void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 {
