@@ -498,6 +498,11 @@ struct arch_specific_insn {
 
 typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long);
 
+struct undef_hook;
+
+void swap_register_undef_hook(struct undef_hook *hook);
+void swap_unregister_undef_hook(struct undef_hook *hook);
+
 //void gen_insn_execbuf (void);
 //void pc_dep_insn_execbuf (void);
 //void gen_insn_execbuf_holder (void);

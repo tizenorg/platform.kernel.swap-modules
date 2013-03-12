@@ -459,11 +459,12 @@ static int __init init_uprobes(void)
 		init_uprobes_insn_slots(i);
 	}
 
-	return 0;
+	return swap_arch_init_uprobes();
 }
 
 static void __exit exit_uprobes(void)
 {
+	swap_arch_exit_uprobes();
 }
 
 EXPORT_SYMBOL_GPL(dbi_uprobe_return);

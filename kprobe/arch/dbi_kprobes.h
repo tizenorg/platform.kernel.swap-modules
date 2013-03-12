@@ -91,8 +91,6 @@ void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p);
 void restore_previous_kprobe (struct kprobe_ctlblk *kcb);
 void set_current_kprobe (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb);
 
-int kprobe_handler (struct pt_regs *regs);
-
 int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs);
 
 void dbi_jprobe_return (void);

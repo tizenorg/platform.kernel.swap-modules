@@ -1,5 +1,6 @@
 #include <dbi_kprobes.h>
 #include <asm/dbi_kprobes.h>
+#include <asm/traps.h>
 
 // FIXME:
 #include <dbi_kdebug.h>
@@ -13,6 +14,7 @@ void pc_dep_insn_execbuf(void);
 void gen_insn_execbuf(void);
 void gen_insn_execbuf_thumb(void);
 void pc_dep_insn_execbuf_thumb(void);
+int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr);
 
 
 #define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
@@ -581,4 +583,36 @@ int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 	}
 
 	return ret;
+}
+
+/* userspace probes hook (arm) */
+static struct undef_hook undef_hook_for_us_arm = {
+	.instr_mask	= 0xffffffff,
+	.instr_val	= BREAKPOINT_INSTRUCTION,
+	.cpsr_mask	= MODE_MASK,
+	.cpsr_val	= USR_MODE,
+	.fn		= kprobe_trap_handler
+};
+
+/* userspace probes hook (thumb) */
+static struct undef_hook undef_hook_for_us_thumb = {
+	.instr_mask	= 0xffffffff,
+	.instr_val	= BREAKPOINT_INSTRUCTION & 0x0000ffff,
+	.cpsr_mask	= MODE_MASK,
+	.cpsr_val	= USR_MODE,
+	.fn		= kprobe_trap_handler
+};
+
+int swap_arch_init_uprobes(void)
+{
+	swap_register_undef_hook(&undef_hook_for_us_arm);
+	swap_register_undef_hook(&undef_hook_for_us_thumb);
+
+	return 0;
+}
+
+void swap_arch_exit_uprobes(void)
+{
+	swap_unregister_undef_hook(&undef_hook_for_us_thumb);
+	swap_unregister_undef_hook(&undef_hook_for_us_arm);
 }

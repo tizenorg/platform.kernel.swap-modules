@@ -64,6 +64,9 @@
 extern struct kprobe * per_cpu__current_kprobe;
 extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 
+static void (*__swap_register_undef_hook)(struct undef_hook *hook);
+static void (*__swap_unregister_undef_hook)(struct undef_hook *hook);
+
 #ifdef OVERHEAD_DEBUG
 unsigned long swap_sum_time = 0;
 unsigned long swap_sum_hit = 0;
@@ -423,22 +426,12 @@ static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct ta
 	return 0;
 }
 
-static int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
-{
-	int ret;
-        unsigned long flags;
-        local_irq_save(flags);
-        ret = kprobe_handler(regs);
-        local_irq_restore(flags);
-        return ret;
-}
-
 #ifdef TRAP_OVERHEAD_DEBUG
 static unsigned long trap_handler_counter_debug = 0;
 #define SAMPLING_COUNTER                               100000
 #endif
 
-int kprobe_handler(struct pt_regs *regs)
+static int kprobe_handler(struct pt_regs *regs)
 {
 	int err_out = 0;
 	char *msg_out = NULL;
@@ -633,6 +626,17 @@ out:
 
 	return err_out;
 }
+
+int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
+{
+	int ret;
+	unsigned long flags;
+	local_irq_save(flags);
+	ret = kprobe_handler(regs);
+	local_irq_restore(flags);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(kprobe_trap_handler);
 
 int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 {
@@ -951,9 +955,17 @@ int asm_init_module_dependencies(void)
 	return 0;
 }
 
-typedef void (* kpro_type)(struct undef_hook *);
-static kpro_type do_kpro;
-static kpro_type undo_kpro;
+void swap_register_undef_hook(struct undef_hook *hook)
+{
+	__swap_register_undef_hook(hook);
+}
+EXPORT_SYMBOL_GPL(swap_register_undef_hook);
+
+void swap_unregister_undef_hook(struct undef_hook *hook)
+{
+	__swap_unregister_undef_hook(hook);
+}
+EXPORT_SYMBOL_GPL(swap_unregister_undef_hook);
 
 // kernel probes hook
 static struct undef_hook undef_ho_k = {
@@ -961,24 +973,6 @@ static struct undef_hook undef_ho_k = {
     .instr_val	= BREAKPOINT_INSTRUCTION,
     .cpsr_mask	= MODE_MASK,
     .cpsr_val	= SVC_MODE,
-    .fn		= kprobe_trap_handler
-};
-
-// userspace probes hook (arm)
-static struct undef_hook undef_ho_u = {
-    .instr_mask	= 0xffffffff,
-    .instr_val	= BREAKPOINT_INSTRUCTION,
-    .cpsr_mask	= MODE_MASK,
-    .cpsr_val	= USR_MODE,
-    .fn		= kprobe_trap_handler
-};
-
-// userspace probes hook (thumb)
-static struct undef_hook undef_ho_u_t = {
-    .instr_mask	= 0xffffffff,
-    .instr_val	= BREAKPOINT_INSTRUCTION & 0x0000ffff,
-    .cpsr_mask	= MODE_MASK,
-    .cpsr_val	= USR_MODE,
     .fn		= kprobe_trap_handler
 };
 
@@ -1000,22 +994,20 @@ int __init arch_init_kprobes (void)
         }
 	arr_traps_template[NOTIFIER_CALL_CHAIN_INDEX] = arch_construct_brunch ((unsigned int)kprobe_handler, do_bp_handler + NOTIFIER_CALL_CHAIN_INDEX * 4, 1);
 	// Register hooks (kprobe_handler)
-	do_kpro = (kpro_type)swap_ksyms("register_undef_hook");
-	if (do_kpro == NULL) {
+	__swap_register_undef_hook = swap_ksyms("register_undef_hook");
+	if (__swap_register_undef_hook == NULL) {
 		printk("no register_undef_hook symbol found!\n");
                 return -1;
         }
 
         // Unregister hooks (kprobe_handler)
-        undo_kpro = (kpro_type)swap_ksyms("unregister_undef_hook");
-        if (undo_kpro == NULL) {
+	__swap_unregister_undef_hook = swap_ksyms("unregister_undef_hook");
+	if (__swap_unregister_undef_hook == NULL) {
                 printk("no unregister_undef_hook symbol found!\n");
                 return -1;
         }
 
-	do_kpro(&undef_ho_k);
-	do_kpro(&undef_ho_u);
-	do_kpro(&undef_ho_u_t);
+	swap_register_undef_hook(&undef_ho_k);
 	if ((ret = dbi_register_kprobe (&trampoline_p)) != 0) {
 		//dbi_unregister_jprobe(&do_exit_p, 0);
 		return ret;
@@ -1025,9 +1017,7 @@ int __init arch_init_kprobes (void)
 
 void __exit dbi_arch_exit_kprobes (void)
 {
-	undo_kpro(&undef_ho_u_t);
-	undo_kpro(&undef_ho_u);
-	undo_kpro(&undef_ho_k);
+	swap_unregister_undef_hook(&undef_ho_k);
 }
 
 //EXPORT_SYMBOL_GPL (dbi_arch_uprobe_return);
