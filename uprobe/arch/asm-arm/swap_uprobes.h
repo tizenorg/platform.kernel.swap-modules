@@ -2,9 +2,12 @@
 #define _ARM_SWAP_UPROBES_H
 
 struct kprobe;
+struct pt_regs;
 struct task_struct;
 
 int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic);
+
+int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs);
 
 int swap_arch_init_uprobes(void);
 void swap_arch_exit_uprobes(void);

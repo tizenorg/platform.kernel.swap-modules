@@ -592,6 +592,28 @@ int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 	return ret;
 }
 
+int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
+{
+	struct jprobe *jp = container_of(p, struct jprobe, kp);
+	kprobe_pre_entry_handler_t pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
+	entry_point_t entry = (entry_point_t)jp->entry;
+
+	if (pre_entry) {
+		p->ss_addr = (kprobe_opcode_t *)pre_entry(jp->priv_arg, regs);
+	}
+
+	if (entry) {
+		entry(regs->ARM_r0, regs->ARM_r1, regs->ARM_r2,
+		      regs->ARM_r3, regs->ARM_r4, regs->ARM_r5);
+	} else {
+		dbi_arch_uprobe_return();
+	}
+
+	prepare_singlestep(p, regs);
+
+	return 1;
+}
+
 static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct task_struct *task)
 {
 	struct kprobe *kp;

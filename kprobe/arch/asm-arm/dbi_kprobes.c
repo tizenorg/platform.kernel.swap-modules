@@ -352,6 +352,7 @@ void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 		regs->ARM_pc = (unsigned long)p->ainsn.insn;
 	}
 }
+EXPORT_SYMBOL_GPL(prepare_singlestep);
 
 void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *p_run)
 {
@@ -541,50 +542,37 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 	return ret;
 }
 
-int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
+int setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
-	struct jprobe *jp = container_of (p, struct jprobe, kp);
-	kprobe_pre_entry_handler_t pre_entry;
-	entry_point_t entry;
+	struct jprobe *jp = container_of(p, struct jprobe, kp);
+	kprobe_pre_entry_handler_t pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
+	entry_point_t entry = (entry_point_t)jp->entry;
+	pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
 
-# ifdef REENTER
-//	p = kprobe_running(regs);
-# endif
-
-	DBPRINTF ("pjp = 0x%p jp->entry = 0x%p", jp, jp->entry);
-	entry = (entry_point_t) jp->entry;
-	pre_entry = (kprobe_pre_entry_handler_t) jp->pre_entry;
-	//if(!entry)
-	//      DIE("entry NULL", regs)
-	DBPRINTF ("entry = 0x%p jp->entry = 0x%p", entry, jp->entry);
-
-	//call handler for all kernel probes and user space ones which belong to current tgid
-	if (!p->tgid || (p->tgid == current->tgid))
-	{
-		if(!p->tgid && ((unsigned int)p->addr == sched_addr) && sched_rp) {
-			struct thread_info *tinfo = (struct thread_info *)regs->ARM_r2;
-			patch_suspended_task(sched_rp, tinfo->task);
-		}
-		if (pre_entry)
-			p->ss_addr = (void *)pre_entry (jp->priv_arg, regs);
-		if (entry){
-			entry (regs->ARM_r0, regs->ARM_r1, regs->ARM_r2, regs->ARM_r3, regs->ARM_r4, regs->ARM_r5);
-		}
-		else {
-			if (p->tgid)
-				dbi_arch_uprobe_return ();
-			else
-				dbi_jprobe_return ();
-		}
+	if (p->tgid) {
+		panic("setjmp_pre_handler: p->tgid == 0");
 	}
-	else if (p->tgid)
-		dbi_arch_uprobe_return ();
 
-	prepare_singlestep (p, regs);
+	if (((unsigned long)p->addr == sched_addr) && sched_rp) {
+		struct thread_info *tinfo = (struct thread_info *)regs->ARM_r2;
+		patch_suspended_task(sched_rp, tinfo->task);
+	}
+
+	if (pre_entry) {
+		p->ss_addr = (void *)pre_entry (jp->priv_arg, regs);
+	}
+
+	if (entry) {
+		entry(regs->ARM_r0, regs->ARM_r1, regs->ARM_r2,
+		      regs->ARM_r3, regs->ARM_r4, regs->ARM_r5);
+	} else {
+		dbi_jprobe_return();
+	}
+
+	prepare_singlestep(p, regs);
 
 	return 1;
 }
-EXPORT_SYMBOL_GPL(setjmp_pre_handler);
 
 void dbi_jprobe_return (void)
 {

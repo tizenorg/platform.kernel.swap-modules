@@ -260,7 +260,7 @@ int dbi_register_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic
 	int ret = 0;
 
 	/* Todo: Verify probepoint is a function entry point */
-	jp->kp.pre_handler = setjmp_pre_handler;
+	jp->kp.pre_handler = setjmp_upre_handler;
 	jp->kp.break_handler = longjmp_break_handler;
 
 	ret = __register_uprobe(&jp->kp, task, atomic);
