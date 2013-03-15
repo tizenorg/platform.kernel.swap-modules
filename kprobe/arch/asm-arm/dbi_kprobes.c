@@ -356,24 +356,14 @@ EXPORT_SYMBOL_GPL(prepare_singlestep);
 
 void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *p_run)
 {
-	if (p_run == NULL) {
-		panic("arm_save_previous_kprobe: p_run == NULL\n");
-	}
-
-	if (kcb->prev_kprobe.kp != NULL) {
-		DBPRINTF ("no space to save new probe[]: task = %d/%s", current->pid, current->comm);
-	}
-
-	kcb->prev_kprobe.kp = p_run;
+	kcb->prev_kprobe.kp = kprobe_running();
 	kcb->prev_kprobe.status = kcb->kprobe_status;
 }
 
 void restore_previous_kprobe(struct kprobe_ctlblk *kcb)
 {
-	set_current_kprobe(kcb->prev_kprobe.kp, NULL, NULL);
+	__get_cpu_var(current_kprobe) = kcb->prev_kprobe.kp;
 	kcb->kprobe_status = kcb->prev_kprobe.status;
-	kcb->prev_kprobe.kp = NULL;
-	kcb->prev_kprobe.status = 0;
 }
 
 void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
@@ -390,146 +380,50 @@ static unsigned long trap_handler_counter_debug = 0;
 
 static int kprobe_handler(struct pt_regs *regs)
 {
-	int err_out = 0;
-	char *msg_out = NULL;
-	kprobe_opcode_t *addr = (kprobe_opcode_t *) (regs->ARM_pc);
-
-	struct kprobe *p = NULL, *p_run = NULL;
-	int ret = 0, reenter = 0;
-	kprobe_opcode_t *ssaddr = NULL;
+	struct kprobe *p, *cur;
 	struct kprobe_ctlblk *kcb;
 
-#ifdef SUPRESS_BUG_MESSAGES
-	int swap_oops_in_progress;
-	// oops_in_progress used to avoid BUG() messages that slow down kprobe_handler() execution
-	swap_oops_in_progress = oops_in_progress;
-	oops_in_progress = 1;
-#endif
-#ifdef TRAP_OVERHEAD_DEBUG
-	trap_handler_counter_debug++;
-	if ( trap_handler_counter_debug < SAMPLING_COUNTER ) {
-		err_out = 0;
-	}
-	else {
-		// XXX NOTE - user must care about catching signal via signal handler to avoid hanging!
-		printk("Trap %ld reached - send SIGUSR1\n", trap_handler_counter_debug);
-		kill_pid(get_task_pid(current, PIDTYPE_PID), SIGUSR1, 1);
-		trap_handler_counter_debug = 0;
-		err_out = 0;
-	}
-	return err_out;
-#endif
-#ifdef OVERHEAD_DEBUG
-	struct timeval swap_tv1;
-	struct timeval swap_tv2;
-#define USEC_IN_SEC_NUM				1000000
-	do_gettimeofday(&swap_tv1);
-#endif
-	preempt_disable();
+	kcb = get_kprobe_ctlblk();
+	cur = kprobe_running();
+	p = get_kprobe((kprobe_opcode_t *)regs->ARM_pc, 0);
 
-	p = get_kprobe(addr, 0);
-
-	/* We're in an interrupt, but this is clear and BUG()-safe. */
-	kcb = get_kprobe_ctlblk ();
-
-	/* Check we're not actually recursing */
-	// TODO: event is not saving in trace
-	p_run = kprobe_running();
-	if (p_run)
-	{
-		DBPRINTF("lock???");
-		if (p)
-		{
-			if (addr == (kprobe_opcode_t *)kretprobe_trampoline) {
-				save_previous_kprobe(kcb, p_run);
+	if (p) {
+		if (cur) {
+			/* Kprobe is pending, so we're recursing. */
+			switch (kcb->kprobe_status) {
+			case KPROBE_HIT_ACTIVE:
+			case KPROBE_HIT_SSDONE:
+				/* A pre- or post-handler probe got us here. */
+				kprobes_inc_nmissed_count(p);
+				save_previous_kprobe(kcb, NULL);
+				set_current_kprobe(p, 0, 0);
 				kcb->kprobe_status = KPROBE_REENTER;
-				reenter = 1;
-			} else {
-				/* We have reentered the kprobe_handler(), since
-				 * another probe was hit while within the handler.
-				 * We here save the original kprobes variables and
-				 * just single step on the instruction of the new probe
-				 * without calling any user handlers.
-				 */
-				kprobes_inc_nmissed_count (p);
-				prepare_singlestep (p, regs);
-
-				err_out = 0;
-				goto out;
+				prepare_singlestep(p, regs);
+				restore_previous_kprobe(kcb);
+				break;
+			default:
+				/* impossible cases */
+				BUG();
 			}
 		} else {
-			if(!p) {
-				p = p_run;
-				DBPRINTF ("kprobe_running !!! p = 0x%p p->break_handler = 0x%p", p, p->break_handler);
-				/*if (p->break_handler && p->break_handler(p, regs)) {
-				  DBPRINTF("kprobe_running !!! goto ss");
-				  goto ss_probe;
-				  } */
-				DBPRINTF ("unknown uprobe at %p cur at %p/%p\n", addr, p->addr, p->ainsn.insn);
-				ssaddr = p->ainsn.insn + KPROBES_TRAMP_SS_BREAK_IDX;
-				if (addr == ssaddr) {
-					regs->ARM_pc = (unsigned long) (p->addr + 1);
-					DBPRINTF ("finish step at %p cur at %p/%p, redirect to %lx\n", addr, p->addr, p->ainsn.insn, regs->ARM_pc);
-					if (kcb->kprobe_status == KPROBE_REENTER) {
-						restore_previous_kprobe(kcb);
-					} else {
-						reset_current_kprobe();
-					}
-				}
-				DBPRINTF ("kprobe_running !!! goto no");
-				ret = 1;
-				/* If it's not ours, can't be delete race, (we hold lock). */
-				DBPRINTF ("no_kprobe");
-				goto no_kprobe;
+			set_current_kprobe(p, 0, 0);
+			kcb->kprobe_status = KPROBE_HIT_ACTIVE;
+
+			if (!p->pre_handler || !p->pre_handler(p, regs)) {
+				kcb->kprobe_status = KPROBE_HIT_SS;
+				prepare_singlestep(p, regs);
+				reset_current_kprobe();
 			}
 		}
-	}
-
-	if (!p) {
-		/* Not one of ours: let kernel handle it */
-		DBPRINTF ("no_kprobe");
+	} else {
 		goto no_kprobe;
 	}
 
-	set_current_kprobe(p, NULL, NULL);
-	if(!reenter)
-		kcb->kprobe_status = KPROBE_HIT_ACTIVE;
-
-	if (p->pre_handler) {
-		ret = p->pre_handler (p, regs);
-		if(p->pre_handler != trampoline_probe_handler) {
-			reset_current_kprobe();
-		}
-	}
-
-	if (ret) {
-		/* handler has already set things up, so skip ss setup */
-		err_out = 0;
-		goto out;
-	}
+	return 0;
 
 no_kprobe:
-	msg_out = "no_kprobe\n";
-	err_out = 1; 		// return with death
-	goto out;
-
-out:
-	preempt_enable_no_resched();
-#ifdef OVERHEAD_DEBUG
-	do_gettimeofday(&swap_tv2);
-	swap_sum_hit++;
-	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) *  USEC_IN_SEC_NUM +
-		(swap_tv2.tv_usec - swap_tv1.tv_usec));
-#endif
-#ifdef SUPRESS_BUG_MESSAGES
-	oops_in_progress = swap_oops_in_progress;
-#endif
-
-	if(msg_out) {
-		printk(msg_out);
-	}
-
-	return err_out;
+	printk("no_kprobe\n");
+	return 1;
 }
 
 int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
@@ -537,7 +431,11 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 	int ret;
 	unsigned long flags;
 	local_irq_save(flags);
+
+	preempt_disable();
 	ret = kprobe_handler(regs);
+	preempt_enable_no_resched();
+
 	local_irq_restore(flags);
 	return ret;
 }
@@ -569,9 +467,7 @@ int setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 		dbi_jprobe_return();
 	}
 
-	prepare_singlestep(p, regs);
-
-	return 1;
+	return 0;
 }
 
 void dbi_jprobe_return (void)
