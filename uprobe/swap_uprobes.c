@@ -317,6 +317,21 @@ void dbi_unregister_ujprobe(struct task_struct *task, struct jprobe *jp, int ato
 #endif /* CONFIG_ARM */
 }
 
+static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
+{
+	struct kretprobe *rp = container_of(p, struct kretprobe, kp);
+	unsigned long flags;
+
+	/* TODO: consider to only swap the RA after the last pre_handler fired */
+	spin_lock_irqsave(&kretprobe_lock, flags);
+	if (!rp->disarm) {
+		arch_prepare_uretprobe_hl(rp, regs);
+	}
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+
+	return 0;
+}
+
 int dbi_register_uretprobe(struct task_struct *task, struct kretprobe *rp, int atomic)
 {
 	int i, ret = 0;
@@ -324,7 +339,7 @@ int dbi_register_uretprobe(struct task_struct *task, struct kretprobe *rp, int a
 
 	DBPRINTF ("START\n");
 
-	rp->kp.pre_handler = pre_handler_kretprobe;
+	rp->kp.pre_handler = pre_handler_uretprobe;
 	rp->kp.post_handler = NULL;
 	rp->kp.fault_handler = NULL;
 	rp->kp.break_handler = NULL;

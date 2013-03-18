@@ -264,6 +264,7 @@ struct kretprobe_instance *get_free_rp_inst (struct kretprobe *rp)
 	}
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(get_free_rp_inst);
 
 /* Called with kretprobe_lock held */
 struct kretprobe_instance *get_free_rp_inst_no_alloc (struct kretprobe *rp)
@@ -312,6 +313,7 @@ void add_rp_inst (struct kretprobe_instance *ri)
 	INIT_HLIST_NODE (&ri->uflist);
 	hlist_add_head (&ri->uflist, &ri->rp->used_instances);
 }
+EXPORT_SYMBOL_GPL(add_rp_inst);
 
 /* Called with kretprobe_lock held */
 void recycle_rp_inst (struct kretprobe_instance *ri)

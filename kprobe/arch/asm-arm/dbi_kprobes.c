@@ -718,14 +718,12 @@ void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 		ri->ret_addr = (kprobe_opcode_t *) regs->uregs[14];
 		ri->sp = (kprobe_opcode_t *)regs->ARM_sp; //uregs[13];
 
-		if (rp->kp.tgid)
-			if (!thumb_mode( regs ))
-				regs->uregs[14] = (unsigned long) (rp->kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
-			else
-				regs->uregs[14] = (unsigned long) (rp->kp.ainsn.insn) + 0x1b;
+		if (rp->kp.tgid) {
+			panic("__arch_prepare_kretprobe: rp->kp.tgid != 0");
+		}
 
-		else	/* Replace the return addr with trampoline addr */
-			regs->uregs[14] = (unsigned long) &kretprobe_trampoline;
+		/* Replace the return addr with trampoline addr */
+		regs->uregs[14] = (unsigned long) &kretprobe_trampoline;
 
 //		DBPRINTF ("ret addr set to %p->%lx\n", ri->ret_addr, regs->uregs[14]);
 		add_rp_inst (ri);

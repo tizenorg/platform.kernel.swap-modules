@@ -15,6 +15,8 @@ void gen_insn_execbuf(void);
 void gen_insn_execbuf_thumb(void);
 void pc_dep_insn_execbuf_thumb(void);
 int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr);
+void add_rp_inst(struct kretprobe_instance *ri);
+struct kretprobe_instance *get_free_rp_inst (struct kretprobe *rp);
 
 
 #define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
@@ -591,6 +593,30 @@ int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 	}
 
 	return ret;
+}
+
+void arch_prepare_uretprobe_hl(struct kretprobe *rp, struct pt_regs *regs)
+{
+	struct kretprobe_instance *ri;
+
+	/* TODO: test - remove retprobe after func entry but before its exit */
+	if ((ri = get_free_rp_inst(rp)) != NULL) {
+		ri->rp = rp;
+		ri->rp2 = NULL;
+		ri->task = current;
+		ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
+		ri->sp = (kprobe_opcode_t *)regs->ARM_sp;
+
+		if (thumb_mode(regs)) {
+			regs->ARM_lr = (unsigned long)(rp->kp.ainsn.insn) + 0x1b;
+		} else {
+			regs->ARM_lr = (unsigned long)(rp->kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
+		}
+
+		add_rp_inst(ri);
+	} else {
+		++rp->nmissed;
+	}
 }
 
 int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
