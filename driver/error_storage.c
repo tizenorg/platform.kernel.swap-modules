@@ -15,6 +15,11 @@ struct errno_struct
 
 static struct errno_struct *last_error = NULL;
 
+void last_error_buffer_initialize(void)
+{
+	last_error = NULL;
+}
+
 static int create_errno_buffer(void)
 {
         struct errno_struct *error = NULL;
@@ -47,15 +52,14 @@ int update_errno_buffer(const char *buffer)
 {
         unsigned int size;
 
-        if (last_error == NULL)
-        {
+        if (last_error == NULL) {
                 if (create_errno_buffer() != 0)
                         return -1;
         }
 
         size = strlen(buffer);
 
-        if (last_error->size + size + 1 >= get_max_error_buffer_size()) {
+        if (last_error->size + size + 2 >= get_max_error_buffer_size()) {
                 return -1;
 	}
 
@@ -70,8 +74,9 @@ int update_errno_buffer(const char *buffer)
 
 static void delete_errno_buffer(void)
 {
-        if (last_error == NULL)
+        if (last_error == NULL) {
                 return;
+	}
 
         vfree((char*)last_error->buffer);
         vfree(last_error);
@@ -85,8 +90,9 @@ int get_last_error(void* u_addr)
 {
         int result;
 
-        if (last_error == NULL)
+        if (last_error == NULL) {
                 return -1;
+	}
 
         result = copy_to_user ((void*)u_addr, (void*)(last_error->buffer), last_error->size + 1);
         if (result) {
@@ -100,7 +106,8 @@ int get_last_error(void* u_addr)
 
 int has_last_error()
 {
-        if(last_error == NULL)
+        if(last_error == NULL) {
                 return 0;
+	}
         return -1;
 }
