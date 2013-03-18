@@ -186,7 +186,7 @@ struct kprobe *get_kprobe_by_insn_slot(void *addr, int tgid, struct task_struct 
 }
 #endif /* CONFIG_ARM */
 
-static int __register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
+int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 {
 	int ret = 0;
 	struct kprobe *old_p;
@@ -249,7 +249,7 @@ out:
 	return ret;
 }
 
-void unregister_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
+void dbi_unregister_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 {
 	dbi_unregister_kprobe (p, task);
 }
@@ -263,14 +263,14 @@ int dbi_register_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic
 	jp->kp.pre_handler = setjmp_upre_handler;
 	jp->kp.break_handler = longjmp_break_uhandler;
 
-	ret = __register_uprobe(&jp->kp, task, atomic);
+	ret = dbi_register_uprobe(&jp->kp, task, atomic);
 
 	return ret;
 }
 
 void dbi_unregister_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic)
 {
-	unregister_uprobe(&jp->kp, task, atomic);
+	dbi_unregister_uprobe(&jp->kp, task, atomic);
 	/*
 	 * Here is an attempt to unregister even those probes that have not been
 	 * installed (hence not added to the hlist).
@@ -339,7 +339,7 @@ int dbi_register_uretprobe(struct task_struct *task, struct kretprobe *rp, int a
 	}
 
 	/* Establish function entry probe point */
-	ret = __register_uprobe(&rp->kp, task, atomic);
+	ret = dbi_register_uprobe(&rp->kp, task, atomic);
 	if (ret) {
 		free_rp_inst(rp);
 		goto out;
@@ -501,7 +501,7 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 	free_rp_inst(rp);
 
-	unregister_uprobe(&rp->kp, task, atomic);
+	dbi_unregister_uprobe(&rp->kp, task, atomic);
 }
 
 void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
@@ -517,7 +517,7 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
 			if (p->tgid == task->tgid) {
 				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%lx] for %s/%d\n",
 						p->addr, (unsigned long)p->opcode, task->comm, task->pid);
-				unregister_uprobe(p, task, atomic);
+				dbi_unregister_uprobe(p, task, atomic);
 			}
 		}
 	}
