@@ -77,7 +77,6 @@ EXPORT_SYMBOL_GPL(kretprobe_lock);
 static DEFINE_PER_CPU (struct kprobe *, kprobe_instance) = NULL;
 
 struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
-EXPORT_SYMBOL_GPL(kprobe_table);
 static struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 
 atomic_t kprobe_count;
@@ -161,7 +160,6 @@ struct kprobe *get_kprobe(kprobe_opcode_t *addr, pid_t tgid)
 	DBPRINTF ("get_kprobe: probe %p", retVal);
 	return retVal;
 }
-EXPORT_SYMBOL_GPL(get_kprobe);
 
 /*
  * Aggregate handlers for multiple kprobes support - these handlers

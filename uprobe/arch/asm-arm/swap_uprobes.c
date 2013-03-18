@@ -1,6 +1,7 @@
 #include <dbi_kprobes.h>
 #include <asm/dbi_kprobes.h>
 #include <asm/traps.h>
+#include <swap_uprobes.h>
 
 // FIXME:
 #include <dbi_kdebug.h>
@@ -667,7 +668,7 @@ static int uprobe_handler(struct pt_regs *regs)
 	oops_in_progress = 1;
 #endif
 
-	p = get_kprobe(addr, tgid);
+	p = get_uprobe(addr, tgid);
 
 	if (p && (check_validity_insn(p, regs, task) != 0)) {
 		goto no_uprobe_live;

@@ -6,7 +6,8 @@ module_name = swap_uprobe
 cross_compiler = $(subst gcc,,$(CC))
 
 inlude_opt = -I$(realpath $(top_srcdir)/src/modules/ksyms) -I$(realpath $(top_srcdir)/src/modules/kprobe) \
-             -I$(realpath $(top_srcdir)/src/modules/kprobe/arch) -I$(realpath $(top_srcdir)/src/modules/uprobe/arch)
+             -I$(realpath $(top_srcdir)/src/modules/kprobe/arch) -I$(realpath $(top_srcdir)/src/modules/uprobe/arch) \
+             -I$(realpath $(top_srcdir)/src/modules/uprobe)
 extra_cflags = "$(inlude_opt) $(android_opt) $(board_opt)"
 
 all-local:

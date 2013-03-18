@@ -40,6 +40,7 @@ enum {
 };
 
 struct hlist_head uprobe_insn_slot_table[UPROBE_TABLE_SIZE];
+struct hlist_head uprobe_table[UPROBE_TABLE_SIZE];
 
 #define DEBUG_PRINT_HASH_TABLE 0
 
@@ -102,6 +103,30 @@ static void init_uprobes_insn_slots(void)
 	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
 		INIT_HLIST_HEAD(&uprobe_insn_slot_table[i]);
 	}
+}
+
+static void init_uprobe_table(void)
+{
+	int i;
+	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
+		INIT_HLIST_HEAD(&uprobe_table[i]);
+	}
+}
+
+struct kprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid)
+{
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct kprobe *p;
+
+	head = &uprobe_table[hash_ptr(addr, UPROBE_HASH_BITS)];
+	hlist_for_each_entry_rcu(p, node, head, hlist) {
+		if (p->addr == addr && p->tgid == tgid) {
+			return p;
+		}
+	}
+
+	return NULL;
 }
 
 static void add_uprobe_table(struct kprobe *p)
@@ -215,7 +240,7 @@ int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 #endif
 
 	// get the first item
-	old_p = get_kprobe(p->addr, p->tgid);
+	old_p = get_uprobe(p->addr, p->tgid);
 	if (old_p) {
 #ifdef CONFIG_ARM
 		p->safe_arm = old_p->safe_arm;
@@ -240,7 +265,7 @@ int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 
 	// TODO: add uprobe (must be in function)
 	INIT_HLIST_NODE(&p->hlist);
-	hlist_add_head_rcu(&p->hlist, &kprobe_table[hash_ptr (p->addr, KPROBE_HASH_BITS)]);
+	hlist_add_head_rcu(&p->hlist, &uprobe_table[hash_ptr(p->addr, UPROBE_HASH_BITS)]);
 	add_uprobe_table(p);
 	arch_arm_uprobe(p, task);
 
@@ -511,8 +536,8 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
 	struct kprobe *p;
 	int i;
 
-	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
-		head = &kprobe_table[i];
+	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
+		head = &uprobe_table[i];
 		hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
 			if (p->tgid == task->tgid) {
 				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%lx] for %s/%d\n",
@@ -530,6 +555,7 @@ void dbi_uprobe_return(void)
 
 static int __init init_uprobes(void)
 {
+	init_uprobe_table();
 	init_uprobes_insn_slots();
 
 	return swap_arch_init_uprobes();

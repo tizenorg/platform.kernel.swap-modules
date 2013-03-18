@@ -41,5 +41,6 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 void dbi_unregister_all_uprobes(struct task_struct *task, int atomic);
 
 void dbi_uprobe_return(void);
+struct kprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid);
 
 #endif /*  _DBI_UPROBES_H */
