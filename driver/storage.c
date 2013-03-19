@@ -247,13 +247,11 @@ typedef int (*mec_post_event_pointer)(char *data, unsigned long len);
 static mec_post_event_pointer mec_post_event = NULL;
 #endif
 
-static unsigned copy_into_cyclic_buffer (char *buffer, unsigned dst_offset, char *src, unsigned size)
+static unsigned copy_into_cyclic_buffer (char *buffer, unsigned dst_offset,
+										 char *src, unsigned size)
 {
-	unsigned nOffset = dst_offset;
-	char* pSource = src;
-	while (size--)
-		buffer[nOffset++] = *pSource++;
-	return nOffset;
+	memcpy(buffer + dst_offset, src, size);
+	return dst_offset + size;
 }
 
 static int CheckBufferSize (unsigned int nSize)
