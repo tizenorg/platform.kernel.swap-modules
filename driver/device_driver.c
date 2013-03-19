@@ -409,12 +409,15 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		}
 		DPRINTF("Bundle has been copied successfully");
 
+		last_error_buffer_initialize();
+
 		if (link_bundle() == -1) {
 			EPRINTF("Cannot link profile bundle!");
 			result = -1;
 			break;
 		}
 		if (has_last_error() == -1) {
+			EPRINTF("last_error_buffer != NULL");
 			result = -1;
 		}
 

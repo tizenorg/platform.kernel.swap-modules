@@ -607,6 +607,9 @@ void arch_prepare_uretprobe_hl(struct kretprobe *rp, struct pt_regs *regs)
 		ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
 		ri->sp = (kprobe_opcode_t *)regs->ARM_sp;
 
+		/* Set flag of current mode */
+		ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
+
 		if (thumb_mode(regs)) {
 			regs->ARM_lr = (unsigned long)(rp->kp.ainsn.insn) + 0x1b;
 		} else {

@@ -718,6 +718,9 @@ void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 		ri->ret_addr = (kprobe_opcode_t *) regs->uregs[14];
 		ri->sp = (kprobe_opcode_t *)regs->ARM_sp; //uregs[13];
 
+		/* Set flag of current mode */
+		ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
+
 		if (rp->kp.tgid) {
 			panic("__arch_prepare_kretprobe: rp->kp.tgid != 0");
 		}
