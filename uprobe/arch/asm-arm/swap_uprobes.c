@@ -651,7 +651,6 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 	struct hlist_node *node, *tmp;
 	unsigned long flags, orig_ret_address = 0;
 	unsigned long trampoline_address = 0;
-	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk();
 
 	if (thumb_mode(regs)) {
 		trampoline_address = (unsigned long)(p->ainsn.insn) + 0x1b;
@@ -700,19 +699,10 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 
 	regs->ARM_pc = orig_ret_address;
-
-	if(p) {
-		if (thumb_mode(regs) && !(regs->ARM_lr & 0x01)) {
-			regs->ARM_cpsr &= 0xFFFFFFDF;
-		} else if (user_mode(regs) && (regs->ARM_lr & 0x01)) {
-			regs->ARM_cpsr |= 0x20;
-		}
-
-		if (kcb->kprobe_status == KPROBE_REENTER) {
-			restore_previous_kprobe(kcb);
-		} else {
-			reset_current_kprobe();
-		}
+	if (thumb_mode(regs) && !(regs->ARM_lr & 0x01)) {
+		regs->ARM_cpsr &= 0xFFFFFFDF;
+	} else if (user_mode(regs) && (regs->ARM_lr & 0x01)) {
+		regs->ARM_cpsr |= 0x20;
 	}
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
@@ -770,7 +760,6 @@ static int uprobe_handler(struct pt_regs *regs)
 	kprobe_opcode_t *addr = (kprobe_opcode_t *)(regs->ARM_pc);
 	struct kprobe *p = NULL;
 	int ret = 0, retprobe = 0;
-	struct kprobe_ctlblk *kcb;
 
 #ifdef SUPRESS_BUG_MESSAGES
 	int swap_oops_in_progress;
@@ -784,9 +773,6 @@ static int uprobe_handler(struct pt_regs *regs)
 	if (p && (check_validity_insn(p, regs, task) != 0)) {
 		goto no_uprobe_live;
 	}
-
-	/* We're in an interrupt, but this is clear and BUG()-safe. */
-	kcb = get_kprobe_ctlblk();
 
 	if (p == NULL) {
 		p = get_kprobe_by_insn_slot(addr, tgid, regs);
@@ -809,16 +795,10 @@ static int uprobe_handler(struct pt_regs *regs)
 		}
 	}
 
-	set_current_kprobe(p, NULL, NULL);
-	kcb->kprobe_status = KPROBE_HIT_ACTIVE;
-
 	if (retprobe) {
 		ret = trampoline_uprobe_handler(p, regs);
 	} else if (p->pre_handler) {
 		ret = p->pre_handler(p, regs);
-		if(p->pre_handler != trampoline_uprobe_handler) {
-			reset_current_kprobe();
-		}
 	}
 
 	if (ret) {

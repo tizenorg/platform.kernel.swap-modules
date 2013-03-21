@@ -371,7 +371,6 @@ void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ct
 	__get_cpu_var(current_kprobe) = p;
 	DBPRINTF ("set_current_kprobe: p=%p addr=%p\n", p, p->addr);
 }
-EXPORT_SYMBOL_GPL(set_current_kprobe);
 
 #ifdef TRAP_OVERHEAD_DEBUG
 static unsigned long trap_handler_counter_debug = 0;
