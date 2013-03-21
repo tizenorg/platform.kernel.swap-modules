@@ -320,13 +320,31 @@ void dbi_unregister_ujprobe(struct task_struct *task, struct jprobe *jp, int ato
 static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 {
 	struct kretprobe *rp = container_of(p, struct kretprobe, kp);
+	struct kretprobe_instance *ri;
 	unsigned long flags;
 
 	/* TODO: consider to only swap the RA after the last pre_handler fired */
 	spin_lock_irqsave(&kretprobe_lock, flags);
-	if (!rp->disarm) {
-		arch_prepare_uretprobe_hl(rp, regs);
+	if (rp->disarm) {
+		goto unlock;
 	}
+
+	/* TODO: test - remove retprobe after func entry but before its exit */
+	if ((ri = get_free_rp_inst(rp)) != NULL) {
+		ri->rp = rp;
+		ri->rp2 = NULL;
+		ri->task = current;
+		ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
+		ri->sp = (kprobe_opcode_t *)regs->ARM_sp;
+
+		arch_prepare_uretprobe_hl(ri, regs);
+
+		add_rp_inst(ri);
+	} else {
+		++rp->nmissed;
+	}
+
+unlock:
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 
 	return 0;

@@ -595,30 +595,16 @@ int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 	return ret;
 }
 
-void arch_prepare_uretprobe_hl(struct kretprobe *rp, struct pt_regs *regs)
+void arch_prepare_uretprobe_hl(struct kretprobe_instance *ri,
+			       struct pt_regs *regs)
 {
-	struct kretprobe_instance *ri;
+	/* Set flag of current mode */
+	ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
 
-	/* TODO: test - remove retprobe after func entry but before its exit */
-	if ((ri = get_free_rp_inst(rp)) != NULL) {
-		ri->rp = rp;
-		ri->rp2 = NULL;
-		ri->task = current;
-		ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
-		ri->sp = (kprobe_opcode_t *)regs->ARM_sp;
-
-		/* Set flag of current mode */
-		ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
-
-		if (thumb_mode(regs)) {
-			regs->ARM_lr = (unsigned long)(rp->kp.ainsn.insn) + 0x1b;
-		} else {
-			regs->ARM_lr = (unsigned long)(rp->kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
-		}
-
-		add_rp_inst(ri);
+	if (thumb_mode(regs)) {
+		regs->ARM_lr = (unsigned long)(ri->rp->kp.ainsn.insn) + 0x1b;
 	} else {
-		++rp->nmissed;
+		regs->ARM_lr = (unsigned long)(ri->rp->kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
 	}
 }
 
