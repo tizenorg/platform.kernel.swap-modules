@@ -672,7 +672,7 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 			panic ("Failed to write memory %p!\n", p->addr);
 		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
 		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
-		return -EFAULT;
+		return -ENOEXEC;
 	}
 	return ret;
 }

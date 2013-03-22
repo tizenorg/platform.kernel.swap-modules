@@ -1232,6 +1232,11 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 	ip->jprobe.priv_arg = ip;
 	ret = dbi_register_ujprobe(task, &ip->jprobe, atomic);
 	if (ret) {
+		if (ret == -ENOEXEC) {
+			pack_event_info(ERR_MSG_ID, RECORD_ENTRY, "dp",
+					0x1,
+					ip->jprobe.kp.addr);
+		}
 		DPRINTF ("dbi_register_ujprobe() failure %d", ret);
 		return ret;
 	}
