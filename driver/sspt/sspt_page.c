@@ -82,7 +82,17 @@ struct sspt_page *sspt_page_copy(const struct sspt_page *page)
 
 void sspt_add_ip(struct sspt_page *page, struct us_ip *ip)
 {
+	struct us_ip *ip_tmp;
+
 	ip->offset &= ~PAGE_MASK;
+
+	list_for_each_entry(ip_tmp, &page->ip_list, list) {
+		if (ip_tmp->offset == ip->offset) {
+			/* TODO: process second instanse of probe */
+			return;
+		}
+	}
+
 	INIT_LIST_HEAD(&ip->list);
 	list_add(&ip->list, &page->ip_list);
 }

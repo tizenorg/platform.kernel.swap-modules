@@ -1532,6 +1532,9 @@ void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 		ri->ret_addr = (kprobe_opcode_t *) regs->uregs[14];
 		ri->sp = (kprobe_opcode_t *)regs->ARM_sp; //uregs[13];
 
+		/* Set flag of current mode */
+		ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
+
 		if (rp->kp.tgid)
 			if (!thumb_mode( regs ))
 				regs->uregs[14] = (unsigned long) (rp->kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
