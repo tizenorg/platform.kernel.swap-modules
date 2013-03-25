@@ -625,9 +625,7 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 		dbi_arch_uprobe_return();
 	}
 
-	prepare_singlestep(p, regs);
-
-	return 1;
+	return 0;
 }
 
 int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
@@ -739,35 +737,27 @@ static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct ta
 
 static int uprobe_handler(struct pt_regs *regs)
 {
-	int err_out = 0;
-	char *msg_out = NULL;
+	kprobe_opcode_t *addr = (kprobe_opcode_t *)(regs->ARM_pc);
 	struct task_struct *task = current;
 	pid_t tgid = task->tgid;
-	kprobe_opcode_t *addr = (kprobe_opcode_t *)(regs->ARM_pc);
-	struct kprobe *p = NULL;
-	int ret = 0, retprobe = 0;
-
-#ifdef SUPRESS_BUG_MESSAGES
-	int swap_oops_in_progress;
-	// oops_in_progress used to avoid BUG() messages that slow down kprobe_handler() execution
-	swap_oops_in_progress = oops_in_progress;
-	oops_in_progress = 1;
-#endif
+	struct kprobe *p;
 
 	p = get_uprobe(addr, tgid);
 
 	if (p && (check_validity_insn(p, regs, task) != 0)) {
-		goto no_uprobe_live;
+		printk("no_uprobe live\n");
+		return 0;
 	}
 
 	if (p == NULL) {
 		p = get_kprobe_by_insn_slot(addr, tgid, regs);
 		if (p == NULL) {
-			/* Not one of ours: let kernel handle it */
-			goto no_uprobe;
+			printk("no_uprobe\n");
+			return 1;
 		}
 
-		retprobe = 1;
+		trampoline_uprobe_handler(p, regs);
+		return 0;
 	}
 
 	/* restore opcode for thumb app */
@@ -781,38 +771,11 @@ static int uprobe_handler(struct pt_regs *regs)
 		}
 	}
 
-	if (retprobe) {
-		ret = trampoline_uprobe_handler(p, regs);
-	} else if (p->pre_handler) {
-		ret = p->pre_handler(p, regs);
+	if (!p->pre_handler || !p->pre_handler(p, regs)) {
+		prepare_singlestep(p, regs);
 	}
 
-	if (ret) {
-		/* handler has already set things up, so skip ss setup */
-		err_out = 0;
-		goto out;
-	}
-
-no_uprobe:
-	msg_out = "no_uprobe\n";
-	err_out = 1; 		// return with death
-	goto out;
-
-no_uprobe_live:
-	msg_out = "no_uprobe live\n";
-	err_out = 0; 		// ok - life is life
-	goto out;
-
-out:
-#ifdef SUPRESS_BUG_MESSAGES
-	oops_in_progress = swap_oops_in_progress;
-#endif
-
-	if(msg_out) {
-		printk(msg_out);
-	}
-
-	return err_out;
+	return 0;
 }
 
 int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
