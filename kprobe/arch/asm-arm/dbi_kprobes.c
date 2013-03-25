@@ -429,13 +429,25 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 {
 	int ret;
 	unsigned long flags;
-	local_irq_save(flags);
 
+#ifdef SUPRESS_BUG_MESSAGES
+	int swap_oops_in_progress;
+	/* oops_in_progress used to avoid BUG() messages
+	 * that slow down kprobe_handler() execution */
+	swap_oops_in_progress = oops_in_progress;
+	oops_in_progress = 1;
+#endif
+
+	local_irq_save(flags);
 	preempt_disable();
 	ret = kprobe_handler(regs);
 	preempt_enable_no_resched();
-
 	local_irq_restore(flags);
+
+#ifdef SUPRESS_BUG_MESSAGES
+	oops_in_progress = swap_oops_in_progress;
+#endif
+
 	return ret;
 }
 
