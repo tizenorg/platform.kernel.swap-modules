@@ -334,8 +334,6 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 		ri->rp = rp;
 		ri->rp2 = NULL;
 		ri->task = current;
-		ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
-		ri->sp = (kprobe_opcode_t *)regs->ARM_sp;
 
 		arch_prepare_uretprobe_hl(ri, regs);
 

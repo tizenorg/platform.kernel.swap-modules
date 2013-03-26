@@ -598,6 +598,9 @@ int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 void arch_prepare_uretprobe_hl(struct kretprobe_instance *ri,
 			       struct pt_regs *regs)
 {
+	ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
+	ri->sp = (kprobe_opcode_t *)regs->ARM_sp;
+
 	/* Set flag of current mode */
 	ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
 
