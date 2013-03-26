@@ -15,11 +15,6 @@ struct errno_struct
 
 static struct errno_struct *last_error = NULL;
 
-void last_error_buffer_initialize(void)
-{
-	last_error = NULL;
-}
-
 static int create_errno_buffer(void)
 {
         struct errno_struct *error = NULL;
