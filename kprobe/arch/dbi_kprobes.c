@@ -80,6 +80,7 @@ void arch_remove_uprobe(struct kprobe *p, struct task_struct *task)
 	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn);
 #endif /* CONFIG_ARM */
 }
+EXPORT_SYMBOL_GPL(arch_remove_uprobe);
 
 void arch_disarm_uprobe (struct kprobe *p, struct task_struct *tsk)
 {

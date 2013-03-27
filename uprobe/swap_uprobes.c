@@ -97,6 +97,139 @@ void print_uprobe_hash_table(void)
 }
 #endif
 
+/*
+ * Keep all fields in the uprobe consistent
+ */
+static inline void copy_uprobe(struct kprobe *old_p, struct kprobe *p)
+{
+	memcpy(&p->opcode, &old_p->opcode, sizeof(kprobe_opcode_t));
+	memcpy(&p->ainsn, &old_p->ainsn, sizeof(struct arch_specific_insn));
+	p->tgid = old_p->tgid;
+	p->ss_addr = old_p->ss_addr;
+#ifdef CONFIG_ARM
+	p->safe_arm = old_p->safe_arm;
+	p->safe_thumb = old_p->safe_thumb;
+#endif
+}
+
+/*
+ * Aggregate handlers for multiple uprobes support - these handlers
+ * take care of invoking the individual uprobe handlers on p->list
+ */
+static int aggr_pre_uhandler(struct kprobe *p, struct pt_regs *regs)
+{
+	struct kprobe *kp;
+	int ret;
+
+	list_for_each_entry_rcu(kp, &p->list, list) {
+		if (kp->pre_handler) {
+			ret = kp->pre_handler(kp, regs);
+			if (ret) {
+				return ret;
+			}
+		}
+	}
+
+	return 0;
+}
+
+static void aggr_post_uhandler(struct kprobe *p, struct pt_regs *regs, unsigned long flags)
+{
+	struct kprobe *kp;
+
+	list_for_each_entry_rcu(kp, &p->list, list) {
+		if (kp->post_handler) {
+			kp->post_handler(kp, regs, flags);
+		}
+	}
+}
+
+static int aggr_fault_uhandler(struct kprobe *p, struct pt_regs *regs, int trapnr)
+{
+	return 0;
+}
+
+static int aggr_break_uhandler(struct kprobe *p, struct pt_regs *regs)
+{
+	return 0;
+}
+
+/*
+ * Add the new probe to old_p->list. Fail if this is the
+ * second ujprobe at the address - two ujprobes can't coexist
+ */
+static int add_new_uprobe(struct kprobe *old_p, struct kprobe *p)
+{
+	if (p->break_handler) {
+		if (old_p->break_handler) {
+			return -EEXIST;
+		}
+
+		list_add_tail_rcu(&p->list, &old_p->list);
+		old_p->break_handler = aggr_break_uhandler;
+	} else {
+		list_add_rcu (&p->list, &old_p->list);
+	}
+
+	if (p->post_handler && !old_p->post_handler) {
+		old_p->post_handler = aggr_post_uhandler;
+	}
+
+	return 0;
+}
+
+/*
+ * Fill in the required fields of the "manager uprobe". Replace the
+ * earlier uprobe in the hlist with the manager uprobe
+ */
+static inline void add_aggr_uprobe(struct kprobe *ap, struct kprobe *p)
+{
+	copy_uprobe(p, ap);
+
+	ap->addr = p->addr;
+	ap->pre_handler = aggr_pre_uhandler;
+	ap->fault_handler = aggr_fault_uhandler;
+
+	if (p->post_handler) {
+		ap->post_handler = aggr_post_uhandler;
+	}
+
+	if (p->break_handler) {
+		ap->break_handler = aggr_break_uhandler;
+	}
+
+	INIT_LIST_HEAD(&ap->list);
+	list_add_rcu(&p->list, &ap->list);
+
+	hlist_replace_rcu(&p->hlist, &ap->hlist);
+}
+
+/*
+ * This is the second or subsequent uprobe at the address - handle
+ * the intricacies
+ */
+static int register_aggr_uprobe(struct kprobe *old_p, struct kprobe *p)
+{
+	int ret = 0;
+	struct kprobe *ap;
+
+	if (old_p->pre_handler == aggr_pre_uhandler) {
+		copy_uprobe(old_p, p);
+		ret = add_new_uprobe(old_p, p);
+	} else {
+		ap = kzalloc(sizeof(*ap), GFP_KERNEL);
+		if (!ap) {
+			return -ENOMEM;
+		}
+
+		add_aggr_uprobe(ap, old_p);
+		copy_uprobe(ap, p);
+		ret = add_new_uprobe(ap, p);
+	}
+
+	return ret;
+}
+
 static void arm_uprobe(struct kprobe *p, struct task_struct *task)
 {
 	kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
@@ -255,9 +388,9 @@ int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 		p->safe_arm = old_p->safe_arm;
 		p->safe_thumb = old_p->safe_thumb;
 #endif
-		ret = register_aggr_kprobe(old_p, p);
+		ret = register_aggr_uprobe(old_p, p);
 		if (!ret) {
-			atomic_inc(&kprobe_count);
+//			atomic_inc(&kprobe_count);
 			add_uprobe_table(p);
 		}
 		DBPRINTF("goto out\n", ret);
@@ -285,9 +418,67 @@ out:
 
 void dbi_unregister_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 {
-	dbi_unregister_kprobe (p, task);
-}
+	struct kprobe *old_p, *list_p;
+	int cleanup_p;
 
+	old_p = get_uprobe(p->addr, p->tgid);
+	if (unlikely(!old_p)) {
+		return;
+	}
+
+	if (p != old_p) {
+		list_for_each_entry_rcu(list_p, &old_p->list, list) {
+			if (list_p == p) {
+				/* uprobe p is a valid probe */
+				goto valid_p;
+			}
+		}
+
+		return;
+	}
+
+valid_p:
+	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_uhandler) &&
+	    (p->list.next == &old_p->list) && (p->list.prev == &old_p->list))) {
+		/* Only probe on the hash list */
+		arch_disarm_uprobe(p, task);
+		hlist_del_rcu(&old_p->hlist);
+		cleanup_p = 1;
+	} else {
+		list_del_rcu(&p->list);
+		cleanup_p = 0;
+	}
+
+	if (cleanup_p) {
+		if (p != old_p) {
+			list_del_rcu(&p->list);
+			kfree(old_p);
+		}
+
+		if (!in_atomic()) {
+			synchronize_sched();
+		}
+
+		arch_remove_uprobe(p, task);
+	} else {
+		if (p->break_handler) {
+			old_p->break_handler = NULL;
+		}
+
+		if (p->post_handler) {
+			list_for_each_entry_rcu (list_p, &old_p->list, list) {
+				if (list_p->post_handler) {
+					cleanup_p = 2;
+					break;
+				}
+			}
+
+			if (cleanup_p == 0) {
+				old_p->post_handler = NULL;
+			}
+		}
+	}
+}
 
 int dbi_register_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic)
 {
