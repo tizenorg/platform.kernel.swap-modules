@@ -74,18 +74,6 @@ EXPORT_SYMBOL_GPL (swap_sum_time);
 EXPORT_SYMBOL_GPL (swap_sum_hit);
 #endif
 
-static unsigned int arr_traps_template[] = {
-		0xe1a0c00d,    // mov          ip, sp
-		0xe92dd800,    // stmdb        sp!, {fp, ip, lr, pc}
-		0xe24cb004,    // sub          fp, ip, #4      ; 0x4
-		0x00000000,    // b
-		0xe3500000,    // cmp          r0, #0  ; 0x0
-		0xe89da800,    // ldmia        sp, {fp, sp, pc}
-		0x00000000,    // nop
-		0xffffffff     // end
-};
-
-
 static struct kprobe trampoline_p =
 {
 	.addr = (kprobe_opcode_t *) & kretprobe_trampoline,
@@ -316,24 +304,6 @@ int arch_prepare_kprobe (struct kprobe *p)
     }
 
     return ret;
-}
-
-static unsigned int arch_construct_brunch (unsigned int base, unsigned int addr, int link)
-{
-	kprobe_opcode_t insn;
-	unsigned int bpi = (unsigned int) base - (unsigned int) addr - 8;
-
-	insn = bpi >> 2;
-	DBPRINTF ("base=%x addr=%x base-addr-8=%x\n", base, addr, bpi);
-	if (abs (insn & 0xffffff) > 0xffffff)
-	{
-		DBPRINTF ("ERROR: kprobe address out of range\n");
-		BUG ();
-	}
-	insn = insn & 0xffffff;
-	insn = insn | ((link != 0) ? 0xeb000000 : 0xea000000);
-	DBPRINTF ("insn=%lX\n", insn);
-	return (unsigned int) insn;
 }
 
 int arch_prepare_uretprobe (struct kretprobe *p, struct task_struct *task)
@@ -773,7 +743,6 @@ static struct undef_hook undef_ho_k = {
 
 int __init arch_init_kprobes (void)
 {
-	unsigned int do_bp_handler = 0;
 	int ret = 0;
 
 	if (arch_init_module_dependencies())
@@ -782,12 +751,6 @@ int __init arch_init_kprobes (void)
 		return -1;
 	}
 
-	do_bp_handler = swap_ksyms("do_undefinstr");
-	if (do_bp_handler == 0) {
-		DBPRINTF("no do_undefinstr symbol found!");
-                return -1;
-        }
-	arr_traps_template[NOTIFIER_CALL_CHAIN_INDEX] = arch_construct_brunch ((unsigned int)kprobe_handler, do_bp_handler + NOTIFIER_CALL_CHAIN_INDEX * 4, 1);
 	// Register hooks (kprobe_handler)
 	__swap_register_undef_hook = swap_ksyms("register_undef_hook");
 	if (__swap_register_undef_hook == NULL) {

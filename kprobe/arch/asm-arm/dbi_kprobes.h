@@ -140,8 +140,6 @@ static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
 	return i;
 }
 
-#define NOTIFIER_CALL_CHAIN_INDEX       3
-
 // undefined
 # define MASK_ARM_INSN_UNDEF		0x0FF00000		// xxxx1111 1111xxxx xxxxxxxx xxxxxxxx
 # define PTRN_ARM_INSN_UNDEF		0x03000000		// cccc0011 0000xxxx xxxxxxxx xxxxxxxx
