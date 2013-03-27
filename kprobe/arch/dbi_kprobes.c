@@ -81,15 +81,6 @@ void arch_remove_uprobe(struct kprobe *p, struct task_struct *task)
 #endif /* CONFIG_ARM */
 }
 
-void arch_arm_uprobe (struct kprobe *p, struct task_struct *tsk)
-{
-	kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
-
-	if (!write_proc_vm_atomic (tsk, (unsigned long) p->addr, &insn, sizeof (insn)))
-		panic ("failed to write memory %p!\n", p->addr);
-}
-EXPORT_SYMBOL_GPL(arch_arm_uprobe);
-
 void arch_arm_uretprobe (struct kretprobe *p, struct task_struct *tsk)
 {
 }

@@ -97,6 +97,15 @@ void print_uprobe_hash_table(void)
 }
 #endif
 
+static void arm_uprobe(struct kprobe *p, struct task_struct *task)
+{
+	kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
+
+	if (!write_proc_vm_atomic(task, (unsigned long)p->addr, &insn, sizeof(insn))) {
+		panic("arm_uprobe: failed to write memory %p!\n", p->addr);
+	}
+}
+
 static void init_uprobes_insn_slots(void)
 {
 	int i;
@@ -267,7 +276,7 @@ int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 	INIT_HLIST_NODE(&p->hlist);
 	hlist_add_head_rcu(&p->hlist, &uprobe_table[hash_ptr(p->addr, UPROBE_HASH_BITS)]);
 	add_uprobe_table(p);
-	arch_arm_uprobe(p, task);
+	arm_uprobe(p, task);
 
 out:
 	DBPRINTF("out ret = 0x%x\n", ret);
