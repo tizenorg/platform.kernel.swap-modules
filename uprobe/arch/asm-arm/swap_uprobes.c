@@ -2,6 +2,7 @@
 #include <asm/dbi_kprobes.h>
 #include <asm/traps.h>
 #include <swap_uprobes.h>
+#include <asm/swap_uprobes.h>
 
 // FIXME:
 #include <dbi_kdebug.h>

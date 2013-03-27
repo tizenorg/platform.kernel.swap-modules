@@ -485,11 +485,6 @@ void dbi_jprobe_return (void)
 {
 }
 
-void dbi_arch_uprobe_return (void)
-{
-}
-EXPORT_SYMBOL_GPL(dbi_arch_uprobe_return);
-
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 {
 # ifndef REENTER
@@ -820,5 +815,4 @@ void __exit dbi_arch_exit_kprobes (void)
 	swap_unregister_undef_hook(&undef_ho_k);
 }
 
-//EXPORT_SYMBOL_GPL (dbi_arch_uprobe_return);
 //EXPORT_SYMBOL_GPL (dbi_arch_exit_kprobes);

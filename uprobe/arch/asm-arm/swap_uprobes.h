@@ -5,6 +5,11 @@ struct kprobe;
 struct pt_regs;
 struct task_struct;
 
+
+static inline void dbi_arch_uprobe_return(void)
+{
+}
+
 int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic);
 
 int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs);
