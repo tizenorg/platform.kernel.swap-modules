@@ -94,11 +94,6 @@ void arch_disarm_uprobe (struct kprobe *p, struct task_struct *tsk)
 }
 EXPORT_SYMBOL_GPL(arch_disarm_uprobe);
 
-void arch_disarm_uretprobe (struct kretprobe *p, struct task_struct *tsk)
-{
-}
-EXPORT_SYMBOL_GPL(arch_disarm_uretprobe);
-
 int arch_init_module_dependencies(void)
 {
 	int ret;

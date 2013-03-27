@@ -513,8 +513,6 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 
 	if (hlist_empty(&rp->used_instances) || not_rp2) {
 		struct kprobe *p = &rp->kp;
-		// if there are no used retprobe instances (i.e. function is not entered) - disarm retprobe
-		arch_disarm_uretprobe(rp, task);//vmas[1], pages[1], kaddrs[1]);
 #ifdef CONFIG_ARM
 		if (!(hlist_unhashed(&p->is_hlist_arm))) {
 			hlist_del_rcu(&p->is_hlist_arm);

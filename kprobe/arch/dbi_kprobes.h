@@ -75,7 +75,6 @@ extern void arch_arm_uretprobe (struct kretprobe *p, struct task_struct *tsk);
 extern void arch_disarm_kprobe (struct kprobe *p);
 extern void arch_disarm_kretprobe (struct kretprobe *p);
 extern void arch_disarm_uprobe (struct kprobe *p, struct task_struct *tsk);
-extern void arch_disarm_uretprobe (struct kretprobe *p, struct task_struct *tsk);
 extern int arch_init_kprobes (void);
 extern void dbi_arch_exit_kprobes (void);
 extern int patch_suspended_task(struct kretprobe *rp, struct task_struct *tsk);
