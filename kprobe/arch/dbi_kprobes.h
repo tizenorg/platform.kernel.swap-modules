@@ -71,7 +71,6 @@ extern int arch_prepare_kprobe (struct kprobe *p);
 extern int arch_prepare_kretprobe (struct kretprobe *p);
 extern void arch_arm_kprobe (struct kprobe *p);
 extern void arch_arm_kretprobe (struct kretprobe *p);
-extern void arch_arm_uretprobe (struct kretprobe *p, struct task_struct *tsk);
 extern void arch_disarm_kprobe (struct kprobe *p);
 extern void arch_disarm_kretprobe (struct kretprobe *p);
 extern void arch_disarm_uprobe (struct kprobe *p, struct task_struct *tsk);

@@ -404,7 +404,6 @@ int dbi_register_uretprobe(struct task_struct *task, struct kretprobe *rp, int a
 		goto out;
 	}
 
-	arch_arm_uretprobe(rp, task);
 out:
 	return ret;
 }
