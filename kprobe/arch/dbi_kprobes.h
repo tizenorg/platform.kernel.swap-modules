@@ -69,7 +69,6 @@ void kretprobe_trampoline (void);
 extern void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs);
 extern int arch_prepare_kprobe (struct kprobe *p);
 extern int arch_prepare_kretprobe (struct kretprobe *p);
-extern int arch_prepare_uretprobe (struct kretprobe *p, struct task_struct *task);
 extern void arch_arm_kprobe (struct kprobe *p);
 extern void arch_arm_kretprobe (struct kretprobe *p);
 extern void arch_arm_uretprobe (struct kretprobe *p, struct task_struct *tsk);

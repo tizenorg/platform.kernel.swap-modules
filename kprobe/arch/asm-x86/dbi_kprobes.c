@@ -422,12 +422,6 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 	return ret;
 }
 
-int arch_prepare_uretprobe (struct kretprobe *p, struct task_struct *task)
-{
-	DBPRINTF("Warrning: arch_prepare_uretprobe is not implemented\n");
-	return 0;
-}
-
 void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 {
 	if(p->ss_addr)

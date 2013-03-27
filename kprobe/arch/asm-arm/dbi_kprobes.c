@@ -306,13 +306,6 @@ int arch_prepare_kprobe (struct kprobe *p)
     return ret;
 }
 
-int arch_prepare_uretprobe (struct kretprobe *p, struct task_struct *task)
-{
-	DBPRINTF("Warrning: arch_prepare_uretprobe is not implemented\n");
-	return 0;
-}
-EXPORT_SYMBOL_GPL(arch_prepare_uretprobe);
-
 void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 {
 	if (p->ss_addr) {
