@@ -59,21 +59,6 @@ unsigned int arr_traps_template[] = {  0x3c010000,   // lui  a1       [0]
 	0xffffffff    // end
 };
 
-/*
- * Function return probe trampoline:
- * 	- init_kprobes() establishes a probepoint here
- * 	- When the probed function returns, this probe
- * 		causes the handlers to fire
- */
-void kretprobe_trampoline_holder (void)
-{
-	asm volatile (".global kretprobe_trampoline\n"
-			"kretprobe_trampoline:\n"
-			"nop\n"
-			"nop\n");
-}
-
-
 struct kprobe trampoline_p =
 {
 	.addr = (kprobe_opcode_t *) & kretprobe_trampoline,

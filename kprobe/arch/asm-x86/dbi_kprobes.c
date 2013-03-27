@@ -148,51 +148,6 @@ IMP_MOD_DEP_WRAPPER(text_poke, addr, opcode, len)
 DECLARE_MOD_DEP_WRAPPER(show_registers, void, struct pt_regs * regs)
 IMP_MOD_DEP_WRAPPER(show_registers, regs)
 
-/*
- * Function return probe trampoline:
- * 	- init_kprobes() establishes a probepoint here
- * 	- When the probed function returns, this probe
- * 		causes the handlers to fire
- */
-void kretprobe_trampoline_holder (void)
-{
-	asm volatile (".global kretprobe_trampoline\n"
-			"kretprobe_trampoline:\n"
-			"	pushf\n"
-			/* skip cs, eip, orig_eax */
-			"	subl $12, %esp\n"
-			"	pushl %fs\n"
-			"	pushl %ds\n"
-			"	pushl %es\n"
-			"	pushl %eax\n"
-			"	pushl %ebp\n"
-			"	pushl %edi\n"
-			"	pushl %esi\n"
-			"	pushl %edx\n"
-			"	pushl %ecx\n"
-			"	pushl %ebx\n"
-			"	movl %esp, %eax\n"
-			"	call trampoline_probe_handler_x86\n"
-			/* move eflags to cs */
-			"	movl 52(%esp), %edx\n"
-			"	movl %edx, 48(%esp)\n"
-			/* save true return address on eflags */
-			"	movl %eax, 52(%esp)\n"
-			"	popl %ebx\n" ""
-			"	popl %ecx\n"
-			"	popl %edx\n"
-			"	popl %esi\n"
-			"	popl %edi\n"
-			"	popl %ebp\n"
-			"	popl %eax\n"
-			/* skip eip, orig_eax, es, ds, fs */
-			"	addl $20, %esp\n"
-			"	popf\n"
-
-			"	ret\n");
-}
-
-
 struct kprobe trampoline_p =
 {
 	.addr = (kprobe_opcode_t *) & kretprobe_trampoline,

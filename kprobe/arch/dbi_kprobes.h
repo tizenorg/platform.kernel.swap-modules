@@ -89,9 +89,6 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs);
 void dbi_jprobe_return (void);
 
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs);
-
-void kretprobe_trampoline_holder (void);
-
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 
 int arch_init_module_dependencies(void);
