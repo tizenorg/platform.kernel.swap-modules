@@ -425,6 +425,29 @@ static struct kretprobe_instance *get_used_urp_inst(struct kretprobe *rp)
 	return NULL;
 }
 
+/* Called with uretprobe_lock held */
+struct kretprobe_instance *get_free_urp_inst_no_alloc (struct kretprobe *rp)
+{
+	struct hlist_node *node;
+	struct kretprobe_instance *ri;
+
+	hlist_for_each_entry (ri, node, &rp->free_instances, uflist) {
+		return ri;
+	}
+
+	return NULL;
+}
+
+/* Called with uretprobe_lock held */
+static void free_urp_inst(struct kretprobe *rp)
+{
+	struct kretprobe_instance *ri;
+	while ((ri = get_free_urp_inst_no_alloc(rp)) != NULL) {
+		hlist_del(&ri->uflist);
+		kfree(ri);
+	}
+}
+
 #define COMMON_URP_NR 10
 
 static int alloc_nodes_uretprobe(struct kretprobe *rp)
@@ -443,7 +466,7 @@ static int alloc_nodes_uretprobe(struct kretprobe *rp)
 	for (i = 0; i < alloc_nodes; ++i) {
 		inst = kmalloc(sizeof(*inst), GFP_ATOMIC);
 		if (inst == NULL) {
-			free_rp_inst(rp);
+			free_urp_inst(rp);
 			return -ENOMEM;
 		}
 		INIT_HLIST_NODE(&inst->uflist);
@@ -697,7 +720,7 @@ int dbi_register_uretprobe(struct task_struct *task, struct kretprobe *rp, int a
 	for (i = 0; i < rp->maxactive; i++) {
 		inst = kmalloc(sizeof(*inst), GFP_KERNEL);
 		if (inst == NULL) {
-			free_rp_inst (rp);
+			free_urp_inst(rp);
 			ret = -ENOMEM;
 			goto out;
 		}
@@ -711,7 +734,7 @@ int dbi_register_uretprobe(struct task_struct *task, struct kretprobe *rp, int a
 	/* Establish function entry probe point */
 	ret = dbi_register_uprobe(&rp->kp, task, atomic);
 	if (ret) {
-		free_rp_inst(rp);
+		free_urp_inst(rp);
 		goto out;
 	}
 
@@ -875,7 +898,7 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 	}
 
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
-	free_rp_inst(rp);
+	free_urp_inst(rp);
 
 	dbi_unregister_uprobe(&rp->kp, task, atomic);
 }
