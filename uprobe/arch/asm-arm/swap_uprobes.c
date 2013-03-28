@@ -3,14 +3,13 @@
 #include <asm/traps.h>
 #include <swap_uprobes.h>
 #include <asm/swap_uprobes.h>
+#include <dbi_insn_slots.h>
 
 // FIXME:
 #include <dbi_kdebug.h>
 extern struct hlist_head uprobe_insn_pages;
-kprobe_opcode_t *get_insn_slot(struct task_struct *task, struct hlist_head *page_list, int atomic);
 int arch_check_insn_arm(struct arch_specific_insn *ainsn);
 int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int uregs);
-void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot);
 void pc_dep_insn_execbuf(void);
 void gen_insn_execbuf(void);
 void gen_insn_execbuf_thumb(void);

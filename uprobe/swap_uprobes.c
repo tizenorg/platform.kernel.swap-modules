@@ -33,6 +33,7 @@
 #include <linux/hash.h>
 #include <linux/mempolicy.h>
 #include <linux/module.h>
+#include <dbi_insn_slots.h>
 
 enum {
 	UPROBE_HASH_BITS  = 10,
@@ -41,6 +42,7 @@ enum {
 
 struct hlist_head uprobe_insn_slot_table[UPROBE_TABLE_SIZE];
 struct hlist_head uprobe_table[UPROBE_TABLE_SIZE];
+struct hlist_head uprobe_insn_pages;
 
 #define DEBUG_PRINT_HASH_TABLE 0
 
@@ -361,6 +363,21 @@ struct kprobe *get_kprobe_by_insn_slot(void *addr, int tgid, struct task_struct 
 }
 #endif /* CONFIG_ARM */
 
+
+static void remove_uprobe(struct kprobe *p, struct task_struct *task)
+{
+	if (p->tgid == 0) {
+		panic("remove_uprobe for tgid == 0!!!");
+	}
+
+#ifdef CONFIG_ARM
+	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
+	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
+#else /* CONFIG_ARM */
+	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn);
+#endif /* CONFIG_ARM */
+}
+
 int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 {
 	int ret = 0;
@@ -467,7 +484,7 @@ valid_p:
 			synchronize_sched();
 		}
 
-		arch_remove_uprobe(p, task);
+		remove_uprobe(p, task);
 	} else {
 		if (p->break_handler) {
 			old_p->break_handler = NULL;
