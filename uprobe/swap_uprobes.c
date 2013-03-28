@@ -412,6 +412,19 @@ static void add_urp_inst(struct kretprobe_instance *ri)
 	hlist_add_head(&ri->uflist, &ri->rp->used_instances);
 }
 
+/* Called with uretprobe_lock held */
+static struct kretprobe_instance *get_used_urp_inst(struct kretprobe *rp)
+{
+	struct hlist_node *node;
+	struct kretprobe_instance *ri;
+
+	hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
+		return ri;
+	}
+
+	return NULL;
+}
+
 #define COMMON_URP_NR 10
 
 static int alloc_nodes_uretprobe(struct kretprobe *rp)
@@ -800,7 +813,7 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 
 	spin_lock_irqsave (&uretprobe_lock, flags);
 
-	while ((ri = get_used_rp_inst(rp)) != NULL) {
+	while ((ri = get_used_urp_inst(rp)) != NULL) {
 		if (dbi_disarm_urp_inst(ri, NULL) != 0)
 			/*panic*/printk("%s (%d/%d): cannot disarm urp instance (%08lx)\n",
 					ri->task->comm, ri->task->tgid, ri->task->pid,
@@ -855,7 +868,7 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 		add_uprobe_table(new_p);
 	}
 
-	while ((ri = get_used_rp_inst(rp)) != NULL) {
+	while ((ri = get_used_urp_inst(rp)) != NULL) {
 		ri->rp = NULL;
 		ri->rp2 = rp2;
 		hlist_del(&ri->uflist);
