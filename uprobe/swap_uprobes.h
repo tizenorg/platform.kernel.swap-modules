@@ -29,14 +29,47 @@
 
 #include "dbi_kprobes.h"
 
+typedef int (*uretprobe_handler_t)(struct uretprobe_instance *, struct pt_regs *, void *);
+
+/*
+ * Function-return probe -
+ * Note:
+ * User needs to provide a handler function, and initialize maxactive.
+ * maxactive - The maximum number of instances of the probed function that
+ * can be active concurrently.
+ * nmissed - tracks the number of times the probed function's return was
+ * ignored, due to maxactive being too low.
+ *
+ */
+struct uretprobe {
+	struct kprobe kp;
+	uretprobe_handler_t handler;
+	void *priv_arg;
+	int maxactive;
+	int nmissed;
+	int disarm;
+	struct hlist_head free_instances;
+	struct hlist_head used_instances;
+};
+
+struct uretprobe_instance {
+	/* either on free list or used list */
+	struct hlist_node uflist;
+	struct hlist_node hlist;
+	struct uretprobe *rp;
+	kprobe_opcode_t *ret_addr;
+	kprobe_opcode_t *sp;
+	struct task_struct *task;
+};
+
 int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic);
 void dbi_unregister_uprobe(struct kprobe *p, struct task_struct *task, int atomic);
 
 int dbi_register_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic);
 void dbi_unregister_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic);
 
-int dbi_register_uretprobe(struct task_struct *task, struct kretprobe *rp, int atomic);
-void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, int atomic, int not_rp2);
+int dbi_register_uretprobe(struct task_struct *task, struct uretprobe *rp, int atomic);
+void dbi_unregister_uretprobe(struct task_struct *task, struct uretprobe *rp, int atomic, int not_rp2);
 
 void dbi_unregister_all_uprobes(struct task_struct *task, int atomic);
 
@@ -47,6 +80,6 @@ void disarm_uprobe(struct kprobe *p, struct task_struct *task);
 
 extern spinlock_t uretprobe_lock;
 struct hlist_head *uretprobe_inst_table_head(void *hash_key);
-void recycle_urp_inst(struct kretprobe_instance *ri);
+void recycle_urp_inst(struct uretprobe_instance *ri);
 
 #endif /*  _DBI_UPROBES_H */

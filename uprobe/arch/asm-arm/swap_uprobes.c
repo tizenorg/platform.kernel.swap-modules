@@ -594,7 +594,7 @@ int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 	return ret;
 }
 
-void arch_prepare_uretprobe_hl(struct kretprobe_instance *ri,
+void arch_prepare_uretprobe_hl(struct uretprobe_instance *ri,
 			       struct pt_regs *regs)
 {
 	ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
@@ -632,7 +632,7 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 
 int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 {
-	struct kretprobe_instance *ri = NULL;
+	struct uretprobe_instance *ri = NULL;
 	struct hlist_head *head;
 	struct hlist_node *node, *tmp;
 	unsigned long flags, orig_ret_address = 0;
@@ -659,7 +659,7 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 	 *     - when multiple return probes are registered for the same
 	 *       function, the first instance's ret_addr will point to the
 	 *       real return address, and all the rest will point to
-	 *       kretprobe_trampoline
+	 *       uretprobe_trampoline
 	 */
 	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
 		if (ri->task != current) {

@@ -395,7 +395,7 @@ struct hlist_head *uretprobe_inst_table_head(void *hash_key)
 }
 
 /* Called with uretprobe_lock held */
-static void add_urp_inst(struct kretprobe_instance *ri)
+static void add_urp_inst(struct uretprobe_instance *ri)
 {
 	/*
 	 * Remove rp inst off the free list -
@@ -413,7 +413,7 @@ static void add_urp_inst(struct kretprobe_instance *ri)
 }
 
 /* Called with uretprobe_lock held */
-void recycle_urp_inst(struct kretprobe_instance *ri)
+void recycle_urp_inst(struct uretprobe_instance *ri)
 {
 	if (ri->rp) {
 		hlist_del(&ri->hlist);
@@ -426,10 +426,10 @@ void recycle_urp_inst(struct kretprobe_instance *ri)
 }
 
 /* Called with uretprobe_lock held */
-static struct kretprobe_instance *get_used_urp_inst(struct kretprobe *rp)
+static struct uretprobe_instance *get_used_urp_inst(struct uretprobe *rp)
 {
 	struct hlist_node *node;
-	struct kretprobe_instance *ri;
+	struct uretprobe_instance *ri;
 
 	hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
 		return ri;
@@ -439,10 +439,10 @@ static struct kretprobe_instance *get_used_urp_inst(struct kretprobe *rp)
 }
 
 /* Called with uretprobe_lock held */
-struct kretprobe_instance *get_free_urp_inst_no_alloc (struct kretprobe *rp)
+struct uretprobe_instance *get_free_urp_inst_no_alloc(struct uretprobe *rp)
 {
 	struct hlist_node *node;
-	struct kretprobe_instance *ri;
+	struct uretprobe_instance *ri;
 
 	hlist_for_each_entry (ri, node, &rp->free_instances, uflist) {
 		return ri;
@@ -452,9 +452,9 @@ struct kretprobe_instance *get_free_urp_inst_no_alloc (struct kretprobe *rp)
 }
 
 /* Called with uretprobe_lock held */
-static void free_urp_inst(struct kretprobe *rp)
+static void free_urp_inst(struct uretprobe *rp)
 {
-	struct kretprobe_instance *ri;
+	struct uretprobe_instance *ri;
 	while ((ri = get_free_urp_inst_no_alloc(rp)) != NULL) {
 		hlist_del(&ri->uflist);
 		kfree(ri);
@@ -463,10 +463,10 @@ static void free_urp_inst(struct kretprobe *rp)
 
 #define COMMON_URP_NR 10
 
-static int alloc_nodes_uretprobe(struct kretprobe *rp)
+static int alloc_nodes_uretprobe(struct uretprobe *rp)
 {
 	int alloc_nodes;
-	struct kretprobe_instance *inst;
+	struct uretprobe_instance *inst;
 	int i;
 
 #if 1//def CONFIG_PREEMPT
@@ -490,10 +490,10 @@ static int alloc_nodes_uretprobe(struct kretprobe *rp)
 }
 
 /* Called with uretprobe_lock held */
-static struct kretprobe_instance *get_free_urp_inst(struct kretprobe *rp)
+static struct uretprobe_instance *get_free_urp_inst(struct uretprobe *rp)
 {
 	struct hlist_node *node;
-	struct kretprobe_instance *ri;
+	struct uretprobe_instance *ri;
 
 	hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
 		return ri;
@@ -675,8 +675,8 @@ void dbi_unregister_ujprobe(struct task_struct *task, struct jprobe *jp, int ato
 
 static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 {
-	struct kretprobe *rp = container_of(p, struct kretprobe, kp);
-	struct kretprobe_instance *ri;
+	struct uretprobe *rp = container_of(p, struct uretprobe, kp);
+	struct uretprobe_instance *ri;
 	unsigned long flags;
 
 	/* TODO: consider to only swap the RA after the last pre_handler fired */
@@ -688,7 +688,6 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 	/* TODO: test - remove retprobe after func entry but before its exit */
 	if ((ri = get_free_urp_inst(rp)) != NULL) {
 		ri->rp = rp;
-		ri->rp2 = NULL;
 		ri->task = current;
 
 		arch_prepare_uretprobe_hl(ri, regs);
@@ -704,10 +703,10 @@ unlock:
 	return 0;
 }
 
-int dbi_register_uretprobe(struct task_struct *task, struct kretprobe *rp, int atomic)
+int dbi_register_uretprobe(struct task_struct *task, struct uretprobe *rp, int atomic)
 {
 	int i, ret = 0;
-	struct kretprobe_instance *inst;
+	struct uretprobe_instance *inst;
 
 	DBPRINTF ("START\n");
 
@@ -755,7 +754,7 @@ out:
 	return ret;
 }
 
-int dbi_disarm_urp_inst(struct kretprobe_instance *ri, struct task_struct *rm_task)
+int dbi_disarm_urp_inst(struct uretprobe_instance *ri, struct task_struct *rm_task)
 {
 	struct task_struct *task = rm_task ? rm_task : ri->task;
 	kprobe_opcode_t *tramp;
@@ -827,7 +826,7 @@ out:
 /* Called with uretprobe_lock held */
 int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task)
 {
-	struct kretprobe_instance *ri;
+	struct uretprobe_instance *ri;
 	struct hlist_node *node, *tmp;
 	struct hlist_head *head = uretprobe_inst_table_head(parent->mm);
 
@@ -841,11 +840,10 @@ int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct 
 }
 EXPORT_SYMBOL_GPL(dbi_disarm_urp_inst_for_task);
 
-void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, int atomic, int not_rp2)
+void dbi_unregister_uretprobe(struct task_struct *task, struct uretprobe *rp, int atomic, int not_rp2)
 {
 	unsigned long flags;
-	struct kretprobe_instance *ri;
-	struct kretprobe *rp2 = NULL;
+	struct uretprobe_instance *ri;
 
 	spin_lock_irqsave (&uretprobe_lock, flags);
 
@@ -857,7 +855,7 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 		recycle_urp_inst(ri);
 	}
 
-	if (hlist_empty(&rp->used_instances) || not_rp2) {
+	if (hlist_empty(&rp->used_instances)) {
 		struct kprobe *p = &rp->kp;
 #ifdef CONFIG_ARM
 		if (!(hlist_unhashed(&p->is_hlist_arm))) {
@@ -872,41 +870,10 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 			hlist_del_rcu(&p->is_hlist);
 		}
 #endif /* CONFIG_ARM */
-	} else {
-		struct kprobe *new_p = NULL;
-		struct kprobe *p = &rp->kp;
-		rp2 = clone_kretprobe(rp);
-		if (!rp2) {
-			DBPRINTF ("dbi_unregister_uretprobe addr %p: failed to clone retprobe!", rp->kp.addr);
-		} else {
-			DBPRINTF ("initiating deferred retprobe deletion addr %p", rp->kp.addr);
-			printk ("initiating deferred retprobe deletion addr %p\n", rp->kp.addr);
-			disarm_uprobe(&rp->kp, task);
-			rp2->disarm = 1;
-		}
-		/*
-		 * As we cloned retprobe we have to update the entry in the insn slot
-		 * hash list.
-		 */
-#ifdef CONFIG_ARM
-		if (!(hlist_unhashed(&p->is_hlist_arm))) {
-			hlist_del_rcu(&p->is_hlist_arm);
-		}
-		if (!(hlist_unhashed(&p->is_hlist_thumb))) {
-			hlist_del_rcu(&p->is_hlist_thumb);
-		}
-#else /* CONFIG_ARM */
-		if (!(hlist_unhashed(&p->is_hlist))) {
-			hlist_del_rcu(&p->is_hlist);
-		}
-#endif /* CONFIG_ARM */
-		new_p = &rp2->kp;
-		add_uprobe_table(new_p);
 	}
 
 	while ((ri = get_used_urp_inst(rp)) != NULL) {
 		ri->rp = NULL;
-		ri->rp2 = rp2;
 		hlist_del(&ri->uflist);
 	}
 
