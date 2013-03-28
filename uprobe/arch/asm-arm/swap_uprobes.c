@@ -16,7 +16,6 @@ void gen_insn_execbuf_thumb(void);
 void pc_dep_insn_execbuf_thumb(void);
 int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr);
 void add_rp_inst(struct kretprobe_instance *ri);
-struct kretprobe_instance *get_free_rp_inst (struct kretprobe *rp);
 
 
 #define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))

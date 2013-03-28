@@ -412,6 +412,54 @@ static void add_urp_inst(struct kretprobe_instance *ri)
 	hlist_add_head(&ri->uflist, &ri->rp->used_instances);
 }
 
+#define COMMON_URP_NR 10
+
+static int alloc_nodes_uretprobe(struct kretprobe *rp)
+{
+	int alloc_nodes;
+	struct kretprobe_instance *inst;
+	int i;
+
+#if 1//def CONFIG_PREEMPT
+	rp->maxactive += max(COMMON_URP_NR, 2 * NR_CPUS);
+#else
+	rp->maxacpptive += NR_CPUS;
+#endif
+	alloc_nodes = COMMON_URP_NR;
+
+	for (i = 0; i < alloc_nodes; ++i) {
+		inst = kmalloc(sizeof(*inst), GFP_ATOMIC);
+		if (inst == NULL) {
+			free_rp_inst(rp);
+			return -ENOMEM;
+		}
+		INIT_HLIST_NODE(&inst->uflist);
+		hlist_add_head(&inst->uflist, &rp->free_instances);
+	}
+
+	return 0;
+}
+
+/* Called with uretprobe_lock held */
+static struct kretprobe_instance *get_free_urp_inst(struct kretprobe *rp)
+{
+	struct hlist_node *node;
+	struct kretprobe_instance *ri;
+
+	hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
+		return ri;
+	}
+
+	if (!alloc_nodes_uretprobe(rp)) {
+		hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
+			return ri;
+		}
+	}
+
+	return NULL;
+}
+// ===================================================================
+
 int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 {
 	int ret = 0;
@@ -589,7 +637,7 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 	}
 
 	/* TODO: test - remove retprobe after func entry but before its exit */
-	if ((ri = get_free_rp_inst(rp)) != NULL) {
+	if ((ri = get_free_urp_inst(rp)) != NULL) {
 		ri->rp = rp;
 		ri->rp2 = NULL;
 		ri->task = current;
