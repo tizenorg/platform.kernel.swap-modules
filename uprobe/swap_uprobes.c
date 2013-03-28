@@ -413,6 +413,19 @@ static void add_urp_inst(struct kretprobe_instance *ri)
 }
 
 /* Called with uretprobe_lock held */
+void recycle_urp_inst(struct kretprobe_instance *ri)
+{
+	if (ri->rp) {
+		hlist_del(&ri->hlist);
+		/* remove rp inst off the used list */
+		hlist_del(&ri->uflist);
+		/* put rp inst back onto the free list */
+		INIT_HLIST_NODE(&ri->uflist);
+		hlist_add_head(&ri->uflist, &ri->rp->free_instances);
+	}
+}
+
+/* Called with uretprobe_lock held */
 static struct kretprobe_instance *get_used_urp_inst(struct kretprobe *rp)
 {
 	struct hlist_node *node;
@@ -841,7 +854,7 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 			/*panic*/printk("%s (%d/%d): cannot disarm urp instance (%08lx)\n",
 					ri->task->comm, ri->task->tgid, ri->task->pid,
 					(unsigned long)rp->kp.addr);
-		recycle_rp_inst(ri);
+		recycle_urp_inst(ri);
 	}
 
 	if (hlist_empty(&rp->used_instances) || not_rp2) {

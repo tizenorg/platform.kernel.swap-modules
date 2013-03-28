@@ -47,5 +47,6 @@ void disarm_uprobe(struct kprobe *p, struct task_struct *task);
 
 extern spinlock_t uretprobe_lock;
 struct hlist_head *uretprobe_inst_table_head(void *hash_key);
+void recycle_urp_inst(struct kretprobe_instance *ri);
 
 #endif /*  _DBI_UPROBES_H */

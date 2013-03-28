@@ -672,7 +672,7 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 		}
 
 		orig_ret_address = (unsigned long)ri->ret_addr;
-		recycle_rp_inst(ri);
+		recycle_urp_inst(ri);
 
 		if (orig_ret_address != trampoline_address) {
 			/*
