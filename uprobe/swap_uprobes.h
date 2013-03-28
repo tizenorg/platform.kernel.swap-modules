@@ -45,4 +45,7 @@ struct kprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid);
 
 void disarm_uprobe(struct kprobe *p, struct task_struct *task);
 
+extern spinlock_t uretprobe_lock;
+struct hlist_head *uretprobe_inst_table_head(void *hash_key);
+
 #endif /*  _DBI_UPROBES_H */

@@ -295,17 +295,8 @@ void add_rp_inst (struct kretprobe_instance *ri)
 
 	/* Add rp inst onto table */
 	INIT_HLIST_NODE (&ri->hlist);
-	/*
-	 * We are using different hash keys (task and mm) for finding kernel
-	 * space and user space probes.  Kernel space probes can change mm field in
-	 * task_struct.  User space probes can be shared between threads of one
-	 * process so they have different task but same mm.
-	 */
-	if (ri->rp->kp.tgid) {
-		hlist_add_head (&ri->hlist, &kretprobe_inst_table[hash_ptr (ri->task->mm, KPROBE_HASH_BITS)]);
-	} else {
-		hlist_add_head (&ri->hlist, &kretprobe_inst_table[hash_ptr (ri->task, KPROBE_HASH_BITS)]);
-	}
+
+	hlist_add_head(&ri->hlist, &kretprobe_inst_table[hash_ptr(ri->task, KPROBE_HASH_BITS)]);
 
 	/* Also add this rp inst to the used list. */
 	INIT_HLIST_NODE (&ri->uflist);

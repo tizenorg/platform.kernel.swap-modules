@@ -44,6 +44,9 @@ struct hlist_head uprobe_insn_slot_table[UPROBE_TABLE_SIZE];
 struct hlist_head uprobe_table[UPROBE_TABLE_SIZE];
 struct hlist_head uprobe_insn_pages;
 
+DEFINE_SPINLOCK(uretprobe_lock);	/* Protects uretprobe_inst_table */
+static struct hlist_head uretprobe_inst_table[UPROBE_TABLE_SIZE];
+
 #define DEBUG_PRINT_HASH_TABLE 0
 
 #if DEBUG_PRINT_HASH_TABLE
@@ -265,6 +268,14 @@ static void init_uprobe_table(void)
 	}
 }
 
+static void init_uretprobe_inst_table(void)
+{
+	int i;
+	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
+		INIT_HLIST_HEAD (&uretprobe_inst_table[i]);
+	}
+}
+
 struct kprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid)
 {
 	struct hlist_head *head;
@@ -376,6 +387,29 @@ static void remove_uprobe(struct kprobe *p, struct task_struct *task)
 #else /* CONFIG_ARM */
 	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn);
 #endif /* CONFIG_ARM */
+}
+
+struct hlist_head *uretprobe_inst_table_head(void *hash_key)
+{
+	return &uretprobe_inst_table[hash_ptr (hash_key, UPROBE_HASH_BITS)];
+}
+
+/* Called with uretprobe_lock held */
+static void add_urp_inst(struct kretprobe_instance *ri)
+{
+	/*
+	 * Remove rp inst off the free list -
+	 * Add it back when probed function returns
+	 */
+	hlist_del(&ri->uflist);
+
+	/* Add rp inst onto table */
+	INIT_HLIST_NODE(&ri->hlist);
+	hlist_add_head(&ri->hlist, uretprobe_inst_table_head(ri->task->mm));
+
+	/* Also add this rp inst to the used list. */
+	INIT_HLIST_NODE(&ri->uflist);
+	hlist_add_head(&ri->uflist, &ri->rp->used_instances);
 }
 
 int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
@@ -549,7 +583,7 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 	unsigned long flags;
 
 	/* TODO: consider to only swap the RA after the last pre_handler fired */
-	spin_lock_irqsave(&kretprobe_lock, flags);
+	spin_lock_irqsave(&uretprobe_lock, flags);
 	if (rp->disarm) {
 		goto unlock;
 	}
@@ -562,13 +596,13 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 
 		arch_prepare_uretprobe_hl(ri, regs);
 
-		add_rp_inst(ri);
+		add_urp_inst(ri);
 	} else {
 		++rp->nmissed;
 	}
 
 unlock:
-	spin_unlock_irqrestore(&kretprobe_lock, flags);
+	spin_unlock_irqrestore(&uretprobe_lock, flags);
 
 	return 0;
 }
@@ -693,12 +727,12 @@ out:
 	return retval;
 }
 
-/* Called with kretprobe_lock held */
+/* Called with uretprobe_lock held */
 int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task)
 {
 	struct kretprobe_instance *ri;
 	struct hlist_node *node, *tmp;
-	struct hlist_head *head = kretprobe_inst_table_head(parent->mm);
+	struct hlist_head *head = uretprobe_inst_table_head(parent->mm);
 
 	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
 		if (parent == ri->task && ri->rp->kp.tgid) {
@@ -716,7 +750,7 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 	struct kretprobe_instance *ri;
 	struct kretprobe *rp2 = NULL;
 
-	spin_lock_irqsave (&kretprobe_lock, flags);
+	spin_lock_irqsave (&uretprobe_lock, flags);
 
 	while ((ri = get_used_rp_inst(rp)) != NULL) {
 		if (dbi_disarm_urp_inst(ri, NULL) != 0)
@@ -779,7 +813,7 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 		hlist_del(&ri->uflist);
 	}
 
-	spin_unlock_irqrestore(&kretprobe_lock, flags);
+	spin_unlock_irqrestore(&uretprobe_lock, flags);
 	free_rp_inst(rp);
 
 	dbi_unregister_uprobe(&rp->kp, task, atomic);
@@ -813,6 +847,7 @@ static int __init init_uprobes(void)
 {
 	init_uprobe_table();
 	init_uprobes_insn_slots();
+	init_uretprobe_inst_table();
 
 	return swap_arch_init_uprobes();
 }

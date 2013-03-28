@@ -645,9 +645,9 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 		trampoline_address = (unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
 	}
 
-	spin_lock_irqsave(&kretprobe_lock, flags);
+	spin_lock_irqsave(&uretprobe_lock, flags);
 
-	head = kretprobe_inst_table_head(current->mm);
+	head = uretprobe_inst_table_head(current->mm);
 
 	/*
 	 * It is possible to have multiple instances associated with a given
@@ -692,7 +692,7 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 		regs->ARM_cpsr |= 0x20;
 	}
 
-	spin_unlock_irqrestore(&kretprobe_lock, flags);
+	spin_unlock_irqrestore(&uretprobe_lock, flags);
 
 	/*
 	 * By returning a non-zero value, we are telling
