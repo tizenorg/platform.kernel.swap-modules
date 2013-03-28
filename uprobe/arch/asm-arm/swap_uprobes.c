@@ -718,7 +718,7 @@ static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct ta
 			printk("Error in %s at %d: we are in thumb mode (!) and check instruction was fail \
 				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
 			// Test case when we do our actions on already running application
-			arch_disarm_uprobe(p, task);
+			disarm_uprobe(p, task);
 			return -1;
 		}
 	} else {
@@ -731,7 +731,7 @@ static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct ta
 			printk("Error in %s at %d: we are in arm mode (!) and check instruction was fail \
 				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
 			// Test case when we do our actions on already running application
-			arch_disarm_uprobe(p, task);
+			disarm_uprobe(p, task);
 			return -1;
 		}
 	}

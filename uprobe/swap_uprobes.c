@@ -239,6 +239,14 @@ static void arm_uprobe(struct kprobe *p, struct task_struct *task)
 	}
 }
 
+void disarm_uprobe(struct kprobe *p, struct task_struct *task)
+{
+	if (!write_proc_vm_atomic (task, (unsigned long) p->addr, &p->opcode, sizeof (p->opcode))) {
+		panic("disarm_uprobe: failed to write memory: tgid=%u, addr=%p!\n", task->tgid, p->addr);
+	}
+}
+EXPORT_SYMBOL_GPL(disarm_uprobe);
+
 static void init_uprobes_insn_slots(void)
 {
 	int i;
@@ -441,7 +449,7 @@ valid_p:
 	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_uhandler) &&
 	    (p->list.next == &old_p->list) && (p->list.prev == &old_p->list))) {
 		/* Only probe on the hash list */
-		arch_disarm_uprobe(p, task);
+		disarm_uprobe(p, task);
 		hlist_del_rcu(&old_p->hlist);
 		cleanup_p = 1;
 	} else {
@@ -725,7 +733,7 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 		} else {
 			DBPRINTF ("initiating deferred retprobe deletion addr %p", rp->kp.addr);
 			printk ("initiating deferred retprobe deletion addr %p\n", rp->kp.addr);
-			arch_disarm_uprobe(&rp->kp, task);
+			disarm_uprobe(&rp->kp, task);
 			rp2->disarm = 1;
 		}
 		/*

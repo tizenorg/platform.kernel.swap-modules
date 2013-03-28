@@ -31,6 +31,7 @@
 #include "sspt_procs.h"
 #include "sspt_debug.h"
 #include "../us_proc_inst.h"
+#include <swap_uprobes.h>
 
 
 #include "../storage.h"
@@ -114,7 +115,7 @@ static inline int unregister_usprobe_my(struct task_struct *task, struct us_ip *
 		err = unregister_usprobe(task, ip, 1, 1);
 		break;
 	case US_DISARM:
-		arch_disarm_uprobe(&ip->jprobe.kp, task);
+		disarm_uprobe(&ip->jprobe.kp, task);
 		break;
 	default:
 		panic("incorrect value flag=%d", flag);

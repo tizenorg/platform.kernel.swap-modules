@@ -549,11 +549,7 @@ valid_p:
 				(p->list.next == &old_p->list) && (p->list.prev == &old_p->list)))
 	{
 		/* Only probe on the hash list */
-		DBPRINTF ("dbi_unregister_kprobe disarm pid=%d", pid);
-		if (pid)
-			arch_disarm_uprobe (p, task);//vma, page, kaddr);
-		else
-			arch_disarm_kprobe (p);
+		arch_disarm_kprobe(p);
 		hlist_del_rcu (&old_p->hlist);
 		cleanup_p = 1;
 	}

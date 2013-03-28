@@ -82,14 +82,6 @@ void arch_remove_uprobe(struct kprobe *p, struct task_struct *task)
 }
 EXPORT_SYMBOL_GPL(arch_remove_uprobe);
 
-void arch_disarm_uprobe (struct kprobe *p, struct task_struct *tsk)
-{
-	if (!write_proc_vm_atomic (tsk, (unsigned long) p->addr, &p->opcode, sizeof (p->opcode))) {
-		panic ("failed to write memory: tgid=%u, addr=%p!\n", tsk->tgid, p->addr);
-	}
-}
-EXPORT_SYMBOL_GPL(arch_disarm_uprobe);
-
 int arch_init_module_dependencies(void)
 {
 	int ret;
