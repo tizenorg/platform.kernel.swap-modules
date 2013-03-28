@@ -920,6 +920,5 @@ out:
 
 
 EXPORT_SYMBOL_GPL (page_present);
-EXPORT_SYMBOL_GPL (get_user_pages_uprobe);
 EXPORT_SYMBOL_GPL (access_process_vm_atomic);
 

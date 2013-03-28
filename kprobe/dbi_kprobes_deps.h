@@ -80,15 +80,10 @@
 int init_module_dependencies(void);
 
 int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
-int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
-		unsigned long start, int len, int write, int force,
-		struct page **pages, struct vm_area_struct **vmas);
 
 #define read_proc_vm_atomic(tsk, addr, buf, len)	access_process_vm_atomic (tsk, addr, buf, len, 0)
 #define write_proc_vm_atomic(tsk, addr, buf, len)	access_process_vm_atomic (tsk, addr, buf, len, 1)
 int page_present (struct mm_struct *mm, unsigned long addr);
-
-#define get_user_pages_atomic  get_user_pages_uprobe
 
 extern unsigned long sched_addr;
 extern unsigned long fork_addr;
