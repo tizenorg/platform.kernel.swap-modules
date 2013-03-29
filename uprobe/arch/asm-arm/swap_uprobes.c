@@ -1,6 +1,6 @@
 #include <dbi_kprobes.h>
 #include <asm/dbi_kprobes.h>
-#include <asm/dbi_kprobes_arm.h>
+#include <asm/trampoline_arm.h>
 #include <asm/traps.h>
 #include <swap_uprobes.h>
 #include <asm/swap_uprobes.h>

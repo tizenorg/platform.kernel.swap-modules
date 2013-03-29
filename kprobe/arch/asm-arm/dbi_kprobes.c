@@ -33,7 +33,7 @@
 #include <linux/mm.h>
 
 #include "dbi_kprobes.h"
-#include "dbi_kprobes_arm.h"
+#include "trampoline_arm.h"
 #include "../dbi_kprobes.h"
 #include "../../dbi_kprobes.h"
 
@@ -772,6 +772,6 @@ void __exit dbi_arch_exit_kprobes (void)
 
 //EXPORT_SYMBOL_GPL (dbi_arch_exit_kprobes);
 
-/* export symbol for dbi_kprobes_arm.h */
+/* export symbol for trampoline_arm.h */
 EXPORT_SYMBOL_GPL(gen_insn_execbuf);
 EXPORT_SYMBOL_GPL(pc_dep_insn_execbuf);
