@@ -94,7 +94,6 @@ static inline struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst
 
 enum US_FLAGS {
 	US_UNREGS_PROBE,
-	US_NOT_RP2,
 	US_DISARM
 };
 
@@ -109,10 +108,7 @@ static inline int unregister_usprobe_my(struct task_struct *task, struct us_ip *
 
 	switch (flag) {
 	case US_UNREGS_PROBE:
-		err = unregister_usprobe(task, ip, 1, 0);
-		break;
-	case US_NOT_RP2:
-		err = unregister_usprobe(task, ip, 1, 1);
+		err = unregister_usprobe(task, ip, 1);
 		break;
 	case US_DISARM:
 		disarm_uprobe(&ip->jprobe.up.kp, task);

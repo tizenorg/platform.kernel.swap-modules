@@ -1008,7 +1008,7 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 		file = sspt_procs_find_file(procs, dentry);
 		if (file) {
 			if (vma->vm_start == start || vma->vm_end == end) {
-				unregister_us_file_probes(task, file, US_NOT_RP2);
+				unregister_us_file_probes(task, file, US_UNREGS_PROBE);
 				file->loaded = 0;
 			} else {
 				unsigned long page_addr;
@@ -1017,7 +1017,7 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 				for (page_addr = vma->vm_start; page_addr < vma->vm_end; page_addr += PAGE_SIZE) {
 					page = sspt_find_page_mapped(file, page_addr);
 					if (page) {
-						unregister_us_page_probe(task, page, US_NOT_RP2);
+						unregister_us_page_probe(task, page, US_UNREGS_PROBE);
 					}
 				}
 
@@ -1076,7 +1076,7 @@ void mm_release_probe_pre_code(void)
 	}
 
 	if (procs) {
-		int ret = uninstall_us_proc_probes(task, procs, US_NOT_RP2);
+		int ret = uninstall_us_proc_probes(task, procs, US_UNREGS_PROBE);
 		if (ret != 0) {
 			EPRINTF ("failed to uninstall IPs (%d)!", ret);
 		}
@@ -1257,12 +1257,12 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 	return 0;
 }
 
-int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int not_rp2)
+int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 {
 	dbi_unregister_ujprobe(&ip->jprobe, atomic);
 
 	if (ip->flag_retprobe) {
-		dbi_unregister_uretprobe(&ip->retprobe, atomic, not_rp2);
+		dbi_unregister_uretprobe(&ip->retprobe, atomic);
 	}
 
 	return 0;

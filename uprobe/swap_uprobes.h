@@ -87,7 +87,7 @@ int dbi_register_ujprobe(struct ujprobe *jp, int atomic);
 void dbi_unregister_ujprobe(struct ujprobe *jp, int atomic);
 
 int dbi_register_uretprobe(struct uretprobe *rp, int atomic);
-void dbi_unregister_uretprobe(struct uretprobe *rp, int atomic, int not_rp2);
+void dbi_unregister_uretprobe(struct uretprobe *rp, int atomic);
 
 void dbi_unregister_all_uprobes(struct task_struct *task, int atomic);
 

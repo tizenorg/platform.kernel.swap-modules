@@ -897,7 +897,7 @@ int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct 
 }
 EXPORT_SYMBOL_GPL(dbi_disarm_urp_inst_for_task);
 
-void dbi_unregister_uretprobe(struct uretprobe *rp, int atomic, int not_rp2)
+void dbi_unregister_uretprobe(struct uretprobe *rp, int atomic)
 {
 	unsigned long flags;
 	struct uretprobe_instance *ri;

@@ -92,7 +92,7 @@ extern unsigned long imi_sum_hit;
 extern struct list_head proc_probes_list;
 
 int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
-int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int no_rp2);
+int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
 
 #define user_backtrace(size) \
 	do { \
