@@ -389,7 +389,7 @@ static void remove_uprobe(struct kprobe *p, struct task_struct *task)
 #endif /* CONFIG_ARM */
 }
 
-struct hlist_head *uretprobe_inst_table_head(void *hash_key)
+static struct hlist_head *uretprobe_inst_table_head(void *hash_key)
 {
 	return &uretprobe_inst_table[hash_ptr (hash_key, UPROBE_HASH_BITS)];
 }
@@ -413,7 +413,7 @@ static void add_urp_inst(struct uretprobe_instance *ri)
 }
 
 /* Called with uretprobe_lock held */
-void recycle_urp_inst(struct uretprobe_instance *ri)
+static void recycle_urp_inst(struct uretprobe_instance *ri)
 {
 	if (ri->rp) {
 		hlist_del(&ri->hlist);
@@ -671,6 +671,60 @@ void dbi_unregister_ujprobe(struct task_struct *task, struct jprobe *jp, int ato
 		hlist_del_rcu(&jp->kp.is_hlist);
 	}
 #endif /* CONFIG_ARM */
+}
+
+int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
+{
+	struct uretprobe_instance *ri = NULL;
+	struct hlist_head *head;
+	struct hlist_node *node, *tmp;
+	unsigned long flags, tramp_addr, orig_ret_addr = 0;
+
+	tramp_addr = arch_get_trampoline_addr(p, regs);
+	spin_lock_irqsave(&uretprobe_lock, flags);
+
+	head = uretprobe_inst_table_head(current->mm);
+
+	/*
+	 * It is possible to have multiple instances associated with a given
+	 * task either because an multiple functions in the call path
+	 * have a return probe installed on them, and/or more then one
+	 * return probe was registered for a target function.
+	 *
+	 * We can handle this because:
+	 *     - instances are always inserted at the head of the list
+	 *     - when multiple return probes are registered for the same
+	 *       function, the first instance's ret_addr will point to the
+	 *       real return address, and all the rest will point to
+	 *       uretprobe_trampoline
+	 */
+	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
+		if (ri->task != current) {
+			/* another task is sharing our hash bucket */
+			continue;
+		}
+
+		if (ri->rp && ri->rp->handler) {
+			ri->rp->handler(ri, regs, ri->rp->priv_arg);
+		}
+
+		orig_ret_addr = (unsigned long)ri->ret_addr;
+		recycle_urp_inst(ri);
+
+		if (orig_ret_addr != tramp_addr) {
+			/*
+			 * This is the real return address. Any other
+			 * instances associated with this task are for
+			 * other calls deeper on the call stack
+			 */
+			break;
+		}
+	}
+
+	spin_unlock_irqrestore(&uretprobe_lock, flags);
+	arch_set_orig_ret_addr(orig_ret_addr, regs);
+
+	return 1;
 }
 
 static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)

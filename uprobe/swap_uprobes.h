@@ -29,6 +29,8 @@
 
 #include "dbi_kprobes.h"
 
+struct uretprobe_instance;
+
 typedef int (*uretprobe_handler_t)(struct uretprobe_instance *, struct pt_regs *, void *);
 
 /*
@@ -78,8 +80,6 @@ struct kprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid);
 
 void disarm_uprobe(struct kprobe *p, struct task_struct *task);
 
-extern spinlock_t uretprobe_lock;
-struct hlist_head *uretprobe_inst_table_head(void *hash_key);
-void recycle_urp_inst(struct uretprobe_instance *ri);
+int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs);
 
 #endif /*  _DBI_UPROBES_H */

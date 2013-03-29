@@ -630,76 +630,23 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
+unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs)
 {
-	struct uretprobe_instance *ri = NULL;
-	struct hlist_head *head;
-	struct hlist_node *node, *tmp;
-	unsigned long flags, orig_ret_address = 0;
-	unsigned long trampoline_address = 0;
+	return thumb_mode(regs) ?
+			(unsigned long)(p->ainsn.insn) + 0x1b :
+			(unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
+}
 
-	if (thumb_mode(regs)) {
-		trampoline_address = (unsigned long)(p->ainsn.insn) + 0x1b;
-	} else {
-		trampoline_address = (unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
-	}
+void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
+{
+	regs->ARM_lr = orig_ret_addr;
+	regs->ARM_pc = orig_ret_addr;
 
-	spin_lock_irqsave(&uretprobe_lock, flags);
-
-	head = uretprobe_inst_table_head(current->mm);
-
-	/*
-	 * It is possible to have multiple instances associated with a given
-	 * task either because an multiple functions in the call path
-	 * have a return probe installed on them, and/or more then one
-	 * return probe was registered for a target function.
-	 *
-	 * We can handle this because:
-	 *     - instances are always inserted at the head of the list
-	 *     - when multiple return probes are registered for the same
-	 *       function, the first instance's ret_addr will point to the
-	 *       real return address, and all the rest will point to
-	 *       uretprobe_trampoline
-	 */
-	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
-		if (ri->task != current) {
-			/* another task is sharing our hash bucket */
-			continue;
-		}
-
-		if (ri->rp && ri->rp->handler) {
-			ri->rp->handler(ri, regs, ri->rp->priv_arg);
-		}
-
-		orig_ret_address = (unsigned long)ri->ret_addr;
-		recycle_urp_inst(ri);
-
-		if (orig_ret_address != trampoline_address) {
-			/*
-			 * This is the real return address. Any other
-			 * instances associated with this task are for
-			 * other calls deeper on the call stack
-			 */
-			break;
-		}
-	}
-
-	regs->ARM_pc = orig_ret_address;
 	if (thumb_mode(regs) && !(regs->ARM_lr & 0x01)) {
 		regs->ARM_cpsr &= 0xFFFFFFDF;
 	} else if (user_mode(regs) && (regs->ARM_lr & 0x01)) {
 		regs->ARM_cpsr |= 0x20;
 	}
-
-	spin_unlock_irqrestore(&uretprobe_lock, flags);
-
-	/*
-	 * By returning a non-zero value, we are telling
-	 * kprobe_handler() that we don't want the post_handler
-	 * to run (and have re-enabled preemption)
-	 */
-
-	return 1;
 }
 
 static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct task_struct *task)

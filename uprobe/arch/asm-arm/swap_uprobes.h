@@ -20,6 +20,9 @@ static inline int longjmp_break_uhandler(struct kprobe *p, struct pt_regs *regs)
 
 void arch_prepare_uretprobe_hl(struct uretprobe_instance *ri, struct pt_regs *regs);
 
+unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs);
+void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs);
+
 int swap_arch_init_uprobes(void);
 void swap_arch_exit_uprobes(void);
 
