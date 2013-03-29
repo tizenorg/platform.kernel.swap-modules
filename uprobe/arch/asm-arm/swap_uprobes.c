@@ -8,14 +8,10 @@
 // FIXME:
 #include <dbi_kdebug.h>
 extern struct hlist_head uprobe_insn_pages;
-int arch_check_insn_arm(struct arch_specific_insn *ainsn);
-int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int uregs);
 void pc_dep_insn_execbuf(void);
 void gen_insn_execbuf(void);
 void gen_insn_execbuf_thumb(void);
 void pc_dep_insn_execbuf_thumb(void);
-int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr);
-void add_rp_inst(struct kretprobe_instance *ri);
 
 
 #define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
