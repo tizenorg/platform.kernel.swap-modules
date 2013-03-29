@@ -5,12 +5,11 @@
 #include <swap_uprobes.h>
 #include <asm/swap_uprobes.h>
 #include <dbi_insn_slots.h>
+#include "trampoline_thumb.h"
 
 // FIXME:
 #include <dbi_kdebug.h>
 extern struct hlist_head uprobe_insn_pages;
-void gen_insn_execbuf_thumb(void);
-void pc_dep_insn_execbuf_thumb(void);
 
 
 #define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))

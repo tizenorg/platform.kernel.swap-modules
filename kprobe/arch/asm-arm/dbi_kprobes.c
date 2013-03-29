@@ -34,7 +34,6 @@
 
 #include "dbi_kprobes.h"
 #include "dbi_kprobes_arm.h"
-#include "dbi_kprobes_thumb.h"
 #include "../dbi_kprobes.h"
 #include "../../dbi_kprobes.h"
 

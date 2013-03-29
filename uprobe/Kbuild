@@ -2,3 +2,4 @@ EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_uprobe.o
 swap_uprobe-y := swap_uprobes.o arch/asm/swap_uprobes.o
+swap_uprobe-$(CONFIG_ARM) += arch/asm/trampoline_thumb.o
