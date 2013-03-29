@@ -509,11 +509,12 @@ static struct uretprobe_instance *get_free_urp_inst(struct uretprobe *rp)
 }
 // ===================================================================
 
-int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
+int dbi_register_uprobe(struct uprobe *up, int atomic)
 {
 	int ret = 0;
-	struct kprobe *old_p;
+	struct kprobe *p, *old_p;
 
+	p = &up->kp;
 	if (!p->addr) {
 		return -EINVAL;
 	}
@@ -553,7 +554,7 @@ int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 		goto out;
 	}
 
-	ret = arch_prepare_uprobe(p, task, atomic);
+	ret = arch_prepare_uprobe(p, up->task, atomic);
 	if (ret) {
 		DBPRINTF("goto out\n", ret);
 		goto out;
@@ -565,18 +566,19 @@ int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
 	INIT_HLIST_NODE(&p->hlist);
 	hlist_add_head_rcu(&p->hlist, &uprobe_table[hash_ptr(p->addr, UPROBE_HASH_BITS)]);
 	add_uprobe_table(p);
-	arm_uprobe(p, task);
+	arm_uprobe(p, up->task);
 
 out:
 	DBPRINTF("out ret = 0x%x\n", ret);
 	return ret;
 }
 
-void dbi_unregister_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
+void dbi_unregister_uprobe(struct uprobe *up, int atomic)
 {
-	struct kprobe *old_p, *list_p;
+	struct kprobe *p, *old_p, *list_p;
 	int cleanup_p;
 
+	p = &up->kp;
 	old_p = get_uprobe(p->addr, p->tgid);
 	if (unlikely(!old_p)) {
 		return;
@@ -597,7 +599,7 @@ valid_p:
 	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_uhandler) &&
 	    (p->list.next == &old_p->list) && (p->list.prev == &old_p->list))) {
 		/* Only probe on the hash list */
-		disarm_uprobe(p, task);
+		disarm_uprobe(p, up->task);
 		hlist_del_rcu(&old_p->hlist);
 		cleanup_p = 1;
 	} else {
@@ -615,7 +617,7 @@ valid_p:
 			synchronize_sched();
 		}
 
-		remove_uprobe(p, task);
+		remove_uprobe(p, up->task);
 	} else {
 		if (p->break_handler) {
 			old_p->break_handler = NULL;
@@ -644,14 +646,14 @@ int dbi_register_ujprobe(struct ujprobe *jp, int atomic)
 	jp->up.kp.pre_handler = setjmp_upre_handler;
 	jp->up.kp.break_handler = longjmp_break_uhandler;
 
-	ret = dbi_register_uprobe(&jp->up.kp, jp->up.task, atomic);
+	ret = dbi_register_uprobe(&jp->up, atomic);
 
 	return ret;
 }
 
 void dbi_unregister_ujprobe(struct ujprobe *jp, int atomic)
 {
-	dbi_unregister_uprobe(&jp->up.kp, jp->up.task, atomic);
+	dbi_unregister_uprobe(&jp->up, atomic);
 	/*
 	 * Here is an attempt to unregister even those probes that have not been
 	 * installed (hence not added to the hlist).
@@ -799,7 +801,7 @@ int dbi_register_uretprobe(struct uretprobe *rp, int atomic)
 	rp->nmissed = 0;
 
 	/* Establish function entry probe point */
-	ret = dbi_register_uprobe(&rp->up.kp, rp->up.task, atomic);
+	ret = dbi_register_uprobe(&rp->up, atomic);
 	if (ret) {
 		free_urp_inst(rp);
 		goto out;
@@ -935,7 +937,7 @@ void dbi_unregister_uretprobe(struct uretprobe *rp, int atomic, int not_rp2)
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
 	free_urp_inst(rp);
 
-	dbi_unregister_uprobe(&rp->up.kp, rp->up.task, atomic);
+	dbi_unregister_uprobe(&rp->up, atomic);
 }
 
 void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
@@ -949,9 +951,10 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
 		head = &uprobe_table[i];
 		hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
 			if (p->tgid == task->tgid) {
+				struct uprobe *up = container_of(p, struct uprobe, kp);
 				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%lx] for %s/%d\n",
 						p->addr, (unsigned long)p->opcode, task->comm, task->pid);
-				dbi_unregister_uprobe(p, task, atomic);
+				dbi_unregister_uprobe(up, atomic);
 			}
 		}
 	}

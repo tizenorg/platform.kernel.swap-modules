@@ -80,8 +80,8 @@ struct uretprobe_instance {
 	struct task_struct *task;
 };
 
-int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic);
-void dbi_unregister_uprobe(struct kprobe *p, struct task_struct *task, int atomic);
+int dbi_register_uprobe(struct uprobe *p, int atomic);
+void dbi_unregister_uprobe(struct uprobe *p, int atomic);
 
 int dbi_register_ujprobe(struct ujprobe *jp, int atomic);
 void dbi_unregister_ujprobe(struct ujprobe *jp, int atomic);
