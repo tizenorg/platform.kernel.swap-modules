@@ -1131,7 +1131,7 @@ unsigned long ujprobe_event_pre_handler(struct us_ip *ip, struct pt_regs *regs)
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6)
 {
 	struct us_ip *ip = __get_cpu_var(gpCurIp);
-	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
+	unsigned long addr = (unsigned long)ip->jprobe.up.kp.addr;
 
 #ifdef __ANDROID
 	struct pt_regs *regs = __get_cpu_var(gpUserRegs);
@@ -1158,7 +1158,7 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 
 static void send_plt(struct us_ip *ip)
 {
-	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
+	unsigned long addr = (unsigned long)ip->jprobe.up.kp.addr;
 	struct vm_area_struct *vma = find_vma(current->mm, addr);
 
 	if (vma && check_vma(vma)) {
@@ -1192,7 +1192,7 @@ static void send_plt(struct us_ip *ip)
 int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip)
 {
 	int retval = regs_return_value(regs);
-	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
+	unsigned long addr = (unsigned long)ip->jprobe.up.kp.addr;
 
 	if (ip->got_addr && ip->flag_got == 0) {
 		send_plt(ip);
@@ -1217,20 +1217,21 @@ int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *re
 int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 {
 	int ret = 0;
-	ip->jprobe.kp.tgid = task->tgid;
+	ip->jprobe.up.kp.tgid = task->tgid;
 
 	if (ip->jprobe.entry == NULL) {
-		ip->jprobe.entry = (kprobe_opcode_t *)ujprobe_event_handler;
+		ip->jprobe.entry = (void *)ujprobe_event_handler;
 		DPRINTF("Set default event handler for %x\n", ip->offset);
 	}
 
 	if (ip->jprobe.pre_entry == NULL) {
-		ip->jprobe.pre_entry = (kprobe_pre_entry_handler_t)ujprobe_event_pre_handler;
+		ip->jprobe.pre_entry = (uprobe_pre_entry_handler_t)ujprobe_event_pre_handler;
 		DPRINTF("Set default pre handler for %x\n", ip->offset);
 	}
 
 	ip->jprobe.priv_arg = ip;
-	ret = dbi_register_ujprobe(task, &ip->jprobe, atomic);
+	ip->jprobe.up.task = task;
+	ret = dbi_register_ujprobe(&ip->jprobe, atomic);
 	if (ret) {
 		DPRINTF ("dbi_register_ujprobe() failure %d", ret);
 		return ret;
@@ -1257,7 +1258,7 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 
 int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, int not_rp2)
 {
-	dbi_unregister_ujprobe(task, &ip->jprobe, atomic);
+	dbi_unregister_ujprobe(&ip->jprobe, atomic);
 
 	if (ip->flag_retprobe) {
 		dbi_unregister_uretprobe(task, &ip->retprobe, atomic, not_rp2);

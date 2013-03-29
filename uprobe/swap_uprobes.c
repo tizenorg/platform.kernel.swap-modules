@@ -636,22 +636,22 @@ valid_p:
 	}
 }
 
-int dbi_register_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic)
+int dbi_register_ujprobe(struct ujprobe *jp, int atomic)
 {
 	int ret = 0;
 
 	/* Todo: Verify probepoint is a function entry point */
-	jp->kp.pre_handler = setjmp_upre_handler;
-	jp->kp.break_handler = longjmp_break_uhandler;
+	jp->up.kp.pre_handler = setjmp_upre_handler;
+	jp->up.kp.break_handler = longjmp_break_uhandler;
 
-	ret = dbi_register_uprobe(&jp->kp, task, atomic);
+	ret = dbi_register_uprobe(&jp->up.kp, jp->up.task, atomic);
 
 	return ret;
 }
 
-void dbi_unregister_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic)
+void dbi_unregister_ujprobe(struct ujprobe *jp, int atomic)
 {
-	dbi_unregister_uprobe(&jp->kp, task, atomic);
+	dbi_unregister_uprobe(&jp->up.kp, jp->up.task, atomic);
 	/*
 	 * Here is an attempt to unregister even those probes that have not been
 	 * installed (hence not added to the hlist).
@@ -660,15 +660,15 @@ void dbi_unregister_ujprobe(struct task_struct *task, struct jprobe *jp, int ato
 	 * really belongs to the hlist.
 	 */
 #ifdef CONFIG_ARM
-	if (!(hlist_unhashed(&jp->kp.is_hlist_arm))) {
-		hlist_del_rcu(&jp->kp.is_hlist_arm);
+	if (!(hlist_unhashed(&jp->up.kp.is_hlist_arm))) {
+		hlist_del_rcu(&jp->up.kp.is_hlist_arm);
 	}
-	if (!(hlist_unhashed(&jp->kp.is_hlist_thumb))) {
-		hlist_del_rcu(&jp->kp.is_hlist_thumb);
+	if (!(hlist_unhashed(&jp->up.kp.is_hlist_thumb))) {
+		hlist_del_rcu(&jp->up.kp.is_hlist_thumb);
 	}
 #else /* CONFIG_ARM */
-	if (!(hlist_unhashed(&jp->kp.is_hlist))) {
-		hlist_del_rcu(&jp->kp.is_hlist);
+	if (!(hlist_unhashed(&jp->up.kp.is_hlist))) {
+		hlist_del_rcu(&jp->up.kp.is_hlist);
 	}
 #endif /* CONFIG_ARM */
 }

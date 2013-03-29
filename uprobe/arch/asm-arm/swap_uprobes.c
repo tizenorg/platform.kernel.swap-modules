@@ -606,7 +606,9 @@ void arch_prepare_uretprobe_hl(struct uretprobe_instance *ri,
 
 int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 {
-	struct jprobe *jp = container_of(p, struct jprobe, kp);
+	struct uprobe *up = container_of(p, struct uprobe, kp);
+	struct ujprobe *jp = container_of(up, struct ujprobe, up);
+
 	kprobe_pre_entry_handler_t pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
 

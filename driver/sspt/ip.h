@@ -47,7 +47,7 @@ struct sspt_file;
 struct us_ip {
 	struct list_head list;
 
-	struct jprobe jprobe;
+	struct ujprobe jprobe;
 	struct uretprobe retprobe;
 
 	unsigned long offset;

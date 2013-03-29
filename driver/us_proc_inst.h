@@ -98,7 +98,7 @@ int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, i
 	do { \
 		us_proc_ip_t *ip = __get_cpu_var(gpCurIp); \
 		struct pt_regs *regs = __get_cpu_var(gpUserRegs); \
-		dump_backtrace(US_PROBE_ID, current, ip->jprobe.kp.addr, regs, size); \
+		dump_backtrace(US_PROBE_ID, current, ip->jprobe.up.kp.addr, regs, size); \
 	} while (0)
 
 struct dentry *dentry_by_path(const char *path);

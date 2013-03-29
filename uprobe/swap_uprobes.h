@@ -29,6 +29,22 @@
 
 #include "dbi_kprobes.h"
 
+struct uprobe {
+	struct kprobe kp;
+	struct task_struct *task;
+};
+
+typedef unsigned long (*uprobe_pre_entry_handler_t)(void *priv_arg, struct pt_regs * regs);
+
+struct ujprobe {
+	struct uprobe up;
+	/* probe handling code to jump to */
+	void *entry;
+	// handler whichw willb bec called before 'entry'
+	uprobe_pre_entry_handler_t pre_entry;
+	void *priv_arg;
+};
+
 struct uretprobe_instance;
 
 typedef int (*uretprobe_handler_t)(struct uretprobe_instance *, struct pt_regs *, void *);
@@ -67,8 +83,8 @@ struct uretprobe_instance {
 int dbi_register_uprobe(struct kprobe *p, struct task_struct *task, int atomic);
 void dbi_unregister_uprobe(struct kprobe *p, struct task_struct *task, int atomic);
 
-int dbi_register_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic);
-void dbi_unregister_ujprobe(struct task_struct *task, struct jprobe *jp, int atomic);
+int dbi_register_ujprobe(struct ujprobe *jp, int atomic);
+void dbi_unregister_ujprobe(struct ujprobe *jp, int atomic);
 
 int dbi_register_uretprobe(struct task_struct *task, struct uretprobe *rp, int atomic);
 void dbi_unregister_uretprobe(struct task_struct *task, struct uretprobe *rp, int atomic, int not_rp2);
