@@ -117,6 +117,6 @@ void sspt_set_all_ip_addr(struct sspt_page *page, const struct sspt_file *file)
 
 	list_for_each_entry(ip, &page->ip_list, list) {
 		addr = file->vm_start + page->offset + ip->offset;
-		ip->retprobe.kp.addr = ip->jprobe.up.kp.addr = (kprobe_opcode_t *)addr;
+		ip->retprobe.up.kp.addr = ip->jprobe.up.kp.addr = (kprobe_opcode_t *)addr;
 	}
 }

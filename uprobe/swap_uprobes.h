@@ -60,7 +60,7 @@ typedef int (*uretprobe_handler_t)(struct uretprobe_instance *, struct pt_regs *
  *
  */
 struct uretprobe {
-	struct kprobe kp;
+	struct uprobe up;
 	uretprobe_handler_t handler;
 	void *priv_arg;
 	int maxactive;
@@ -86,8 +86,8 @@ void dbi_unregister_uprobe(struct kprobe *p, struct task_struct *task, int atomi
 int dbi_register_ujprobe(struct ujprobe *jp, int atomic);
 void dbi_unregister_ujprobe(struct ujprobe *jp, int atomic);
 
-int dbi_register_uretprobe(struct task_struct *task, struct uretprobe *rp, int atomic);
-void dbi_unregister_uretprobe(struct task_struct *task, struct uretprobe *rp, int atomic, int not_rp2);
+int dbi_register_uretprobe(struct uretprobe *rp, int atomic);
+void dbi_unregister_uretprobe(struct uretprobe *rp, int atomic, int not_rp2);
 
 void dbi_unregister_all_uprobes(struct task_struct *task, int atomic);
 

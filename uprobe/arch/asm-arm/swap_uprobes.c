@@ -598,9 +598,9 @@ void arch_prepare_uretprobe_hl(struct uretprobe_instance *ri,
 	ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
 
 	if (thumb_mode(regs)) {
-		regs->ARM_lr = (unsigned long)(ri->rp->kp.ainsn.insn) + 0x1b;
+		regs->ARM_lr = (unsigned long)(ri->rp->up.kp.ainsn.insn) + 0x1b;
 	} else {
-		regs->ARM_lr = (unsigned long)(ri->rp->kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
+		regs->ARM_lr = (unsigned long)(ri->rp->up.kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
 	}
 }
 

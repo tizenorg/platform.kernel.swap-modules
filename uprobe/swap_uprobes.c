@@ -729,7 +729,8 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 
 static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 {
-	struct uretprobe *rp = container_of(p, struct uretprobe, kp);
+	struct uprobe *up = container_of(p, struct uprobe, kp);
+	struct uretprobe *rp = container_of(up, struct uretprobe, up);
 	struct uretprobe_instance *ri;
 	unsigned long flags;
 
@@ -757,17 +758,17 @@ unlock:
 	return 0;
 }
 
-int dbi_register_uretprobe(struct task_struct *task, struct uretprobe *rp, int atomic)
+int dbi_register_uretprobe(struct uretprobe *rp, int atomic)
 {
 	int i, ret = 0;
 	struct uretprobe_instance *inst;
 
 	DBPRINTF ("START\n");
 
-	rp->kp.pre_handler = pre_handler_uretprobe;
-	rp->kp.post_handler = NULL;
-	rp->kp.fault_handler = NULL;
-	rp->kp.break_handler = NULL;
+	rp->up.kp.pre_handler = pre_handler_uretprobe;
+	rp->up.kp.post_handler = NULL;
+	rp->up.kp.fault_handler = NULL;
+	rp->up.kp.break_handler = NULL;
 
 	rp->disarm = 0;
 
@@ -798,7 +799,7 @@ int dbi_register_uretprobe(struct task_struct *task, struct uretprobe *rp, int a
 	rp->nmissed = 0;
 
 	/* Establish function entry probe point */
-	ret = dbi_register_uprobe(&rp->kp, task, atomic);
+	ret = dbi_register_uprobe(&rp->up.kp, rp->up.task, atomic);
 	if (ret) {
 		free_urp_inst(rp);
 		goto out;
@@ -821,10 +822,10 @@ int dbi_disarm_urp_inst(struct uretprobe_instance *ri, struct task_struct *rm_ta
 	/* Understand function mode */
 	if ((long)ri->sp & 1) {
 		tramp = (kprobe_opcode_t *)
-			((unsigned long)ri->rp->kp.ainsn.insn + 0x1b);
+			((unsigned long)ri->rp->up.kp.ainsn.insn + 0x1b);
 	} else {
 		tramp = (kprobe_opcode_t *)
-			(ri->rp->kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
+			(ri->rp->up.kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
 	}
 
 	retval = read_proc_vm_atomic(task, (unsigned long)stack, buf, sizeof(buf));
@@ -847,7 +848,7 @@ int dbi_disarm_urp_inst(struct uretprobe_instance *ri, struct task_struct *rm_ta
 		printk("---> %s (%d/%d): trampoline found at %08lx (%08lx /%+d) - %p\n",
 				task->comm, task->tgid, task->pid,
 				(unsigned long)found, (unsigned long)sp,
-				found - sp, ri->rp->kp.addr);
+				found - sp, ri->rp->up.kp.addr);
 		retval = write_proc_vm_atomic(task, (unsigned long)found, &ri->ret_addr,
 				sizeof(ri->ret_addr));
 		if (retval != sizeof(ri->ret_addr)) {
@@ -862,13 +863,13 @@ int dbi_disarm_urp_inst(struct uretprobe_instance *ri, struct task_struct *rm_ta
 		unsigned long ra = dbi_get_ret_addr(uregs);
 		if (ra == (unsigned long)tramp) {
 			printk("---> %s (%d/%d): trampoline found at lr = %08lx - %p\n",
-					task->comm, task->tgid, task->pid, ra, ri->rp->kp.addr);
+					task->comm, task->tgid, task->pid, ra, ri->rp->up.kp.addr);
 			dbi_set_ret_addr(uregs, (unsigned long)tramp);
 			retval = 0;
 		} else {
 			printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx, lr = %08lx - %p\n",
 					task->comm, task->tgid, task->pid,
-					(unsigned long)sp, ra, ri->rp->kp.addr);
+					(unsigned long)sp, ra, ri->rp->up.kp.addr);
 			retval = -ENOENT;
 		}
 	}
@@ -885,7 +886,7 @@ int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct 
 	struct hlist_head *head = uretprobe_inst_table_head(parent->mm);
 
 	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
-		if (parent == ri->task && ri->rp->kp.tgid) {
+		if (parent == ri->task && ri->rp->up.kp.tgid) {
 			dbi_disarm_urp_inst(ri, task);
 		}
 	}
@@ -894,7 +895,7 @@ int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct 
 }
 EXPORT_SYMBOL_GPL(dbi_disarm_urp_inst_for_task);
 
-void dbi_unregister_uretprobe(struct task_struct *task, struct uretprobe *rp, int atomic, int not_rp2)
+void dbi_unregister_uretprobe(struct uretprobe *rp, int atomic, int not_rp2)
 {
 	unsigned long flags;
 	struct uretprobe_instance *ri;
@@ -905,12 +906,12 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct uretprobe *rp, in
 		if (dbi_disarm_urp_inst(ri, NULL) != 0)
 			/*panic*/printk("%s (%d/%d): cannot disarm urp instance (%08lx)\n",
 					ri->task->comm, ri->task->tgid, ri->task->pid,
-					(unsigned long)rp->kp.addr);
+					(unsigned long)rp->up.kp.addr);
 		recycle_urp_inst(ri);
 	}
 
 	if (hlist_empty(&rp->used_instances)) {
-		struct kprobe *p = &rp->kp;
+		struct kprobe *p = &rp->up.kp;
 #ifdef CONFIG_ARM
 		if (!(hlist_unhashed(&p->is_hlist_arm))) {
 			hlist_del_rcu(&p->is_hlist_arm);
@@ -934,7 +935,7 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct uretprobe *rp, in
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
 	free_urp_inst(rp);
 
-	dbi_unregister_uprobe(&rp->kp, task, atomic);
+	dbi_unregister_uprobe(&rp->up.kp, rp->up.task, atomic);
 }
 
 void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)

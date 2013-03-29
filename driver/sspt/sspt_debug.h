@@ -47,7 +47,7 @@ static inline void print_page_probes(const struct sspt_page *page)
 
 		printk("###       addr[%2d]=%lx, J_addr=%lx, R_addr=%lx\n",
 				i, (unsigned long)ip->offset, (unsigned long)ip->jprobe.up.kp.addr,
-				(unsigned long)ip->retprobe.kp.addr);
+				(unsigned long)ip->retprobe.up.kp.addr);
 		print_jprobe(&ip->jprobe);
 		print_retprobe(&ip->retprobe);
 		++i;

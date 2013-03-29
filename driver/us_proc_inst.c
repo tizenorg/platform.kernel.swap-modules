@@ -1239,14 +1239,15 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 
 	if (ip->flag_retprobe) {
 		// Mr_Nobody: comment for valencia
-		ip->retprobe.kp.tgid = task->tgid;
+		ip->retprobe.up.kp.tgid = task->tgid;
 		if (ip->retprobe.handler == NULL) {
 			ip->retprobe.handler = (uretprobe_handler_t)uretprobe_event_handler;
 			DPRINTF("Set default ret event handler for %x\n", ip->offset);
 		}
 
 		ip->retprobe.priv_arg = ip;
-		ret = dbi_register_uretprobe(task, &ip->retprobe, atomic);
+		ip->retprobe.up.task = task;
+		ret = dbi_register_uretprobe(&ip->retprobe, atomic);
 		if (ret) {
 			EPRINTF ("dbi_register_uretprobe() failure %d", ret);
 			return ret;
@@ -1261,7 +1262,7 @@ int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, i
 	dbi_unregister_ujprobe(&ip->jprobe, atomic);
 
 	if (ip->flag_retprobe) {
-		dbi_unregister_uretprobe(task, &ip->retprobe, atomic, not_rp2);
+		dbi_unregister_uretprobe(&ip->retprobe, atomic, not_rp2);
 	}
 
 	return 0;
