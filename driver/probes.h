@@ -56,7 +56,7 @@ extern struct kretprobe my_kretprobe[];
 	.vtps_count=0, .p_vtps=NULL, .loaded=0}
 #define MY_UPROBE_ENTRY(_name, _entry_hand, _exit_hand) {.name = #_name, \
 	.jprobe.entry = JPROBE_ENTRY(_entry_hand), \
-	.retprobe.handler = (kretprobe_handler_t)_exit_hand}
+	.retprobe.handler = (uretprobe_handler_t)_exit_hand}
 #define MY_UPROBE_ENTRY_EXT(_name, _pre_entry_hand, _entry_hand, _exit_hand) {.name = #_name, .jprobe.pre_entry = (kprobe_pre_entry_handler_t)_pre_entry_hand, .jprobe.entry = JPROBE_ENTRY(_entry_hand), .retprobe.handler = (kretprobe_handler_t)_exit_hand}
 
 #endif // __PROBES_H__

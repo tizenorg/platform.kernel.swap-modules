@@ -31,7 +31,7 @@ static inline void print_jprobe(struct jprobe *jp)
 			(unsigned long)jp->entry, (unsigned long)jp->pre_entry);
 }
 
-static inline void print_retprobe(struct kretprobe *rp)
+static inline void print_retprobe(struct uretprobe *rp)
 {
 	printk("###         RP: handler=%lx\n",
 			(unsigned long)rp->handler);

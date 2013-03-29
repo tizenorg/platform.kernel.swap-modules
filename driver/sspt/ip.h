@@ -26,7 +26,8 @@
  */
 
 #include <linux/list.h>
-#include "../../kprobe/dbi_kprobes.h"
+//#include "../../kprobe/dbi_kprobes.h"
+#include <swap_uprobes.h>
 
 // TODO: tmp struct ip_data
 struct ip_data {
@@ -35,7 +36,7 @@ struct ip_data {
 
 	kprobe_pre_entry_handler_t pre_handler;
 	unsigned long jp_handler;
-	kretprobe_handler_t rp_handler;
+	uretprobe_handler_t rp_handler;
 
 	unsigned flag_retprobe:1;
 };
@@ -47,7 +48,7 @@ struct us_ip {
 	struct list_head list;
 
 	struct jprobe jprobe;
-	struct kretprobe retprobe;
+	struct uretprobe retprobe;
 
 	unsigned long offset;
 	unsigned long got_addr;

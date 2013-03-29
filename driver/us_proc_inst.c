@@ -58,7 +58,7 @@
 
 unsigned long ujprobe_event_pre_handler (struct us_ip *ip, struct pt_regs *regs);
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
-int uretprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip);
+int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip);
 
 
 int us_proc_probes;
@@ -299,7 +299,7 @@ static void set_mapping_file(struct sspt_file *file,
 int install_otg_ip(unsigned long addr,
 			kprobe_pre_entry_handler_t pre_handler,
 			unsigned long jp_handler,
-			kretprobe_handler_t rp_handler)
+			uretprobe_handler_t rp_handler)
 {
 	int ret = 0;
 	struct task_struct *task = current->group_leader;
@@ -1189,7 +1189,7 @@ static void send_plt(struct us_ip *ip)
 	}
 }
 
-int uretprobe_event_handler(struct kretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip)
+int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip)
 {
 	int retval = regs_return_value(regs);
 	unsigned long addr = (unsigned long)ip->jprobe.kp.addr;
@@ -1240,7 +1240,7 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 		// Mr_Nobody: comment for valencia
 		ip->retprobe.kp.tgid = task->tgid;
 		if (ip->retprobe.handler == NULL) {
-			ip->retprobe.handler = (kretprobe_handler_t)uretprobe_event_handler;
+			ip->retprobe.handler = (uretprobe_handler_t)uretprobe_event_handler;
 			DPRINTF("Set default ret event handler for %x\n", ip->offset);
 		}
 
@@ -1351,16 +1351,16 @@ int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 }
 EXPORT_SYMBOL_GPL(dump_backtrace);
 
-struct kretprobe_instance *find_ri(struct task_struct *task, struct us_ip *ip)
+struct uretprobe_instance *find_ri(struct task_struct *task, struct us_ip *ip)
 {
 	struct hlist_node *item, *tmp_node;
-	struct kretprobe_instance *ri;
+	struct uretprobe_instance *ri;
 
 	if (ip == NULL)
 		return NULL;
 
 	hlist_for_each_safe (item, tmp_node, &ip->retprobe.used_instances) {
-		ri = hlist_entry (item, struct kretprobe_instance, uflist);
+		ri = hlist_entry(item, struct uretprobe_instance, uflist);
 
 		if (ri->task && ri->task->pid == task->pid &&
 				ri->task->tgid == task->tgid)
@@ -1373,7 +1373,7 @@ EXPORT_SYMBOL_GPL(find_ri);
 
 unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip)
 {
-	struct kretprobe_instance *ri = find_ri(task, ip);;
+	struct uretprobe_instance *ri = find_ri(task, ip);;
 	if (ri)
 		return (unsigned long)ri->ret_addr;
 	else
@@ -1383,7 +1383,7 @@ EXPORT_SYMBOL_GPL(get_ret_addr);
 
 unsigned long get_entry_sp(struct task_struct *task, struct us_ip *ip)
 {
-	struct kretprobe_instance *ri = find_ri(task, ip);
+	struct uretprobe_instance *ri = find_ri(task, ip);
 	if (ri)
 		return (unsigned long)ri->sp;
 	else

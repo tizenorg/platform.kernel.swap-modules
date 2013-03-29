@@ -77,8 +77,8 @@ extern int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
 extern int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
 		void *addr, struct pt_regs *regs, unsigned long sz);
 
-/* Finds task's kretprobe_instance object */
-struct kretprobe_instance *find_ri(struct task_struct *task, struct us_ip *ip);
+/* Finds task's uretprobe_instance object */
+struct uretprobe_instance *find_ri(struct task_struct *task, struct us_ip *ip);
 
 /* Gets current function return address */
 extern unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip);
@@ -105,6 +105,6 @@ struct dentry *dentry_by_path(const char *path);
 int install_otg_ip(unsigned long addr,
 			kprobe_pre_entry_handler_t pre_handler,
 			unsigned long jp_handler,
-			kretprobe_handler_t rp_handler);
+			uretprobe_handler_t rp_handler);
 
 #endif /* !defined(__US_PROC_INST_H__) */

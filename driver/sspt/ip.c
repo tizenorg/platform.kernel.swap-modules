@@ -48,7 +48,7 @@ static inline void set_ip_jp_handler(struct us_ip *ip, kprobe_pre_entry_handler_
 	ip->jprobe.entry = entry;
 }
 
-static inline void set_ip_rp_handler(struct us_ip *ip, kretprobe_handler_t handler)
+static inline void set_ip_rp_handler(struct us_ip *ip, uretprobe_handler_t handler)
 {
 	ip->flag_retprobe = 1;
 	ip->retprobe.handler = handler;
