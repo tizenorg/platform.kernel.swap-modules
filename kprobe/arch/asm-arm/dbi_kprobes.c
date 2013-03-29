@@ -772,3 +772,7 @@ void __exit dbi_arch_exit_kprobes (void)
 }
 
 //EXPORT_SYMBOL_GPL (dbi_arch_exit_kprobes);
+
+/* export symbol for dbi_kprobes_arm.h */
+EXPORT_SYMBOL_GPL(gen_insn_execbuf);
+EXPORT_SYMBOL_GPL(pc_dep_insn_execbuf);

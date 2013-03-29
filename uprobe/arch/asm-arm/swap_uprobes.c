@@ -1,5 +1,6 @@
 #include <dbi_kprobes.h>
 #include <asm/dbi_kprobes.h>
+#include <asm/dbi_kprobes_arm.h>
 #include <asm/traps.h>
 #include <swap_uprobes.h>
 #include <asm/swap_uprobes.h>
@@ -8,8 +9,6 @@
 // FIXME:
 #include <dbi_kdebug.h>
 extern struct hlist_head uprobe_insn_pages;
-void pc_dep_insn_execbuf(void);
-void gen_insn_execbuf(void);
 void gen_insn_execbuf_thumb(void);
 void pc_dep_insn_execbuf_thumb(void);
 
