@@ -46,6 +46,13 @@ unsigned long exit_addr;
 #define pgd_offset_k(addr)	pgd_offset(init_task.active_mm, addr)
 #endif
 
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))
+#ifndef is_zero_pfn
+
+static unsigned long swap_zero_pfn = 0;
+
+#endif /* is_zero_pfn */
+#endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)) */
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36)
 static inline void *dbi_kmap_atomic(struct page *page)
@@ -233,6 +240,7 @@ DECLARE_MOD_DEP_WRAPPER(flush_ptrace_access, \
 IMP_MOD_DEP_WRAPPER(flush_ptrace_access, vma, page, uaddr, kaddr, len, write)
 
 
+
 int init_module_dependencies(void)
 {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18)
@@ -256,6 +264,11 @@ int init_module_dependencies(void)
 #endif
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))
+
+#ifndef is_zero_pfn
+	swap_zero_pfn = page_to_pfn(ZERO_PAGE(0));
+#endif /* is_zero_pfn */
+
 	INIT_MOD_DEP_VAR(in_gate_area_no_mm, in_gate_area_no_mm);
 #else /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))  */
 	INIT_MOD_DEP_VAR(in_gate_area_no_task, in_gate_area_no_task);
@@ -311,14 +324,37 @@ static inline int use_zero_page(struct vm_area_struct *vma)
 
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-static unsigned long zero_pfn __read_mostly;
 
-#ifndef is_zero_pfn
-static inline int is_zero_pfn(unsigned long pfn)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+
+#ifdef __HAVE_COLOR_ZERO_PAGE
+
+static inline int swap_is_zero_pfn(unsigned long pfn)
 {
-	return pfn == zero_pfn;
+	unsigned long offset_from_zero_pfn = pfn - swap_zero_pfn;
+	return offset_from_zero_pfn <= (zero_page_mask >> PAGE_SHIFT);
 }
-#endif
+
+#else /* __HAVE_COLOR_ZERO_PAGE */
+
+static inline int swap_is_zero_pfn(unsigned long pfn)
+{
+	return pfn == swap_zero_pfn;
+}
+#endif /* __HAVE_COLOR_ZERO_PAGE */
+
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0) */
+
+static inline int swap_is_zero_pfn(unsigned long pfn)
+{
+#ifndef is_zero_pfn
+	return pfn == swap_zero_pfn;
+#else /* is_zero_pfn */
+	return is_zero_pfn(pfn);
+#endif /* is_zero_pfn */
+}
+
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0) */
 
 static inline int stack_guard_page(struct vm_area_struct *vma, unsigned long addr)
 {
@@ -389,7 +425,7 @@ static int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm
 				page = vm_normal_page(vma, start, *pte);
 				if (!page) {
 					if (!(gup_flags & FOLL_DUMP) &&
-						is_zero_pfn(pte_pfn(*pte)))
+						swap_is_zero_pfn(pte_pfn(*pte)))
 						page = pte_page(*pte);
 					else {
 						pte_unmap(pte);

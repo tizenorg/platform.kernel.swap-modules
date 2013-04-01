@@ -28,12 +28,7 @@
 #include "probes_manager.h"
 #include "probes.h"
 #include "event_tmpl.h"
-
-extern int update_errno_buffer(const char *buffer);
-extern int get_last_error(void* u_addr);
-extern int has_last_error(void);
-extern void last_error_buffer_initialize(void);
-///////////////////////////////////////////////////////////////////////////////////////////////////
+#include "error_storage.h"
 
 extern int EnableContinuousRetrieval(void);
 extern int DisableContinuousRetrieval(void);

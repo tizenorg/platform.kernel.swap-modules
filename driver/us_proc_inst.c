@@ -1164,7 +1164,7 @@ static void send_plt(struct us_ip *ip)
 	if (vma && check_vma(vma)) {
 		char *name = NULL;
 		unsigned long real_addr;
-		unsigned long real_got = vma->vm_flags & VM_EXECUTABLE ?
+		unsigned long real_got = current->mm->exe_file == vma->vm_file ?
 				ip->got_addr :
 				ip->got_addr + vma->vm_start;
 

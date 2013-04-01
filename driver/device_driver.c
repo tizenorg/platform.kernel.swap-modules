@@ -171,6 +171,7 @@ static int device_release(struct inode *inode, struct file *file)
 {
 	gl_nDeviceOpened--;
 	module_put(THIS_MODULE);
+
 	return 0;
 }
 
@@ -409,16 +410,10 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		}
 		DPRINTF("Bundle has been copied successfully");
 
-		last_error_buffer_initialize();
-
-		if (link_bundle() == -1) {
+		if (link_bundle() == -1 || has_last_error() == -1) {
 			EPRINTF("Cannot link profile bundle!");
 			result = -1;
 			break;
-		}
-		if (has_last_error() == -1) {
-			EPRINTF("last_error_buffer != NULL");
-			result = -1;
 		}
 
 		break;
@@ -684,6 +679,7 @@ sad_cleanup:
 	case EC_IOCTL_GET_LAST_ERROR:
 		{
 			result = get_last_error((void*)arg);
+			DPRINTF("Get last error buffer");
 			break;
 		}
 	default:
