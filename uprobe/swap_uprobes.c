@@ -380,8 +380,11 @@ struct kprobe *get_kprobe_by_insn_slot(void *addr, int tgid, struct task_struct 
 #endif /* CONFIG_ARM */
 
 
-static void remove_uprobe(struct kprobe *p, struct task_struct *task)
+static void remove_uprobe(struct uprobe *up)
 {
+	struct kprobe *p = &up->kp;
+	struct task_struct *task = up->task;
+
 	if (p->tgid == 0) {
 		panic("remove_uprobe for tgid == 0!!!");
 	}
@@ -622,7 +625,7 @@ valid_p:
 			synchronize_sched();
 		}
 
-		remove_uprobe(p, up->task);
+		remove_uprobe(up);
 	} else {
 		if (p->break_handler) {
 			old_p->break_handler = NULL;
