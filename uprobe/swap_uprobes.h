@@ -94,7 +94,7 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic);
 void dbi_uprobe_return(void);
 struct uprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid);
 
-void disarm_uprobe(struct kprobe *p, struct task_struct *task);
+void disarm_uprobe(struct uprobe *p);
 
 int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs);
 

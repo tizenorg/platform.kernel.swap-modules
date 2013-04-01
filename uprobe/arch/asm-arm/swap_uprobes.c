@@ -660,7 +660,7 @@ static int check_validity_insn(struct uprobe *up, struct pt_regs *regs)
 			printk("Error in %s at %d: we are in thumb mode (!) and check instruction was fail \
 				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
 			// Test case when we do our actions on already running application
-			disarm_uprobe(p, up->task);
+			disarm_uprobe(up);
 			return -1;
 		}
 	} else {
@@ -673,7 +673,7 @@ static int check_validity_insn(struct uprobe *up, struct pt_regs *regs)
 			printk("Error in %s at %d: we are in arm mode (!) and check instruction was fail \
 				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
 			// Test case when we do our actions on already running application
-			disarm_uprobe(p, up->task);
+			disarm_uprobe(up);
 			return -1;
 		}
 	}
