@@ -746,9 +746,6 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 
 	/* TODO: consider to only swap the RA after the last pre_handler fired */
 	spin_lock_irqsave(&uretprobe_lock, flags);
-	if (rp->disarm) {
-		goto unlock;
-	}
 
 	/* TODO: test - remove retprobe after func entry but before its exit */
 	if ((ri = get_free_urp_inst(rp)) != NULL) {
@@ -762,7 +759,6 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 		++rp->nmissed;
 	}
 
-unlock:
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
 
 	return 0;
@@ -779,8 +775,6 @@ int dbi_register_uretprobe(struct uretprobe *rp, int atomic)
 	rp->up.kp.post_handler = NULL;
 	rp->up.kp.fault_handler = NULL;
 	rp->up.kp.break_handler = NULL;
-
-	rp->disarm = 0;
 
 	/* Pre-allocate memory for max kretprobe instances */
 	if (rp->maxactive <= 0) {

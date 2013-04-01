@@ -65,7 +65,6 @@ struct uretprobe {
 	void *priv_arg;
 	int maxactive;
 	int nmissed;
-	int disarm;
 	struct hlist_head free_instances;
 	struct hlist_head used_instances;
 };
