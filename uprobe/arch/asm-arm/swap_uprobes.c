@@ -687,7 +687,7 @@ static int uprobe_handler(struct pt_regs *regs)
 	pid_t tgid = task->tgid;
 	struct kprobe *p;
 
-	p = get_uprobe(addr, tgid);
+	p = &get_uprobe(addr, tgid)->kp;
 
 	if (p && (check_validity_insn(p, regs, task) != 0)) {
 		printk("no_uprobe live\n");

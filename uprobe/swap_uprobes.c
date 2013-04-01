@@ -276,7 +276,7 @@ static void init_uretprobe_inst_table(void)
 	}
 }
 
-struct kprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid)
+struct uprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
@@ -285,7 +285,7 @@ struct kprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid)
 	head = &uprobe_table[hash_ptr(addr, UPROBE_HASH_BITS)];
 	hlist_for_each_entry_rcu(p, node, head, hlist) {
 		if (p->addr == addr && p->tgid == tgid) {
-			return p;
+			return container_of(p, struct uprobe, kp);
 		}
 	}
 
@@ -539,7 +539,7 @@ int dbi_register_uprobe(struct uprobe *up, int atomic)
 #endif
 
 	// get the first item
-	old_p = get_uprobe(p->addr, p->tgid);
+	old_p = &get_uprobe(p->addr, p->tgid)->kp;
 	if (old_p) {
 #ifdef CONFIG_ARM
 		p->safe_arm = old_p->safe_arm;
@@ -579,7 +579,7 @@ void dbi_unregister_uprobe(struct uprobe *up, int atomic)
 	int cleanup_p;
 
 	p = &up->kp;
-	old_p = get_uprobe(p->addr, p->tgid);
+	old_p = &get_uprobe(p->addr, p->tgid)->kp;
 	if (unlikely(!old_p)) {
 		return;
 	}

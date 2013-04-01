@@ -92,7 +92,7 @@ void dbi_unregister_uretprobe(struct uretprobe *rp, int atomic);
 void dbi_unregister_all_uprobes(struct task_struct *task, int atomic);
 
 void dbi_uprobe_return(void);
-struct kprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid);
+struct uprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid);
 
 void disarm_uprobe(struct kprobe *p, struct task_struct *task);
 
