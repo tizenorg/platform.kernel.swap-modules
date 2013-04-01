@@ -235,12 +235,14 @@ static int register_aggr_uprobe(struct kprobe *old_p, struct kprobe *p)
 	return ret;
 }
 
-static void arm_uprobe(struct kprobe *p, struct task_struct *task)
+static void arm_uprobe(struct uprobe *p)
 {
 	kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
-
-	if (!write_proc_vm_atomic(task, (unsigned long)p->addr, &insn, sizeof(insn))) {
-		panic("arm_uprobe: failed to write memory %p!\n", p->addr);
+	int ret = write_proc_vm_atomic(p->task, (unsigned long)p->kp.addr,
+				       &insn, sizeof(insn));
+	if (!ret) {
+		panic("arm_uprobe: failed to write memory "
+		      "tgid=%u addr=%p!\n", p->task->tgid, p->kp.addr);
 	}
 }
 
@@ -566,7 +568,7 @@ int dbi_register_uprobe(struct uprobe *up, int atomic)
 	INIT_HLIST_NODE(&p->hlist);
 	hlist_add_head_rcu(&p->hlist, &uprobe_table[hash_ptr(p->addr, UPROBE_HASH_BITS)]);
 	add_uprobe_table(p);
-	arm_uprobe(p, up->task);
+	arm_uprobe(up);
 
 out:
 	DBPRINTF("out ret = 0x%x\n", ret);
