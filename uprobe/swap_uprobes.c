@@ -562,7 +562,7 @@ int dbi_register_uprobe(struct uprobe *up, int atomic)
 		goto out;
 	}
 
-	ret = arch_prepare_uprobe(p, up->task, atomic);
+	ret = arch_prepare_uprobe(up, atomic);
 	if (ret) {
 		DBPRINTF("goto out\n", ret);
 		goto out;

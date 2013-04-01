@@ -10,7 +10,7 @@ static inline void dbi_arch_uprobe_return(void)
 {
 }
 
-int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic);
+int arch_prepare_uprobe(struct uprobe *up, int atomic);
 
 int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs);
 static inline int longjmp_break_uhandler(struct kprobe *p, struct pt_regs *regs)

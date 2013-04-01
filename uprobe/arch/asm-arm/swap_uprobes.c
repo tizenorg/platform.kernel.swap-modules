@@ -532,9 +532,11 @@ static int arch_copy_trampoline_thumb_uprobe(struct kprobe *p, struct task_struc
 	return 0;
 }
 
-int arch_prepare_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
+int arch_prepare_uprobe(struct uprobe *up, int atomic)
 {
 	int ret = 0;
+	struct kprobe *p = &up->kp;
+	struct task_struct *task = up->task;
 	kprobe_opcode_t insn[MAX_INSN_SIZE];
 
 	if ((unsigned long)p->addr & 0x01) {
