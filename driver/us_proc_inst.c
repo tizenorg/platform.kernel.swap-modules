@@ -762,9 +762,7 @@ static void install_file_probes(struct task_struct *task, struct mm_struct *mm, 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
 		hlist_for_each_entry_rcu(page, node, head, hlist) {
-			if (page_present(mm, page->offset)) {
-				register_us_page_probe(page, file, task);
-			}
+			register_us_page_probe(page, file, task);
 		}
 	}
 }
