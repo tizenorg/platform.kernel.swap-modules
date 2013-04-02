@@ -647,40 +647,40 @@ void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
 	}
 }
 
-static int check_validity_insn(struct uprobe *up, struct pt_regs *regs)
+static int check_validity_insn(struct kprobe *p, struct pt_regs *regs)
 {
-	struct kprobe *kp, *p;
+	struct kprobe *kp;
 
-	p = &up->kp;
 	if (unlikely(thumb_mode(regs))) {
-		if (p->safe_thumb != -1) {
-			p->ainsn.insn = p->ainsn.insn_thumb;
-			list_for_each_entry_rcu(kp, &p->list, list) {
-				kp->ainsn.insn = p->ainsn.insn_thumb;
-			}
-		} else {
-			printk("Error in %s at %d: we are in thumb mode (!) and check instruction was fail \
-				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
-			// Test case when we do our actions on already running application
-			disarm_uprobe(up);
-			return -1;
+		if (p->safe_thumb == -1) {
+			goto disarm;
+		}
+
+		p->ainsn.insn = p->ainsn.insn_thumb;
+		list_for_each_entry_rcu(kp, &p->list, list) {
+			kp->ainsn.insn = p->ainsn.insn_thumb;
 		}
 	} else {
-		if (p->safe_arm != -1) {
-			p->ainsn.insn = p->ainsn.insn_arm;
-			list_for_each_entry_rcu(kp, &p->list, list) {
-				kp->ainsn.insn = p->ainsn.insn_arm;
-			}
-		} else {
-			printk("Error in %s at %d: we are in arm mode (!) and check instruction was fail \
-				(%0lX instruction at %p address)!\n", __FILE__, __LINE__, p->opcode, p->addr);
-			// Test case when we do our actions on already running application
-			disarm_uprobe(up);
-			return -1;
+		if (p->safe_arm == -1) {
+			goto disarm;
+		}
+
+		p->ainsn.insn = p->ainsn.insn_arm;
+		list_for_each_entry_rcu(kp, &p->list, list) {
+			kp->ainsn.insn = p->ainsn.insn_arm;
 		}
 	}
 
 	return 0;
+
+disarm:
+	printk("Error in %s at %d: we are in arm mode (!) and check "
+	       "instruction was fail (%0lX instruction at %p address)!\n",
+	       __FILE__, __LINE__, p->opcode, p->addr);
+
+	/* Test case when we do our actions on already running application */
+	disarm_uprobe(kp2up(p));
+	return -1;
 }
 
 static int uprobe_handler(struct pt_regs *regs)
@@ -688,7 +688,6 @@ static int uprobe_handler(struct pt_regs *regs)
 	kprobe_opcode_t *addr = (kprobe_opcode_t *)(regs->ARM_pc);
 	struct task_struct *task = current;
 	pid_t tgid = task->tgid;
-	struct uprobe *up;
 	struct kprobe *p;
 
 	p = get_ukprobe(addr, tgid);
@@ -704,8 +703,7 @@ static int uprobe_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	up = kp2up(p);
-	if (p && (check_validity_insn(up, regs) != 0)) {
+	if (p && (check_validity_insn(p, regs) != 0)) {
 		printk("no_uprobe live\n");
 		return 0;
 	}
