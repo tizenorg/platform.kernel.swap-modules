@@ -714,18 +714,14 @@ static int uprobe_handler(struct pt_regs *regs)
 		}
 
 		trampoline_uprobe_handler(p, regs);
-		return 0;
-	}
-
-	if (p && (check_validity_insn(p, regs) != 0)) {
+	} else if (check_validity_insn(p, regs) != 0) {
 		printk("no_uprobe live\n");
-		return 0;
-	}
+	} else {
+		restore_opcode_for_thumb(p, regs);
 
-	restore_opcode_for_thumb(p, regs);
-
-	if (!p->pre_handler || !p->pre_handler(p, regs)) {
-		prepare_singlestep(p, regs);
+		if (!p->pre_handler || !p->pre_handler(p, regs)) {
+			prepare_singlestep(p, regs);
+		}
 	}
 
 	return 0;
