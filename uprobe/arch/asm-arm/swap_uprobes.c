@@ -12,6 +12,10 @@
 extern struct hlist_head uprobe_insn_pages;
 
 
+#define flush_insns(addr, size)					\
+	flush_icache_range((unsigned long)(addr),		\
+			   (unsigned long)(addr) + (size))
+
 #define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
 #define branch_displacement(insn) sign_extend(((insn) & 0xffffff) << 2, 25)
 
@@ -683,6 +687,16 @@ disarm:
 	return -1;
 }
 
+static void restore_opcode_for_thumb(struct kprobe *p, struct pt_regs *regs)
+{
+	if (thumb_mode(regs) && !is_thumb2(p->opcode)) {
+		u16 tmp = p->opcode >> 16;
+		write_proc_vm_atomic(current,
+				(unsigned long)((u16*)p->addr + 1), &tmp, 2);
+		flush_insns(p->addr, 4);
+	}
+}
+
 static int uprobe_handler(struct pt_regs *regs)
 {
 	kprobe_opcode_t *addr = (kprobe_opcode_t *)(regs->ARM_pc);
@@ -708,16 +722,7 @@ static int uprobe_handler(struct pt_regs *regs)
 		return 0;
 	}
 
-	/* restore opcode for thumb app */
-	if (thumb_mode(regs)) {
-		if (!is_thumb2(p->opcode)) {
-			unsigned long tmp = p->opcode >> 16;
-			write_proc_vm_atomic(task, (unsigned long)((unsigned short*)p->addr + 1), &tmp, 2);
-
-			// "2*sizeof(kprobe_opcode_t)" - strange. Should be "sizeof(kprobe_opcode_t)", need to test
-			flush_icache_range((unsigned int)p->addr, ((unsigned int)p->addr) + (2 * sizeof(kprobe_opcode_t)));
-		}
-	}
+	restore_opcode_for_thumb(p, regs);
 
 	if (!p->pre_handler || !p->pre_handler(p, regs)) {
 		prepare_singlestep(p, regs);
