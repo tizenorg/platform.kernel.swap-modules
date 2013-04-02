@@ -170,9 +170,8 @@ static int device_open(struct inode *inode, struct file *file)
 static int device_release(struct inode *inode, struct file *file)
 {
 	gl_nDeviceOpened--;
-	EPRINTF("++ pre module_put");
 	module_put(THIS_MODULE);
-	EPRINTF("++ aft module_put");
+
 	return 0;
 }
 
@@ -411,21 +410,11 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		}
 		DPRINTF("Bundle has been copied successfully");
 
-//		last_error_buffer_initialize();
-
-//		printk(" --++@@ bef lb\n");
 		if (link_bundle() == -1 || has_last_error() == -1) {
 			EPRINTF("Cannot link profile bundle!");
 			result = -1;
 			break;
 		}
-//		printk(" --++@@ bef has_last_error\n");
-//		if (has_last_error() == -1) {
-//			printk(" --++@@ in if\n");
-//			DPRINTF("last_error_buffer != NULL");
-//			result = -1;
-//		}
-//		printk(" --++@@ aft has_last_error\n");
 
 		break;
 	}
