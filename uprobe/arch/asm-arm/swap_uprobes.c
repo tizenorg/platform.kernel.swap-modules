@@ -693,7 +693,7 @@ static int uprobe_handler(struct pt_regs *regs)
 	p = get_ukprobe(addr, tgid);
 
 	if (p == NULL) {
-		p = get_kprobe_by_insn_slot(addr, tgid, regs);
+		p = get_ukprobe_by_insn_slot(addr, tgid, regs);
 		if (p == NULL) {
 			printk("no_uprobe\n");
 			return 1;

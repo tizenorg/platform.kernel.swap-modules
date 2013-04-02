@@ -313,71 +313,62 @@ static void add_uprobe_table(struct kprobe *p)
 }
 
 #ifdef CONFIG_ARM
-static struct kprobe *get_kprobe_by_insn_slot_arm(kprobe_opcode_t *addr, pid_t tgid)
+static struct kprobe *get_ukprobe_bis_arm(void *addr, pid_t tgid)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
-	struct kprobe *p, *ret = NULL;
+	struct kprobe *p;
 
 	/* TODO: test - two processes invokes instrumented function */
 	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
 	hlist_for_each_entry_rcu(p, node, head, is_hlist_arm) {
-		if (p->ainsn.insn == addr && tgid == p->tgid) {
-			ret = p;
-			break;
+		if (p->ainsn.insn == addr && kp2up(p)->task->tgid == tgid) {
+			return p;
 		}
 	}
 
-	return ret;
+	return NULL;
 }
 
-static struct kprobe *get_kprobe_by_insn_slot_thumb(kprobe_opcode_t *addr, pid_t tgid)
+static struct kprobe *get_ukprobe_bis_thumb(void *addr, pid_t tgid)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
-	struct kprobe *p, *ret = NULL;
+	struct kprobe *p;
 
 	/* TODO: test - two processes invokes instrumented function */
 	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
 	hlist_for_each_entry_rcu(p, node, head, is_hlist_thumb) {
-		if (p->ainsn.insn == addr && tgid == p->tgid) {
-			ret = p;
-			break;
+		if (p->ainsn.insn == addr && kp2up(p)->task->tgid == tgid) {
+			return p;
 		}
 	}
 
-	return ret;
+	return NULL;
 }
 
-struct kprobe *get_kprobe_by_insn_slot(kprobe_opcode_t *addr, pid_t tgid, struct pt_regs *regs)
+struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *regs)
 {
-	struct kprobe *p = NULL;
-
-	if (!thumb_mode(regs)) {
-		p = get_kprobe_by_insn_slot_arm(addr - UPROBES_TRAMP_RET_BREAK_IDX, tgid);
-	} else {
-		p = get_kprobe_by_insn_slot_thumb((kprobe_opcode_t *)((unsigned long)addr - 0x1a), tgid);
-	}
-
-	return p;
+	return thumb_mode(regs) ?
+			get_ukprobe_bis_thumb(addr - 0x1a, tgid) :
+			get_ukprobe_bis_arm(addr - 4 * UPROBES_TRAMP_RET_BREAK_IDX, tgid);
 }
 #else /* CONFIG_ARM */
-struct kprobe *get_kprobe_by_insn_slot(void *addr, int tgid, struct task_struct *ctask)
+struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *regs)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
-	struct kprobe *p, *ret = NULL;
+	struct kprobe *p;
 
 	/* TODO: test - two processes invokes instrumented function */
 	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
 	hlist_for_each_entry_rcu(p, node, head, is_hlist) {
-		if (p->ainsn.insn == addr && tgid == p->tgid) {
-			ret = p;
-			break;
+		if (p->ainsn.insn == addr && kp2up(p)->task->tgid == tgid) {
+			return p;
 		}
 	}
 
-	return ret;
+	return NULL;
 }
 #endif /* CONFIG_ARM */
 
