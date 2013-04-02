@@ -122,8 +122,6 @@ struct kprobe
 	kprobe_opcode_t					opcode;
 	/* copy of the original instruction */
 	struct arch_specific_insn			ainsn;
-	// TGID to which probe belongs
-	pid_t						tgid;
 	// override single-step target address,
 	// may be used to redirect control-flow to arbitrary address after probe point
 	// without invocation of original instruction;
@@ -222,7 +220,7 @@ extern void kprobes_inc_nmissed_count (struct kprobe *p);
 
 
 /* Get the kprobe at this addr (if any) - called with preemption disabled */
-struct kprobe *get_kprobe(kprobe_opcode_t *addr, pid_t tgid);
+struct kprobe *get_kprobe(void *addr);
 struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *regs);
 struct hlist_head *kretprobe_inst_table_head (void *hash_key);
 

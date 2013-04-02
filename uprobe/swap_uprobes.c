@@ -109,7 +109,6 @@ static inline void copy_uprobe(struct kprobe *old_p, struct kprobe *p)
 {
 	memcpy(&p->opcode, &old_p->opcode, sizeof(kprobe_opcode_t));
 	memcpy(&p->ainsn, &old_p->ainsn, sizeof(struct arch_specific_insn));
-	p->tgid = old_p->tgid;
 	p->ss_addr = old_p->ss_addr;
 #ifdef CONFIG_ARM
 	p->safe_arm = old_p->safe_arm;
@@ -378,10 +377,6 @@ static void remove_uprobe(struct uprobe *up)
 	struct kprobe *p = &up->kp;
 	struct task_struct *task = up->task;
 
-	if (p->tgid == 0) {
-		panic("remove_uprobe for tgid == 0!!!");
-	}
-
 #ifdef CONFIG_ARM
 	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
 	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
@@ -540,7 +535,7 @@ int dbi_register_uprobe(struct uprobe *up, int atomic)
 #endif
 
 	// get the first item
-	old_p = get_ukprobe(p->addr, p->tgid);
+	old_p = get_ukprobe(p->addr, kp2up(p)->task->tgid);
 	if (old_p) {
 #ifdef CONFIG_ARM
 		p->safe_arm = old_p->safe_arm;
@@ -580,7 +575,7 @@ void dbi_unregister_uprobe(struct uprobe *up, int atomic)
 	int cleanup_p;
 
 	p = &up->kp;
-	old_p = get_ukprobe(p->addr, p->tgid);
+	old_p = get_ukprobe(p->addr, kp2up(p)->task->tgid);
 	if (unlikely(!old_p)) {
 		return;
 	}
@@ -883,7 +878,7 @@ int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct 
 	struct hlist_head *head = uretprobe_inst_table_head(parent->mm);
 
 	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
-		if (parent == ri->task && ri->rp->up.kp.tgid) {
+		if (parent == ri->task) {
 			dbi_disarm_urp_inst(ri, task);
 		}
 	}
@@ -945,7 +940,7 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
 	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
 		head = &uprobe_table[i];
 		hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
-			if (p->tgid == task->tgid) {
+			if (kp2up(p)->task->tgid == task->tgid) {
 				struct uprobe *up = container_of(p, struct uprobe, kp);
 				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%lx] for %s/%d\n",
 						p->addr, (unsigned long)p->opcode, task->comm, task->pid);

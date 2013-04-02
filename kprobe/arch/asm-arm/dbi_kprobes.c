@@ -346,7 +346,7 @@ static int kprobe_handler(struct pt_regs *regs)
 
 	kcb = get_kprobe_ctlblk();
 	cur = kprobe_running();
-	p = get_kprobe((kprobe_opcode_t *)regs->ARM_pc, 0);
+	p = get_kprobe((void *)regs->ARM_pc);
 
 	if (p) {
 		if (cur) {
@@ -419,10 +419,6 @@ int setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	kprobe_pre_entry_handler_t pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
 	pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
-
-	if (p->tgid) {
-		panic("setjmp_pre_handler: p->tgid == 0");
-	}
 
 	if (((unsigned long)p->addr == sched_addr) && sched_rp) {
 		struct thread_info *tinfo = (struct thread_info *)regs->ARM_r2;
@@ -515,14 +511,6 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 
 	DBPRINTF ("start");
 
-	if (p && p->tgid){
-		// in case of user space retprobe trampoline is at the Nth instruction of US tramp
-		if (!thumb_mode( regs ))
-			trampoline_address = (unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
-		else
-			trampoline_address = (unsigned long)(p->ainsn.insn) + 0x1b;
-	}
-
 	spin_lock_irqsave (&kretprobe_lock, flags);
 
 	/*
@@ -531,11 +519,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	 * task_struct.  User space probes can be shared between threads of one
 	 * process so they have different current but same mm.
 	 */
-	if (p && p->tgid) {
-		head = kretprobe_inst_table_head(current->mm);
-	} else {
-		head = kretprobe_inst_table_head(current);
-	}
+	head = kretprobe_inst_table_head(current);
 
 	/*
 	 * It is possible to have multiple instances associated with a given
@@ -577,8 +561,6 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	//if (ri->rp) BUG_ON (ri->rp->kp.tgid == 0);
 	//else if (ri->rp2) BUG_ON (ri->rp2->kp.tgid == 0);
 	//}
-	if ((ri->rp && ri->rp->kp.tgid) || (ri->rp2 && ri->rp2->kp.tgid))
-		BUG_ON (trampoline_address == (unsigned long) &kretprobe_trampoline);
 
 	regs->uregs[14] = orig_ret_address;
 	DBPRINTF ("regs->uregs[14] = 0x%lx\n", regs->uregs[14]);
@@ -688,10 +670,6 @@ void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 
 		/* Set flag of current mode */
 		ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
-
-		if (rp->kp.tgid) {
-			panic("__arch_prepare_kretprobe: rp->kp.tgid != 0");
-		}
 
 		/* Replace the return addr with trampoline addr */
 		regs->uregs[14] = (unsigned long) &kretprobe_trampoline;

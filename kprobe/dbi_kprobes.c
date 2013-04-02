@@ -141,22 +141,20 @@ struct kprobe_ctlblk *get_kprobe_ctlblk (void)
  * 				OR
  * 	- with preemption disabled - from arch/xxx/kernel/kprobes.c
  */
-struct kprobe *get_kprobe(kprobe_opcode_t *addr, pid_t tgid)
+struct kprobe *get_kprobe(void *addr)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
-	struct kprobe *p, *retVal = NULL;
+	struct kprobe *p;
 
 	head = &kprobe_table[hash_ptr (addr, KPROBE_HASH_BITS)];
 	hlist_for_each_entry_rcu(p, node, head, hlist) {
-		if (p->addr == addr && p->tgid == tgid) {
-			retVal = p;
-			break;
+		if (p->addr == addr) {
+			return p;
 		}
 	}
 
-	DBPRINTF ("get_kprobe: probe %p", retVal);
-	return retVal;
+	return NULL;
 }
 
 /*
@@ -349,7 +347,6 @@ void copy_kprobe (struct kprobe *old_p, struct kprobe *p)
 {
 	memcpy (&p->opcode, &old_p->opcode, sizeof (kprobe_opcode_t));
 	memcpy (&p->ainsn, &old_p->ainsn, sizeof (struct arch_specific_insn));
-	p->tgid = old_p->tgid;
 	p->ss_addr = old_p->ss_addr;
 #ifdef CONFIG_ARM
 	p->safe_arm = old_p->safe_arm;
@@ -493,7 +490,7 @@ int dbi_register_kprobe (struct kprobe *p)
     p->mod_refcounted = 0;
     p->nmissed = 0;
 
-    old_p = get_kprobe(p->addr, 0);
+    old_p = get_kprobe(p->addr);
     if (old_p)
     {
         ret = register_aggr_kprobe (old_p, p);
@@ -518,9 +515,9 @@ out:
 void dbi_unregister_kprobe (struct kprobe *p, struct task_struct *task)
 {
 	struct kprobe *old_p, *list_p;
-	int cleanup_p, pid = p->tgid;
+	int cleanup_p;
 
-	old_p = get_kprobe(p->addr, pid);
+	old_p = get_kprobe(p->addr);
 	DBPRINTF ("dbi_unregister_kprobe p=%p old_p=%p", p, old_p);
 	if (unlikely (!old_p))
 		return;
@@ -764,7 +761,7 @@ struct kretprobe * clone_kretprobe (struct kretprobe *rp)
 	clone->kp.post_handler = NULL;
 	clone->kp.fault_handler = NULL;
 	clone->kp.break_handler = NULL;
-	old_p = get_kprobe(rp->kp.addr, rp->kp.tgid);
+	old_p = get_kprobe(rp->kp.addr);
 	if (old_p)
 	{
 		ret = register_aggr_kprobe (old_p, &clone->kp);

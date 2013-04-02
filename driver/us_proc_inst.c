@@ -1217,7 +1217,6 @@ int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *re
 int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 {
 	int ret = 0;
-	ip->jprobe.up.kp.tgid = task->tgid;
 
 	if (ip->jprobe.entry == NULL) {
 		ip->jprobe.entry = (void *)ujprobe_event_handler;
@@ -1239,7 +1238,6 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 
 	if (ip->flag_retprobe) {
 		// Mr_Nobody: comment for valencia
-		ip->retprobe.up.kp.tgid = task->tgid;
 		if (ip->retprobe.handler == NULL) {
 			ip->retprobe.handler = (uretprobe_handler_t)uretprobe_event_handler;
 			DPRINTF("Set default ret event handler for %x\n", ip->offset);
