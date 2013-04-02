@@ -691,13 +691,7 @@ static int uprobe_handler(struct pt_regs *regs)
 	struct uprobe *up;
 	struct kprobe *p;
 
-	up = get_uprobe(addr, tgid);
-	p = &up->kp;
-
-	if (p && (check_validity_insn(up, regs) != 0)) {
-		printk("no_uprobe live\n");
-		return 0;
-	}
+	p = get_ukprobe(addr, tgid);
 
 	if (p == NULL) {
 		p = get_kprobe_by_insn_slot(addr, tgid, regs);
@@ -707,6 +701,12 @@ static int uprobe_handler(struct pt_regs *regs)
 		}
 
 		trampoline_uprobe_handler(p, regs);
+		return 0;
+	}
+
+	up = kp2up(p);
+	if (p && (check_validity_insn(up, regs) != 0)) {
+		printk("no_uprobe live\n");
 		return 0;
 	}
 

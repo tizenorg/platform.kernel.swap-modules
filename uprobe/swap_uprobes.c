@@ -222,11 +222,13 @@ static int register_aggr_uprobe(struct kprobe *old_p, struct kprobe *p)
 		copy_uprobe(old_p, p);
 		ret = add_new_uprobe(old_p, p);
 	} else {
-		ap = kzalloc(sizeof(*ap), GFP_KERNEL);
-		if (!ap) {
+		struct uprobe *uap = kzalloc(sizeof(*uap), GFP_KERNEL);
+		if (!uap) {
 			return -ENOMEM;
 		}
 
+		uap->task = kp2up(p)->task;
+		ap = up2kp(uap);
 		add_aggr_uprobe(ap, old_p);
 		copy_uprobe(ap, p);
 		ret = add_new_uprobe(ap, p);
@@ -281,7 +283,7 @@ static void init_uretprobe_inst_table(void)
 	}
 }
 
-struct uprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid)
+struct kprobe *get_ukprobe(void *addr, pid_t tgid)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
@@ -289,8 +291,8 @@ struct uprobe *get_uprobe(kprobe_opcode_t *addr, pid_t tgid)
 
 	head = &uprobe_table[hash_ptr(addr, UPROBE_HASH_BITS)];
 	hlist_for_each_entry_rcu(p, node, head, hlist) {
-		if (p->addr == addr && p->tgid == tgid) {
-			return container_of(p, struct uprobe, kp);
+		if (p->addr == addr && kp2up(p)->task->tgid == tgid) {
+			return p;
 		}
 	}
 
@@ -547,7 +549,7 @@ int dbi_register_uprobe(struct uprobe *up, int atomic)
 #endif
 
 	// get the first item
-	old_p = &get_uprobe(p->addr, p->tgid)->kp;
+	old_p = get_ukprobe(p->addr, p->tgid);
 	if (old_p) {
 #ifdef CONFIG_ARM
 		p->safe_arm = old_p->safe_arm;
@@ -587,7 +589,7 @@ void dbi_unregister_uprobe(struct uprobe *up, int atomic)
 	int cleanup_p;
 
 	p = &up->kp;
-	old_p = &get_uprobe(p->addr, p->tgid)->kp;
+	old_p = get_ukprobe(p->addr, p->tgid);
 	if (unlikely(!old_p)) {
 		return;
 	}
