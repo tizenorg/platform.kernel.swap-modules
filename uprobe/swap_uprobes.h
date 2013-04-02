@@ -92,6 +92,7 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic);
 
 void dbi_uprobe_return(void);
 struct kprobe *get_ukprobe(void *addr, pid_t tgid);
+struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *regs);
 
 static inline struct uprobe *kp2up(struct kprobe *p)
 {
