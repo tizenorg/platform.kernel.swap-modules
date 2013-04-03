@@ -66,7 +66,6 @@ extern void arch_arm_kprobe (struct kprobe *p);
 extern void arch_disarm_kprobe (struct kprobe *p);
 extern int arch_init_kprobes (void);
 extern void dbi_arch_exit_kprobes (void);
-extern int patch_suspended_task(struct kretprobe *rp, struct task_struct *tsk);
 
 void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p);
 void restore_previous_kprobe (struct kprobe_ctlblk *kcb);
