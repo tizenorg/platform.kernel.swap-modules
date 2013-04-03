@@ -114,32 +114,6 @@ static inline void dbi_set_arg(struct pt_regs *regs, int num, unsigned long val)
 	regs->uregs[num] = val;
 }
 
-static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
-		int max_cnt)
-{
-	int i = 0;
-	struct pt_regs *regs;
-
-	struct {
-		unsigned long next;
-		unsigned long raddr;
-	} frame;
-
-	regs = task_pt_regs(task);
-	frame.next = regs->ARM_fp;
-	frame.raddr = dbi_get_ret_addr(regs);
-
-	while (frame.next && i < max_cnt) {
-		if (read_proc_vm_atomic(task, frame.next - 4, &frame, sizeof(frame))
-				== sizeof(frame))
-			buf[i++] = frame.raddr;
-		else
-			break;
-	}
-
-	return i;
-}
-
 // undefined
 # define MASK_ARM_INSN_UNDEF		0x0FF00000		// xxxx1111 1111xxxx xxxxxxxx xxxxxxxx
 # define PTRN_ARM_INSN_UNDEF		0x03000000		// cccc0011 0000xxxx xxxxxxxx xxxxxxxx
