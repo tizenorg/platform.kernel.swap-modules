@@ -699,7 +699,7 @@ int link_bundle(void)
 		if (strcmp(us_proc_info.path, "*")) {
 			us_proc_info.m_f_dentry = dentry_by_path(us_proc_info.path);
 			if (us_proc_info.m_f_dentry == NULL) {
-				update_errno_buffer(us_proc_info.path);
+				update_errno_buffer(us_proc_info.path, IS_APP);
 				return -1;
 			}
 		}
@@ -769,7 +769,9 @@ int link_bundle(void)
 				{
 					if (strcmp(d_lib->path_dyn, "") == 0) {
 						EPRINTF("Cannot find path for lib %s!", d_lib->path);
-						update_errno_buffer(d_lib->path);
+						if (update_errno_buffer(d_lib->path, IS_LIB) == -1) {
+							return -1;
+						}
 						/* Just skip all the IPs and go to next lib */
 						p += d_lib->ips_count * 3 * sizeof(u_int32_t);
 						d_lib->ips_count = 0;
@@ -789,7 +791,9 @@ int link_bundle(void)
 			d_lib->m_f_dentry = dentry_by_path(d_lib->path);
 			if (d_lib->m_f_dentry == NULL) {
 				EPRINTF ("failed to lookup dentry for path %s!", d_lib->path);
-				update_errno_buffer(d_lib->path);
+				if (update_errno_buffer(d_lib->path, IS_LIB) == -1) {
+					return -1;
+				}
 				/* Just skip all the IPs and go to next lib */
 				p += d_lib->ips_count * 3 * sizeof(u_int32_t);
 				d_lib->ips_count = 0;
