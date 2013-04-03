@@ -1309,7 +1309,7 @@ void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 }
 
 
-int asm_init_module_dependencies()
+int arch_init_module_deps()
 {
 	INIT_MOD_DEP_VAR(module_alloc, module_alloc);
 	INIT_MOD_DEP_VAR(module_free, module_free);

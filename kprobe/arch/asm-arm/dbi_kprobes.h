@@ -501,6 +501,11 @@ struct undef_hook;
 void swap_register_undef_hook(struct undef_hook *hook);
 void swap_unregister_undef_hook(struct undef_hook *hook);
 
+static inline int arch_init_module_deps(void)
+{
+	return 0;
+}
+
 int arch_check_insn_arm(struct arch_specific_insn *ainsn);
 int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int uregs);
 

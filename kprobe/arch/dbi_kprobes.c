@@ -60,24 +60,3 @@
 
 extern struct hlist_head kprobe_insn_pages;
 
-int arch_init_module_dependencies(void)
-{
-	int ret;
-
-	sched_addr = swap_ksyms("__switch_to");
-	fork_addr = swap_ksyms("do_fork");
-	exit_addr = swap_ksyms("do_exit");
-
-	if ((void *)sched_addr == NULL ||
-				(void *)fork_addr == NULL ||
-				(void *)exit_addr == NULL) {
-		return -ESRCH;
-	}
-
-	ret = init_module_dependencies();
-	if (ret) {
-		return ret;
-	}
-
-	return asm_init_module_dependencies();
-}

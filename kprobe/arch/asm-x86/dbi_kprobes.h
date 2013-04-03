@@ -207,6 +207,7 @@ struct arch_specific_insn {
 
 typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long);
 
+int arch_init_module_deps(void);
 
 
 #endif /* _SRC_ASM_X86_KPROBES_H */

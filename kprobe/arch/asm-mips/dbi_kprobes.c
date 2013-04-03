@@ -722,7 +722,7 @@ DECLARE_MOD_CB_DEP(flush_icache_page, \
 DECLARE_MOD_CB_DEP(flush_cache_page, \
 		void, struct vm_area_struct * vma, unsigned long page);
 
-int asm_init_module_dependencies()
+int arch_init_module_deps()
 {
 	INIT_MOD_DEP_CB(flush_icache_range, r4k_flush_icache_range);
 	INIT_MOD_DEP_CB(flush_icache_page, r4k_flush_icache_page);

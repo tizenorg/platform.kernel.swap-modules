@@ -87,7 +87,4 @@ void dbi_jprobe_return (void);
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs);
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 
-int arch_init_module_dependencies(void);
-int asm_init_module_dependencies(void);
-
 #endif				/* _DBI_ARCH_KPROBES_H */

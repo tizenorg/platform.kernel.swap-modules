@@ -627,13 +627,6 @@ void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 	}
 }
 
-
-int asm_init_module_dependencies(void)
-{
-	//No module dependencies
-	return 0;
-}
-
 void swap_register_undef_hook(struct undef_hook *hook)
 {
 	__swap_register_undef_hook(hook);
@@ -655,15 +648,9 @@ static struct undef_hook undef_ho_k = {
     .fn		= kprobe_trap_handler
 };
 
-int __init arch_init_kprobes (void)
+int arch_init_kprobes(void)
 {
 	int ret = 0;
-
-	if (arch_init_module_dependencies())
-	{
-		DBPRINTF ("Unable to init module dependencies\n");
-		return -1;
-	}
 
 	// Register hooks (kprobe_handler)
 	__swap_register_undef_hook = swap_ksyms("register_undef_hook");

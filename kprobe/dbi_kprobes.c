@@ -840,6 +840,26 @@ int patch_suspended_task(struct kretprobe *rp, struct task_struct *task)
 	return 0;
 }
 
+static int init_module_deps(void)
+{
+	int ret;
+
+	sched_addr = swap_ksyms("__switch_to");
+	fork_addr = swap_ksyms("do_fork");
+	exit_addr = swap_ksyms("do_exit");
+
+	if (sched_addr == 0 || fork_addr == 0 || exit_addr == 0) {
+		return -ESRCH;
+	}
+
+	ret = init_module_dependencies();
+	if (ret) {
+		return ret;
+	}
+
+	return arch_init_module_deps();
+}
+
 static int __init init_kprobes(void)
 {
 	int i, err = 0;
@@ -851,6 +871,11 @@ static int __init init_kprobes(void)
 		INIT_HLIST_HEAD(&kretprobe_inst_table[i]);
 	}
 	atomic_set(&kprobe_count, 0);
+
+	err = init_module_deps();
+	if (err) {
+		return err;
+	}
 
 	err = arch_init_kprobes();
 

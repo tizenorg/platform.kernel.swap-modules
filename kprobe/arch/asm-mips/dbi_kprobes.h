@@ -24,7 +24,7 @@
  * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM/MIPS
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user-space and kernel space.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts 
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
  */
 
@@ -37,7 +37,7 @@ typedef unsigned long kprobe_opcode_t;
 
 #ifndef KPROBES_RET_PROBE_TRAMP
 #define UNDEF_INSTRUCTION              0x0000004d
-#endif 
+#endif
 
 #define MAX_INSN_SIZE                  1
 
@@ -122,5 +122,6 @@ typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned
 void gen_insn_execbuf_holder (void);
 
 void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp);
+int arch_init_module_deps(void);
 
 #endif /*  _SRC_ASM_MIPS_KPROBES_H */
