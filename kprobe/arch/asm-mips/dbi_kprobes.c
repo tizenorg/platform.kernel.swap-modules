@@ -655,11 +655,9 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	kretprobe_assert (ri, orig_ret_address, trampoline_address);
 	//BUG_ON(!orig_ret_address || (orig_ret_address == trampoline_address));
 	if (trampoline_address != (unsigned long) &kretprobe_trampoline){
-		if (ri->rp2) BUG_ON (ri->rp2->kp.tgid == 0);
 		if (ri->rp) BUG_ON (ri->rp->kp.tgid == 0);
-		else if (ri->rp2) BUG_ON (ri->rp2->kp.tgid == 0);
 	}
-	if ((ri->rp && ri->rp->kp.tgid) || (ri->rp2 && ri->rp2->kp.tgid))
+	if (ri->rp && ri->rp->kp.tgid)
 		BUG_ON (trampoline_address == (unsigned long) &kretprobe_trampoline);
 
 	regs->regs[31] = orig_ret_address;
@@ -676,35 +674,6 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 			restore_previous_kprobe (kcb);
 		else
 			reset_current_kprobe ();
-
-		//TODO: test - enter function, delete us retprobe, exit function
-		// for user space retprobes only - deferred deletion
-		if (trampoline_address != (unsigned long) &kretprobe_trampoline)
-		{
-			// if we are not at the end of the list and current retprobe should be disarmed
-			if (node && ri->rp2)
-			{
-				crp = ri->rp2;
-				/*sprintf(die_msg, "deferred disarm p->addr = %p [%lx %lx %lx]\n",
-				  crp->kp.addr, *kaddrs[0], *kaddrs[1], *kaddrs[2]);
-				  DIE(die_msg, regs); */
-				// look for other instances for the same retprobe
-				hlist_for_each_entry_continue (ri, node, hlist)
-				{
-					if (ri->task != current)
-						continue;	/* another task is sharing our hash bucket */
-					if (ri->rp2 == crp)	//if instance belong to the same retprobe
-						break;
-				}
-				if (!node)
-				{	// if there are no more instances for this retprobe
-					// delete retprobe
-					DBPRINTF ("defered retprobe deletion p->addr = %p", crp->kp.addr);
-					unregister_uprobe (&crp->kp, current, 1);
-					kfree (crp);
-				}
-			}
-		}
 	}
 
 	spin_unlock_irqrestore (&kretprobe_lock, flags);
@@ -732,7 +701,6 @@ void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 	if ((ri = get_free_rp_inst (rp)) != NULL)
 	{
 		ri->rp = rp;
-		ri->rp2 = NULL;
 		ri->task = current;
 		ri->ret_addr = (kprobe_opcode_t *) regs->regs[31];
 		if (rp->kp.tgid)

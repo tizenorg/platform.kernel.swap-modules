@@ -202,7 +202,6 @@ struct kretprobe_instance
 	struct kretprobe *rp;
 	kprobe_opcode_t *ret_addr;
 	kprobe_opcode_t *sp;
-	struct kretprobe *rp2;
 	struct task_struct *task;
 };
 
