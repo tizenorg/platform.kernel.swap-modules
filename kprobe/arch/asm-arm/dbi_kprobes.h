@@ -30,8 +30,6 @@
  */
 
 #include <linux/sched.h>
-#include "../../dbi_kprobes_deps.h"
-#include "../dbi_kprobes.h"
 
 typedef unsigned long kprobe_opcode_t;
 
@@ -63,6 +61,11 @@ typedef unsigned long kprobe_opcode_t;
 # define KPROBES_TRAMP_RET_BREAK_IDX	UPROBES_TRAMP_RET_BREAK_IDX
 
 #define UREGS_OFFSET 8
+
+struct prev_kprobe {
+	struct kprobe *kp;
+	unsigned long status;
+};
 
 static inline unsigned long arch_get_task_pc(struct task_struct *p)
 {

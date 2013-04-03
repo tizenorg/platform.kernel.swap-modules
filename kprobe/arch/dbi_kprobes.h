@@ -57,11 +57,6 @@ struct kretprobe_instance;
 struct task_struct;
 struct kprobe_ctlblk;
 
-struct prev_kprobe {
-	struct kprobe *kp;
-	unsigned long status;
-};
-
 void kretprobe_trampoline (void);
 
 extern void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs);
@@ -73,7 +68,6 @@ extern int arch_init_kprobes (void);
 extern void dbi_arch_exit_kprobes (void);
 extern int patch_suspended_task(struct kretprobe *rp, struct task_struct *tsk);
 
-void prepare_singlestep (struct kprobe *p, struct pt_regs *regs);
 void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p);
 void restore_previous_kprobe (struct kprobe_ctlblk *kcb);
 void set_current_kprobe (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb);

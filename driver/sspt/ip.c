@@ -22,6 +22,7 @@
  *
  */
 
+#include <linux/slab.h>
 #include "ip.h"
 #include "sspt_page.h"
 #include "sspt_file.h"

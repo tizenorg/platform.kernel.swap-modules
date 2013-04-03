@@ -34,6 +34,7 @@
 #include <linux/mempolicy.h>
 #include <linux/module.h>
 #include <dbi_insn_slots.h>
+#include <dbi_kprobes_deps.h>
 
 enum {
 	UPROBE_HASH_BITS  = 10,

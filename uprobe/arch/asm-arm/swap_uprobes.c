@@ -5,6 +5,7 @@
 #include <swap_uprobes.h>
 #include <asm/swap_uprobes.h>
 #include <dbi_insn_slots.h>
+#include <dbi_kprobes_deps.h>
 #include "trampoline_thumb.h"
 
 // FIXME:

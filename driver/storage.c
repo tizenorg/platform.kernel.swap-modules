@@ -22,6 +22,7 @@
 #include <linux/spinlock.h>
 #include <linux/kernel.h>
 #include <linux/time.h>
+#include <ksyms.h>
 #include "module.h"
 #include "storage.h"
 #include "handlers_core.h"

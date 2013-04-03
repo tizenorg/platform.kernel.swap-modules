@@ -33,8 +33,11 @@ driver_module_dir = $(realpath $(srcdir))
 module_name = swap_driver
 cross_compiler = $(subst gcc,,$(CC))
 
-inlude_opt = -I$(realpath $(top_srcdir)/src/modules/ksyms) -I$(realpath $(top_srcdir)/src/common) \
-             -I$(realpath $(top_srcdir)/src/profile) -I$(realpath $(top_srcdir)/src/modules/kprobe) \
+inlude_opt = -I$(realpath $(top_srcdir)/src/modules/ksyms) \
+             -I$(realpath $(top_srcdir)/src/common) \
+             -I$(realpath $(top_srcdir)/src/profile) \
+             -I$(realpath $(top_srcdir)/src/modules/kprobe) \
+             -I$(realpath $(top_srcdir)/src/modules/kprobe/arch) \
              -I$(realpath $(top_srcdir)/src/modules/uprobe)
 extra_cflags = "$(inlude_opt) -DEC_ARCH_$(ARCH) -D__DEBUG $(memchecker) $(debug_opt) $(android_opt) $(slp_opt) $(android_app_opt) $(board_opt)"
 

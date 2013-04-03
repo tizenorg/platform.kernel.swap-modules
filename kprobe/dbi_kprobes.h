@@ -58,7 +58,7 @@
 #include <linux/sched.h>
 #include <linux/pagemap.h>
 
-#include "arch/asm/dbi_kprobes.h"
+#include <asm/dbi_kprobes.h>
 
 /* kprobe_status settings */
 #define KPROBE_HIT_ACTIVE	0x00000001
@@ -273,6 +273,8 @@ extern struct kretprobe *sched_rp;
 struct kprobe *kprobe_running (void);
 void reset_current_kprobe (void);
 struct kprobe_ctlblk *get_kprobe_ctlblk (void);
+
+void prepare_singlestep(struct kprobe *p, struct pt_regs *regs);
 
 #endif /* _DBI_KPROBES_H */
 

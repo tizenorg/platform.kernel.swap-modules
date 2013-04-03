@@ -16,6 +16,7 @@
 ////////////////////////////////////////////////////////////////////////////////////
 
 #include "module.h"
+#include <ksyms.h>
 
 static char gl_szDefaultDeviceName[128] = DEFAULT_DEVICE_NAME;
 char* device_name = NULL;
