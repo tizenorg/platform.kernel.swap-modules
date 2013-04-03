@@ -60,12 +60,6 @@
 
 extern struct hlist_head kprobe_insn_pages;
 
-void arch_remove_kprobe(struct kprobe *p)
-{
-	// TODO: check boostable for x86 and MIPS
-	free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
-}
-
 int arch_init_module_dependencies(void)
 {
 	int ret;

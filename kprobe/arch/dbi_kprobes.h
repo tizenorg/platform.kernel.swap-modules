@@ -75,8 +75,6 @@ extern int arch_init_kprobes (void);
 extern void dbi_arch_exit_kprobes (void);
 extern int patch_suspended_task(struct kretprobe *rp, struct task_struct *tsk);
 
-void arch_remove_kprobe(struct kprobe *p);
-
 void prepare_singlestep (struct kprobe *p, struct pt_regs *regs);
 void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p);
 void restore_previous_kprobe (struct kprobe_ctlblk *kcb);

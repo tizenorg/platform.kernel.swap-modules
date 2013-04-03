@@ -447,6 +447,12 @@ int register_aggr_kprobe(struct kprobe *old_p, struct kprobe *p)
 }
 EXPORT_SYMBOL_GPL(register_aggr_kprobe);
 
+static void remove_kprobe(struct kprobe *p)
+{
+	/* TODO: check boostable for x86 and MIPS */
+	free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
+}
+
 int dbi_register_kprobe(struct kprobe *p)
 {
 	struct kprobe *old_p;
@@ -539,7 +545,7 @@ valid_p:
 			synchronize_sched();
 		}
 
-		arch_remove_kprobe(p);
+		remove_kprobe(p);
 	} else {
 		if (p->break_handler)
 			old_p->break_handler = NULL;
