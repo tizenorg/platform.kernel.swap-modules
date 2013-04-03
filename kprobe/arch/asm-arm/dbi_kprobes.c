@@ -16,17 +16,35 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * Copyright (C) Samsung Electronics, 2006-2010
+ * Copyright (C) Samsung Electronics, 2006-2013
  *
- * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM/MIPS
+ * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>:
+ *              initial implementation for ARM/MIPS
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
- * 2010-2011    Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
- * 2012         Stanislav Andreev <s.andreev@samsung.com>: added time debug profiling support; BUG() message fix
- * 2012         Stanislav Andreev <s.andreev@samsung.com>: redesign of kprobe functionality -
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>:
+ *              redesign module for separating core and arch parts
+ * 2010-2011    Alexander Shirshikov <a.shirshikov@samsung.com>:
+ *              initial implementation for Thumb
+ * 2010-2012    Dmitry Kovalenko <d.kovalenko@samsung.com>,
+ *              Nikita Kalyazin <n.kalyazin@samsung.com>
+ *              improvement and bugs fixing
+ * 2010-2011    Alexander Shirshikov
+ *              improvement and bugs fixing
+ * 2011-2012    Stanislav Andreev <s.andreev@samsung.com>
+ *              improvement and bugs fixing
+ * 2012         Vitaliy Cherepanov <v.chereapanov@samsung.com>
+ *              improvement and bugs fixing
+ * 2012         Stanislav Andreev <s.andreev@samsung.com>:
+ *              added time debug profiling support; BUG() message fix
+ * 2012         Stanislav Andreev <s.andreev@samsung.com>:
+ *              redesign of kprobe functionality -
  *              kprobe_handler() now called via undefined instruction hooks
- * 2012         Stanislav Andreev <s.andreev@samsung.com>: hash tables search implemented for uprobes
+ * 2012         Stanislav Andreev <s.andreev@samsung.com>:
+ *              hash tables search implemented for uprobes
+ * 2012-2013    Vasiliy Ulyanov <v.ulyanov@samsung.com>,
+ *              Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *              improvement and bugs fixing
  */
 
 #include <linux/module.h>
