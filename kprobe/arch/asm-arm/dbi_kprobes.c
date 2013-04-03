@@ -445,42 +445,6 @@ void dbi_jprobe_return (void)
 
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 {
-# ifndef REENTER
-	//kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
-	kprobe_opcode_t insns[2];
-
-	if (p->pid)
-	{
-		insns[0] = BREAKPOINT_INSTRUCTION;
-		insns[1] = p->opcode;
-		//p->opcode = *p->addr;
-		if (read_proc_vm_atomic (current, (unsigned long) (p->addr), &(p->opcode), sizeof (p->opcode)) < sizeof (p->opcode))
-		{
-			printk ("ERROR[%lu]: failed to read vm of proc %s/%u addr %p.", nCount, current->comm, current->pid, p->addr);
-			return -1;
-		}
-		//*p->addr = BREAKPOINT_INSTRUCTION;
-		//*(p->addr+1) = p->opcode;
-		if (write_proc_vm_atomic (current, (unsigned long) (p->addr), insns, sizeof (insns)) < sizeof (insns))
-		{
-			printk ("ERROR[%lu]: failed to write vm of proc %s/%u addr %p.", nCount, current->comm, current->pid, p->addr);
-			return -1;
-		}
-	}
-	else
-	{
-		DBPRINTF ("p->opcode = 0x%lx *p->addr = 0x%lx p->addr = 0x%p\n", p->opcode, *p->addr, p->addr);
-		*(p->addr + 1) = p->opcode;
-		p->opcode = *p->addr;
-		*p->addr = BREAKPOINT_INSTRUCTION;
-
-		flush_icache_range ((unsigned int) p->addr, (unsigned int) (((unsigned int) p->addr) + (sizeof (kprobe_opcode_t) * 2)));
-	}
-
-	reset_current_kprobe();
-
-#endif //REENTER
-
 	return 0;
 }
 EXPORT_SYMBOL_GPL(longjmp_break_handler);

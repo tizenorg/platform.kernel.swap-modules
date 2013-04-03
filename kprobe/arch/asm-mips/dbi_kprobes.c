@@ -489,10 +489,6 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	kprobe_pre_entry_handler_t pre_entry;
 	entry_point_t entry;
 
-# ifdef REENTER
-	p = __get_cpu_var (current_kprobe);
-# endif
-
 	DBPRINTF ("pjp = 0x%p jp->entry = 0x%p", jp, jp->entry);
 	entry = (entry_point_t) jp->entry;
 	pre_entry = (kprobe_pre_entry_handler_t) jp->pre_entry;
@@ -550,39 +546,6 @@ void dbi_arch_uprobe_return (void)
 
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 {
-#ifndef REENTER
-	//kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
-	kprobe_opcode_t insns[2];
-
-	if (p->pid)
-	{
-		insns[0] = BREAKPOINT_INSTRUCTION;
-		insns[1] = p->opcode;
-		//p->opcode = *p->addr;
-		if (read_proc_vm_atomic (current, (unsigned long) (p->addr), &(p->opcode), sizeof (p->opcode)) < sizeof (p->opcode))
-		{
-			printk ("ERROR[]: failed to read vm of proc %s/%u addr %p.", current->comm, current->pid, p->addr);
-			return -1;
-		}
-		//*p->addr = BREAKPOINT_INSTRUCTION;
-		//*(p->addr+1) = p->opcode;
-		if (write_proc_vm_atomic (current, (unsigned long) (p->addr), insns, sizeof (insns)) < sizeof (insns))
-		{
-			printk ("ERROR[]: failed to write vm of proc %s/%u addr %p.", current->comm, current->pid, p->addr);
-			return -1;
-		}
-	}
-	else
-	{
-		DBPRINTF ("p->opcode = 0x%lx *p->addr = 0x%lx p->addr = 0x%p\n", p->opcode, *p->addr, p->addr);
-		*(p->addr + 1) = p->opcode;
-		p->opcode = *p->addr;
-		*p->addr = BREAKPOINT_INSTRUCTION;
-		flush_icache_range ((unsigned int) p->addr, (unsigned int) (((unsigned int) p->addr) + (sizeof (kprobe_opcode_t) * 2)));
-	}
-
-	reset_current_kprobe ();
-#endif
 	return 0;
 }
 

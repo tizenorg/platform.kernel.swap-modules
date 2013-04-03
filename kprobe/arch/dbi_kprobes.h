@@ -50,8 +50,6 @@
  */
 
 
-#define REENTER
-
 struct kprobe;
 struct pt_regs;
 struct kretprobe;
