@@ -65,10 +65,6 @@ extern int arch_prepare_kretprobe (struct kretprobe *p);
 extern int arch_init_kprobes (void);
 extern void dbi_arch_exit_kprobes (void);
 
-void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p);
-void restore_previous_kprobe (struct kprobe_ctlblk *kcb);
-void set_current_kprobe (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb);
-
 void dbi_jprobe_return (void);
 
 #endif				/* _DBI_ARCH_KPROBES_H */

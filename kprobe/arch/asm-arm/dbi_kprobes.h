@@ -493,6 +493,10 @@ int setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs);
 int longjmp_break_handler(struct kprobe *p, struct pt_regs *regs);
 int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs);
 
+void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *cur_p);
+void restore_previous_kprobe(struct kprobe_ctlblk *kcb);
+void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb);
+
 //void gen_insn_execbuf (void);
 //void pc_dep_insn_execbuf (void);
 //void gen_insn_execbuf_holder (void);
