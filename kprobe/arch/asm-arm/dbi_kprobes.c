@@ -557,7 +557,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 }
 EXPORT_SYMBOL_GPL(trampoline_probe_handler);
 
-void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
+void arch_prepare_kretprobe(struct kretprobe *rp, struct pt_regs *regs)
 {
 	struct kretprobe_instance *ri;
 

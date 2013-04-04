@@ -57,7 +57,7 @@ struct kretprobe_instance;
 struct task_struct;
 struct kprobe_ctlblk;
 
-extern void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs);
+extern void arch_prepare_kretprobe(struct kretprobe *rp, struct pt_regs *regs);
 extern int arch_prepare_kprobe (struct kprobe *p);
 
 void dbi_jprobe_return (void);

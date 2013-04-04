@@ -590,7 +590,7 @@ int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
 	/*TODO: consider to only swap the RA after the last pre_handler fired */
 	spin_lock_irqsave(&kretprobe_lock, flags);
 	if (!rp->disarm)
-		__arch_prepare_kretprobe(rp, regs);
+		arch_prepare_kretprobe(rp, regs);
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 	DBPRINTF ("END\n");
 	return 0;
