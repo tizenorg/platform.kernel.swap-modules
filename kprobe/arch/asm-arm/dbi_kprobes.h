@@ -497,6 +497,8 @@ void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *cur_p);
 void restore_previous_kprobe(struct kprobe_ctlblk *kcb);
 void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb);
 
+void kretprobe_trampoline(void);
+
 int arch_init_kprobes(void);
 void arch_exit_kprobes(void);
 

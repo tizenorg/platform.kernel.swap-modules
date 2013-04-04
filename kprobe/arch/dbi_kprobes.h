@@ -57,8 +57,6 @@ struct kretprobe_instance;
 struct task_struct;
 struct kprobe_ctlblk;
 
-void kretprobe_trampoline (void);
-
 extern void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs);
 extern int arch_prepare_kprobe (struct kprobe *p);
 extern int arch_prepare_kretprobe (struct kretprobe *p);
