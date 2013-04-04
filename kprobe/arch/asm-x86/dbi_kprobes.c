@@ -287,13 +287,6 @@ int arch_check_insn (struct arch_specific_insn *ainsn)
 	return 0;
 }
 
-int arch_prepare_kretprobe (struct kretprobe *p)
-{
-	DBPRINTF("Warrning: arch_prepare_kretprobe is not implemented\n");
-	return 0;
-}
-
-
 int arch_prepare_kprobe (struct kprobe *p)
 {
 	kprobe_opcode_t insns[KPROBES_TRAMP_LEN];
