@@ -43,16 +43,6 @@
 #include <ksyms.h>
 
 #include <asm/cacheflush.h>
-
-#ifdef TRAP_OVERHEAD_DEBUG
-#include <linux/pid.h>
-#include <linux/signal.h>
-#endif
-
-#ifdef OVERHEAD_DEBUG
-#include <linux/time.h>
-#endif
-
 #include <asm/traps.h>
 #include <asm/ptrace.h>
 #include <linux/list.h>
@@ -65,13 +55,6 @@ extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 
 static void (*__swap_register_undef_hook)(struct undef_hook *hook);
 static void (*__swap_unregister_undef_hook)(struct undef_hook *hook);
-
-#ifdef OVERHEAD_DEBUG
-unsigned long swap_sum_time = 0;
-unsigned long swap_sum_hit = 0;
-EXPORT_SYMBOL_GPL (swap_sum_time);
-EXPORT_SYMBOL_GPL (swap_sum_hit);
-#endif
 
 static struct kprobe trampoline_p =
 {
@@ -327,11 +310,6 @@ void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ct
 	__get_cpu_var(current_kprobe) = p;
 	DBPRINTF ("set_current_kprobe: p=%p addr=%p\n", p, p->addr);
 }
-
-#ifdef TRAP_OVERHEAD_DEBUG
-static unsigned long trap_handler_counter_debug = 0;
-#define SAMPLING_COUNTER                               100000
-#endif
 
 static int kprobe_handler(struct pt_regs *regs)
 {

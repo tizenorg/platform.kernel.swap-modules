@@ -35,22 +35,11 @@
 #include "../../dbi_uprobes.h"
 #include <ksyms.h>
 
-#ifdef OVERHEAD_DEBUG
-#include <linux/time.h>
-#endif
-
 #define SUPRESS_BUG_MESSAGES
 
 unsigned int *arr_traps_original;
 
 extern struct kprobe * per_cpu__current_kprobe;
-
-#ifdef OVERHEAD_DEBUG
-unsigned long swap_sum_time = 0;
-unsigned long swap_sum_hit = 0;
-EXPORT_SYMBOL_GPL (swap_sum_time);
-EXPORT_SYMBOL_GPL (swap_sum_hit);
-#endif
 
 unsigned int arr_traps_template[] = {  0x3c010000,   // lui  a1       [0]
 	0x24210000,   // addiu a1, a1  [1]
@@ -273,10 +262,6 @@ int kprobe_handler (struct pt_regs *regs)
 	int ret = 0, pid = 0, retprobe = 0, reenter = 0;
 	kprobe_opcode_t *addr = NULL, *ssaddr = 0;
 	struct kprobe_ctlblk *kcb;
-#ifdef OVERHEAD_DEBUG
-	struct timeval swap_tv1;
-	struct timeval swap_tv2;
-#endif
 #ifdef SUPRESS_BUG_MESSAGES
 	int swap_oops_in_progress;
 #endif
@@ -290,10 +275,6 @@ int kprobe_handler (struct pt_regs *regs)
 	// oops_in_progress used to avoid BUG() messages that slow down kprobe_handler() execution
 	swap_oops_in_progress = oops_in_progress;
 	oops_in_progress = 1;
-#endif
-#ifdef OVERHEAD_DEBUG
-#define USEC_IN_SEC_NUM				1000000
-	do_gettimeofday(&swap_tv1);
 #endif
 	preempt_disable ();
 
@@ -333,12 +314,6 @@ int kprobe_handler (struct pt_regs *regs)
 				if(!p->ainsn.boostable)
 					kcb->kprobe_status = KPROBE_REENTER;
 				preempt_enable_no_resched ();
-#ifdef OVERHEAD_DEBUG
-				do_gettimeofday(&swap_tv2);
-				swap_sum_hit++;
-				swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM +
-					(swap_tv2.tv_usec - swap_tv1.tv_usec));
-#endif
 #ifdef SUPRESS_BUG_MESSAGES
 				oops_in_progress = swap_oops_in_progress;
 #endif
@@ -444,12 +419,6 @@ int kprobe_handler (struct pt_regs *regs)
 	if (ret)
 	{
 		DBPRINTF ("p->pre_handler[] 1");
-#ifdef OVERHEAD_DEBUG
-		do_gettimeofday(&swap_tv2);
-		swap_sum_hit++;
-		swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM +
-			(swap_tv2.tv_usec - swap_tv1.tv_usec));
-#endif
 #ifdef SUPRESS_BUG_MESSAGES
 		oops_in_progress = swap_oops_in_progress;
 #endif
@@ -460,12 +429,6 @@ int kprobe_handler (struct pt_regs *regs)
 
 no_kprobe:
 	preempt_enable_no_resched ();
-#ifdef OVERHEAD_DEBUG
-	do_gettimeofday(&swap_tv2);
-	swap_sum_hit++;
-	swap_sum_time += ((swap_tv2.tv_sec - swap_tv1.tv_sec) * USEC_IN_SEC_NUM +
-		(swap_tv2.tv_usec - swap_tv1.tv_usec));
-#endif
 #ifdef SUPRESS_BUG_MESSAGES
 	oops_in_progress = swap_oops_in_progress;
 #endif

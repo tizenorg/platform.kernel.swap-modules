@@ -21,11 +21,6 @@
 #include <linux/notifier.h>
 #include "sspt/sspt_procs.h"
 
-#ifdef OVERHEAD_DEBUG
-extern unsigned long swap_sum_time;
-extern unsigned long swap_sum_hit;
-#endif
-
 
 extern unsigned long imi_sum_time;
 extern unsigned long imi_sum_hit;
@@ -508,13 +503,6 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		unsigned int local_module_refcount = 0;
 		int j;
 		dbi_module_callback dmc_stop;
-
-#ifdef OVERHEAD_DEBUG
-		printk("\nswap_sum_time = %ld in kprobe_handler()\n", swap_sum_time);
-		printk("swap_sum_hit = %ld in kprobe_handler()\n", swap_sum_hit);
-		swap_sum_time = 0;
-		swap_sum_hit = 0;
-#endif
 
 		printk("\n### imi_sum_time = %ld in install_mapped_ips()\n", imi_sum_time);
 		printk("### imi_sum_hit = %ld in install_mapped_ips()\n", imi_sum_hit);
