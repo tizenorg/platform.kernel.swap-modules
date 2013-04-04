@@ -497,6 +497,9 @@ void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *cur_p);
 void restore_previous_kprobe(struct kprobe_ctlblk *kcb);
 void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb);
 
+int arch_init_kprobes(void);
+void arch_exit_kprobes(void);
+
 //void gen_insn_execbuf (void);
 //void pc_dep_insn_execbuf (void);
 //void gen_insn_execbuf_holder (void);
