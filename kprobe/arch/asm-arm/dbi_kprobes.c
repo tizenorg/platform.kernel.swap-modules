@@ -638,12 +638,10 @@ int arch_init_kprobes(void)
 	return ret;
 }
 
-void __exit dbi_arch_exit_kprobes (void)
+void arch_exit_kprobes(void)
 {
 	swap_unregister_undef_hook(&undef_ho_k);
 }
-
-//EXPORT_SYMBOL_GPL (dbi_arch_exit_kprobes);
 
 /* export symbol for trampoline_arm.h */
 EXPORT_SYMBOL_GPL(gen_insn_execbuf);

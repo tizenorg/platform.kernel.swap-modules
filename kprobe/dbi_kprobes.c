@@ -886,7 +886,7 @@ static int __init init_kprobes(void)
 
 static void __exit exit_kprobes(void)
 {
-	dbi_arch_exit_kprobes();
+	arch_exit_kprobes();
 }
 
 module_init(init_kprobes);
