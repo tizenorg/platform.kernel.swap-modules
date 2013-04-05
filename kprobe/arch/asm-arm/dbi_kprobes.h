@@ -487,7 +487,7 @@ int arch_check_insn_arm(struct arch_specific_insn *ainsn);
 int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int uregs);
 
 struct kretprobe;
-int arch_prepare_kprobe(struct kprobe *p);
+int arch_prepare_kprobe(struct kprobe *p, struct hlist_head *page_list);
 void arch_prepare_kretprobe(struct kretprobe *rp, struct pt_regs *regs);
 
 void arch_arm_kprobe(struct kprobe *p);

@@ -61,8 +61,6 @@ extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
                         unsigned long len, unsigned long prot,
                         unsigned long flags, unsigned long pgoff);
 
-struct hlist_head kprobe_insn_pages;
-
 struct chunk {
 	unsigned long *data;
 	unsigned long first_available;

@@ -64,7 +64,7 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 
-extern struct hlist_head kprobe_insn_pages;
+struct hlist_head kprobe_insn_pages;
 
 DEFINE_PER_CPU(struct kprobe *, current_kprobe) = NULL;
 static DEFINE_PER_CPU(struct kprobe_ctlblk, kprobe_ctlblk);
@@ -489,7 +489,7 @@ int dbi_register_kprobe(struct kprobe *p)
 		goto out;
 	}
 
-	if ((ret = arch_prepare_kprobe(p)) != 0)
+	if ((ret = arch_prepare_kprobe(p, &kprobe_insn_pages)) != 0)
 		goto out;
 
 	DBPRINTF ("before out ret = 0x%x\n", ret);
