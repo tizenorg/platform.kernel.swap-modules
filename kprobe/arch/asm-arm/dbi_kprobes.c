@@ -415,8 +415,6 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	struct kretprobe *crp = NULL;
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk();
 
-	DBPRINTF ("start");
-
 	spin_lock_irqsave(&kretprobe_lock, flags);
 
 	/*
@@ -460,36 +458,13 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 	kretprobe_assert(ri, orig_ret_address, trampoline_address);
 
-	regs->uregs[14] = orig_ret_address;
-	DBPRINTF ("regs->uregs[14] = 0x%lx\n", regs->uregs[14]);
-	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);
+	regs->ARM_lr = orig_ret_address;
+	regs->ARM_pc = orig_ret_address;
 
-	if (trampoline_address != (unsigned long) &kretprobe_trampoline) {
-		regs->uregs[15] = orig_ret_address;
+	if (kcb->kprobe_status == KPROBE_REENTER) {
+		restore_previous_kprobe(kcb);
 	} else {
-		if (!thumb_mode( regs )) {
-			regs->uregs[15] += 4;
-		} else {
-			regs->uregs[15] += 2;
-		}
-	}
-
-	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);
-
-	if(p) { // ARM, MIPS, X86 user space
-		if (thumb_mode(regs) && !(regs->uregs[14] & 0x01)) {
-			regs->ARM_cpsr &= 0xFFFFFFDF;
-		} else {
-			if (user_mode(regs) && (regs->uregs[14] & 0x01)) {
-				regs->ARM_cpsr |= 0x20;
-			}
-		}
-
-		if (kcb->kprobe_status == KPROBE_REENTER) {
-			restore_previous_kprobe(kcb);
-		} else {
-			reset_current_kprobe();
-		}
+		reset_current_kprobe();
 	}
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
