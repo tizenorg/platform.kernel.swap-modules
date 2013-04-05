@@ -10,7 +10,6 @@
 
 // FIXME:
 #include <dbi_kdebug.h>
-extern struct hlist_head uprobe_insn_pages;
 
 
 #define flush_insns(addr, size)					\
@@ -537,7 +536,7 @@ static int arch_copy_trampoline_thumb_uprobe(struct kprobe *p, struct task_struc
 	return 0;
 }
 
-int arch_prepare_uprobe(struct uprobe *up, int atomic)
+int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list, int atomic)
 {
 	int ret = 0;
 	struct kprobe *p = &up->kp;
@@ -554,7 +553,7 @@ int arch_prepare_uprobe(struct uprobe *up, int atomic)
 	}
 
 	p->opcode = insn[0];
-	p->ainsn.insn_arm = get_insn_slot(task, &uprobe_insn_pages, atomic);
+	p->ainsn.insn_arm = get_insn_slot(task, page_list, atomic);
 	if (!p->ainsn.insn_arm) {
 		printk("Error in %s at %d: kprobe slot allocation error (arm)\n", __FILE__, __LINE__);
 		return -ENOMEM;
@@ -562,11 +561,11 @@ int arch_prepare_uprobe(struct uprobe *up, int atomic)
 
 	ret = arch_copy_trampoline_arm_uprobe(p, task, 1);
 	if (ret) {
-		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
+		free_insn_slot(page_list, task, p->ainsn.insn_arm);
 		return -EFAULT;
 	}
 
-	p->ainsn.insn_thumb = get_insn_slot(task, &uprobe_insn_pages, atomic);
+	p->ainsn.insn_thumb = get_insn_slot(task, page_list, atomic);
 	if (!p->ainsn.insn_thumb) {
 		printk("Error in %s at %d: kprobe slot allocation error (thumb)\n", __FILE__, __LINE__);
 		return -ENOMEM;
@@ -574,8 +573,8 @@ int arch_prepare_uprobe(struct uprobe *up, int atomic)
 
 	ret = arch_copy_trampoline_thumb_uprobe(p, task, 1);
 	if (ret) {
-		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
-		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
+		free_insn_slot(page_list, task, p->ainsn.insn_arm);
+		free_insn_slot(page_list, task, p->ainsn.insn_thumb);
 		return -EFAULT;
 	}
 
@@ -586,8 +585,8 @@ int arch_prepare_uprobe(struct uprobe *up, int atomic)
 			panic("Failed to write memory %p!\n", p->addr);
 		}
 
-		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
-		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
+		free_insn_slot(page_list, task, p->ainsn.insn_arm);
+		free_insn_slot(page_list, task, p->ainsn.insn_thumb);
 
 		return -EFAULT;
 	}
