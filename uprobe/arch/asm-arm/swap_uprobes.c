@@ -643,13 +643,12 @@ unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs)
 void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
 {
 	regs->ARM_lr = orig_ret_addr;
-	regs->ARM_pc = orig_ret_addr;
+	regs->ARM_pc = orig_ret_addr & ~0x1;
 
-	if (thumb_mode(regs) && !(regs->ARM_lr & 0x01)) {
-		regs->ARM_cpsr &= 0xFFFFFFDF;
-	} else if (user_mode(regs) && (regs->ARM_lr & 0x01)) {
-		regs->ARM_cpsr |= 0x20;
-	}
+	if (regs->ARM_lr & 0x1)
+		regs->ARM_cpsr |= PSR_T_BIT;
+	else
+		regs->ARM_cpsr &= ~PSR_T_BIT;
 }
 
 static int check_validity_insn(struct kprobe *p, struct pt_regs *regs)
