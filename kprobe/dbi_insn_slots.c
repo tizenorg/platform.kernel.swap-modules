@@ -56,11 +56,15 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
+                        unsigned long len, unsigned long prot,
+                        unsigned long flags, unsigned long pgoff, unsigned long *populate);
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
                         unsigned long len, unsigned long prot,
                         unsigned long flags, unsigned long pgoff);
-
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
 struct hlist_head kprobe_insn_pages;
 struct hlist_head uprobe_insn_pages;
@@ -170,7 +174,12 @@ static unsigned long alloc_user_pages(struct task_struct *task, unsigned long le
 		}
 		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily
 		current_thread_info()->task = task;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+		ret = do_mmap_pgoff(NULL, 0, len, prot, flags, 0, 0);
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 		ret = do_mmap_pgoff(NULL, 0, len, prot, flags, 0);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
+
 		current_thread_info()->task = otask;
 		if (!atomic) {
 			downgrade_write (&mm->mmap_sem);
@@ -266,7 +275,7 @@ kprobe_opcode_t *get_insn_slot(struct task_struct *task, int atomic)
 	struct hlist_node *pos;
 	struct hlist_head *page_list = task ? &uprobe_insn_pages : &kprobe_insn_pages;
 
-	hlist_for_each_entry_rcu(kip, pos, page_list, hlist) {
+	swap_hlist_for_each_entry_rcu(kip, pos, page_list, hlist) {
 		if (!task || (kip->task->tgid == task->tgid)) {
 			free_slot = chunk_allocate(&kip->chunk, slot_size(task));
 			if (free_slot == NULL) {
@@ -292,7 +301,7 @@ void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kpro
 	struct kprobe_insn_page *kip;
 	struct hlist_node *pos;
 
-	hlist_for_each_entry_rcu(kip, pos, page_list, hlist) {
+	swap_hlist_for_each_entry_rcu(kip, pos, page_list, hlist) {
 		if (!(!task || (kip->task->tgid == task->tgid)))
 			continue;
 
@@ -321,7 +330,7 @@ static struct kprobe *get_kprobe_by_insn_slot_arm(kprobe_opcode_t *addr, pid_t t
 
 	//TODO: test - two processes invokes instrumented function
 	head = &uprobe_insn_slot_table[hash_ptr (addr, KPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
+	swap_hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
 		if (p->ainsn.insn == addr && tgid == p->tgid) {
 			retVal = p;
 			break;
@@ -340,7 +349,7 @@ static struct kprobe *get_kprobe_by_insn_slot_thumb(kprobe_opcode_t *addr, pid_t
 
 	//TODO: test - two processes invokes instrumented function
 	head = &uprobe_insn_slot_table[hash_ptr (addr, KPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu (p, node, head, is_hlist_thumb) {
+	swap_hlist_for_each_entry_rcu (p, node, head, is_hlist_thumb) {
 		if (p->ainsn.insn == addr && tgid == p->tgid) {
 			retVal = p;
 			break;

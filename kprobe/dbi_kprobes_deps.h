@@ -34,6 +34,15 @@
 #include <linux/pagemap.h>
 #include "../ksyms/ksyms.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+#define swap_hlist_for_each_entry_rcu(tpos, pos, head, member) hlist_for_each_entry_rcu(tpos, head, member)
+#define swap_hlist_for_each_entry_safe(tpos, pos, n, head, member) hlist_for_each_entry_safe(tpos, n, head, member)
+#define swap_hlist_for_each_entry(tpos, pos, head, member) hlist_for_each_entry(tpos, head, member)
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
+#define swap_hlist_for_each_entry_rcu(tpos, pos, head, member) hlist_for_each_entry_rcu(tpos, pos, head, member)
+#define swap_hlist_for_each_entry_safe(tpos, pos, n, head, member) hlist_for_each_entry_safe(tpos, pos, n, head, member)
+#define swap_hlist_for_each_entry(tpos, pos, head, member) hlist_for_each_entry(tpos, pos, head, member)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12))
 #define synchronize_sched	synchronize_kernel

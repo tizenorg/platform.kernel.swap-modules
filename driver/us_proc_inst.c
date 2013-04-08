@@ -761,7 +761,7 @@ static void install_file_probes(struct task_struct *task, struct mm_struct *mm, 
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_rcu(page, node, head, hlist) {
+		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
 			if (page_present(mm, page->offset)) {
 				register_us_page_probe(page, file, task);
 			}
@@ -805,7 +805,7 @@ static int check_install_pages_in_file(struct task_struct *task, struct sspt_fil
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
+		swap_hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
 			if (page->install) {
 				return 1;
 			}
@@ -825,7 +825,7 @@ static int unregister_us_file_probes(struct task_struct *task, struct sspt_file 
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
+		swap_hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
 			err = unregister_us_page_probe(task, page, flag);
 			if (err != 0) {
 				// TODO: ERROR
