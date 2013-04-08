@@ -46,6 +46,7 @@ struct sspt_file;
 
 struct us_ip {
 	struct list_head list;
+	struct sspt_page *page;
 
 	struct ujprobe jprobe;
 	struct uretprobe retprobe;

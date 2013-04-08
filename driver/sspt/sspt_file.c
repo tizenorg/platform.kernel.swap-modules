@@ -42,6 +42,8 @@ struct sspt_file *sspt_file_create(char *name, struct dentry *dentry, int page_c
 
 	if (obj) {
 		int i, table_size;
+		INIT_LIST_HEAD(&obj->list);
+		obj->procs = NULL;
 		obj->name = name;
 		obj->dentry = dentry;
 		obj->loaded = 0;
@@ -82,6 +84,7 @@ void sspt_file_free(struct sspt_file *file)
 
 static void sspt_add_page(struct sspt_file *file, struct sspt_page *page)
 {
+	page->file = file;
 	hlist_add_head(&page->hlist, &file->page_probes_table[hash_ptr((void *)page->offset,
 				file->page_probes_hash_bits)]);
 }
@@ -102,6 +105,7 @@ struct sspt_file *sspt_file_copy(const struct sspt_file *file)
 		struct hlist_head *head = NULL;
 		int i, table_size;
 		INIT_LIST_HEAD(&file_out->list);
+		file_out->procs = NULL;
 		file_out->dentry = file->dentry;
 		file_out->name = file->name;
 		file_out->loaded = 0;

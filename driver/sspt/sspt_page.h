@@ -37,6 +37,7 @@ struct sspt_page {
 	int install;
 	spinlock_t lock;
 
+	struct sspt_file *file;
 	struct hlist_node hlist; // for file_probes
 };
 

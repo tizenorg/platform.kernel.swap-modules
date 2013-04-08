@@ -31,6 +31,7 @@
 
 struct sspt_file {
 	struct list_head list;			// for proc_probes
+	struct sspt_procs *procs;
 	struct dentry *dentry;
 	char *name;
 	int loaded;

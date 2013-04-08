@@ -36,6 +36,7 @@ struct sspt_page *sspt_page_create(unsigned long offset)
 		obj->offset = offset;
 		obj->install = 0;
 		spin_lock_init(&obj->lock);
+		obj->file = NULL;
 		INIT_HLIST_NODE(&obj->hlist);
 	}
 
@@ -54,6 +55,12 @@ void sspt_page_free(struct sspt_page *page)
 	kfree(page);
 }
 
+static void sspt_list_add_ip(struct sspt_page *page, struct us_ip *ip)
+{
+	list_add(&ip->list, &page->ip_list);
+	ip->page = page;
+}
+
 struct sspt_page *sspt_page_copy(const struct sspt_page *page)
 {
 	struct us_ip *ip, *new_ip;
@@ -68,13 +75,14 @@ struct sspt_page *sspt_page_copy(const struct sspt_page *page)
 				return NULL;
 			}
 
-			list_add(&new_ip->list, &new_page->ip_list);
+			sspt_list_add_ip(new_page, new_ip);
 		}
 
 		new_page->offset = page->offset;
 		new_page->install = 0;
 		spin_lock_init(&new_page->lock);
 		INIT_HLIST_NODE(&new_page->hlist);
+		new_page->file = NULL;
 	}
 
 	return new_page;
@@ -93,8 +101,7 @@ void sspt_add_ip(struct sspt_page *page, struct us_ip *ip)
 		}
 	}
 
-	INIT_LIST_HEAD(&ip->list);
-	list_add(&ip->list, &page->ip_list);
+	sspt_list_add_ip(page, ip);
 }
 
 struct us_ip *sspt_find_ip(struct sspt_page *page, unsigned long offset)

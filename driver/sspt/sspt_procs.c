@@ -81,6 +81,7 @@ void sspt_procs_free_all(void)
 static void sspt_procs_add_file(struct sspt_procs *procs, struct sspt_file *file)
 {
 	list_add(&file->list, &procs->file_list);
+	file->procs = procs;
 }
 
 struct sspt_file *sspt_procs_find_file_or_new(struct sspt_procs *procs,
