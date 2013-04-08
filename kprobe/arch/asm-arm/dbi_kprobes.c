@@ -1634,6 +1634,7 @@ int __init arch_init_kprobes (void)
 
 void __exit dbi_arch_exit_kprobes (void)
 {
+	dbi_unregister_kprobe(&trampoline_p, NULL);
 	undo_kpro(&undef_ho_u_t);
 	undo_kpro(&undef_ho_u);
 	undo_kpro(&undef_ho_k);
