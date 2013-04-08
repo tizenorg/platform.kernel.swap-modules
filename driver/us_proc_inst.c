@@ -665,7 +665,7 @@ static int register_us_page_probe(struct sspt_page *page,
 		struct task_struct *task)
 {
 	int err = 0;
-	struct us_ip *ip;
+	struct us_ip *ip, *n;
 
 	spin_lock(&page->lock);
 
@@ -679,20 +679,21 @@ static int register_us_page_probe(struct sspt_page *page,
 	sspt_page_assert_install(page);
 	sspt_set_all_ip_addr(page, file);
 
-	list_for_each_entry(ip, &page->ip_list, list) {
+	list_for_each_entry_safe(ip, n, &page->ip_list, list) {
 		err = register_usprobe_my(task, ip);
-		if (err != 0) {
-			//TODO: ERROR
-			goto unlock;
+		if (err == -ENOEXEC) {
+			list_del(&ip->list);
+			free_ip(ip);
+			continue;
+		} else if (err) {
+			EPRINTF("Failed to install probe");
 		}
 	}
-
-	sspt_page_installed(page);
-
 unlock:
+	sspt_page_installed(page);
 	spin_unlock(&page->lock);
 
-	return err;
+	return 0;
 }
 
 static int unregister_us_page_probe(struct task_struct *task,
