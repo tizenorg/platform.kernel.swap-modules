@@ -555,6 +555,7 @@ int arch_init_kprobes(void)
 
 void arch_exit_kprobes(void)
 {
+	dbi_unregister_kprobe(&trampoline_p, NULL);
 	swap_unregister_undef_hook(&undef_ho_k);
 }
 
