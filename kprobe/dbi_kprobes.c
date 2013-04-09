@@ -64,7 +64,7 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 
-struct hlist_head kprobe_insn_pages;
+struct slot_manager sm;
 
 DEFINE_PER_CPU(struct kprobe *, current_kprobe) = NULL;
 static DEFINE_PER_CPU(struct kprobe_ctlblk, kprobe_ctlblk);
@@ -78,6 +78,29 @@ static struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 
 atomic_t kprobe_count;
 EXPORT_SYMBOL_GPL(kprobe_count);
+
+static void *sm_alloc(struct slot_manager *sm)
+{
+	return kmalloc(PAGE_SIZE, GFP_ATOMIC);
+}
+
+static void sm_free(struct slot_manager *sm, void *ptr)
+{
+	kfree(ptr);
+}
+
+static void init_sm()
+{
+	sm.slot_size = KPROBES_TRAMP_LEN;
+	sm.alloc = sm_alloc;
+	sm.free = sm_free;
+	INIT_HLIST_NODE(&sm.page_list);
+}
+
+static void exit_sm()
+{
+	/* FIXME: free */
+}
 
 void kretprobe_assert(struct kretprobe_instance *ri, unsigned long orig_ret_address, unsigned long trampoline_address)
 {
@@ -449,7 +472,7 @@ EXPORT_SYMBOL_GPL(register_aggr_kprobe);
 static void remove_kprobe(struct kprobe *p)
 {
 	/* TODO: check boostable for x86 and MIPS */
-	free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
+	free_insn_slot(&sm, p->ainsn.insn);
 }
 
 int dbi_register_kprobe(struct kprobe *p)
@@ -489,7 +512,7 @@ int dbi_register_kprobe(struct kprobe *p)
 		goto out;
 	}
 
-	if ((ret = arch_prepare_kprobe(p, &kprobe_insn_pages)) != 0)
+	if ((ret = arch_prepare_kprobe(p, &sm)) != 0)
 		goto out;
 
 	DBPRINTF ("before out ret = 0x%x\n", ret);
@@ -863,6 +886,8 @@ static int __init init_kprobes(void)
 {
 	int i, err = 0;
 
+	init_sm();
+
 	/* FIXME allocate the probe table, currently defined statically */
 	/* initialize all list heads */
 	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
@@ -886,6 +911,7 @@ static int __init init_kprobes(void)
 static void __exit exit_kprobes(void)
 {
 	arch_exit_kprobes();
+	exit_sm();
 }
 
 module_init(init_kprobes);

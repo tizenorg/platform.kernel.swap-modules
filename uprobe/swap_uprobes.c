@@ -379,10 +379,10 @@ static void remove_uprobe(struct uprobe *up)
 	struct task_struct *task = up->task;
 
 #ifdef CONFIG_ARM
-	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
-	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
+	free_insn_slot(up->sm, p->ainsn.insn_arm);
+	free_insn_slot(up->sm, p->ainsn.insn_thumb);
 #else /* CONFIG_ARM */
-	free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn);
+	free_insn_slot(up->sm, p->ainsn.insn);
 #endif /* CONFIG_ARM */
 }
 

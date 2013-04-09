@@ -32,6 +32,7 @@
 struct uprobe {
 	struct kprobe kp;
 	struct task_struct *task;
+	struct slot_manager *sm;
 };
 
 typedef unsigned long (*uprobe_pre_entry_handler_t)(void *priv_arg, struct pt_regs * regs);

@@ -28,10 +28,13 @@
 #include <linux/types.h>
 #include "sspt_file.h"
 
+struct slot_manager;
+
 struct sspt_procs {
 	struct list_head list;
 	pid_t tgid;
 	struct dentry *dentry;
+	struct slot_manager *sm;
 	struct list_head file_list;
 };
 

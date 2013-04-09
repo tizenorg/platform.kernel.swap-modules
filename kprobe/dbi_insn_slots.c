@@ -42,24 +42,14 @@
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
  * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
- * 2012         Vyacheslav Cherkashin <v.cherkashin@samsung.com> new memory allocator for slots
+ * 2012-2013    Vyacheslav Cherkashin <v.cherkashin@samsung.com> new memory allocator for slots
  */
 
 #include "dbi_insn_slots.h"
-#include "dbi_kdebug.h"
-
-#include <linux/hash.h>
-#include <linux/mman.h>
-#include <linux/hugetlb.h>
-
+#include <linux/module.h>
+#include <linux/rculist.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
-#include <linux/module.h>
-
-
-extern unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
-                        unsigned long len, unsigned long prot,
-                        unsigned long flags, unsigned long pgoff);
 
 struct chunk {
 	unsigned long *data;
@@ -71,12 +61,10 @@ struct chunk {
 	unsigned long *index;
 };
 
-struct kprobe_insn_page
+struct fixed_alloc
 {
 	struct hlist_node hlist;
-
 	struct chunk chunk;
-	struct task_struct *task;
 };
 
 static void chunk_init(struct chunk *chunk, void *data, size_t size, size_t size_block)
@@ -146,160 +134,72 @@ static inline int chunk_free(struct chunk *chunk)
 	return (chunk->count_available == chunk->size);
 }
 
-static unsigned long alloc_user_pages(struct task_struct *task, unsigned long len, unsigned long prot, unsigned long flags, int atomic)
-{
-	unsigned long ret = 0;
-	struct task_struct *otask = current;
-	struct mm_struct *mm;
-
-	mm = atomic ? task->active_mm : get_task_mm (task);
-	if (mm) {
-		if (!atomic) {
-			if (!down_write_trylock(&mm->mmap_sem)) {
-				rcu_read_lock();
-
-				up_read(&mm->mmap_sem);
-				down_write(&mm->mmap_sem);
-
-				rcu_read_unlock();
-			}
-		}
-		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily
-		current_thread_info()->task = task;
-		ret = do_mmap_pgoff(NULL, 0, len, prot, flags, 0);
-		current_thread_info()->task = otask;
-		if (!atomic) {
-			downgrade_write (&mm->mmap_sem);
-			mmput(mm);
-		}
-	} else {
-		printk("proc %d has no mm", task->tgid);
-	}
-
-	return ret;
-}
-
-static void *page_new(struct task_struct *task, int atomic)
-{
-	if (task) {
-		return (void *)alloc_user_pages(task, PAGE_SIZE,
-				PROT_EXEC|PROT_READ|PROT_WRITE,
-				MAP_ANONYMOUS|MAP_PRIVATE/*MAP_SHARED*/, atomic);
-	} else {
-		return kmalloc(PAGE_SIZE, GFP_ATOMIC);
-	}
-}
-
-static void page_free(void *data, struct task_struct *task)
-{
-	if (task) {
-		//E. G.: This code provides kernel dump because of rescheduling while atomic.
-		//As workaround, this code was commented. In this case we will have memory leaks
-		//for instrumented process, but instrumentation process should functionate correctly.
-		//Planned that good solution for this problem will be done during redesigning KProbe
-		//for improving supportability and performance.
-#if 0
-		mm = get_task_mm (task);
-		if (mm) {
-			down_write (&mm->mmap_sem);
-			do_munmap(mm, (unsigned long)(data), PAGE_SIZE);
-			up_write (&mm->mmap_sem);
-			mmput(mm);
-		}
-#endif
-		// FIXME: implement the removal of memory for task
-	} else {
-		kfree(data);
-	}
-}
-
-static inline size_t slot_size(struct task_struct *task)
-{
-	if (task) {
-		return UPROBES_TRAMP_LEN;
-	} else {
-		return KPROBES_TRAMP_LEN;
-	}
-}
-
-static struct kprobe_insn_page *kip_new(struct task_struct *task, int atomic)
+static struct fixed_alloc *create_fixed_alloc(struct slot_manager *sm)
 {
 	void *data;
-	struct kprobe_insn_page *kip;
+	struct fixed_alloc *fa;
 
-	kip = kmalloc(sizeof(*kip), GFP_ATOMIC);
-	if (kip == NULL) {
+	fa = kmalloc(sizeof(*fa), GFP_ATOMIC);
+	if (fa == NULL) {
 		return NULL;
 	}
 
-	data = page_new(task, atomic);
+	data = sm->alloc(sm);
 	if(data == NULL) {
-		kfree(kip);
+		kfree(fa);
 		return NULL;
 	}
 
-	chunk_init(&kip->chunk, data, PAGE_SIZE/sizeof(unsigned long), slot_size(task));
-	kip->task = task;
+	chunk_init(&fa->chunk, data, PAGE_SIZE/sizeof(unsigned long), sm->slot_size);
 
-	return kip;
+	return fa;
 }
 
-static void kip_free(struct kprobe_insn_page * kip)
+static void free_fixed_alloc(struct slot_manager *sm, struct fixed_alloc *fa)
 {
-	chunk_uninit(&kip->chunk);
-	page_free(kip->chunk.data, kip->task);
-	kfree(kip);
+	chunk_uninit(&fa->chunk);
+	sm->free(sm, fa->chunk.data);
+	kfree(fa);
 }
 
-/**
- * get_us_insn_slot() - Find a slot on an executable page for an instruction.
- * We allocate an executable page if there's no room on existing ones.
- */
-kprobe_opcode_t *get_insn_slot(struct task_struct *task, struct hlist_head *page_list, int atomic)
+
+void *alloc_insn_slot(struct slot_manager *sm)
 {
-	kprobe_opcode_t * free_slot;
-	struct kprobe_insn_page *kip;
+	void *free_slot;
+	struct fixed_alloc *fa;
 	struct hlist_node *pos;
 
-	hlist_for_each_entry_rcu(kip, pos, page_list, hlist) {
-		if (!task || (kip->task->tgid == task->tgid)) {
-			free_slot = chunk_allocate(&kip->chunk, slot_size(task));
-			if (free_slot == NULL) {
-				break;
-			}
-
+	hlist_for_each_entry_rcu(fa, pos, &sm->page_list, hlist) {
+		free_slot = chunk_allocate(&fa->chunk, sm->slot_size);
+		if (free_slot)
 			return free_slot;
-		}
 	}
 
-	kip = kip_new(task, atomic);
-	if(kip == NULL)
+	fa = create_fixed_alloc(sm);
+	if(fa == NULL)
 		return NULL;
 
-	INIT_HLIST_NODE (&kip->hlist);
-	hlist_add_head_rcu(&kip->hlist, page_list);
+	INIT_HLIST_NODE(&fa->hlist);
+	hlist_add_head_rcu(&fa->hlist, &sm->page_list);
 
-	return chunk_allocate(&kip->chunk, slot_size(task));
+	return chunk_allocate(&fa->chunk, sm->slot_size);
 }
-EXPORT_SYMBOL_GPL(get_insn_slot);
+EXPORT_SYMBOL_GPL(alloc_insn_slot);
 
-void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot)
+void free_insn_slot(struct slot_manager *sm, void *slot)
 {
-	struct kprobe_insn_page *kip;
+	struct fixed_alloc *fa;
 	struct hlist_node *pos;
 
-	hlist_for_each_entry_rcu(kip, pos, page_list, hlist) {
-		if (!(!task || (kip->task->tgid == task->tgid)))
+	hlist_for_each_entry_rcu(fa, pos, &sm->page_list, hlist) {
+		if (!chunk_check_ptr(&fa->chunk, slot, PAGE_SIZE))
 			continue;
 
-		if (!chunk_check_ptr(&kip->chunk, slot, PAGE_SIZE))
-			continue;
+		chunk_deallocate(&fa->chunk, slot, sm->slot_size);
 
-		chunk_deallocate(&kip->chunk, slot, slot_size(task));
-
-		if (chunk_free(&kip->chunk)) {
-			hlist_del_rcu(&kip->hlist);
-			kip_free(kip);
+		if (chunk_free(&fa->chunk)) {
+			hlist_del_rcu(&fa->hlist);
+			free_fixed_alloc(sm, fa);
 		}
 
 		return;

@@ -1,5 +1,5 @@
-#ifndef _SRC_INSNS_SLOTS_H
-#define _SRC_INSNS_SLOTS_H
+#ifndef _DBI_INSNS_SLOTS_H
+#define _DBI_INSNS_SLOTS_H
 
 /*
  *  Kernel Probes (KProbes)
@@ -45,13 +45,20 @@
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
  *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
  * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
- *
+ * 2012-2013    Vyacheslav Cherkashin <v.cherkashin@samsung.com> new memory allocator for slots
  */
 
-#include "dbi_kprobes.h"
+#include <linux/types.h>
 
+struct slot_manager {
+	unsigned long slot_size;
+	void *(*alloc)(struct slot_manager *sm);
+	void (*free)(struct slot_manager *sm, void *ptr);
+	struct hlist_head page_list;
+	void *data;
+};
 
-kprobe_opcode_t *get_insn_slot(struct task_struct *task, struct hlist_head *page_list, int atomic);
-void free_insn_slot(struct hlist_head *page_list, struct task_struct *task, kprobe_opcode_t *slot);
+void *alloc_insn_slot(struct slot_manager *sm);
+void free_insn_slot(struct slot_manager *sm, void *slot);
 
-#endif /*  _SRC_INSNS_SLOTS_H */
+#endif /* _DBI_INSNS_SLOTS_H */

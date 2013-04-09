@@ -36,6 +36,7 @@ struct sspt_procs *sspt_procs_create(struct dentry* dentry, pid_t tgid)
 		INIT_LIST_HEAD(&procs->list);
 		procs->tgid = tgid;
 		procs->dentry = dentry;
+		procs->sm = NULL;
 		INIT_LIST_HEAD(&procs->file_list);
 	}
 

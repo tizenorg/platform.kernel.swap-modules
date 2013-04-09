@@ -24,6 +24,8 @@
 #include "sspt/sspt.h"
 #include "java_inst.h"
 
+#include <dbi_insn_slots.h>
+
 #define mm_read_lock(task, mm, atomic, lock) 			\
 	mm = atomic ? task->active_mm : get_task_mm(task); 	\
 	if (mm == NULL) {					\
@@ -95,6 +97,87 @@ static inline int is_us_instrumentation(void)
 	return !!us_proc_info.path;
 }
 
+static unsigned long alloc_user_pages(struct task_struct *task, unsigned long len, unsigned long prot, unsigned long flags)
+{
+	unsigned long ret = 0;
+	struct task_struct *otask = current;
+	struct mm_struct *mm;
+	int atomic = in_atomic();
+
+	mm = atomic ? task->active_mm : get_task_mm (task);
+	if (mm) {
+		if (!atomic) {
+			if (!down_write_trylock(&mm->mmap_sem)) {
+				rcu_read_lock();
+
+				up_read(&mm->mmap_sem);
+				down_write(&mm->mmap_sem);
+
+				rcu_read_unlock();
+			}
+		}
+		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily
+		current_thread_info()->task = task;
+		ret = do_mmap_pgoff(NULL, 0, len, prot, flags, 0);
+		current_thread_info()->task = otask;
+		if (!atomic) {
+			downgrade_write (&mm->mmap_sem);
+			mmput(mm);
+		}
+	} else {
+		printk("proc %d has no mm", task->tgid);
+	}
+
+	return ret;
+}
+
+static void *sm_alloc_us(struct slot_manager *sm)
+{
+	struct task_struct *task = sm->data;
+
+	return (void *)alloc_user_pages(task, PAGE_SIZE,
+					PROT_EXEC|PROT_READ|PROT_WRITE,
+					MAP_ANONYMOUS|MAP_PRIVATE);
+}
+
+static void sm_free_us(struct slot_manager *sm, void *ptr)
+{
+	struct task_struct *task = sm->data;
+
+	/*
+	 * E. G.: This code provides kernel dump because of rescheduling while atomic.
+	 * As workaround, this code was commented. In this case we will have memory leaks
+	 * for instrumented process, but instrumentation process should functionate correctly.
+	 * Planned that good solution for this problem will be done during redesigning KProbe
+	 * for improving supportability and performance.
+	 */
+#if 0
+	mm = get_task_mm(task);
+	if (mm) {
+		down_write(&mm->mmap_sem);
+		do_munmap(mm, (unsigned long)(ptr), PAGE_SIZE);
+		up_write(&mm->mmap_sem);
+		mmput(mm);
+	}
+#endif
+	/* FIXME: implement the removal of memory for task */
+}
+
+struct slot_manager *create_sm_us(struct task_struct *task)
+{
+	struct slot_manager *sm = kmalloc(sizeof(*sm), GFP_ATOMIC);
+	sm->slot_size = UPROBES_TRAMP_LEN;
+	sm->alloc = sm_alloc_us;
+	sm->free = sm_free_us;
+	INIT_HLIST_NODE(&sm->page_list);
+	sm->data = task;
+}
+
+void free_sm_us(struct slot_manager *sm)
+{
+	/* FIXME: free */
+}
+
 static struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
 {
 	struct sspt_procs *procs, *tmp;
@@ -127,6 +210,7 @@ static struct sspt_procs *get_proc_probes_by_task_or_new(struct task_struct *tas
 	struct sspt_procs *procs = get_proc_probes_by_task(task);
 	if (procs == NULL) {
 		procs = sspt_procs_copy(us_proc_info.pp, task);
+		procs->sm = create_sm_us(task);
 		add_proc_probes(task, procs);
 	}
 
@@ -577,6 +661,7 @@ int inst_usr_space_proc (void)
 		{
 			DPRINTF("task found. installing probes");
 			us_proc_info.tgid = task->pid;
+			us_proc_info.pp->sm = create_sm_us(task);
 			install_proc_probes(task, us_proc_info.pp, 0);
 			put_task_struct (task);
 		}
@@ -934,6 +1019,7 @@ void do_page_fault_ret_pre_code (void)
 			if (tgid) {
 				us_proc_info.tgid = gl_nNotifyTgid = tgid;
 
+				us_proc_info.pp->sm = create_sm_us(task);
 				/* install probes in already mapped memory */
 				install_proc_probes(task, us_proc_info.pp, 1);
 			}
@@ -1228,6 +1314,7 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 
 	ip->jprobe.priv_arg = ip;
 	ip->jprobe.up.task = task;
+	ip->jprobe.up.sm = ip->page->file->procs->sm;
 	ret = dbi_register_ujprobe(&ip->jprobe, atomic);
 	if (ret) {
 		if (ret == -ENOEXEC) {
@@ -1248,6 +1335,7 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 
 		ip->retprobe.priv_arg = ip;
 		ip->retprobe.up.task = task;
+		ip->retprobe.up.sm = ip->page->file->procs->sm;
 		ret = dbi_register_uretprobe(&ip->retprobe, atomic);
 		if (ret) {
 			EPRINTF ("dbi_register_uretprobe() failure %d", ret);

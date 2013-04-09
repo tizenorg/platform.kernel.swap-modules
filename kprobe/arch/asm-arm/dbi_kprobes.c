@@ -162,7 +162,7 @@ int arch_check_insn_arm(struct arch_specific_insn *ainsn)
 }
 EXPORT_SYMBOL_GPL(arch_check_insn_arm);
 
-int arch_prepare_kprobe(struct kprobe *p, struct hlist_head *page_list)
+int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 {
 	kprobe_opcode_t insns[KPROBES_TRAMP_LEN];
 	int uregs, pc_dep, ret = 0;
@@ -170,7 +170,7 @@ int arch_prepare_kprobe(struct kprobe *p, struct hlist_head *page_list)
 	struct arch_specific_insn ainsn;
 
 	/* insn: must be on special executable page on i386. */
-	p->ainsn.insn = get_insn_slot(NULL, page_list, 0);
+	p->ainsn.insn = alloc_insn_slot(sm);
 	if (!p->ainsn.insn)
 		return -ENOMEM;
 
@@ -219,14 +219,14 @@ int arch_prepare_kprobe(struct kprobe *p, struct hlist_head *page_list)
 
 		// check instructions that can write result to SP andu uses PC
 		if (pc_dep  && (ARM_INSN_REG_RD(ainsn.insn[0]) == 13)) {
-			free_insn_slot(page_list, NULL, p->ainsn.insn);
+			free_insn_slot(sm, p->ainsn.insn);
 			ret = -EFAULT;
 		} else {
 			if (uregs && pc_dep) {
 				memcpy(insns, pc_dep_insn_execbuf, sizeof(insns));
 				if (prep_pc_dep_insn_execbuf(insns, insn[0], uregs) != 0) {
 					DBPRINTF ("failed to prepare exec buffer for insn %lx!", insn[0]);
-					free_insn_slot(page_list, NULL, p->ainsn.insn);
+					free_insn_slot(sm, p->ainsn.insn);
 					return -EINVAL;
 				}
 				insns[6] = (kprobe_opcode_t)(p->addr + 2);
@@ -246,7 +246,7 @@ int arch_prepare_kprobe(struct kprobe *p, struct hlist_head *page_list)
 #endif
 		}
 	} else {
-		free_insn_slot(page_list, NULL, p->ainsn.insn);
+		free_insn_slot(sm, p->ainsn.insn);
 		printk("arch_prepare_kprobe: instruction 0x%lx not instrumentation, addr=0x%p\n", insn[0], p->addr);
 	}
 
