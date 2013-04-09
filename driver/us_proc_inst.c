@@ -67,13 +67,6 @@ int us_proc_probes;
 
 LIST_HEAD(proc_probes_list);
 
-
-#ifdef ANDROID_APP
-unsigned long android_app_vma_start = 0;
-unsigned long android_app_vma_end = 0;
-struct dentry *app_process_dentry = NULL;
-#endif /* ANDROID_APP */
-
 #define print_event(fmt, args...) 						\
 { 										\
 	char *buf[1024];							\
@@ -212,30 +205,6 @@ static struct sspt_procs *get_proc_probes_by_task_or_new(struct task_struct *tas
 	return procs;
 }
 
-#ifdef ANDROID_APP
-static int is_android_app_with_dentry(struct vm_area_struct *vma,
-									  struct dentry *dentry)
-{
-	struct vm_area_struct *android_app_vma = NULL;
-
-	if (vma->vm_file->f_dentry == app_process_dentry) {
-		android_app_vma = vma;
-		while (android_app_vma) {
-			if (android_app_vma->vm_file) {
-				if (android_app_vma->vm_file->f_dentry == dentry) {
-					android_app_vma_start = android_app_vma->vm_start;
-					android_app_vma_end = android_app_vma->vm_end;
-					return 1;
-				}
-			}
-			android_app_vma = android_app_vma->vm_next;
-		}
-	}
-
-	return 0;
-}
-#endif /* ANDROID_APP */
-
 struct dentry *dentry_by_path(const char *path)
 {
 	struct dentry *dentry;
@@ -310,14 +279,6 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 					}
 						//break;
 				}
-#ifdef ANDROID_APP
-				if (!*p_task) {
-					if (is_android_app_with_dentry(vma, dentry)) {
-						*p_task = task;
-						get_task_struct(task);
-					}
-				}
-#endif /* ANDROID_APP */
 			}
 			vma = vma->vm_next;
 		}
@@ -570,16 +531,6 @@ int inst_usr_space_proc (void)
 	}
 
 	DPRINTF("User space instr");
-
-#ifdef ANDROID_APP
-	app_process_dentry = dentry_by_path("/system/bin/app_process");
-	if (app_process_dentry == NULL) {
-		return -EINVAL;
-	}
-
-	android_app_vma_start = 0;
-	android_app_vma_end = 0;
-#endif /* ANDROID_APP */
 
 	for (i = 0; i < us_proc_info.libs_count; i++) {
 		us_proc_info.p_libs[i].loaded = 0;
@@ -909,11 +860,6 @@ static pid_t find_proc_by_task(const struct task_struct *task, struct dentry *de
 			if (vma->vm_file->f_dentry == dentry) {
 				return task->tgid;
 			}
-#ifdef ANDROID_APP
-			if (is_android_app_with_dentry(vma, dentry)) {
-				return task->tgid;
-			}
-#endif /* ANDROID_APP */
 		}
 	}
 

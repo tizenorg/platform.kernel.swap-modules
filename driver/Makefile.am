@@ -17,10 +17,6 @@ else
 dev_path = @TARGET_DEVICE_PATH@
 endif
 
-if ANDROID_APP
-android_app_opt = -DANDROID_APP
-endif
-
 board_opt = -DBOARD_@BOARD@
 
 target_kernel_src = @KERNEL@
