@@ -898,7 +898,7 @@ static int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm
 			//cond_resched();
 
 			DBPRINTF ("pages = %p vma = %p\n", pages, vma);
-			while (!(page = follow_page_uprobe(vma, start, foll_flags))) {
+			while (!(page = follow_page(vma, start, foll_flags))) {
 				int ret;
 				ret = handle_mm_fault(mm, vma, start,
 						foll_flags & FOLL_WRITE);
