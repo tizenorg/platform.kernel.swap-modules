@@ -186,10 +186,12 @@ struct kretprobe
 {
 	struct kprobe kp;
 	kretprobe_handler_t handler;
+	kretprobe_handler_t entry_handler;
 	void *priv_arg;
 	int maxactive;
 	int nmissed;
 	int disarm;
+	size_t data_size;
 	struct hlist_head free_instances;
 	struct hlist_head used_instances;
 };
@@ -203,6 +205,7 @@ struct kretprobe_instance
 	kprobe_opcode_t *ret_addr;
 	kprobe_opcode_t *sp;
 	struct task_struct *task;
+	char data[0];
 };
 
 

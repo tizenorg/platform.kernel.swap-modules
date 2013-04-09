@@ -488,6 +488,11 @@ void arch_prepare_kretprobe(struct kretprobe *rp, struct pt_regs *regs)
 	if ((ri = get_free_rp_inst(rp)) != NULL) {
 		ri->rp = rp;
 		ri->task = current;
+
+		if (rp->entry_handler) {
+			rp->entry_handler(ri, regs, ri->rp->priv_arg);
+		}
+
 		ri->ret_addr = (kprobe_opcode_t *)regs->uregs[14];
 		ri->sp = (kprobe_opcode_t *)regs->ARM_sp; //uregs[13];
 

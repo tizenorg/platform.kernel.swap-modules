@@ -613,6 +613,7 @@ int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
 	spin_lock_irqsave(&kretprobe_lock, flags);
 	if (!rp->disarm)
 		arch_prepare_kretprobe(rp, regs);
+
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 	DBPRINTF ("END\n");
 	return 0;
@@ -645,7 +646,7 @@ int alloc_nodes_kretprobe(struct kretprobe *rp)
 	}
 
 	for (i = 0; i < alloc_nodes; i++) {
-		inst = kmalloc(sizeof(struct kretprobe_instance), GFP_ATOMIC);
+		inst = kmalloc(sizeof(inst) + rp->data_size, GFP_ATOMIC);
 		if (inst == NULL) {
 			free_rp_inst(rp);
 			return -ENOMEM;
@@ -689,7 +690,7 @@ int dbi_register_kretprobe(struct kretprobe *rp)
 	INIT_HLIST_HEAD(&rp->used_instances);
 	INIT_HLIST_HEAD(&rp->free_instances);
 	for (i = 0; i < rp->maxactive; i++) {
-		inst = kmalloc(sizeof(struct kretprobe_instance), GFP_KERNEL);
+		inst = kmalloc(sizeof(*inst) + rp->data_size, GFP_KERNEL);
 		if (inst == NULL) {
 			free_rp_inst(rp);
 			return -ENOMEM;
