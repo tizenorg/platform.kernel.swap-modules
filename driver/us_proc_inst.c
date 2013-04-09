@@ -22,7 +22,6 @@
 #include "../uprobe/swap_uprobes.h"
 
 #include "sspt/sspt.h"
-#include "java_inst.h"
 
 #include <dbi_insn_slots.h>
 
@@ -234,13 +233,9 @@ struct dentry *dentry_by_path(const char *path)
 
 static int check_vma(struct vm_area_struct *vma)
 {
-#ifndef __ANDROID
 	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
 			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
 			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
-#else // __ANDROID
-	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC));
-#endif // __ANDROID
 }
 
 static int find_task_by_path (const char *path, struct task_struct **p_task, struct list_head *tids)
@@ -1113,14 +1108,6 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 {
 	struct us_ip *ip = __get_cpu_var(gpCurIp);
 	unsigned long addr = (unsigned long)ip->jprobe.up.kp.addr;
-
-#ifdef __ANDROID
-	struct pt_regs *regs = __get_cpu_var(gpUserRegs);
-	if (is_java_inst_enabled() && handle_java_event(regs)) {
-		return;
-	}
-#endif /* __ANDROID */
-
 
 #if defined(CONFIG_ARM)
 	if (ip->offset & 0x01)

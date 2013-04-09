@@ -1,8 +1,3 @@
-if ANDROID
-android_opt = -D__ANDROID
-android = yes
-endif
-
 if SPARSE
 sparse_output = C=2
 endif

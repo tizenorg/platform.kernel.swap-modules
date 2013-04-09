@@ -2,5 +2,5 @@ EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_driver.o
 swap_driver-y := error_storage.o device_driver.o ec.o legacy.o module.o probes.o \
-                 probes_manager.o storage.o us_proc_inst.o  java_inst.o \
+                 probes_manager.o storage.o us_proc_inst.o \
                  sspt/ip.o sspt/sspt_page.o sspt/sspt_file.o sspt/sspt_procs.o
