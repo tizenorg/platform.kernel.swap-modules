@@ -74,11 +74,6 @@ unsigned long android_app_vma_end = 0;
 struct dentry *app_process_dentry = NULL;
 #endif /* ANDROID_APP */
 
-#ifdef SLP_APP
-static struct dentry *launchpad_daemon_dentry = NULL;
-EXPORT_SYMBOL_GPL(launchpad_daemon_dentry);
-#endif /* SLP_APP */
-
 #define print_event(fmt, args...) 						\
 { 										\
 	char *buf[1024];							\
@@ -217,29 +212,6 @@ static struct sspt_procs *get_proc_probes_by_task_or_new(struct task_struct *tas
 	return procs;
 }
 
-#ifdef SLP_APP
-static int is_slp_app_with_dentry(struct vm_area_struct *vma,
-								  struct dentry *dentry)
-{
-	struct vm_area_struct *slp_app_vma = NULL;
-
-	if (vma->vm_file->f_dentry == launchpad_daemon_dentry) {
-		slp_app_vma = vma;
-		while (slp_app_vma) {
-			if (slp_app_vma->vm_file) {
-				if (slp_app_vma->vm_file->f_dentry == dentry &&
-					slp_app_vma->vm_pgoff == 0) {
-					return 1;
-				}
-			}
-			slp_app_vma = slp_app_vma->vm_next;
-		}
-	}
-
-	return 0;
-}
-#endif /* SLP_APP */
-
 #ifdef ANDROID_APP
 static int is_android_app_with_dentry(struct vm_area_struct *vma,
 									  struct dentry *dentry)
@@ -338,14 +310,6 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 					}
 						//break;
 				}
-#ifdef SLP_APP
-				if (!*p_task) {
-					if (is_slp_app_with_dentry(vma, dentry)) {
-						*p_task = task;
-						get_task_struct(task);
-					}
-				}
-#endif /* SLP_APP */
 #ifdef ANDROID_APP
 				if (!*p_task) {
 					if (is_android_app_with_dentry(vma, dentry)) {
@@ -606,14 +570,6 @@ int inst_usr_space_proc (void)
 	}
 
 	DPRINTF("User space instr");
-
-#ifdef SLP_APP
-	launchpad_daemon_dentry = dentry_by_path("/usr/bin/launchpad_preloading_preinitializing_daemon");
-	if (launchpad_daemon_dentry == NULL) {
-		return -EINVAL;
-	}
-
-#endif /* SLP_APP */
 
 #ifdef ANDROID_APP
 	app_process_dentry = dentry_by_path("/system/bin/app_process");
@@ -953,11 +909,6 @@ static pid_t find_proc_by_task(const struct task_struct *task, struct dentry *de
 			if (vma->vm_file->f_dentry == dentry) {
 				return task->tgid;
 			}
-#ifdef SLP_APP
-			if (is_slp_app_with_dentry(vma, dentry)) {
-				return task->tgid;
-			}
-#endif /* SLP_APP */
 #ifdef ANDROID_APP
 			if (is_android_app_with_dentry(vma, dentry)) {
 				return task->tgid;

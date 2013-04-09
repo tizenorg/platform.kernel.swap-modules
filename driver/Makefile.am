@@ -17,10 +17,6 @@ else
 dev_path = @TARGET_DEVICE_PATH@
 endif
 
-if SLP_APP
-slp_opt = -DSLP_APP
-endif
-
 if ANDROID_APP
 android_app_opt = -DANDROID_APP
 endif
