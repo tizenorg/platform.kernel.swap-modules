@@ -190,7 +190,6 @@ struct kretprobe
 	void *priv_arg;
 	int maxactive;
 	int nmissed;
-	int disarm;
 	size_t data_size;
 	struct hlist_head free_instances;
 	struct hlist_head used_instances;

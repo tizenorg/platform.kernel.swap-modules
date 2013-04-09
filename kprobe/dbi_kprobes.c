@@ -611,8 +611,8 @@ int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
 
 	/*TODO: consider to only swap the RA after the last pre_handler fired */
 	spin_lock_irqsave(&kretprobe_lock, flags);
-	if (!rp->disarm)
-		arch_prepare_kretprobe(rp, regs);
+
+	arch_prepare_kretprobe(rp, regs);
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 	DBPRINTF ("END\n");
@@ -670,8 +670,6 @@ int dbi_register_kretprobe(struct kretprobe *rp)
 	rp->kp.post_handler = NULL;
 	rp->kp.fault_handler = NULL;
 	rp->kp.break_handler = NULL;
-
-	rp->disarm = 0;
 
 	/* Pre-allocate memory for max kretprobe instances */
 	if ((unsigned long)rp->kp.addr == sched_addr) {
