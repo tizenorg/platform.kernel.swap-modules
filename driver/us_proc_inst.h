@@ -61,31 +61,6 @@ struct pt_regs;
 struct us_proc_ip_t;
 struct us_ip;
 
-/* Returns stack_size */
-extern unsigned long get_stack_size(struct task_struct *task,
-		struct pt_regs *regs);
-
-/* Copies stack (or part of the stack) to the buffer */
-extern unsigned long get_stack(struct task_struct *task, struct pt_regs *regs,
-		char *buf, unsigned long sz);
-
-/* Dumps given buffer to the trace */
-extern int dump_to_trace(probe_id_t probe_id, void *addr, const char *buf,
-		unsigned long sz);
-
-/* Dumps stack to the trace */
-extern int dump_backtrace(probe_id_t probe_id, struct task_struct *task,
-		void *addr, struct pt_regs *regs, unsigned long sz);
-
-/* Finds task's uretprobe_instance object */
-struct uretprobe_instance *find_ri(struct task_struct *task, struct us_ip *ip);
-
-/* Gets current function return address */
-extern unsigned long get_ret_addr(struct task_struct *task, struct us_ip *ip);
-
-/* Gets current function entry stack pointer */
-extern unsigned long get_entry_sp(struct task_struct *task, struct us_ip *ip);
-
 extern unsigned long imi_sum_time;
 extern unsigned long imi_sum_hit;
 
@@ -93,13 +68,6 @@ extern struct list_head proc_probes_list;
 
 int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
 int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
-
-#define user_backtrace(size) \
-	do { \
-		us_proc_ip_t *ip = __get_cpu_var(gpCurIp); \
-		struct pt_regs *regs = __get_cpu_var(gpUserRegs); \
-		dump_backtrace(US_PROBE_ID, current, ip->jprobe.up.kp.addr, regs, size); \
-	} while (0)
 
 struct dentry *dentry_by_path(const char *path);
 int install_otg_ip(unsigned long addr,
