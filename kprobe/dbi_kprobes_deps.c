@@ -381,6 +381,13 @@ static inline int stack_guard_page(struct vm_area_struct *vma, unsigned long add
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 
+static inline struct page *follow_page_uprobe(struct vm_area_struct *vma,
+        unsigned long address, unsigned int foll_flags)
+{
+    unsigned int unused_page_mask;
+    return follow_page_mask(vma, address, foll_flags, &unused_page_mask);
+}
+
 long __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, unsigned long nr_pages,
 		unsigned int gup_flags, struct page **pages,
@@ -787,13 +794,6 @@ next_page:
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0) */
 
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-
-static inline struct page *follow_page_uprobe(struct vm_area_struct *vma,
-        unsigned long address, unsigned int foll_flags)
-{
-    unsigned int unused_page_mask;
-    return follow_page_mask(vma, address, foll_flags, &unused_page_mask);
-}
 
 static int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, int len, int flags,
