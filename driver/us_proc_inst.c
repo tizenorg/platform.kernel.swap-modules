@@ -665,7 +665,7 @@ static int register_us_page_probe(struct sspt_page *page,
 		struct task_struct *task)
 {
 	int err = 0;
-	struct us_ip *ip;
+	struct us_ip *ip, *n;
 
 	spin_lock(&page->lock);
 
@@ -679,20 +679,21 @@ static int register_us_page_probe(struct sspt_page *page,
 	sspt_page_assert_install(page);
 	sspt_set_all_ip_addr(page, file);
 
-	list_for_each_entry(ip, &page->ip_list, list) {
+	list_for_each_entry_safe(ip, n, &page->ip_list, list) {
 		err = register_usprobe_my(task, ip);
-		if (err != 0) {
-			//TODO: ERROR
-			goto unlock;
+		if (err == -ENOEXEC) {
+			list_del(&ip->list);
+			free_ip(ip);
+			continue;
+		} else if (err) {
+			EPRINTF("Failed to install probe");
 		}
 	}
-
-	sspt_page_installed(page);
-
 unlock:
+	sspt_page_installed(page);
 	spin_unlock(&page->lock);
 
-	return err;
+	return 0;
 }
 
 static int unregister_us_page_probe(struct task_struct *task,
@@ -762,9 +763,7 @@ static void install_file_probes(struct task_struct *task, struct mm_struct *mm, 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
 		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
-			if (page_present(mm, page->offset)) {
-				register_us_page_probe(page, file, task);
-			}
+			register_us_page_probe(page, file, task);
 		}
 	}
 }
@@ -1232,6 +1231,11 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 	ip->jprobe.priv_arg = ip;
 	ret = dbi_register_ujprobe(task, &ip->jprobe, atomic);
 	if (ret) {
+		if (ret == -ENOEXEC) {
+			pack_event_info(ERR_MSG_ID, RECORD_ENTRY, "dp",
+					0x1,
+					ip->jprobe.kp.addr);
+		}
 		DPRINTF ("dbi_register_ujprobe() failure %d", ret);
 		return ret;
 	}

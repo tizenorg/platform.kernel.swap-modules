@@ -43,28 +43,44 @@ static unsigned int get_max_error_buffer_size(void)
 	return (unsigned int)MAX_ERROR_BUF_PATH;
 }
 
-int update_errno_buffer(const char *buffer)
+int update_errno_buffer(char *buffer, const unsigned int type)
 {
         unsigned int size;
+	char* tmp_buffer;
+	int return_value = 0;
 
         if (last_error == NULL) {
                 if (create_errno_buffer() != 0)
                         return -1;
         }
 
-        size = strlen(buffer);
+	if (buffer == NULL) {
+		if (type == IS_LIB) {
+			tmp_buffer = "Unknown lib path. Zero pointer";
+		} else if(type == IS_APP) {
+			tmp_buffer = "Unknown app path. Zero pointer";
+		} else {
+			tmp_buffer = "Undefined instrumentation type. Zero pointer";
+		}
+
+		return_value = -1;
+	} else {
+		tmp_buffer = buffer;
+	}
+
+        size = strlen(tmp_buffer);
 
         if (last_error->size + size + 2 >= get_max_error_buffer_size()) {
                 return -1;
 	}
 
-        strncat((char*)(last_error->buffer), buffer, size);
+        strncat((char*)(last_error->buffer), tmp_buffer, size);
 
         last_error->size += size + 1;
         last_error->buffer[last_error->size - 1] = ',';
         last_error->buffer[last_error->size] = '\0';
 
-        return 0;
+        return return_value;
 }
 
 static void delete_errno_buffer(void)
