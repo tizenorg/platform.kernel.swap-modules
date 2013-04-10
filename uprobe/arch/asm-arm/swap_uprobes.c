@@ -682,7 +682,7 @@ disarm:
 	       __FILE__, __LINE__, p->opcode, p->addr);
 
 	/* Test case when we do our actions on already running application */
-	disarm_uprobe(kp2up(p));
+	disarm_uprobe(p, kp2up(p)->task);
 	return -1;
 }
 

@@ -248,13 +248,13 @@ static void arm_uprobe(struct uprobe *p)
 	}
 }
 
-void disarm_uprobe(struct uprobe *p)
+void disarm_uprobe(struct kprobe *p, struct task_struct *task)
 {
-	int ret = write_proc_vm_atomic(p->task, (unsigned long)p->kp.addr,
-			               &p->kp.opcode, sizeof(p->kp.opcode));
+	int ret = write_proc_vm_atomic(task, (unsigned long)p->addr,
+			               &p->opcode, sizeof(p->opcode));
 	if (!ret) {
 		panic("disarm_uprobe: failed to write memory "
-		      "tgid=%u, addr=%p!\n", p->task->tgid, p->kp.addr);
+		      "tgid=%u, addr=%p!\n", task->tgid, p->addr);
 	}
 }
 EXPORT_SYMBOL_GPL(disarm_uprobe);
@@ -596,7 +596,7 @@ valid_p:
 	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_uhandler) &&
 	    (p->list.next == &old_p->list) && (p->list.prev == &old_p->list))) {
 		/* Only probe on the hash list */
-		disarm_uprobe(up);
+		disarm_uprobe(&up->kp, up->task);
 		hlist_del_rcu(&old_p->hlist);
 		cleanup_p = 1;
 	} else {

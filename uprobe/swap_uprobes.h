@@ -105,7 +105,7 @@ static inline struct kprobe *up2kp(struct uprobe *p)
 	return &p->kp;
 }
 
-void disarm_uprobe(struct uprobe *p);
+void disarm_uprobe(struct kprobe *p, struct task_struct *task);
 
 int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs);
 

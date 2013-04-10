@@ -108,7 +108,7 @@ static inline int unregister_usprobe_my(struct task_struct *task, struct us_ip *
 		err = unregister_usprobe(task, ip, 1);
 		break;
 	case US_DISARM:
-		disarm_uprobe(&ip->jprobe.up);
+		disarm_uprobe(&ip->jprobe.up.kp, task);
 		break;
 	default:
 		panic("incorrect value flag=%d", flag);
