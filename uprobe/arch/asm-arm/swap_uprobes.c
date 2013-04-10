@@ -594,8 +594,8 @@ int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list, int ato
 	return ret;
 }
 
-void arch_prepare_uretprobe_hl(struct uretprobe_instance *ri,
-			       struct pt_regs *regs)
+void arch_prepare_uretprobe(struct uretprobe_instance *ri,
+			    struct pt_regs *regs)
 {
 	ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
 	ri->sp = (kprobe_opcode_t *)regs->ARM_sp;

@@ -741,7 +741,7 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 		ri->rp = rp;
 		ri->task = current;
 
-		arch_prepare_uretprobe_hl(ri, regs);
+		arch_prepare_uretprobe(ri, regs);
 
 		add_urp_inst(ri);
 	} else {
