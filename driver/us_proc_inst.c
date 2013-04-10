@@ -48,15 +48,6 @@
 		mmput(mm);					\
 	}
 
-#if defined(CONFIG_MIPS)
-#	define ARCH_REG_VAL(regs, idx)	regs->regs[idx]
-#elif defined(CONFIG_ARM)
-#	define ARCH_REG_VAL(regs, idx)	regs->uregs[idx]
-#else
-#	define ARCH_REG_VAL(regs, idx)	0
-#	warning ARCH_REG_VAL is not implemented for this architecture. FBI will work improperly or even crash!!!
-#endif // ARCH
-
 unsigned long ujprobe_event_pre_handler (struct us_ip *ip, struct pt_regs *regs);
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
 int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip);
