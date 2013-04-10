@@ -177,6 +177,12 @@ static struct jprobe mr_jprobe = {
 	.entry = jmm_release
 };
 
+static int jdo_munmap(struct mm_struct *mm, unsigned long start, size_t len);
+
+static struct jprobe unmap_jprobe = {
+	.entry = jdo_munmap
+};
+
 static struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
 {
 	struct sspt_procs *procs, *tmp;
@@ -432,8 +438,9 @@ int deinst_usr_space_proc (void)
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_exit) result=%d!", iRet);
 
-	iRet = uninstall_kernel_probe (unmap_addr, US_PROC_UNMAP_INSTLD,
-			0, &unmap_probe);
+	/* uninstall jprobe with 'do_munmap' */
+	dbi_unregister_jprobe(&unmap_jprobe);
+
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_munmap) result=%d!", iRet);
 
@@ -607,13 +614,14 @@ int inst_usr_space_proc (void)
 		return ret;
 	}
 
-	// enable 'do_munmap' probe to detect when for remove user space probes
-	ret = install_kernel_probe (unmap_addr, US_PROC_UNMAP_INSTLD, 0, &unmap_probe);
-	if (ret != 0)
-	{
-		EPRINTF ("install_kernel_probe(do_munmap) result=%d!", ret);
+	/* install jprobe on 'do_munmap' to detect when for remove user space probes */
+	unmap_jprobe.kp.addr = unmap_addr;
+	ret = dbi_register_jprobe(&unmap_jprobe);
+	if (ret) {
+		EPRINTF("dbi_register_jprobe(do_munmap) result=%d!", ret);
 		return ret;
 	}
+
 	return 0;
 }
 
@@ -1015,14 +1023,15 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 	return 0;
 }
 
-void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t len)
+/* Detects when target removes IPs. */
+static int jdo_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 {
 	struct sspt_procs *procs = NULL;
 	struct task_struct *task = current;
 
 	//if user-space instrumentation is not set
 	if (!is_us_instrumentation()) {
-		return;
+		goto out;
 	}
 
 	if (is_libonly()) {
@@ -1038,8 +1047,11 @@ void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t 
 			printk("ERROR do_munmap: start=%lx, len=%x\n", start, len);
 		}
 	}
+
+out:
+	dbi_jprobe_return();
+	return 0;
 }
-EXPORT_SYMBOL_GPL(do_munmap_probe_pre_code);
 
 /* Detects when target process removes IPs. */
 static void jmm_release(struct task_struct *task, struct mm_struct *mm)

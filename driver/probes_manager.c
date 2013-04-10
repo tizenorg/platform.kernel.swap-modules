@@ -43,7 +43,6 @@ unsigned long exit_addr;
 unsigned long unmap_addr;
 kernel_probe_t *pf_probe = NULL;
 kernel_probe_t *exit_probe = NULL;
-kernel_probe_t *unmap_probe = NULL;
 unsigned int probes_flags = 0;
 
 int
@@ -98,7 +97,6 @@ register_kernel_jprobe (kernel_probe_t * probe)
 {
 	int result;
 	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == unmap_probe) && (us_proc_probes & US_PROC_UNMAP_INSTLD)) ||
 	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)))
 	{
 		return 0;	// probe is already registered
@@ -116,7 +114,6 @@ static int
 unregister_kernel_jprobe (kernel_probe_t * probe)
 {
 	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == unmap_probe) && (us_proc_probes & US_PROC_UNMAP_INSTLD)) ||
 	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ) {
 		return 0;	// probe is necessary for user space instrumentation
 	}
@@ -129,7 +126,6 @@ register_kernel_retprobe (kernel_probe_t * probe)
 {
 	int result;
 	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == unmap_probe) && (us_proc_probes & US_PROC_UNMAP_INSTLD)) ||
 	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ) {
 
 		return 0;	// probe is already registered
@@ -148,7 +144,6 @@ static int
 unregister_kernel_retprobe (kernel_probe_t * probe)
 {
 	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == unmap_probe) && (us_proc_probes & US_PROC_UNMAP_INSTLD)) ||
 	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ) {
 		return 0;	// probe is necessary for user space instrumentation
 	}
@@ -238,14 +233,6 @@ add_probe (unsigned long addr)
 		}
 		pprobe = &exit_probe;
 	}
-	else if (addr == unmap_addr) {
-		probes_flags |= PROBE_FLAG_UNMAP_INSTLD;
-		if (us_proc_probes & US_PROC_UNMAP_INSTLD)
-		{
-			return 0;
-		}
-		pprobe = &unmap_probe;
-	}
 
 	result = add_probe_to_list (addr, pprobe);
 	if (result) {
@@ -253,8 +240,6 @@ add_probe (unsigned long addr)
 			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
 		else if (addr == exit_addr)
 			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
-		else if (addr == unmap_addr)
-			probes_flags &= ~PROBE_FLAG_UNMAP_INSTLD;
 	}
 	return result;
 }
@@ -271,9 +256,6 @@ int reset_probes(void)
 		} else if (p->addr == exit_addr) {
 			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
 			exit_probe = NULL;
-		} else if (p->addr == unmap_addr) {
-			probes_flags &= ~PROBE_FLAG_UNMAP_INSTLD;
-			unmap_probe = NULL;
 		}
 		hlist_del(node);
 		kfree(p);
@@ -286,9 +268,6 @@ int reset_probes(void)
 		} else if (p->addr == exit_addr) {
 			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
 			exit_probe = NULL;
-		} else if (p->addr == unmap_addr) {
-			probes_flags &= ~PROBE_FLAG_UNMAP_INSTLD;
-			unmap_probe = NULL;
 		}
 		hlist_del(node);
 		kfree(p);
@@ -323,14 +302,6 @@ remove_probe (unsigned long addr)
 			return 0;
 		}
 		exit_probe = NULL;
-	}
-	else if (addr == unmap_addr) {
-		probes_flags &= ~PROBE_FLAG_UNMAP_INSTLD;
-		if (us_proc_probes & US_PROC_UNMAP_INSTLD)
-		{
-			return 0;
-		}
-		unmap_probe = NULL;
 	}
 
 	result = remove_probe_from_list (addr);
@@ -381,13 +352,6 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 		if (!(probes_flags & PROBE_FLAG_EXIT_INSTLD))
 			skip = 1;
 	}
-	else if (unmap_probe == probe)
-	{
-		if (us_proc_probes & US_PROC_UNMAP_INSTLD)
-			do_munmap_probe_pre_code((struct mm_struct *)arg1, arg2, (size_t)arg3);
-		if (!(probes_flags & PROBE_FLAG_UNMAP_INSTLD))
-			skip = 1;
-	}
 
 	if (!skip)
 		pack_event_info (KS_PROBE_ID, RECORD_ENTRY, "pxxxxxx", probe->addr, arg1, arg2, arg3, arg4, arg5, arg6);
@@ -410,11 +374,6 @@ def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs,
 	else if (exit_probe == probe)
 	{
 		if (!(probes_flags & PROBE_FLAG_EXIT_INSTLD))
-			skip = 1;
-	}
-	else if (unmap_probe == probe)
-	{
-		if (!(probes_flags & PROBE_FLAG_UNMAP_INSTLD))
 			skip = 1;
 	}
 
