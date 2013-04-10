@@ -71,11 +71,9 @@
 #include "device_driver.h"
 #include "probes_manager.h"
 #include "probes.h"
-#include "../../tools/gpmu/probes/entry_data.h"
 
 extern char *device_name;
 extern unsigned int device_major;
-extern storage_arg_t sa_dpf;
 
 struct handler_map {
 	unsigned long func_addr;

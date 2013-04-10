@@ -46,7 +46,6 @@ extern void def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, un
 extern int def_retprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, kernel_probe_t * p);
 void dbi_install_user_handlers(void);
 void dbi_uninstall_user_handlers(void);
-int is_pf_installed_by_user(void);
 int install_kern_otg_probe(unsigned long addr,
 			   unsigned long pre_handler,
 			   unsigned long jp_handler,
@@ -56,14 +55,9 @@ extern unsigned long pf_addr;
 extern unsigned long cp_addr;
 extern unsigned long mr_addr;
 extern unsigned long unmap_addr;
-extern kernel_probe_t *pf_probe;
 extern unsigned int probes_flags;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 extern spinlock_t ec_probe_spinlock;
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-
-enum {
-	PROBE_FLAG_PF_INSTLD    = (1 << 0)
-};
 
 #endif // !defined(__PROBES_MANAGER_H__)

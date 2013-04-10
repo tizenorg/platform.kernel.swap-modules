@@ -156,6 +156,19 @@ void free_sm_us(struct slot_manager *sm)
 	/* FIXME: free */
 }
 
+struct pf_data {
+	unsigned long addr;
+};
+
+static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs);
+static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs);
+
+static struct kretprobe pf_kretprobe = {
+	.entry_handler = entry_handler_pf,
+	.handler = ret_handler_pf,
+	.data_size = sizeof(struct pf_data)
+};
+
 static void copy_process_ret_pre_code(struct task_struct *p);
 
 static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
@@ -422,10 +435,8 @@ int deinst_usr_space_proc (void)
 		return 0;
 	}
 
-	iRet = uninstall_kernel_probe (pf_addr, US_PROC_PF_INSTLD,
-			0, &pf_probe);
-	if (iRet)
-		EPRINTF ("uninstall_kernel_probe(do_page_fault) result=%d!", iRet);
+	/* uninstall kretprobe with 'do_page_fault' */
+	dbi_unregister_kretprobe(&pf_kretprobe);
 
 	/* uninstall kretprobe with 'copy_process' */
 	dbi_unregister_kretprobe(&cp_kretprobe);
@@ -579,11 +590,11 @@ int inst_usr_space_proc (void)
 		}
 	}
 
-	// enable 'do_page_fault' probe to detect when they will be loaded
-	ret = install_kernel_probe (pf_addr, US_PROC_PF_INSTLD, 0, &pf_probe);
-	if (ret != 0)
-	{
-		EPRINTF ("install_kernel_probe(do_page_fault) result=%d!", ret);
+	/* install kretprobe on 'do_page_fault' to detect when they will be loaded */
+	pf_kretprobe.kp.addr = pf_addr;
+	ret = dbi_register_kretprobe(&pf_kretprobe);
+	if (ret) {
+		EPRINTF("dbi_register_kretprobe(do_page_fault) result=%d!", ret);
 		return ret;
 	}
 
@@ -613,24 +624,6 @@ int inst_usr_space_proc (void)
 
 	return 0;
 }
-
-#include "../../tools/gpmu/probes/entry_data.h"
-
-void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_regs *regs)
-{
-	struct task_struct *task = current->group_leader;
-
-	if (task->flags & PF_KTHREAD) {
-		DPRINTF("ignored kernel thread %d\n", task->pid);
-		return;
-	}
-
-	if (is_us_instrumentation()) {
-		swap_put_entry_data((void *)addr, &sa_dpf);
-	}
-}
-EXPORT_SYMBOL_GPL(do_page_fault_j_pre_code);
-
 
 unsigned long imi_sum_time = 0;
 unsigned long imi_sum_hit = 0;
@@ -866,7 +859,17 @@ static pid_t find_proc_by_task(const struct task_struct *task, struct dentry *de
 	return 0;
 }
 
-void do_page_fault_ret_pre_code (void)
+static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct pf_data *data = (struct pf_data *)ri->data;
+
+	/* for ARM arch*/
+	data->addr = regs->ARM_r0;
+	return 0;
+}
+
+/* Detects when IPs are really loaded into phy mem and installs probes. */
+static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct task_struct *task = current->group_leader;
 	struct mm_struct *mm = task->mm;
@@ -875,6 +878,7 @@ void do_page_fault_ret_pre_code (void)
 	 * Because process threads have same address space
 	 * we instrument only group_leader of all this threads
 	 */
+	struct pf_data *data;
 	unsigned long addr = 0;
 	int valid_addr;
 
@@ -884,27 +888,19 @@ void do_page_fault_ret_pre_code (void)
 #define USEC_IN_SEC_NUM				1000000
 
 	if (task->flags & PF_KTHREAD) {
-		DPRINTF("ignored kernel thread %d\n", task->pid);
-		return;
+		goto out;
 	}
 
 	if (!is_us_instrumentation()) {
-		return;
+		goto out;
 	}
 
-	addr = (unsigned long)swap_get_entry_data(&sa_dpf);
-
-	if (addr == 0) {
-		printk("WARNING: do_page_fault_ret_pre_code addr = 0\n");
-		return;
-	}
-
-
-
+	data = (struct pf_data *)ri->data;
+	addr = data->addr;
 
 	valid_addr = mm && page_present(mm, addr);
 	if (!valid_addr) {
-		return;
+		goto out;
 	}
 
 	if (is_libonly()) {
@@ -938,9 +934,10 @@ void do_page_fault_ret_pre_code (void)
 		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
 				(imi_tv2.tv_usec - imi_tv1.tv_usec));
 	}
-}
 
-EXPORT_SYMBOL_GPL(do_page_fault_ret_pre_code);
+out:
+	return 0;
+}
 
 void print_vma(struct mm_struct *mm)
 {

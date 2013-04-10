@@ -40,7 +40,6 @@ unsigned long pf_addr;
 unsigned long cp_addr;
 unsigned long mr_addr;
 unsigned long unmap_addr;
-kernel_probe_t *pf_probe = NULL;
 unsigned int probes_flags = 0;
 
 int
@@ -88,9 +87,6 @@ static int
 register_kernel_jprobe (kernel_probe_t * probe)
 {
 	int result;
-	if ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) {
-		return 0;	// probe is already registered
-	}
 	result = dbi_register_jprobe (&probe->jprobe);
 	if (result)
 	{
@@ -103,9 +99,6 @@ register_kernel_jprobe (kernel_probe_t * probe)
 static int
 unregister_kernel_jprobe (kernel_probe_t * probe)
 {
-	if ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) {
-		return 0;	// probe is necessary for user space instrumentation
-	}
 	dbi_unregister_jprobe (&probe->jprobe);
 	return 0;
 }
@@ -114,10 +107,6 @@ static int
 register_kernel_retprobe (kernel_probe_t * probe)
 {
 	int result;
-	if ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) {
-
-		return 0;	// probe is already registered
-	}
 
 	result = dbi_register_kretprobe (&probe->retprobe);
 	if (result)
@@ -131,9 +120,6 @@ register_kernel_retprobe (kernel_probe_t * probe)
 static int
 unregister_kernel_retprobe (kernel_probe_t * probe)
 {
-	if ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) {
-		return 0;	// probe is necessary for user space instrumentation
-	}
 	dbi_unregister_kretprobe (&probe->retprobe);
 	return 0;
 }
@@ -204,20 +190,8 @@ add_probe (unsigned long addr)
 		return -EINVAL;
 	}
 
-	if (addr == pf_addr) {
-		probes_flags |= PROBE_FLAG_PF_INSTLD;
-		if (us_proc_probes & US_PROC_PF_INSTLD)
-		{
-			return 0;
-		}
-		pprobe = &pf_probe;
-	}
-
 	result = add_probe_to_list (addr, pprobe);
-	if (result) {
-		if (addr == pf_addr)
-			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
-	}
+
 	return result;
 }
 
@@ -227,19 +201,11 @@ int reset_probes(void)
 	kernel_probe_t *p;
 
 	hlist_for_each_entry_safe (p, node, tnode, &kernel_probes, hlist) {
-		if (p->addr == pf_addr) {
-			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
-			pf_probe = NULL;
-		}
 		hlist_del(node);
 		kfree(p);
 	}
 
 	hlist_for_each_entry_safe (p, node, tnode, &otg_kernel_probes, hlist) {
-		if (p->addr == pf_addr) {
-			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
-			pf_probe = NULL;
-		}
 		hlist_del(node);
 		kfree(p);
 	}
@@ -256,15 +222,6 @@ remove_probe (unsigned long addr)
 	{
 		EPRINTF("Probes addition is allowed in IDLE state only.");
 		return -EINVAL;
-	}
-
-	if (addr == pf_addr) {
-		probes_flags &= ~PROBE_FLAG_PF_INSTLD;
-		if (us_proc_probes & US_PROC_PF_INSTLD)
-		{
-			return 0;
-		}
-		pf_probe = NULL;
 	}
 
 	result = remove_probe_from_list (addr);
@@ -287,60 +244,21 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 {
 	//static int nCount;
 	kernel_probe_t *probe = __get_cpu_var(gpKernProbe);
-	int skip = 0;
 
-	if (pf_probe == probe)
-	{
-		if (us_proc_probes & US_PROC_PF_INSTLD)
-			do_page_fault_j_pre_code(arg1, arg2, (struct pt_regs *) arg3);
-#ifdef CONFIG_X86
-		/* FIXME on x86 targets do_page_fault instrumentation may lead to
-		 * abnormal termination of some applications (in most cases GUI apps).
-		 * It looks like when do_page_fault probe is hit and the
-		 * def_jprobe_event_handler is executed it tries to write event info
-		 * into the SWAP buffer which seems not to be mapped into the
-		 * process memory yet. Such behaviour causes segmentation faults.
-		 * For now as a workaround we just avoid to write the ENTRY event into
-		 * the buffer in all cases. */
-		skip = 1;
-#else /* CONFIG_X86 */
-		if (!(probes_flags & PROBE_FLAG_PF_INSTLD))
-			skip = 1;
-#endif /* CONFIG_X86 */
-	}
-
-	if (!skip)
-		pack_event_info (KS_PROBE_ID, RECORD_ENTRY, "pxxxxxx", probe->addr, arg1, arg2, arg3, arg4, arg5, arg6);
+	pack_event_info(KS_PROBE_ID, RECORD_ENTRY, "pxxxxxx", probe->addr, arg1, arg2, arg3, arg4, arg5, arg6);
 	dbi_jprobe_return ();
 }
 
 int
 def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs, kernel_probe_t * probe)
 {
-	int skip = 0;
 	int ret_val;
 
-	if (pf_probe == probe)
-	{
-		if (us_proc_probes & US_PROC_PF_INSTLD)
-			do_page_fault_ret_pre_code ();
-		if (!(probes_flags & PROBE_FLAG_PF_INSTLD))
-			skip = 1;
-	}
+	ret_val = regs_return_value(regs);
+	pack_event_info(KS_PROBE_ID, RECORD_RET, "pd", probe->addr, ret_val);
 
-	if (!skip) {
-		ret_val = regs_return_value(regs);
-		pack_event_info (KS_PROBE_ID, RECORD_RET, "pd",
-				 probe->addr, ret_val);
-	}
 	return 0;
 }
-
-int is_pf_installed_by_user(void)
-{
-	return (probes_flags & PROBE_FLAG_PF_INSTLD) ? 1: 0;
-}
-EXPORT_SYMBOL_GPL(is_pf_installed_by_user);
 
 int install_kern_otg_probe(unsigned long addr,
 			   unsigned long pre_handler,
