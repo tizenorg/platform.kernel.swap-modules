@@ -433,11 +433,6 @@ int deinst_usr_space_proc (void)
 	/* uninstall jprobe with 'mm_release' */
 	dbi_unregister_jprobe(&mr_jprobe);
 
-	iRet = uninstall_kernel_probe (exit_addr, US_PROC_EXIT_INSTLD,
-			0, &exit_probe);
-	if (iRet)
-		EPRINTF ("uninstall_kernel_probe(do_exit) result=%d!", iRet);
-
 	/* uninstall jprobe with 'do_munmap' */
 	dbi_unregister_jprobe(&unmap_jprobe);
 
@@ -591,13 +586,7 @@ int inst_usr_space_proc (void)
 		EPRINTF ("install_kernel_probe(do_page_fault) result=%d!", ret);
 		return ret;
 	}
-	// enable 'do_exit' probe to detect for remove task_struct
-	ret = install_kernel_probe (exit_addr, US_PROC_EXIT_INSTLD, 0, &exit_probe);
-	if (ret != 0)
-	{
-		EPRINTF ("install_kernel_probe(do_exit) result=%d!", ret);
-		return ret;
-	}
+
 	/* install kretprobe on 'copy_process' */
 	cp_kretprobe.kp.addr = cp_addr;
 	ret = dbi_register_kretprobe(&cp_kretprobe);
@@ -952,13 +941,6 @@ void do_page_fault_ret_pre_code (void)
 }
 
 EXPORT_SYMBOL_GPL(do_page_fault_ret_pre_code);
-
-
-void do_exit_probe_pre_code (void)
-{
-	// TODO: remove task
-}
-EXPORT_SYMBOL_GPL(do_exit_probe_pre_code);
 
 void print_vma(struct mm_struct *mm)
 {

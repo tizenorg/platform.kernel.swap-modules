@@ -32,16 +32,12 @@ extern int deinst_usr_space_proc (void);
 extern void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_regs *regs);
 extern void do_page_fault_ret_pre_code (void);
 
-/* Detects when target process exits. */
-extern void do_exit_probe_pre_code (void);
-
 
 extern int us_proc_probes;
 extern pid_t gl_nNotifyTgid;
 
 enum {
-	US_PROC_PF_INSTLD    = (1 << 0),
-	US_PROC_EXIT_INSTLD  = (1 << 3)
+	US_PROC_PF_INSTLD    = (1 << 0)
 };
 
 /* forward declarations */

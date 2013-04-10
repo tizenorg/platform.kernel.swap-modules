@@ -39,10 +39,8 @@
 unsigned long pf_addr;
 unsigned long cp_addr;
 unsigned long mr_addr;
-unsigned long exit_addr;
 unsigned long unmap_addr;
 kernel_probe_t *pf_probe = NULL;
-kernel_probe_t *exit_probe = NULL;
 unsigned int probes_flags = 0;
 
 int
@@ -70,12 +68,6 @@ probes_manager_init (void)
 		return -EINVAL;
 	}
 
-	exit_addr = swap_ksyms("do_exit");
-	if (exit_addr == 0) {
-		EPRINTF("Cannot find address for do_exit function!");
-		return -EINVAL;
-	}
-
 	unmap_addr = swap_ksyms("do_munmap");
 	if (unmap_addr == 0) {
 		EPRINTF("Cannot find address for do_munmap function!");
@@ -96,9 +88,7 @@ static int
 register_kernel_jprobe (kernel_probe_t * probe)
 {
 	int result;
-	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)))
-	{
+	if ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) {
 		return 0;	// probe is already registered
 	}
 	result = dbi_register_jprobe (&probe->jprobe);
@@ -113,8 +103,7 @@ register_kernel_jprobe (kernel_probe_t * probe)
 static int
 unregister_kernel_jprobe (kernel_probe_t * probe)
 {
-	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ) {
+	if ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) {
 		return 0;	// probe is necessary for user space instrumentation
 	}
 	dbi_unregister_jprobe (&probe->jprobe);
@@ -125,8 +114,7 @@ static int
 register_kernel_retprobe (kernel_probe_t * probe)
 {
 	int result;
-	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ) {
+	if ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) {
 
 		return 0;	// probe is already registered
 	}
@@ -143,8 +131,7 @@ register_kernel_retprobe (kernel_probe_t * probe)
 static int
 unregister_kernel_retprobe (kernel_probe_t * probe)
 {
-	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ) {
+	if ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) {
 		return 0;	// probe is necessary for user space instrumentation
 	}
 	dbi_unregister_kretprobe (&probe->retprobe);
@@ -225,21 +212,11 @@ add_probe (unsigned long addr)
 		}
 		pprobe = &pf_probe;
 	}
-	else if (addr == exit_addr) {
-		probes_flags |= PROBE_FLAG_EXIT_INSTLD;
-		if (us_proc_probes & US_PROC_EXIT_INSTLD)
-		{
-			return 0;
-		}
-		pprobe = &exit_probe;
-	}
 
 	result = add_probe_to_list (addr, pprobe);
 	if (result) {
 		if (addr == pf_addr)
 			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
-		else if (addr == exit_addr)
-			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
 	}
 	return result;
 }
@@ -253,9 +230,6 @@ int reset_probes(void)
 		if (p->addr == pf_addr) {
 			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
 			pf_probe = NULL;
-		} else if (p->addr == exit_addr) {
-			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
-			exit_probe = NULL;
 		}
 		hlist_del(node);
 		kfree(p);
@@ -265,9 +239,6 @@ int reset_probes(void)
 		if (p->addr == pf_addr) {
 			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
 			pf_probe = NULL;
-		} else if (p->addr == exit_addr) {
-			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
-			exit_probe = NULL;
 		}
 		hlist_del(node);
 		kfree(p);
@@ -294,14 +265,6 @@ remove_probe (unsigned long addr)
 			return 0;
 		}
 		pf_probe = NULL;
-	}
-	else if (addr == exit_addr) {
-		probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
-		if (us_proc_probes & US_PROC_EXIT_INSTLD)
-		{
-			return 0;
-		}
-		exit_probe = NULL;
 	}
 
 	result = remove_probe_from_list (addr);
@@ -345,13 +308,6 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 			skip = 1;
 #endif /* CONFIG_X86 */
 	}
-	else if (exit_probe == probe)
-	{
-		if (us_proc_probes & US_PROC_EXIT_INSTLD)
-			do_exit_probe_pre_code();
-		if (!(probes_flags & PROBE_FLAG_EXIT_INSTLD))
-			skip = 1;
-	}
 
 	if (!skip)
 		pack_event_info (KS_PROBE_ID, RECORD_ENTRY, "pxxxxxx", probe->addr, arg1, arg2, arg3, arg4, arg5, arg6);
@@ -369,11 +325,6 @@ def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs,
 		if (us_proc_probes & US_PROC_PF_INSTLD)
 			do_page_fault_ret_pre_code ();
 		if (!(probes_flags & PROBE_FLAG_PF_INSTLD))
-			skip = 1;
-	}
-	else if (exit_probe == probe)
-	{
-		if (!(probes_flags & PROBE_FLAG_EXIT_INSTLD))
 			skip = 1;
 	}
 
