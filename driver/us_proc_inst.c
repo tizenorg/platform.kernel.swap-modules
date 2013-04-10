@@ -156,6 +156,21 @@ void free_sm_us(struct slot_manager *sm)
 	/* FIXME: free */
 }
 
+static void copy_process_ret_pre_code(struct task_struct *p);
+
+static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct task_struct* task = (struct task_struct *)regs_return_value(regs);
+
+	copy_process_ret_pre_code(task);
+
+	return 0;
+}
+
+static struct kretprobe cp_kretprobe = {
+	.handler = ret_handler_cp,
+};
+
 static struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
 {
 	struct sspt_procs *procs, *tmp;
@@ -400,10 +415,8 @@ int deinst_usr_space_proc (void)
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_page_fault) result=%d!", iRet);
 
-	iRet = uninstall_kernel_probe (cp_addr, US_PROC_CP_INSTLD,
-			0, &cp_probe);
-	if (iRet)
-		EPRINTF ("uninstall_kernel_probe(copy_process) result=%d!", iRet);
+	/* uninstall kretprobe with 'copy_process' */
+	dbi_unregister_kretprobe(&cp_kretprobe);
 
         iRet = uninstall_kernel_probe (mr_addr, US_PROC_MR_INSTLD,
                         0, &mr_probe);
@@ -574,11 +587,11 @@ int inst_usr_space_proc (void)
 		EPRINTF ("install_kernel_probe(do_exit) result=%d!", ret);
 		return ret;
 	}
-	/* enable 'copy_process' */
-	ret = install_kernel_probe (cp_addr, US_PROC_CP_INSTLD, 0, &cp_probe);
-	if (ret != 0)
-	{
-		EPRINTF ("instpall_kernel_probe(copy_process) result=%d!", ret);
+	/* install kretprobe on 'copy_process' */
+	cp_kretprobe.kp.addr = cp_addr;
+	ret = dbi_register_kretprobe(&cp_kretprobe);
+	if (ret) {
+		EPRINTF("dbi_register_kretprobe(copy_process) result=%d!", ret);
 		return ret;
 	}
 
@@ -1074,7 +1087,8 @@ static void rm_uprobes_child(struct task_struct *new_task)
 	}
 }
 
-void copy_process_ret_pre_code(struct task_struct *p)
+/* Delete uprobs in children at fork */
+static void copy_process_ret_pre_code(struct task_struct *p)
 {
 	if(!p || IS_ERR(p))
 		return;

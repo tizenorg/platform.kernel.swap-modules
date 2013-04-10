@@ -58,7 +58,6 @@ extern unsigned long mr_addr;
 extern unsigned long exit_addr;
 extern unsigned long unmap_addr;
 extern kernel_probe_t *pf_probe;
-extern kernel_probe_t *cp_probe;
 extern kernel_probe_t *mr_probe;
 extern kernel_probe_t *exit_probe;
 extern kernel_probe_t *unmap_probe;
@@ -69,7 +68,6 @@ extern spinlock_t ec_probe_spinlock;
 
 enum {
 	PROBE_FLAG_PF_INSTLD    = (1 << 0),
-	PROBE_FLAG_CP_INSTLD    = (1 << 1),
 	PROBE_FLAG_MR_INSTLD    = (1 << 2),
 	PROBE_FLAG_EXIT_INSTLD  = (1 << 3),
 	PROBE_FLAG_UNMAP_INSTLD = (1 << 4)
