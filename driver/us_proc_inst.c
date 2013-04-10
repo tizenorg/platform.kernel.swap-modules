@@ -171,6 +171,12 @@ static struct kretprobe cp_kretprobe = {
 	.handler = ret_handler_cp,
 };
 
+static void jmm_release(struct task_struct *tsk, struct mm_struct *mm);
+
+static struct jprobe mr_jprobe = {
+	.entry = jmm_release
+};
+
 static struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
 {
 	struct sspt_procs *procs, *tmp;
@@ -418,10 +424,8 @@ int deinst_usr_space_proc (void)
 	/* uninstall kretprobe with 'copy_process' */
 	dbi_unregister_kretprobe(&cp_kretprobe);
 
-        iRet = uninstall_kernel_probe (mr_addr, US_PROC_MR_INSTLD,
-                        0, &mr_probe);
-        if (iRet)
-                EPRINTF ("uninstall_kernel_probe(mm_release) result=%d!", iRet);
+	/* uninstall jprobe with 'mm_release' */
+	dbi_unregister_jprobe(&mr_jprobe);
 
 	iRet = uninstall_kernel_probe (exit_addr, US_PROC_EXIT_INSTLD,
 			0, &exit_probe);
@@ -595,11 +599,11 @@ int inst_usr_space_proc (void)
 		return ret;
 	}
 
-	// enable 'mm_release' probe to detect when for remove user space probes
-	ret = install_kernel_probe (mr_addr, US_PROC_MR_INSTLD, 0, &mr_probe);
-	if (ret != 0)
-	{
-		EPRINTF ("install_kernel_probe(mm_release) result=%d!", ret);
+	/* install jprobe on 'mm_release' to detect when for remove user space probes */
+	mr_jprobe.kp.addr = mr_addr;
+	ret = dbi_register_jprobe(&mr_jprobe);
+	if (ret != 0) {
+		EPRINTF("dbi_register_jprobe(mm_release) result=%d!", ret);
 		return ret;
 	}
 
@@ -1037,13 +1041,13 @@ void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t 
 }
 EXPORT_SYMBOL_GPL(do_munmap_probe_pre_code);
 
-void mm_release_probe_pre_code(void)
+/* Detects when target process removes IPs. */
+static void jmm_release(struct task_struct *task, struct mm_struct *mm)
 {
-	struct task_struct *task = current;
 	struct sspt_procs *procs = NULL;
 
 	if (!is_us_instrumentation() || task->tgid != task->pid) {
-		return;
+		goto out;
 	}
 
 	if (is_libonly()) {
@@ -1063,9 +1067,10 @@ void mm_release_probe_pre_code(void)
 
 		dbi_unregister_all_uprobes(task, 1);
 	}
-}
-EXPORT_SYMBOL_GPL(mm_release_probe_pre_code);
 
+out:
+	dbi_jprobe_return();
+}
 
 static void recover_child(struct task_struct *child_task, struct sspt_procs *procs)
 {

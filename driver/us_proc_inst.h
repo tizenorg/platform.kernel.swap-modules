@@ -38,15 +38,12 @@ extern void do_exit_probe_pre_code (void);
 /* Detects when target removes IPs. */
 extern void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t len);
 
-/* Detects when target process removes IPs. */
-extern void mm_release_probe_pre_code(void);
 
 extern int us_proc_probes;
 extern pid_t gl_nNotifyTgid;
 
 enum {
 	US_PROC_PF_INSTLD    = (1 << 0),
-	US_PROC_MR_INSTLD    = (1 << 2),
 	US_PROC_EXIT_INSTLD  = (1 << 3),
 	US_PROC_UNMAP_INSTLD = (1 << 4)
 };

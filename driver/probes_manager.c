@@ -42,7 +42,6 @@ unsigned long mr_addr;
 unsigned long exit_addr;
 unsigned long unmap_addr;
 kernel_probe_t *pf_probe = NULL;
-kernel_probe_t *mr_probe = NULL;
 kernel_probe_t *exit_probe = NULL;
 kernel_probe_t *unmap_probe = NULL;
 unsigned int probes_flags = 0;
@@ -99,7 +98,6 @@ register_kernel_jprobe (kernel_probe_t * probe)
 {
 	int result;
 	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == mr_probe) && (us_proc_probes & US_PROC_MR_INSTLD)) ||
 	    ((probe == unmap_probe) && (us_proc_probes & US_PROC_UNMAP_INSTLD)) ||
 	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)))
 	{
@@ -118,7 +116,6 @@ static int
 unregister_kernel_jprobe (kernel_probe_t * probe)
 {
 	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == mr_probe) && (us_proc_probes & US_PROC_MR_INSTLD)) ||
 	    ((probe == unmap_probe) && (us_proc_probes & US_PROC_UNMAP_INSTLD)) ||
 	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ) {
 		return 0;	// probe is necessary for user space instrumentation
@@ -132,7 +129,6 @@ register_kernel_retprobe (kernel_probe_t * probe)
 {
 	int result;
 	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == mr_probe) && (us_proc_probes & US_PROC_MR_INSTLD)) ||
 	    ((probe == unmap_probe) && (us_proc_probes & US_PROC_UNMAP_INSTLD)) ||
 	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ) {
 
@@ -152,7 +148,6 @@ static int
 unregister_kernel_retprobe (kernel_probe_t * probe)
 {
 	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
-	    ((probe == mr_probe) && (us_proc_probes & US_PROC_MR_INSTLD)) ||
 	    ((probe == unmap_probe) && (us_proc_probes & US_PROC_UNMAP_INSTLD)) ||
 	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ) {
 		return 0;	// probe is necessary for user space instrumentation
@@ -243,13 +238,6 @@ add_probe (unsigned long addr)
 		}
 		pprobe = &exit_probe;
 	}
-	else if (addr == mr_addr) {
-		probes_flags |= PROBE_FLAG_MR_INSTLD;
-		if (us_proc_probes & US_PROC_MR_INSTLD) {
-			return 0;
-		}
-		pprobe = &mr_probe;
-	}
 	else if (addr == unmap_addr) {
 		probes_flags |= PROBE_FLAG_UNMAP_INSTLD;
 		if (us_proc_probes & US_PROC_UNMAP_INSTLD)
@@ -265,8 +253,6 @@ add_probe (unsigned long addr)
 			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
 		else if (addr == exit_addr)
 			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
-		else if (addr == mr_addr)
-			probes_flags &= ~PROBE_FLAG_MR_INSTLD;
 		else if (addr == unmap_addr)
 			probes_flags &= ~PROBE_FLAG_UNMAP_INSTLD;
 	}
@@ -285,9 +271,6 @@ int reset_probes(void)
 		} else if (p->addr == exit_addr) {
 			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
 			exit_probe = NULL;
-		} else if (p->addr == mr_addr) {
-			probes_flags &= ~PROBE_FLAG_MR_INSTLD;
-			mr_probe = NULL;
 		} else if (p->addr == unmap_addr) {
 			probes_flags &= ~PROBE_FLAG_UNMAP_INSTLD;
 			unmap_probe = NULL;
@@ -303,9 +286,6 @@ int reset_probes(void)
 		} else if (p->addr == exit_addr) {
 			probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
 			exit_probe = NULL;
-		} else if (p->addr == mr_addr) {
-			probes_flags &= ~PROBE_FLAG_MR_INSTLD;
-			mr_probe = NULL;
 		} else if (p->addr == unmap_addr) {
 			probes_flags &= ~PROBE_FLAG_UNMAP_INSTLD;
 			unmap_probe = NULL;
@@ -335,13 +315,6 @@ remove_probe (unsigned long addr)
 			return 0;
 		}
 		pf_probe = NULL;
-	}
-	else if (addr == mr_addr) {
-		probes_flags &= ~PROBE_FLAG_MR_INSTLD;
-		if (us_proc_probes & US_PROC_MR_INSTLD) {
-			return 0;
-		}
-		mr_probe = NULL;
 	}
 	else if (addr == exit_addr) {
 		probes_flags &= ~PROBE_FLAG_EXIT_INSTLD;
@@ -401,13 +374,6 @@ def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long 
 			skip = 1;
 #endif /* CONFIG_X86 */
 	}
-	else if (mr_probe == probe)
-	{
-		if (us_proc_probes & US_PROC_MR_INSTLD)
-			mm_release_probe_pre_code();
-		if (!(probes_flags & PROBE_FLAG_MR_INSTLD))
-			skip = 1;
-	}
 	else if (exit_probe == probe)
 	{
 		if (us_proc_probes & US_PROC_EXIT_INSTLD)
@@ -439,11 +405,6 @@ def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs,
 		if (us_proc_probes & US_PROC_PF_INSTLD)
 			do_page_fault_ret_pre_code ();
 		if (!(probes_flags & PROBE_FLAG_PF_INSTLD))
-			skip = 1;
-	}
-	else if (mr_probe == probe)
-	{
-		if (!(probes_flags & PROBE_FLAG_MR_INSTLD))
 			skip = 1;
 	}
 	else if (exit_probe == probe)
