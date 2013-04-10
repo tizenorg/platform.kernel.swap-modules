@@ -229,7 +229,6 @@ int dbi_register_kprobe (struct kprobe *p);
 void dbi_unregister_kprobe (struct kprobe *p, struct task_struct *task);
 
 int register_aggr_kprobe (struct kprobe *old_p, struct kprobe *p);
-int pre_handler_kretprobe (struct kprobe *p, struct pt_regs *regs);
 
 int setjmp_pre_handler (struct kprobe *, struct pt_regs *);
 int longjmp_break_handler (struct kprobe *, struct pt_regs *);

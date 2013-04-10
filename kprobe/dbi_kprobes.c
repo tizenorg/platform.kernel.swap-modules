@@ -603,22 +603,35 @@ void dbi_unregister_jprobe(struct jprobe *jp)
  * This kprobe pre_handler is registered with every kretprobe. When probe
  * hits it will set up the return probe.
  */
-int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
+static int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
 {
 	struct kretprobe *rp = container_of(p, struct kretprobe, kp);
+	struct kretprobe_instance *ri;
 	unsigned long flags = 0;
-	DBPRINTF ("START\n");
 
-	/*TODO: consider to only swap the RA after the last pre_handler fired */
+	/* TODO: consider to only swap the RA after the last pre_handler fired */
 	spin_lock_irqsave(&kretprobe_lock, flags);
 
-	arch_prepare_kretprobe(rp, regs);
+	/* TODO: test - remove retprobe after func entry but before its exit */
+	if ((ri = get_free_rp_inst(rp)) != NULL) {
+		ri->rp = rp;
+		ri->task = current;
+
+		if (rp->entry_handler) {
+			rp->entry_handler(ri, regs, ri->rp->priv_arg);
+		}
+
+		arch_prepare_kretprobe(ri, regs);
+
+		add_rp_inst(ri);
+	} else {
+		++rp->nmissed;
+	}
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
-	DBPRINTF ("END\n");
+
 	return 0;
 }
-EXPORT_SYMBOL_GPL(pre_handler_kretprobe);
 
 struct kretprobe *sched_rp;
 

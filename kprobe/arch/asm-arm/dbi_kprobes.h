@@ -488,8 +488,9 @@ int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int u
 
 struct slot_manager;
 struct kretprobe;
+struct kretprobe_instance;
 int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm);
-void arch_prepare_kretprobe(struct kretprobe *rp, struct pt_regs *regs);
+void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs);
 
 void arch_arm_kprobe(struct kprobe *p);
 void arch_disarm_kprobe(struct kprobe *p);

@@ -479,35 +479,13 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 }
 EXPORT_SYMBOL_GPL(trampoline_probe_handler);
 
-void arch_prepare_kretprobe(struct kretprobe *rp, struct pt_regs *regs)
+void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct kretprobe_instance *ri;
+	ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
+	ri->sp = (kprobe_opcode_t *)regs->ARM_sp;
 
-	DBPRINTF ("start\n");
-	//TODO: test - remove retprobe after func entry but before its exit
-	if ((ri = get_free_rp_inst(rp)) != NULL) {
-		ri->rp = rp;
-		ri->task = current;
-
-		if (rp->entry_handler) {
-			rp->entry_handler(ri, regs, ri->rp->priv_arg);
-		}
-
-		ri->ret_addr = (kprobe_opcode_t *)regs->uregs[14];
-		ri->sp = (kprobe_opcode_t *)regs->ARM_sp; //uregs[13];
-
-		/* Set flag of current mode */
-		ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
-
-		/* Replace the return addr with trampoline addr */
-		regs->uregs[14] = (unsigned long)&kretprobe_trampoline;
-
-//		DBPRINTF ("ret addr set to %p->%lx\n", ri->ret_addr, regs->uregs[14]);
-		add_rp_inst(ri);
-	} else {
-		DBPRINTF ("WARNING: missed retprobe %p\n", rp->kp.addr);
-		rp->nmissed++;
-	}
+	/* Replace the return addr with trampoline addr */
+	regs->ARM_lr = (unsigned long)&kretprobe_trampoline;
 }
 
 void swap_register_undef_hook(struct undef_hook *hook)
