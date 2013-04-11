@@ -391,17 +391,60 @@ int install_otg_ip(unsigned long addr,
 }
 EXPORT_SYMBOL_GPL(install_otg_ip);
 
-static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag);
 
-int deinst_usr_space_proc (void)
+static int register_helper_ks_probes(void)
 {
-	int iRet = 0, found = 0;
-	struct task_struct *task = NULL;
+	int ret = 0;
 
-	if (!is_us_instrumentation()) {
-		return 0;
+	/* install jprobe on 'do_munmap' to detect when for remove user space probes */
+	unmap_jprobe.kp.addr = unmap_addr;
+	ret = dbi_register_jprobe(&unmap_jprobe);
+	if (ret) {
+		EPRINTF("dbi_register_jprobe(do_munmap) result=%d!", ret);
+		return ret;
 	}
 
+	/* install jprobe on 'mm_release' to detect when for remove user space probes */
+	mr_jprobe.kp.addr = mr_addr;
+	ret = dbi_register_jprobe(&mr_jprobe);
+	if (ret != 0) {
+		EPRINTF("dbi_register_jprobe(mm_release) result=%d!", ret);
+		goto unregister_unmap;
+	}
+
+
+	/* install kretprobe on 'copy_process' */
+	cp_kretprobe.kp.addr = cp_addr;
+	ret = dbi_register_kretprobe(&cp_kretprobe);
+	if (ret) {
+		EPRINTF("dbi_register_kretprobe(copy_process) result=%d!", ret);
+		goto unregister_mr;
+	}
+
+	/* install kretprobe on 'do_page_fault' to detect when they will be loaded */
+	pf_kretprobe.kp.addr = pf_addr;
+	ret = dbi_register_kretprobe(&pf_kretprobe);
+	if (ret) {
+		EPRINTF("dbi_register_kretprobe(do_page_fault) result=%d!", ret);
+		goto unregister_cp;
+	}
+
+	return ret;
+
+unregister_cp:
+	dbi_unregister_kretprobe(&cp_kretprobe);
+
+unregister_mr:
+	dbi_unregister_jprobe(&mr_jprobe);
+
+unregister_unmap:
+	dbi_unregister_jprobe(&unmap_jprobe);
+
+	return ret;
+}
+
+static void unregister_helper_ks_probes(void)
+{
 	/* uninstall kretprobe with 'do_page_fault' */
 	dbi_unregister_kretprobe(&pf_kretprobe);
 
@@ -413,6 +456,18 @@ int deinst_usr_space_proc (void)
 
 	/* uninstall jprobe with 'do_munmap' */
 	dbi_unregister_jprobe(&unmap_jprobe);
+}
+
+static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag);
+
+int deinst_usr_space_proc (void)
+{
+	int iRet = 0, found = 0;
+	struct task_struct *task = NULL;
+
+	if (!is_us_instrumentation()) {
+		return 0;
+	}
 
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_munmap) result=%d!", iRet);
@@ -466,6 +521,8 @@ int deinst_usr_space_proc (void)
 		}
 	}
 
+	unregister_helper_ks_probes();
+
 	return iRet;
 }
 
@@ -481,6 +538,11 @@ int inst_usr_space_proc (void)
 	}
 
 	DPRINTF("User space instr");
+
+	ret = register_helper_ks_probes();
+	if (ret) {
+		return ret;
+	}
 
 	for (i = 0; i < us_proc_info.libs_count; i++) {
 		us_proc_info.p_libs[i].loaded = 0;
@@ -522,38 +584,6 @@ int inst_usr_space_proc (void)
 			install_proc_probes(task, us_proc_info.pp, 0);
 			put_task_struct (task);
 		}
-	}
-
-	/* install kretprobe on 'do_page_fault' to detect when they will be loaded */
-	pf_kretprobe.kp.addr = pf_addr;
-	ret = dbi_register_kretprobe(&pf_kretprobe);
-	if (ret) {
-		EPRINTF("dbi_register_kretprobe(do_page_fault) result=%d!", ret);
-		return ret;
-	}
-
-	/* install kretprobe on 'copy_process' */
-	cp_kretprobe.kp.addr = cp_addr;
-	ret = dbi_register_kretprobe(&cp_kretprobe);
-	if (ret) {
-		EPRINTF("dbi_register_kretprobe(copy_process) result=%d!", ret);
-		return ret;
-	}
-
-	/* install jprobe on 'mm_release' to detect when for remove user space probes */
-	mr_jprobe.kp.addr = mr_addr;
-	ret = dbi_register_jprobe(&mr_jprobe);
-	if (ret != 0) {
-		EPRINTF("dbi_register_jprobe(mm_release) result=%d!", ret);
-		return ret;
-	}
-
-	/* install jprobe on 'do_munmap' to detect when for remove user space probes */
-	unmap_jprobe.kp.addr = unmap_addr;
-	ret = dbi_register_jprobe(&unmap_jprobe);
-	if (ret) {
-		EPRINTF("dbi_register_jprobe(do_munmap) result=%d!", ret);
-		return ret;
 	}
 
 	return 0;
