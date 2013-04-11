@@ -55,7 +55,6 @@ extern unsigned long pf_addr;
 extern unsigned long cp_addr;
 extern unsigned long mr_addr;
 extern unsigned long unmap_addr;
-extern unsigned int probes_flags;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 extern spinlock_t ec_probe_spinlock;
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */

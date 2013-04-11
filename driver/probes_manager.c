@@ -20,27 +20,10 @@
 #include "module.h"
 #include "probes_manager.h"
 
-#ifdef EC_ARCH_arm
-/* ARCH == arm */
-#include "../kprobe/dbi_kprobes.h"
-#endif /* def EC_ARCH_arm */
-
-#ifdef EC_ARCH_x86
-/* ARCH == x86 */
-//#include <linux/kprobes.h>
-#include "../kprobe/dbi_kprobes.h"
-#endif /* def EC_ARCH_x86 */
-
-#ifdef EC_ARCH_mips
-/* ARCH == mips */
-#include "../kprobe/dbi_kprobes.h"
-#endif /* def EC_ARCH_mips */
-
 unsigned long pf_addr;
 unsigned long cp_addr;
 unsigned long mr_addr;
 unsigned long unmap_addr;
-unsigned int probes_flags = 0;
 
 int
 probes_manager_init (void)

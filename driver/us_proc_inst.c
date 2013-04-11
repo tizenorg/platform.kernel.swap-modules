@@ -53,8 +53,6 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip);
 
 
-int us_proc_probes;
-
 LIST_HEAD(proc_probes_list);
 
 #define print_event(fmt, args...) 						\
@@ -393,37 +391,6 @@ int install_otg_ip(unsigned long addr,
 }
 EXPORT_SYMBOL_GPL(install_otg_ip);
 
-static int uninstall_kernel_probe (unsigned long addr, int uflag, int kflag, kernel_probe_t ** pprobe)
-{
-	kernel_probe_t *probe = NULL;
-	int iRet = 0;
-	if (probes_flags & kflag) {
-		probe = find_probe(addr);
-		if (probe) {
-			iRet = remove_probe_from_list (addr);
-			if (iRet)
-				EPRINTF ("remove_probe_from_list(0x%lx) result=%d!", addr, iRet);
-			if (pprobe)
-				*pprobe = NULL;
-		}
-		probes_flags &= ~kflag;
-	}
-	if (us_proc_probes & uflag) {
-		if (!(probes_flags & uflag)) {
-			if (probe) {
-				iRet = unregister_kernel_probe(probe);
-				if (iRet) {
-					EPRINTF ("unregister_kernel_probe(0x%lx) result=%d!",
-							addr, iRet);
-					return iRet;
-				}
-			}
-		}
-		us_proc_probes &= ~uflag;
-	}
-	return iRet;
-}
-
 static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag);
 
 int deinst_usr_space_proc (void)
@@ -500,39 +467,6 @@ int deinst_usr_space_proc (void)
 	}
 
 	return iRet;
-}
-static int install_kernel_probe (unsigned long addr, int uflag, int kflag, kernel_probe_t ** pprobe)
-{
-	kernel_probe_t *probe = NULL;
-	int iRet = 0;
-
-	DPRINTF("us_proc_probes = 0x%x, uflag = 0x%x, "
-			"probes_flags = 0x%x, kflag = 0x%x",
-			us_proc_probes, uflag, probes_flags, kflag);
-
-	if (!(probes_flags & kflag)) {
-		iRet = add_probe_to_list (addr, &probe);
-		if (iRet) {
-			EPRINTF ("add_probe_to_list(0x%lx) result=%d!", addr, iRet);
-			return iRet;
-		}
-		probes_flags |= kflag;
-	}
-	if (!(us_proc_probes & uflag)) {
-		if (!(probes_flags & uflag)) {
-			iRet = register_kernel_probe (probe);
-			if (iRet) {
-				EPRINTF ("register_kernel_probe(0x%lx) result=%d!", addr, iRet);
-				return iRet;
-			}
-		}
-		us_proc_probes |= uflag;
-	}
-
-	if (probe)
-		*pprobe = probe;
-
-	return 0;
 }
 
 static void install_proc_probes(struct task_struct *task, struct sspt_procs *procs, int atomic);

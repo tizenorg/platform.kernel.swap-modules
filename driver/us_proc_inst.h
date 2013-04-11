@@ -28,7 +28,6 @@
 extern int inst_usr_space_proc (void);
 extern int deinst_usr_space_proc (void);
 
-extern int us_proc_probes;
 extern pid_t gl_nNotifyTgid;
 
 /* forward declarations */
