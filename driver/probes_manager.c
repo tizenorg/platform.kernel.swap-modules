@@ -20,41 +20,18 @@
 #include "module.h"
 #include "probes_manager.h"
 
-unsigned long pf_addr;
-unsigned long cp_addr;
-unsigned long mr_addr;
-unsigned long unmap_addr;
-
 int
 probes_manager_init (void)
 {
+	int ret;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 	spin_lock_init(&ec_spinlock);
 	spin_lock_init(&ec_probe_spinlock);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	pf_addr = swap_ksyms("do_page_fault");
-	if (pf_addr == 0) {
-		EPRINTF("Cannot find address for page fault function!");
-		return -EINVAL;
-	}
 
-	cp_addr = swap_ksyms("copy_process");
-	if (cp_addr == 0) {
-		EPRINTF("Cannot find address for copy_process function!");
-		return -EINVAL;
-	}
-
-	mr_addr = swap_ksyms("mm_release");
-	if (mr_addr == 0) {
-		EPRINTF("Cannot find address for mm_release function!");
-		return -EINVAL;
-	}
-
-	unmap_addr = swap_ksyms("do_munmap");
-	if (unmap_addr == 0) {
-		EPRINTF("Cannot find address for do_munmap function!");
-		return -EINVAL;
-	}
+	ret = init_helper();
+	if (ret)
+		return ret;
 
 	return storage_init ();
 }
@@ -63,6 +40,7 @@ void
 probes_manager_down (void)
 {
 	detach_selected_probes ();
+	uninit_helper();
 	storage_down ();
 }
 

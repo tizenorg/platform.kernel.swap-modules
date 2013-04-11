@@ -24,6 +24,9 @@
 #include <linux/signal.h>	// struct sigpending
 #include "sspt/ip.h"
 
+int init_helper(void);
+void uninit_helper(void);
+
 /* Instruments or schedules pending instrumentation of user space process. */
 extern int inst_usr_space_proc (void);
 extern int deinst_usr_space_proc (void);

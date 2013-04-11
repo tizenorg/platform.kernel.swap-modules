@@ -391,13 +391,49 @@ int install_otg_ip(unsigned long addr,
 }
 EXPORT_SYMBOL_GPL(install_otg_ip);
 
+int init_helper(void)
+{
+	unsigned long addr;
+	addr = swap_ksyms("do_page_fault");
+	if (addr == 0) {
+		EPRINTF("Cannot find address for page fault function!");
+		return -EINVAL;
+	}
+	pf_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
+
+	addr = swap_ksyms("copy_process");
+	if (addr == 0) {
+		EPRINTF("Cannot find address for copy_process function!");
+		return -EINVAL;
+	}
+	cp_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
+
+	addr = swap_ksyms("mm_release");
+	if (addr == 0) {
+		EPRINTF("Cannot find address for mm_release function!");
+		return -EINVAL;
+	}
+	mr_jprobe.kp.addr = (kprobe_opcode_t *)addr;
+
+	addr = swap_ksyms("do_munmap");
+	if (addr == 0) {
+		EPRINTF("Cannot find address for do_munmap function!");
+		return -EINVAL;
+	}
+	unmap_jprobe.kp.addr = (kprobe_opcode_t *)addr;
+
+	return 0;
+}
+
+void uninit_helper(void)
+{
+}
 
 static int register_helper_ks_probes(void)
 {
 	int ret = 0;
 
 	/* install jprobe on 'do_munmap' to detect when for remove user space probes */
-	unmap_jprobe.kp.addr = unmap_addr;
 	ret = dbi_register_jprobe(&unmap_jprobe);
 	if (ret) {
 		EPRINTF("dbi_register_jprobe(do_munmap) result=%d!", ret);
@@ -405,7 +441,6 @@ static int register_helper_ks_probes(void)
 	}
 
 	/* install jprobe on 'mm_release' to detect when for remove user space probes */
-	mr_jprobe.kp.addr = mr_addr;
 	ret = dbi_register_jprobe(&mr_jprobe);
 	if (ret != 0) {
 		EPRINTF("dbi_register_jprobe(mm_release) result=%d!", ret);
@@ -414,7 +449,6 @@ static int register_helper_ks_probes(void)
 
 
 	/* install kretprobe on 'copy_process' */
-	cp_kretprobe.kp.addr = cp_addr;
 	ret = dbi_register_kretprobe(&cp_kretprobe);
 	if (ret) {
 		EPRINTF("dbi_register_kretprobe(copy_process) result=%d!", ret);
@@ -422,7 +456,6 @@ static int register_helper_ks_probes(void)
 	}
 
 	/* install kretprobe on 'do_page_fault' to detect when they will be loaded */
-	pf_kretprobe.kp.addr = pf_addr;
 	ret = dbi_register_kretprobe(&pf_kretprobe);
 	if (ret) {
 		EPRINTF("dbi_register_kretprobe(do_page_fault) result=%d!", ret);
