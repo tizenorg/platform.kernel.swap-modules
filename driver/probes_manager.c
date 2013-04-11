@@ -66,60 +66,35 @@ probes_manager_down (void)
 	storage_down ();
 }
 
-static int
-register_kernel_jprobe (kernel_probe_t * probe)
+static int register_kernel_probe(kernel_probe_t *p)
 {
-	int result;
-	result = dbi_register_jprobe (&probe->jprobe);
-	if (result)
-	{
-		EPRINTF ("register_kernel_jprobe(0x%lx) failure %d", probe->addr, result);
-		return result;
+	int ret;
+
+	/* register jprobe */
+	ret = dbi_register_jprobe(&p->jprobe);
+	if (ret) {
+		EPRINTF("dbi_register_jprobe(0x%lx) failure %d", p->addr, ret);
+		return ret;
+	};
+
+	/* register kretprobe */
+	ret = dbi_register_kretprobe(&p->retprobe);
+	if (ret) {
+		EPRINTF("dbi_register_kretprobe(0x%lx) failure %d",
+			p->addr, ret);
+
+		dbi_unregister_jprobe(&p->jprobe);
+		return ret;
 	}
+
 	return 0;
 }
 
-static int
-unregister_kernel_jprobe (kernel_probe_t * probe)
+static int unregister_kernel_probe(kernel_probe_t *p)
 {
-	dbi_unregister_jprobe (&probe->jprobe);
-	return 0;
-}
+	dbi_unregister_kretprobe(&p->retprobe);
+	dbi_unregister_jprobe(&p->jprobe);
 
-static int
-register_kernel_retprobe (kernel_probe_t * probe)
-{
-	int result;
-
-	result = dbi_register_kretprobe (&probe->retprobe);
-	if (result)
-	{
-		EPRINTF ("register_kernel_retprobe(0x%lx) failure %d", probe->addr, result);
-		return result;
-	}
-	return 0;
-}
-
-static int
-unregister_kernel_retprobe (kernel_probe_t * probe)
-{
-	dbi_unregister_kretprobe (&probe->retprobe);
-	return 0;
-}
-
-int
-register_kernel_probe (kernel_probe_t * probe)
-{
-	register_kernel_jprobe (probe);
-	register_kernel_retprobe (probe);
-	return 0;
-}
-
-int
-unregister_kernel_probe (kernel_probe_t * probe)
-{
-	unregister_kernel_retprobe(probe);
-	unregister_kernel_jprobe(probe);
 	return 0;
 }
 
