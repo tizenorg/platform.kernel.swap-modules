@@ -165,7 +165,7 @@ struct kprobe *get_kprobe(void *addr)
 	struct kprobe *p;
 
 	head = &kprobe_table[hash_ptr (addr, KPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu(p, node, head, hlist) {
+	swap_hlist_for_each_entry_rcu(p, node, head, hlist) {
 		if (p->addr == addr) {
 			return p;
 		}
@@ -261,12 +261,12 @@ struct kretprobe_instance *get_free_rp_inst(struct kretprobe *rp)
 	struct hlist_node *node;
 	struct kretprobe_instance *ri;
 
-	hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
+	swap_hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
 		return ri;
 	}
 
 	if (!alloc_nodes_kretprobe(rp)) {
-		hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
+		swap_hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
 			return ri;
 		}
 	}
@@ -281,7 +281,7 @@ struct kretprobe_instance *get_free_rp_inst_no_alloc(struct kretprobe *rp)
 	struct hlist_node *node;
 	struct kretprobe_instance *ri;
 
-	hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
+	swap_hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
 		return ri;
 	}
 
@@ -294,7 +294,7 @@ struct kretprobe_instance *get_used_rp_inst(struct kretprobe *rp)
 	struct hlist_node *node;
 	struct kretprobe_instance *ri;
 
-	hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
+	swap_hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
 		return ri;
 	}
 

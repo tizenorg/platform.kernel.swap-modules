@@ -50,6 +50,7 @@
 #include <linux/rculist.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <dbi_kprobes_deps.h>
 
 struct chunk {
 	unsigned long *data;
@@ -169,7 +170,7 @@ void *alloc_insn_slot(struct slot_manager *sm)
 	struct fixed_alloc *fa;
 	struct hlist_node *pos;
 
-	hlist_for_each_entry_rcu(fa, pos, &sm->page_list, hlist) {
+	swap_hlist_for_each_entry_rcu(fa, pos, &sm->page_list, hlist) {
 		free_slot = chunk_allocate(&fa->chunk, sm->slot_size);
 		if (free_slot)
 			return free_slot;
@@ -191,7 +192,7 @@ void free_insn_slot(struct slot_manager *sm, void *slot)
 	struct fixed_alloc *fa;
 	struct hlist_node *pos;
 
-	hlist_for_each_entry_rcu(fa, pos, &sm->page_list, hlist) {
+	swap_hlist_for_each_entry_rcu(fa, pos, &sm->page_list, hlist) {
 		if (!chunk_check_ptr(&fa->chunk, slot, PAGE_SIZE))
 			continue;
 

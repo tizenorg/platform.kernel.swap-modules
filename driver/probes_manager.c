@@ -17,6 +17,7 @@
 
 #include <linux/percpu.h>
 #include <ksyms.h>
+#include <dbi_kprobes_deps.h>
 #include "module.h"
 #include "probes_manager.h"
 
@@ -84,7 +85,7 @@ attach_selected_probes (void)
 	kernel_probe_t *p;
 	struct hlist_node *node;
 
-	hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
+	swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
 	{
 		partial_result = register_kernel_probe (p);
 		if (partial_result)
@@ -104,9 +105,9 @@ detach_selected_probes (void)
 	kernel_probe_t *p;
 	struct hlist_node *node;
 
-	hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
+	swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
 		unregister_kernel_probe (p);
-	hlist_for_each_entry_rcu (p, node, &otg_kernel_probes, hlist) {
+	swap_hlist_for_each_entry_rcu (p, node, &otg_kernel_probes, hlist) {
 		unregister_kernel_probe(p);
 	}
 
@@ -136,12 +137,12 @@ int reset_probes(void)
 	struct hlist_node *node, *tnode;
 	kernel_probe_t *p;
 
-	hlist_for_each_entry_safe (p, node, tnode, &kernel_probes, hlist) {
+	swap_hlist_for_each_entry_safe (p, node, tnode, &kernel_probes, hlist) {
 		hlist_del(node);
 		kfree(p);
 	}
 
-	hlist_for_each_entry_safe (p, node, tnode, &otg_kernel_probes, hlist) {
+	swap_hlist_for_each_entry_safe (p, node, tnode, &otg_kernel_probes, hlist) {
 		hlist_del(node);
 		kfree(p);
 	}

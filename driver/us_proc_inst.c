@@ -647,7 +647,7 @@ static int register_us_page_probe(struct sspt_page *page,
 		struct task_struct *task)
 {
 	int err = 0;
-	struct us_ip *ip;
+	struct us_ip *ip, *n;
 
 	spin_lock(&page->lock);
 
@@ -661,20 +661,21 @@ static int register_us_page_probe(struct sspt_page *page,
 	sspt_page_assert_install(page);
 	sspt_set_all_ip_addr(page, file);
 
-	list_for_each_entry(ip, &page->ip_list, list) {
+	list_for_each_entry_safe(ip, n, &page->ip_list, list) {
 		err = register_usprobe_my(task, ip);
-		if (err != 0) {
-			//TODO: ERROR
-			goto unlock;
+		if (err == -ENOEXEC) {
+			list_del(&ip->list);
+			free_ip(ip);
+			continue;
+		} else if (err) {
+			EPRINTF("Failed to install probe");
 		}
 	}
-
-	sspt_page_installed(page);
-
 unlock:
+	sspt_page_installed(page);
 	spin_unlock(&page->lock);
 
-	return err;
+	return 0;
 }
 
 static int unregister_us_page_probe(struct task_struct *task,
@@ -743,7 +744,7 @@ static void install_file_probes(struct task_struct *task, struct mm_struct *mm, 
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_rcu(page, node, head, hlist) {
+		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
 			register_us_page_probe(page, file, task);
 		}
 	}
@@ -785,7 +786,7 @@ static int check_install_pages_in_file(struct task_struct *task, struct sspt_fil
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
+		swap_hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
 			if (page->install) {
 				return 1;
 			}
@@ -805,7 +806,7 @@ static int unregister_us_file_probes(struct task_struct *task, struct sspt_file 
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
+		swap_hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
 			err = unregister_us_page_probe(task, page, flag);
 			if (err != 0) {
 				// TODO: ERROR

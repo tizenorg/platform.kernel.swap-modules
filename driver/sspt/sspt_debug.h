@@ -77,7 +77,7 @@ static inline void print_file_probes(const struct sspt_file *file)
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_rcu(page, node, head, hlist) {
+		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
 			print_page_probes(page);
 		}
 	}

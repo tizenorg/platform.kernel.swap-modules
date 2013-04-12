@@ -61,7 +61,7 @@ void print_kprobe_hash_table(void)
 	// print uprobe table
 	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
 		head = &kprobe_table[i];
-		hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
+		swap_hlist_for_each_entry_rcu(p, node, head, is_hlist_arm) {
 			printk("####### find K tgid=%u, addr=%x\n",
 					p->tgid, p->addr);
 		}
@@ -78,7 +78,7 @@ void print_kretprobe_hash_table(void)
 	// print uprobe table
 	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
 		head = &kretprobe_inst_table[i];
-		hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
+		swap_hlist_for_each_entry_rcu(p, node, head, is_hlist_arm) {
 			printk("####### find KR tgid=%u, addr=%x\n",
 					p->tgid, p->addr);
 		}
@@ -95,7 +95,7 @@ void print_uprobe_hash_table(void)
 	// print uprobe table
 	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
 		head = &uprobe_insn_slot_table[i];
-		hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
+		swap_hlist_for_each_entry_rcu(p, node, head, is_hlist_arm) {
 			printk("####### find U tgid=%u, addr=%x\n",
 					p->tgid, p->addr);
 		}
@@ -290,7 +290,7 @@ struct kprobe *get_ukprobe(void *addr, pid_t tgid)
 	struct kprobe *p;
 
 	head = &uprobe_table[hash_ptr(addr, UPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu(p, node, head, hlist) {
+	swap_hlist_for_each_entry_rcu(p, node, head, hlist) {
 		if (p->addr == addr && kp2up(p)->task->tgid == tgid) {
 			return p;
 		}
@@ -321,7 +321,7 @@ static struct kprobe *get_ukprobe_bis_arm(void *addr, pid_t tgid)
 
 	/* TODO: test - two processes invokes instrumented function */
 	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu(p, node, head, is_hlist_arm) {
+	swap_hlist_for_each_entry_rcu(p, node, head, is_hlist_arm) {
 		if (p->ainsn.insn == addr && kp2up(p)->task->tgid == tgid) {
 			return p;
 		}
@@ -338,7 +338,7 @@ static struct kprobe *get_ukprobe_bis_thumb(void *addr, pid_t tgid)
 
 	/* TODO: test - two processes invokes instrumented function */
 	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu(p, node, head, is_hlist_thumb) {
+	swap_hlist_for_each_entry_rcu(p, node, head, is_hlist_thumb) {
 		if (p->ainsn.insn == addr && kp2up(p)->task->tgid == tgid) {
 			return p;
 		}
@@ -362,7 +362,7 @@ struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *
 
 	/* TODO: test - two processes invokes instrumented function */
 	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
-	hlist_for_each_entry_rcu(p, node, head, is_hlist) {
+	swap_hlist_for_each_entry_rcu(p, node, head, is_hlist) {
 		if (p->ainsn.insn == addr && kp2up(p)->task->tgid == tgid) {
 			return p;
 		}
@@ -428,7 +428,7 @@ static struct uretprobe_instance *get_used_urp_inst(struct uretprobe *rp)
 	struct hlist_node *node;
 	struct uretprobe_instance *ri;
 
-	hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
+	swap_hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
 		return ri;
 	}
 
@@ -441,7 +441,7 @@ struct uretprobe_instance *get_free_urp_inst_no_alloc(struct uretprobe *rp)
 	struct hlist_node *node;
 	struct uretprobe_instance *ri;
 
-	hlist_for_each_entry (ri, node, &rp->free_instances, uflist) {
+	swap_hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
 		return ri;
 	}
 
@@ -492,12 +492,12 @@ static struct uretprobe_instance *get_free_urp_inst(struct uretprobe *rp)
 	struct hlist_node *node;
 	struct uretprobe_instance *ri;
 
-	hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
+	swap_hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
 		return ri;
 	}
 
 	if (!alloc_nodes_uretprobe(rp)) {
-		hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
+		swap_hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
 			return ri;
 		}
 	}
@@ -697,7 +697,7 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 	 *       real return address, and all the rest will point to
 	 *       uretprobe_trampoline
 	 */
-	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
+	swap_hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
 		if (ri->task != current) {
 			/* another task is sharing our hash bucket */
 			continue;
@@ -878,7 +878,7 @@ int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct 
 	struct hlist_node *node, *tmp;
 	struct hlist_head *head = uretprobe_inst_table_head(parent->mm);
 
-	hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
+	swap_hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
 		if (parent == ri->task) {
 			dbi_disarm_urp_inst(ri, task);
 		}
@@ -940,7 +940,7 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
 
 	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
 		head = &uprobe_table[i];
-		hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
+		swap_hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
 			if (kp2up(p)->task->tgid == task->tgid) {
 				struct uprobe *up = container_of(p, struct uprobe, kp);
 				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%lx] for %s/%d\n",
