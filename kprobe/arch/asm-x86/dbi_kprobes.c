@@ -749,8 +749,8 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	if (!p->tgid || (p->tgid == current->tgid)) {
 		/* handle __switch_to probe */
 		if(!p->tgid && (p->addr == sched_addr) && sched_rp) {
-			struct thread_info *tinfo = NULL; //TODO implement for x86
-			patch_suspended_task(sched_rp, tinfo->task);
+			/* FIXME: Acutally 2nd parameter is not used for x86 */
+			patch_suspended_task(sched_rp, (struct task_struct *)regs->dx, regs);
 		}
 	}
 
