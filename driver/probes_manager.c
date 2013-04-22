@@ -110,6 +110,29 @@ int unset_kernel_probes(void)
 	return 0;
 }
 
+static kernel_probe_t *create_kern_probe(unsigned long addr)
+{
+	kernel_probe_t *probe = kmalloc(sizeof(*probe), GFP_KERNEL);
+	if (!probe) {
+		EPRINTF("no memory for new probe!");
+		return NULL;
+	}
+
+	memset(probe, 0, sizeof(*probe));
+	probe->addr = addr;
+	probe->jprobe.kp.addr = probe->retprobe.kp.addr = (kprobe_opcode_t *)addr;
+	probe->jprobe.priv_arg = probe->retprobe.priv_arg = probe;
+
+	INIT_HLIST_NODE(&probe->hlist);
+
+	return probe;
+}
+
+static void free_kern_probe(kernel_probe_t *p)
+{
+	kfree(p);
+}
+
 /* Searches non-predefined kernel probe in the list. */
 static kernel_probe_t* find_probe(unsigned long addr)
 {
@@ -141,20 +164,12 @@ static int add_probe_to_list(unsigned long addr, kernel_probe_t **pprobe)
 		return 0;
 	}
 
-	new_probe = kmalloc(sizeof(*new_probe), GFP_KERNEL);
-	if (!new_probe) {
-		EPRINTF("no memory for new probe!");
+	new_probe = create_kern_probe(addr);
+	if (!new_probe)
 		return -ENOMEM;
-	}
-
-	memset(new_probe, 0, sizeof(*new_probe));
-	new_probe->addr = addr;
-	new_probe->jprobe.kp.addr = new_probe->retprobe.kp.addr = (kprobe_opcode_t *)addr;
-	new_probe->jprobe.priv_arg = new_probe->retprobe.priv_arg = new_probe;
 
 	dbi_find_and_set_handler_for_probe(new_probe);
 
-	INIT_HLIST_NODE(&new_probe->hlist);
 	hlist_add_head_rcu(&new_probe->hlist, &kernel_probes);
 	if (pprobe)
 		*pprobe = new_probe;
@@ -175,7 +190,7 @@ static int remove_probe_from_list(unsigned long addr)
 	}
 
 	hlist_del_rcu(&p->hlist);
-	kfree(p);
+	free_kern_probe(p);
 
 	return 0;
 }
@@ -205,7 +220,7 @@ int reset_probes(void)
 
 	swap_hlist_for_each_entry_safe (p, node, tnode, &kernel_probes, hlist) {
 		hlist_del(node);
-		kfree(p);
+		free_kern_probe(p);
 	}
 
 	return 0;
@@ -274,16 +289,9 @@ int install_kern_otg_probe(unsigned long addr,
 		return 0;
 	}
 
-	new_probe = kmalloc(sizeof (kernel_probe_t), GFP_ATOMIC);
-	if (!new_probe) {
-		EPRINTF("No memory for new probe");
+	new_probe = create_kern_probe(addr);
+	if (!new_probe)
 		return -1;
-	}
-	memset(new_probe, 0, sizeof(kernel_probe_t));
-
-	new_probe->addr = addr;
-	new_probe->jprobe.kp.addr = new_probe->retprobe.kp.addr = (kprobe_opcode_t *)addr;
-	new_probe->jprobe.priv_arg = new_probe->retprobe.priv_arg = new_probe;
 
 	if (pre_handler) {
 		new_probe->jprobe.pre_entry =
@@ -311,7 +319,6 @@ int install_kern_otg_probe(unsigned long addr,
 			def_retprobe_event_handler;
 	}
 
-	INIT_HLIST_NODE (&new_probe->hlist);
 	hlist_add_head_rcu (&new_probe->hlist, &kernel_probes);
 
 	ret = register_kernel_probe(new_probe);
