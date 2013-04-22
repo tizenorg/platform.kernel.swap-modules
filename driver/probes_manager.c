@@ -148,33 +148,9 @@ static kernel_probe_t* find_probe(unsigned long addr)
 }
 
 /* Adds non-predefined kernel probe to the list. */
-static int add_probe_to_list(unsigned long addr, kernel_probe_t **pprobe)
+static void add_probe_to_list(kernel_probe_t *p)
 {
-	kernel_probe_t *new_probe;
-	kernel_probe_t *probe;
-
-	if (pprobe)
-		*pprobe = NULL;
-
-	/* check if such probe does already exist */
-	probe = find_probe(addr);
-	if (probe) {
-		/* It is not a problem if we have already registered
-		   this probe before */
-		return 0;
-	}
-
-	new_probe = create_kern_probe(addr);
-	if (!new_probe)
-		return -ENOMEM;
-
-	dbi_find_and_set_handler_for_probe(new_probe);
-
-	hlist_add_head_rcu(&new_probe->hlist, &kernel_probes);
-	if (pprobe)
-		*pprobe = new_probe;
-
-	return 0;
+	hlist_add_head_rcu(&p->hlist, &kernel_probes);
 }
 
 /* Removes non-predefined kernel probe from the list. */
@@ -195,22 +171,26 @@ static int remove_probe_from_list(unsigned long addr)
 	return 0;
 }
 
-int
-add_probe (unsigned long addr)
+int add_probe(unsigned long addr)
 {
-	int result = 0;
-	kernel_probe_t **pprobe = NULL;
+	kernel_probe_t *p;
 
-	DPRINTF("add probe at 0x%0x\n", addr);
-	if (EC_STATE_IDLE != ec_info.ec_state)
-	{
-		EPRINTF("Probes addition is allowed in IDLE state only.");
+	/* check if such probe does already exist */
+	p = find_probe(addr);
+	if (p)
+		/* It is not a problem if we have already registered
+		   this probe before */
 		return -EINVAL;
-	}
 
-	result = add_probe_to_list (addr, pprobe);
 
-	return result;
+	p = create_kern_probe(addr);
+	if (!p)
+		return -ENOMEM;
+
+	dbi_find_and_set_handler_for_probe(p);
+	add_probe_to_list(p);
+
+	return 0;
 }
 
 int reset_probes(void)
