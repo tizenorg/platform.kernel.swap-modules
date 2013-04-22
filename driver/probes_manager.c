@@ -77,26 +77,23 @@ static int unregister_kernel_probe(kernel_probe_t *p)
 	return 0;
 }
 
-int
-attach_selected_probes (void)
+int set_kernel_probes(void)
 {
-	int result = 0;
-	int partial_result = 0;
+	int ret = 0;
 	kernel_probe_t *p;
 	struct hlist_node *node;
 
-	swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
-	{
-		partial_result = register_kernel_probe (p);
-		if (partial_result)
-		{
-			result = partial_result;
-			detach_selected_probes ();	// return into safe state
+	swap_hlist_for_each_entry_rcu(p, node, &kernel_probes, hlist) {
+		ret = register_kernel_probe(p);
+		if (ret) {
+			/* return into safe state */
+			/* FIXME: unset for installed probes */
+			detach_selected_probes();
 			break;
 		}
 	}
 
-	return result;
+	return ret;
 }
 
 int

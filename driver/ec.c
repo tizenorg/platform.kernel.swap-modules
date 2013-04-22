@@ -198,7 +198,7 @@ int ec_user_attach (void)
 		pack_event_info(EVENT_FMT_PROBE_ID, RECORD_ENTRY, "x", tmp);
 		event_mask = tmp;
 
-		result = attach_selected_probes ();
+		result = set_kernel_probes();
 		if (result == 0)	// instrument user space process
 			result = inst_usr_space_proc ();
 		// FIXME: SAFETY CHECK
@@ -243,7 +243,7 @@ int ec_user_activate (void)
 		pack_event_info(EVENT_FMT_PROBE_ID, RECORD_ENTRY, "x", tmp);
 		event_mask = tmp;
 
-		result = attach_selected_probes ();
+		result = set_kernel_probes();
 		if (result == 0)	// instrument user space process
 			result = inst_usr_space_proc ();
 		// FIXME: SAFETY CHECK
