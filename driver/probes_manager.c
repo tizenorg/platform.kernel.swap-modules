@@ -107,6 +107,20 @@ int unset_kernel_probes(void)
 	return 0;
 }
 
+/* Searches non-predefined kernel probe in the list. */
+static kernel_probe_t* find_probe(unsigned long addr)
+{
+	kernel_probe_t *p;
+	struct hlist_node *node;
+
+	/* check if such probe does exist */
+	swap_hlist_for_each_entry_rcu(p, node, &kernel_probes, hlist)
+		if (p->addr == addr)
+			return p;
+
+	return NULL;
+}
+
 /* Adds non-predefined kernel probe to the list. */
 static int add_probe_to_list(unsigned long addr, kernel_probe_t **pprobe)
 {

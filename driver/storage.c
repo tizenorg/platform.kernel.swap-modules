@@ -1246,19 +1246,6 @@ void pack_task_event_info(struct task_struct *task, probe_id_t probe_id,
 }
 EXPORT_SYMBOL_GPL(pack_task_event_info);
 
-kernel_probe_t* find_probe (unsigned long addr)
-{
-	kernel_probe_t *p;
-	struct hlist_node *node;
-
-	//check if such probe does exist
-	swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
-		if (p->addr == addr)
-			break;
-
-	return node ? p : NULL;
-}
-
 int put_us_event (char *data, unsigned long len)
 {
 	unsigned long spinlock_flags = 0L;

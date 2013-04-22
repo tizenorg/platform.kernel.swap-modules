@@ -69,11 +69,6 @@ void unlink_bundle(void);
 void dbi_find_and_set_handler_for_probe(kernel_probe_t *p);
 
 /*
-    Searches non-predefined kernel probe in the list.
-*/
-extern kernel_probe_t *find_probe (unsigned long addr);
-
-/*
     Copies event from user space to buffer and updates its pid/tid/cpu/time.
 */
 extern int put_us_event (char *data, unsigned long len);
