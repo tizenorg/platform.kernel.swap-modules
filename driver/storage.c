@@ -339,7 +339,7 @@ int SetBufferSize(unsigned int nSize) {
 		EPRINTF("Invalid buffer size!");
 		return -1;
 	}
-	detach_selected_probes ();
+	unset_kernel_probes();
 	if(UninitializeBuffer() == -1)
 		EPRINTF("Cannot uninitialize buffer!");
 	if(InitializeBuffer(nSize) == -1) {
@@ -375,7 +375,7 @@ int ResetBuffer(void) {
 
 	ResetSingleBuffer();
 
-	detach_selected_probes ();
+	unset_kernel_probes();
 
 	spin_lock_irqsave (&ec_spinlock, spinlock_flags);
 	ec_info.buffer_effect = ec_info.buffer_size;

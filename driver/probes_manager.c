@@ -40,7 +40,7 @@ probes_manager_init (void)
 void
 probes_manager_down (void)
 {
-	detach_selected_probes ();
+	unset_kernel_probes();
 	uninit_helper();
 	storage_down ();
 }
@@ -88,7 +88,7 @@ int set_kernel_probes(void)
 		if (ret) {
 			/* return into safe state */
 			/* FIXME: unset for installed probes */
-			detach_selected_probes();
+			unset_kernel_probes();
 			break;
 		}
 	}
@@ -96,14 +96,13 @@ int set_kernel_probes(void)
 	return ret;
 }
 
-int
-detach_selected_probes (void)
+int unset_kernel_probes(void)
 {
 	kernel_probe_t *p;
 	struct hlist_node *node;
 
-	swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
-		unregister_kernel_probe (p);
+	swap_hlist_for_each_entry_rcu(p, node, &kernel_probes, hlist)
+		unregister_kernel_probe(p);
 
 	return 0;
 }

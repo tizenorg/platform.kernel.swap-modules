@@ -204,7 +204,7 @@ int ec_user_attach (void)
 		// FIXME: SAFETY CHECK
 		if (result)
 		{		// return to safe state
-			detach_selected_probes ();
+			unset_kernel_probes();
 
 			spin_lock_irqsave (&ec_spinlock, spinlock_flags);	// make other CPUs wait
 			ec_info.ec_state = EC_STATE_IDLE;
@@ -249,7 +249,7 @@ int ec_user_activate (void)
 		// FIXME: SAFETY CHECK
 		if (result)
 		{		// return to safe state
-			detach_selected_probes ();
+			unset_kernel_probes();
 
 			spin_lock_irqsave (&ec_spinlock, spinlock_flags);	// make other CPUs wait
 			ec_info.ec_state = EC_STATE_IDLE;
@@ -293,7 +293,7 @@ int ec_user_stop (void)
 		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);	// open our data for other CPUs
 
 		ret = deinst_usr_space_proc ();
-		result = detach_selected_probes ();
+		result = unset_kernel_probes();
 		if (result == 0)
 			result = ret;
 
