@@ -107,9 +107,6 @@ detach_selected_probes (void)
 
 	swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
 		unregister_kernel_probe (p);
-	swap_hlist_for_each_entry_rcu (p, node, &otg_kernel_probes, hlist) {
-		unregister_kernel_probe(p);
-	}
 
 	return 0;
 }
@@ -138,11 +135,6 @@ int reset_probes(void)
 	kernel_probe_t *p;
 
 	swap_hlist_for_each_entry_safe (p, node, tnode, &kernel_probes, hlist) {
-		hlist_del(node);
-		kfree(p);
-	}
-
-	swap_hlist_for_each_entry_safe (p, node, tnode, &otg_kernel_probes, hlist) {
 		hlist_del(node);
 		kfree(p);
 	}

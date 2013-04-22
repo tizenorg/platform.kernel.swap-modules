@@ -133,9 +133,6 @@ extern int dbi_register_handlers_module(struct dbi_modules_handlers_info *dbi_mh
 extern int dbi_unregister_handlers_module(struct dbi_modules_handlers_info *dbi_mhi);
 //unsigned long get_dbi_modules_handlers(void);*/
 
-/* list of on-the-go installed kernel probes */
-extern struct hlist_head otg_kernel_probes;
-
 // event mask
 extern int event_mask;
 
