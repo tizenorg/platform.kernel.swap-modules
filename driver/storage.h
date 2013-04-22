@@ -66,10 +66,7 @@ int link_bundle(void);
 /* Undo the actions of link_bundle() */
 void unlink_bundle(void);
 
-/*
-    Adds non-predefined kernel probe to the list.
-*/
-extern int add_probe_to_list (unsigned long addr, kernel_probe_t ** pprobe);
+void dbi_find_and_set_handler_for_probe(kernel_probe_t *p);
 
 /*
     Removes non-predefined kernel probe from the list.

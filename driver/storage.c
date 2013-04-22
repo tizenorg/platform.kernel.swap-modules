@@ -84,7 +84,7 @@ inline unsigned long find_dbi_rp_handler(unsigned long p_addr, struct dbi_module
 /**
  * Search of handler in global list of modules for defined probe
  */
-static void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
+void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
 {
 	unsigned long jp_handler_addr, rp_handler_addr;
 	struct dbi_modules_handlers_info *local_mhi;
@@ -1257,40 +1257,6 @@ kernel_probe_t* find_probe (unsigned long addr)
 			break;
 
 	return node ? p : NULL;
-}
-
-
-int add_probe_to_list (unsigned long addr, kernel_probe_t ** pprobe)
-{
-	kernel_probe_t *new_probe;
-	kernel_probe_t *probe;
-
-	if (pprobe)
-		*pprobe = NULL;
-	//check if such probe does already exist
-	probe = find_probe(addr);
-	if (probe) {
-		/* It is not a problem if we have already registered
-		   this probe before */
-		return 0;
-	}
-	new_probe = kmalloc (sizeof (kernel_probe_t), GFP_KERNEL);
-	if (!new_probe)
-	{
-		EPRINTF ("no memory for new probe!");
-		return -ENOMEM;
-	}
-	memset (new_probe, 0, sizeof (kernel_probe_t));
-	new_probe->addr = addr;
-	new_probe->jprobe.kp.addr = new_probe->retprobe.kp.addr = (kprobe_opcode_t *)addr;
-	new_probe->jprobe.priv_arg = new_probe->retprobe.priv_arg = new_probe;
-	//new_probe->jprobe.pre_entry = (kprobe_pre_entry_handler_t) def_jprobe_event_pre_handler;
-	dbi_find_and_set_handler_for_probe(new_probe);
-	INIT_HLIST_NODE (&new_probe->hlist);
-	hlist_add_head_rcu (&new_probe->hlist, &kernel_probes);
-	if (pprobe)
-		*pprobe = new_probe;
-	return 0;
 }
 
 int remove_probe_from_list (unsigned long addr)

@@ -107,6 +107,44 @@ int unset_kernel_probes(void)
 	return 0;
 }
 
+/* Adds non-predefined kernel probe to the list. */
+static int add_probe_to_list(unsigned long addr, kernel_probe_t **pprobe)
+{
+	kernel_probe_t *new_probe;
+	kernel_probe_t *probe;
+
+	if (pprobe)
+		*pprobe = NULL;
+
+	/* check if such probe does already exist */
+	probe = find_probe(addr);
+	if (probe) {
+		/* It is not a problem if we have already registered
+		   this probe before */
+		return 0;
+	}
+
+	new_probe = kmalloc(sizeof(*new_probe), GFP_KERNEL);
+	if (!new_probe) {
+		EPRINTF("no memory for new probe!");
+		return -ENOMEM;
+	}
+
+	memset(new_probe, 0, sizeof(*new_probe));
+	new_probe->addr = addr;
+	new_probe->jprobe.kp.addr = new_probe->retprobe.kp.addr = (kprobe_opcode_t *)addr;
+	new_probe->jprobe.priv_arg = new_probe->retprobe.priv_arg = new_probe;
+
+	dbi_find_and_set_handler_for_probe(new_probe);
+
+	INIT_HLIST_NODE(&new_probe->hlist);
+	hlist_add_head_rcu(&new_probe->hlist, &kernel_probes);
+	if (pprobe)
+		*pprobe = new_probe;
+
+	return 0;
+}
+
 int
 add_probe (unsigned long addr)
 {
