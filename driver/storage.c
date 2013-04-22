@@ -1259,25 +1259,6 @@ kernel_probe_t* find_probe (unsigned long addr)
 	return node ? p : NULL;
 }
 
-int remove_probe_from_list (unsigned long addr)
-{
-	kernel_probe_t *p;
-
-	//check if such probe does exist
-	p = find_probe (addr);
-	if (!p) {
-		/* We do not care about it. Nothing bad. */
-		return 0;
-	}
-
-	hlist_del_rcu (&p->hlist);
-
-	kfree (p);
-
-	return 0;
-}
-
-
 int put_us_event (char *data, unsigned long len)
 {
 	unsigned long spinlock_flags = 0L;

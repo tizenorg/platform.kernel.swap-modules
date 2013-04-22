@@ -145,6 +145,24 @@ static int add_probe_to_list(unsigned long addr, kernel_probe_t **pprobe)
 	return 0;
 }
 
+/* Removes non-predefined kernel probe from the list. */
+static int remove_probe_from_list(unsigned long addr)
+{
+	kernel_probe_t *p;
+
+	/* check if such probe does exist */
+	p = find_probe(addr);
+	if (!p) {
+		/* We do not care about it. Nothing bad. */
+		return -EINVAL;
+	}
+
+	hlist_del_rcu(&p->hlist);
+	kfree(p);
+
+	return 0;
+}
+
 int
 add_probe (unsigned long addr)
 {
