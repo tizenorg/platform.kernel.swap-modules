@@ -21,6 +21,9 @@
 #include "module.h"
 #include "probes_manager.h"
 
+/* list of selected non-predefined kernel probes */
+static HLIST_HEAD(kernel_probes);
+
 int
 probes_manager_init (void)
 {

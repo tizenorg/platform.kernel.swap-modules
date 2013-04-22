@@ -39,7 +39,6 @@ inst_dex_proc_t dex_proc_info;
 char *deps;
 char *bundle;
 unsigned int inst_pid = 0;
-struct hlist_head kernel_probes;
 int event_mask = 0L;
 struct cond cond_list;
 int paused = 0; /* a state after a stop condition (events are not collected) */
@@ -1076,8 +1075,6 @@ int storage_init (void)
 		EPRINTF("Cannot initialize buffer! [Size=%u KB]", EC_BUFFER_SIZE_DEFAULT / 1024 );
 		return -1;
 	}
-
-	INIT_HLIST_HEAD(&kernel_probes);
 
 	spin_lock_init(&dbi_mh.lock);
 	INIT_LIST_HEAD(&dbi_mh.modules_handlers);

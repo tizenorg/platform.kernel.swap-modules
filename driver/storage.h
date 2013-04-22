@@ -100,9 +100,6 @@ extern int get_predef_uprobes(ioctl_predef_uprobes_info_t *data);
 // internal bookkeeping of storage
 extern char *p_buffer;
 
-// list of selected non-predefined kernel probes
-extern struct hlist_head kernel_probes;
-
 // multiple handlers stuff
 /*struct dbi_modules_handlers {
 	struct list_head	modules_handlers;
