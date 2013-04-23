@@ -707,6 +707,12 @@ int dbi_register_kretprobe (struct kretprobe *rp)
 	} else if ((unsigned long)rp->kp.addr == exit_addr) {
 		rp->kp.pre_handler = NULL; //not needed for do_exit
 		rp->maxactive = 0;
+	} else if ((unsigned long)rp->kp.addr == do_group_exit_addr) {
+		rp->kp.pre_handler = NULL;
+		rp->maxactive = 0;
+	} else if ((unsigned long)rp->kp.addr == sys_exit_group_addr) {
+		rp->kp.pre_handler = NULL;
+		rp->maxactive = 0;
 	} else if (rp->maxactive <= 0) {
 #if 1//def CONFIG_PREEMPT
 		rp->maxactive = max (COMMON_RP_NR, 2 * NR_CPUS);
