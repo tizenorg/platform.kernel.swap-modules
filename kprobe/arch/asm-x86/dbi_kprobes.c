@@ -749,7 +749,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	if (!p->tgid || (p->tgid == current->tgid)) {
 		/* handle __switch_to probe */
 		if(!p->tgid && (p->addr == sched_addr) && sched_rp) {
-			/* FIXME: Acutally 2nd parameter is not used for x86 */
+			/* FIXME: Actually 2nd parameter is not used for x86 */
 			patch_suspended_task(sched_rp, (struct task_struct *)regs->dx, regs);
 		}
 	}
@@ -1374,7 +1374,7 @@ void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 		ri->rp = rp;
 		ri->rp2 = NULL;
 		ri->task = current;
-		ri->sp = (kprobe_opcode_t *)regs->EREG(sp);
+		ri->sp = &regs->EREG(sp);
 
 		/* Replace the return addr with trampoline addr */
 		if (rp->kp.tgid){
