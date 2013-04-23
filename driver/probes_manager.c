@@ -206,22 +206,6 @@ int reset_probes(void)
 	return 0;
 }
 
-int
-remove_probe (unsigned long addr)
-{
-	int result = 0;
-
-	if (EC_STATE_IDLE != ec_info.ec_state)
-	{
-		EPRINTF("Probes addition is allowed in IDLE state only.");
-		return -EINVAL;
-	}
-
-	result = remove_probe_from_list (addr);
-
-	return result;
-}
-
 static DEFINE_PER_CPU(kernel_probe_t *, gpKernProbe) = NULL;
 
 unsigned long

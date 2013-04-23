@@ -33,7 +33,6 @@ extern void probes_manager_down (void);
 
 extern int add_probe (unsigned long addr);
 extern int reset_probes(void);
-extern int remove_probe (unsigned long addr);
 
 int set_kernel_probes(void);
 int unset_kernel_probes(void);
