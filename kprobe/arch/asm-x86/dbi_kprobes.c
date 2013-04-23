@@ -1374,7 +1374,7 @@ void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
 		ri->rp = rp;
 		ri->rp2 = NULL;
 		ri->task = current;
-		ri->sp = (kprobe_opcode_t *)regs->EREG(sp);
+		ri->sp = &regs->EREG(sp);
 
 		/* Replace the return addr with trampoline addr */
 		if (rp->kp.tgid){
