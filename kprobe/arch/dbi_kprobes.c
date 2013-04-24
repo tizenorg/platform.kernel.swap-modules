@@ -120,10 +120,14 @@ int arch_init_module_dependencies(void)
 	sched_addr = swap_ksyms("__switch_to");
 	fork_addr = swap_ksyms("do_fork");
 	exit_addr = swap_ksyms("do_exit");
+	sys_exit_group_addr = swap_ksyms("sys_exit_group");
+	do_group_exit_addr = swap_ksyms("do_group_exit");
 
 	if ((void *)sched_addr == NULL ||
-				(void *)fork_addr == NULL ||
-				(void *)exit_addr == NULL) {
+	    (void *)fork_addr == NULL ||
+	    (void *)exit_addr == NULL ||
+	    (void *)sys_exit_group_addr == NULL ||
+	    (void *)do_group_exit_addr == NULL) {
 		return -ESRCH;
 	}
 

@@ -216,8 +216,8 @@ struct kretprobe_instance
 	struct hlist_node uflist;
 	struct hlist_node hlist;
 	struct kretprobe *rp;
-	kprobe_opcode_t *ret_addr;
-	kprobe_opcode_t *sp;
+	unsigned long *ret_addr;
+	unsigned long *sp;
 	struct kretprobe *rp2;
 	struct task_struct *task;
 };

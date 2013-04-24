@@ -190,7 +190,7 @@ attach_selected_probes (void)
 	kernel_probe_t *p;
 	struct hlist_node *node;
 
-	hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
+	swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
 	{
 		partial_result = register_kernel_probe (p);
 		if (partial_result)
@@ -210,9 +210,9 @@ detach_selected_probes (void)
 	kernel_probe_t *p;
 	struct hlist_node *node;
 
-	hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
+	swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
 		unregister_kernel_probe (p);
-	hlist_for_each_entry_rcu (p, node, &otg_kernel_probes, hlist) {
+	swap_hlist_for_each_entry_rcu (p, node, &otg_kernel_probes, hlist) {
 		unregister_kernel_probe(p);
 	}
 
@@ -293,7 +293,7 @@ int reset_probes(void)
 	struct hlist_node *node, *tnode;
 	kernel_probe_t *p;
 
-	hlist_for_each_entry_safe (p, node, tnode, &kernel_probes, hlist) {
+	swap_hlist_for_each_entry_safe (p, node, tnode, &kernel_probes, hlist) {
 		if (p->addr == pf_addr) {
 			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
 			pf_probe = NULL;
@@ -314,7 +314,7 @@ int reset_probes(void)
 		kfree(p);
 	}
 
-	hlist_for_each_entry_safe (p, node, tnode, &otg_kernel_probes, hlist) {
+	swap_hlist_for_each_entry_safe (p, node, tnode, &otg_kernel_probes, hlist) {
 		if (p->addr == pf_addr) {
 			probes_flags &= ~PROBE_FLAG_PF_INSTLD;
 			pf_probe = NULL;

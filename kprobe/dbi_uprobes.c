@@ -62,7 +62,7 @@ void print_kprobe_hash_table(void)
 	// print uprobe table
 	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
 		head = &kprobe_table[i];
-		hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
+		swap_hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
 			printk("####### find K tgid=%u, addr=%x\n",
 					p->tgid, p->addr);
 		}
@@ -79,7 +79,7 @@ void print_kretprobe_hash_table(void)
 	// print uprobe table
 	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
 		head = &kretprobe_inst_table[i];
-		hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
+		swap_hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
 			printk("####### find KR tgid=%u, addr=%x\n",
 					p->tgid, p->addr);
 		}
@@ -96,7 +96,7 @@ void print_uprobe_hash_table(void)
 	// print uprobe table
 	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
 		head = &uprobe_insn_slot_table[i];
-		hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
+		swap_hlist_for_each_entry_rcu (p, node, head, is_hlist_arm) {
 			printk("####### find U tgid=%u, addr=%x\n",
 					p->tgid, p->addr);
 		}
@@ -438,7 +438,7 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
 
 	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
 		head = &kprobe_table[i];
-		hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
+		swap_hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
 			if (p->tgid == task->tgid) {
 				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%lx] for %s/%d\n",
 						p->addr, (unsigned long)p->opcode, task->comm, task->pid);

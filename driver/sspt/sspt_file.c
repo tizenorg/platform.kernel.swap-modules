@@ -70,7 +70,7 @@ void sspt_file_free(struct sspt_file *file)
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_safe(page, p, n, head, hlist) {
+		swap_hlist_for_each_entry_safe(page, p, n, head, hlist) {
 			hlist_del(&page->hlist);
 			sspt_page_free(page);
 		}
@@ -121,7 +121,7 @@ struct sspt_file *sspt_file_copy(const struct sspt_file *file)
 		// copy pages
 		for (i = 0; i < table_size; ++i) {
 			head = &file->page_probes_table[i];
-			hlist_for_each_entry(page, node, head, hlist) {
+			swap_hlist_for_each_entry(page, node, head, hlist) {
 				sspt_add_page(file_out, sspt_page_copy(page));
 			}
 		}
@@ -137,7 +137,7 @@ static struct sspt_page *sspt_find_page(struct sspt_file *file, unsigned long of
 	struct sspt_page *page;
 
 	head = &file->page_probes_table[hash_ptr((void *)offset, file->page_probes_hash_bits)];
-	hlist_for_each_entry(page, node, head, hlist) {
+	swap_hlist_for_each_entry(page, node, head, hlist) {
 		if (page->offset == offset) {
 			return page;
 		}

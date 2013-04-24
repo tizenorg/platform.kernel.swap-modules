@@ -192,7 +192,7 @@ int dbi_unregister_handlers_module(struct dbi_modules_handlers_info *dbi_mhi)
 	list_del_rcu(&dbi_mhi->dbi_list_head);
 	// Next code block is for far future possible usage in case when removing will be implemented for unsafe state
 	// (i.e. between attach and stop)
-	/*hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist) {
+	/*swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist) {
 		// XXX: absent code for pre_handlers because we suppose that they are not used
 		if ((p->jprobe.entry != ((kprobe_pre_entry_handler_t )def_jprobe_event_pre_handler)) ||
 				(p->retprobe.handler != ((kretprobe_handler_t )def_retprobe_event_handler))) {
@@ -1259,7 +1259,7 @@ kernel_probe_t* find_probe (unsigned long addr)
 	struct hlist_node *node;
 
 	//check if such probe does exist
-	hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
+	swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
 		if (p->addr == addr)
 			break;
 

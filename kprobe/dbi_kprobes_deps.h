@@ -47,6 +47,15 @@
 #include <linux/pagemap.h>
 #include "../ksyms/ksyms.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+#define swap_hlist_for_each_entry_rcu(tpos, pos, head, member) hlist_for_each_entry_rcu(tpos, head, member)
+#define swap_hlist_for_each_entry_safe(tpos, pos, n, head, member) hlist_for_each_entry_safe(tpos, n, head, member)
+#define swap_hlist_for_each_entry(tpos, pos, head, member) hlist_for_each_entry(tpos, head, member)
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
+#define swap_hlist_for_each_entry_rcu(tpos, pos, head, member) hlist_for_each_entry_rcu(tpos, pos, head, member)
+#define swap_hlist_for_each_entry_safe(tpos, pos, n, head, member) hlist_for_each_entry_safe(tpos, pos, n, head, member)
+#define swap_hlist_for_each_entry(tpos, pos, head, member) hlist_for_each_entry(tpos, pos, head, member)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12))
 #define synchronize_sched	synchronize_kernel
@@ -106,7 +115,8 @@ int page_present (struct mm_struct *mm, unsigned long addr);
 extern unsigned long sched_addr;
 extern unsigned long fork_addr;
 extern unsigned long exit_addr;
-
+extern unsigned long sys_exit_group_addr;
+extern unsigned long do_group_exit_addr;
 
 DECLARE_MOD_DEP_WRAPPER (__flush_anon_page, \
 			void, struct vm_area_struct *vma, \

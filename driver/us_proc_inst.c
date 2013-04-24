@@ -634,7 +634,14 @@ void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_re
 	}
 
 	if (is_us_instrumentation()) {
+		// for x86 do_page_fault is do_page_fault(struct pt_regs *regs, unsigned long error_code)
+		// instead of do_page_fault(unsigned long addr, unsigned int fsr, struct pt_regs *regs) for arm
+#ifdef CONFIG_X86
+		unsigned long address = read_cr2();
+		swap_put_entry_data((void *)address, &sa_dpf);
+#else /* CONFIG_X86 */
 		swap_put_entry_data((void *)addr, &sa_dpf);
+#endif /* CONFIG_X86 */
 	}
 }
 EXPORT_SYMBOL_GPL(do_page_fault_j_pre_code);
@@ -762,7 +769,7 @@ static void install_file_probes(struct task_struct *task, struct mm_struct *mm, 
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_rcu(page, node, head, hlist) {
+		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
 			register_us_page_probe(page, file, task);
 		}
 	}
@@ -804,7 +811,7 @@ static int check_install_pages_in_file(struct task_struct *task, struct sspt_fil
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
+		swap_hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
 			if (page->install) {
 				return 1;
 			}
@@ -824,7 +831,7 @@ static int unregister_us_file_probes(struct task_struct *task, struct sspt_file 
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
+		swap_hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
 			err = unregister_us_page_probe(task, page, flag);
 			if (err != 0) {
 				// TODO: ERROR

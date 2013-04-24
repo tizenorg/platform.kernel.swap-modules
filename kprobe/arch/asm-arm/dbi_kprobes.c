@@ -1281,7 +1281,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	{
 		if(!p->tgid && ((unsigned int)p->addr == sched_addr) && sched_rp) {
 			struct thread_info *tinfo = (struct thread_info *)regs->ARM_r2;
-			patch_suspended_task(sched_rp, tinfo->task);
+			patch_suspended_task(sched_rp, tinfo->task, regs);
 		}
 		if (pre_entry)
 			p->ss_addr = (void *)pre_entry (jp->priv_arg, regs);
@@ -1414,7 +1414,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	 *       real return address, and all the rest will point to
 	 *       kretprobe_trampoline
 	 */
-	hlist_for_each_entry_safe (ri, node, tmp, head, hlist)
+	swap_hlist_for_each_entry_safe (ri, node, tmp, head, hlist)
 	{
 		if (ri->task != current)
 			/* another task is sharing our hash bucket */
@@ -1483,7 +1483,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 				  crp->kp.addr, *kaddrs[0], *kaddrs[1], *kaddrs[2]);
 				  DIE(die_msg, regs); */
 				// look for other instances for the same retprobe
-				hlist_for_each_entry_safe (ri, node, tmp, head, hlist)
+				swap_hlist_for_each_entry_safe (ri, node, tmp, head, hlist)
 				{
 					/*
 					 * Trying to find another retprobe instance associated with
