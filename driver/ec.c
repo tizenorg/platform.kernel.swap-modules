@@ -43,12 +43,6 @@ ec_probe_info_t ec_probe_info = {
 	.address = NULL,
 };
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-spinlock_t ec_probe_spinlock;	// protects 'ec_probe_info'
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-spinlock_t ec_probe_spinlock = SPIN_LOCK_UNLOCKED;
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-
 ec_state_t GetECState(void) { return ec_info.ec_state; };
 
 void reset_ec_info_nolock(void)

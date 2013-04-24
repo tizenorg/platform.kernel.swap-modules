@@ -47,8 +47,4 @@ int install_kern_otg_probe(unsigned long addr,
 			   unsigned long jp_handler,
 			   unsigned long rp_handler);
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-extern spinlock_t ec_probe_spinlock;
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-
 #endif // !defined(__PROBES_MANAGER_H__)

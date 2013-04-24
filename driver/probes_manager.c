@@ -30,7 +30,6 @@ probes_manager_init (void)
 	int ret;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 	spin_lock_init(&ec_spinlock);
-	spin_lock_init(&ec_probe_spinlock);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 	ret = init_helper();
