@@ -24,29 +24,6 @@
 /* list of selected non-predefined kernel probes */
 static HLIST_HEAD(kernel_probes);
 
-int
-probes_manager_init (void)
-{
-	int ret;
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	spin_lock_init(&ec_spinlock);
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-
-	ret = init_helper();
-	if (ret)
-		return ret;
-
-	return storage_init ();
-}
-
-void
-probes_manager_down (void)
-{
-	unset_kernel_probes();
-	uninit_helper();
-	storage_down ();
-}
-
 static int register_kernel_probe(kernel_probe_t *p)
 {
 	int ret;

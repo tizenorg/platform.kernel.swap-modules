@@ -28,9 +28,6 @@ typedef struct
 	struct hlist_node hlist;
 } kernel_probe_t;
 
-extern int probes_manager_init (void);
-extern void probes_manager_down (void);
-
 extern int add_probe (unsigned long addr);
 extern int reset_probes(void);
 

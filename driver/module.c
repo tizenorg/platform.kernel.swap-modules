@@ -63,6 +63,27 @@ void __put_task_struct(struct task_struct *tsk)
 void (*flush_cache_page) (struct vm_area_struct * vma, unsigned long page);
 #endif
 
+static int probes_manager_init(void)
+{
+	int ret;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	spin_lock_init(&ec_spinlock);
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+
+	ret = init_helper();
+	if (ret)
+		return ret;
+
+	return storage_init();
+}
+
+static void probes_manager_down(void)
+{
+	unset_kernel_probes();
+	uninit_helper();
+	storage_down();
+}
+
 static int __init InitializeModule(void)
 {
 	if(device_name == NULL) {
