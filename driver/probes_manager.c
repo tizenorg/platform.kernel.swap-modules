@@ -218,53 +218,28 @@ int install_kern_otg_probe(unsigned long addr,
 			   unsigned long jp_handler,
 			   unsigned long rp_handler)
 {
-	kernel_probe_t *new_probe = NULL;
-	kernel_probe_t *probe;
+	kernel_probe_t *p;
 	int ret = 0;
 
-	probe = find_probe(addr);
-	if (probe) {
-		/* It is not a problem if we have already registered
-		   this probe before */
-		return 0;
+	p = find_probe(addr);
+	if (p) {
+		return -EINVAL;;
 	}
 
-	new_probe = create_kern_probe(addr);
-	if (!new_probe)
-		return -1;
+	p = create_kern_probe(addr);
+	if (!p)
+		return -ENOMEM;
 
-	if (pre_handler) {
-		new_probe->jprobe.pre_entry =
-			(kprobe_pre_entry_handler_t)
-			pre_handler;
-	} else {
-		new_probe->jprobe.pre_entry =
-			(kprobe_pre_entry_handler_t)
-			def_jprobe_event_pre_handler;
-	}
+	p->jprobe.pre_entry = (kprobe_pre_entry_handler_t)pre_handler;
+	p->jprobe.entry = (kprobe_opcode_t *)jp_handler;
+	p->retprobe.handler = (kretprobe_handler_t)rp_handler;
 
-	if (jp_handler) {
-		new_probe->jprobe.entry = (kprobe_opcode_t *)jp_handler;
-	} else {
-		new_probe->jprobe.entry =
-			(kprobe_opcode_t *)
-			def_jprobe_event_handler;
-	}
+	add_probe_to_list(p);
 
-	if (rp_handler) {
-		new_probe->retprobe.handler = (kretprobe_handler_t)rp_handler;
-	} else {
-		new_probe->retprobe.handler =
-			(kretprobe_handler_t)
-			def_retprobe_event_handler;
-	}
-
-	hlist_add_head_rcu (&new_probe->hlist, &kernel_probes);
-
-	ret = register_kernel_probe(new_probe);
+	ret = register_kernel_probe(p);
 	if (ret) {
 		EPRINTF("Cannot set kernel probe at addr %lx", addr);
-		return -1;
+		return ret;
 	}
 
 	return 0;
