@@ -129,24 +129,6 @@ static void add_probe_to_list(kernel_probe_t *p)
 	hlist_add_head_rcu(&p->hlist, &kernel_probes);
 }
 
-/* Removes non-predefined kernel probe from the list. */
-static int remove_probe_from_list(unsigned long addr)
-{
-	kernel_probe_t *p;
-
-	/* check if such probe does exist */
-	p = find_probe(addr);
-	if (!p) {
-		/* We do not care about it. Nothing bad. */
-		return -EINVAL;
-	}
-
-	hlist_del_rcu(&p->hlist);
-	free_kern_probe(p);
-
-	return 0;
-}
-
 int add_probe(unsigned long addr)
 {
 	kernel_probe_t *p;
