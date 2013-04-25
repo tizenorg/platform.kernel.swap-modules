@@ -502,6 +502,8 @@ int deinst_usr_space_proc (void)
 		return 0;
 	}
 
+	unregister_helper_ks_probes();
+
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_munmap) result=%d!", iRet);
 
@@ -553,8 +555,6 @@ int deinst_usr_space_proc (void)
 				us_proc_info.p_libs[i].loaded = 0;
 		}
 	}
-
-	unregister_helper_ks_probes();
 
 	return iRet;
 }
