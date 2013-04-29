@@ -182,10 +182,10 @@ static struct kretprobe cp_kretprobe = {
 	.handler = ret_handler_cp,
 };
 
-static void jmm_release(struct task_struct *tsk, struct mm_struct *mm);
+static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs);
 
-static struct jprobe mr_jprobe = {
-	.entry = jmm_release
+static struct kprobe mr_kprobe = {
+	.pre_handler = mr_pre_handler
 };
 
 static int jdo_munmap(struct mm_struct *mm, unsigned long start, size_t len);
@@ -413,7 +413,7 @@ int init_helper(void)
 		EPRINTF("Cannot find address for mm_release function!");
 		return -EINVAL;
 	}
-	mr_jprobe.kp.addr = (kprobe_opcode_t *)addr;
+	mr_kprobe.addr = (kprobe_opcode_t *)addr;
 
 	addr = swap_ksyms("do_munmap");
 	if (addr == 0) {
@@ -440,10 +440,10 @@ static int register_helper_ks_probes(void)
 		return ret;
 	}
 
-	/* install jprobe on 'mm_release' to detect when for remove user space probes */
-	ret = dbi_register_jprobe(&mr_jprobe);
+	/* install kprobe on 'mm_release' to detect when for remove user space probes */
+	ret = dbi_register_kprobe(&mr_kprobe);
 	if (ret != 0) {
-		EPRINTF("dbi_register_jprobe(mm_release) result=%d!", ret);
+		EPRINTF("dbi_register_kprobe(mm_release) result=%d!", ret);
 		goto unregister_unmap;
 	}
 
@@ -468,7 +468,7 @@ unregister_cp:
 	dbi_unregister_kretprobe(&cp_kretprobe);
 
 unregister_mr:
-	dbi_unregister_jprobe(&mr_jprobe);
+	dbi_unregister_kprobe(&mr_kprobe, NULL);
 
 unregister_unmap:
 	dbi_unregister_jprobe(&unmap_jprobe);
@@ -484,8 +484,8 @@ static void unregister_helper_ks_probes(void)
 	/* uninstall kretprobe with 'copy_process' */
 	dbi_unregister_kretprobe(&cp_kretprobe);
 
-	/* uninstall jprobe with 'mm_release' */
-	dbi_unregister_jprobe(&mr_jprobe);
+	/* uninstall kprobe with 'mm_release' */
+	dbi_unregister_kprobe(&mr_kprobe, NULL);
 
 	/* uninstall jprobe with 'do_munmap' */
 	dbi_unregister_jprobe(&unmap_jprobe);
@@ -1031,9 +1031,10 @@ out:
 }
 
 /* Detects when target process removes IPs. */
-static void jmm_release(struct task_struct *task, struct mm_struct *mm)
+static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct sspt_procs *procs = NULL;
+	struct task_struct *task = (struct task_struct *)regs->ARM_r0; /* for ARM */
 
 	if (!is_us_instrumentation() || task->tgid != task->pid) {
 		goto out;
@@ -1058,7 +1059,7 @@ static void jmm_release(struct task_struct *task, struct mm_struct *mm)
 	}
 
 out:
-	dbi_jprobe_return();
+	return 0;
 }
 
 static void recover_child(struct task_struct *child_task, struct sspt_procs *procs)
