@@ -314,7 +314,10 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 	case EC_IOCTL_ADD_PROBE:
 		{
 			unsigned long addr = arg;
-			result = add_probe(addr);
+			unsigned long pre_handler = 0, jp_handler = 0, rp_handler = 0;
+
+			dbi_find_and_set_handler_for_probe(addr, &pre_handler, &jp_handler, &rp_handler);
+			result = add_probe(addr, pre_handler, jp_handler, rp_handler);
 
 			break;
 		}

@@ -129,7 +129,10 @@ static void add_probe_to_list(kernel_probe_t *p)
 	hlist_add_head_rcu(&p->hlist, &kernel_probes);
 }
 
-int add_probe(unsigned long addr)
+int add_probe(unsigned long addr,
+	      unsigned long pre_handler,
+	      unsigned long jp_handler,
+	      unsigned long rp_handler)
 {
 	kernel_probe_t *p;
 
@@ -145,7 +148,10 @@ int add_probe(unsigned long addr)
 	if (!p)
 		return -ENOMEM;
 
-	dbi_find_and_set_handler_for_probe(p);
+	p->jprobe.pre_entry = (kprobe_pre_entry_handler_t)pre_handler;
+	p->jprobe.entry = (kprobe_opcode_t *)jp_handler;
+	p->retprobe.handler = (kretprobe_handler_t)rp_handler;
+
 	add_probe_to_list(p);
 
 	return 0;

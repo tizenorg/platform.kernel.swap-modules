@@ -66,7 +66,10 @@ int link_bundle(void);
 /* Undo the actions of link_bundle() */
 void unlink_bundle(void);
 
-void dbi_find_and_set_handler_for_probe(kernel_probe_t *p);
+void dbi_find_and_set_handler_for_probe(unsigned long addr,
+					unsigned long *pre_entry,
+					unsigned long *jp_handler,
+					unsigned long *rp_handler);
 
 /*
     Copies event from user space to buffer and updates its pid/tid/cpu/time.
