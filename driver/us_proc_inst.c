@@ -188,10 +188,10 @@ static struct kprobe mr_kprobe = {
 	.pre_handler = mr_pre_handler
 };
 
-static int jdo_munmap(struct mm_struct *mm, unsigned long start, size_t len);
+static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs);
 
-static struct jprobe unmap_jprobe = {
-	.entry = jdo_munmap
+static struct kprobe unmap_kprobe = {
+	.pre_handler = unmap_pre_handler
 };
 
 static struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
@@ -420,7 +420,7 @@ int init_helper(void)
 		EPRINTF("Cannot find address for do_munmap function!");
 		return -EINVAL;
 	}
-	unmap_jprobe.kp.addr = (kprobe_opcode_t *)addr;
+	unmap_kprobe.addr = (kprobe_opcode_t *)addr;
 
 	return 0;
 }
@@ -433,10 +433,10 @@ static int register_helper_ks_probes(void)
 {
 	int ret = 0;
 
-	/* install jprobe on 'do_munmap' to detect when for remove user space probes */
-	ret = dbi_register_jprobe(&unmap_jprobe);
+	/* install kprobe on 'do_munmap' to detect when for remove user space probes */
+	ret = dbi_register_kprobe(&unmap_kprobe);
 	if (ret) {
-		EPRINTF("dbi_register_jprobe(do_munmap) result=%d!", ret);
+		EPRINTF("dbi_register_kprobe(do_munmap) result=%d!", ret);
 		return ret;
 	}
 
@@ -471,7 +471,7 @@ unregister_mr:
 	dbi_unregister_kprobe(&mr_kprobe, NULL);
 
 unregister_unmap:
-	dbi_unregister_jprobe(&unmap_jprobe);
+	dbi_unregister_kprobe(&unmap_kprobe, NULL);
 
 	return ret;
 }
@@ -487,8 +487,8 @@ static void unregister_helper_ks_probes(void)
 	/* uninstall kprobe with 'mm_release' */
 	dbi_unregister_kprobe(&mr_kprobe, NULL);
 
-	/* uninstall jprobe with 'do_munmap' */
-	dbi_unregister_jprobe(&unmap_jprobe);
+	/* uninstall kprobe with 'do_munmap' */
+	dbi_unregister_kprobe(&unmap_kprobe, NULL);
 }
 
 static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag);
@@ -1001,8 +1001,13 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 }
 
 /* Detects when target removes IPs. */
-static int jdo_munmap(struct mm_struct *mm, unsigned long start, size_t len)
+static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
+	/* for ARM */
+	struct mm_struct *mm = (struct mm_struct *)regs->ARM_r0;
+	unsigned long start = regs->ARM_r1;
+	size_t len = (size_t)regs->ARM_r2;
+
 	struct sspt_procs *procs = NULL;
 	struct task_struct *task = current;
 
@@ -1026,7 +1031,6 @@ static int jdo_munmap(struct mm_struct *mm, unsigned long start, size_t len)
 	}
 
 out:
-	dbi_jprobe_return();
 	return 0;
 }
 
