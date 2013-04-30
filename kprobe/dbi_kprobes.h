@@ -276,7 +276,9 @@ void reset_current_kprobe (void);
 struct kprobe_ctlblk *get_kprobe_ctlblk (void);
 
 void prepare_singlestep(struct kprobe *p, struct pt_regs *regs);
-int patch_suspended_task(struct kretprobe *rp, struct task_struct *tsk);
+int patch_suspended_task(struct kretprobe *rp,
+			 struct task_struct *task,
+			 struct pt_regs *regs);
 
 #endif /* _DBI_KPROBES_H */
 

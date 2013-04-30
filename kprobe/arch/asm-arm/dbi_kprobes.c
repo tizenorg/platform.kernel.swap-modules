@@ -365,7 +365,7 @@ int setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 
 	if (((unsigned long)p->addr == sched_addr) && sched_rp) {
 		struct thread_info *tinfo = (struct thread_info *)regs->ARM_r2;
-		patch_suspended_task(sched_rp, tinfo->task);
+		patch_suspended_task(sched_rp, tinfo->task, regs);
 	}
 
 	if (pre_entry) {
