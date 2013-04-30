@@ -861,8 +861,14 @@ static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct pf_data *data = (struct pf_data *)ri->data;
 
-	/* for ARM arch*/
+#ifdef CONFIG_X86
+	data->addr = read_cr2();
+#elif CONFIG_ARM
 	data->addr = regs->ARM_r0;
+#else
+#error this architecture is not supported
+#endif
+
 	return 0;
 }
 

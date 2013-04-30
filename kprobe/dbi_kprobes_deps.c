@@ -134,7 +134,7 @@ static DECLARE_MOD_FUNC_DEP(in_gate_area_no_mm, int, unsigned long addr);
 static DECLARE_MOD_FUNC_DEP(in_gate_area_no_task, int, unsigned long addr);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 static DECLARE_MOD_FUNC_DEP(follow_page_mask, \
 		struct page *, struct vm_area_struct * vma, \
 		unsigned long address, unsigned int foll_flags, \
@@ -145,7 +145,7 @@ DECLARE_MOD_DEP_WRAPPER(follow_page_mask, struct page *, \
 				unsigned int foll_flags, \
 				unsigned int *page_mask)
 IMP_MOD_DEP_WRAPPER (follow_page_mask, vma, address, foll_flags, page_mask)
-#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0) */
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 static DECLARE_MOD_FUNC_DEP(follow_page, \
 		struct page *, struct vm_area_struct * vma, \
 		unsigned long address, unsigned int foll_flags);
@@ -154,7 +154,7 @@ DECLARE_MOD_DEP_WRAPPER(follow_page, struct page *, \
 				unsigned long address, \
 				unsigned int foll_flags)
 IMP_MOD_DEP_WRAPPER (follow_page, vma, address, foll_flags)
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0) */
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
 static DECLARE_MOD_FUNC_DEP(__flush_anon_page, \
 		void, struct vm_area_struct *vma, struct page *page, \
@@ -280,11 +280,11 @@ int init_module_dependencies(void)
 	INIT_MOD_DEP_VAR(in_gate_area, in_gate_area);
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 	INIT_MOD_DEP_VAR(follow_page_mask, follow_page_mask);
-#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0) */
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 	INIT_MOD_DEP_VAR(follow_page, follow_page);
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0) */
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 
@@ -381,7 +381,7 @@ static inline int stack_guard_page(struct vm_area_struct *vma, unsigned long add
 			stack_guard_page_end(vma, addr+PAGE_SIZE);
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 
 static inline struct page *follow_page_uprobe(struct vm_area_struct *vma,
         unsigned long address, unsigned int foll_flags)
@@ -596,7 +596,7 @@ next_page:
 	return i;
 }
 
-#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0) */
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
 static int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 			unsigned long start, int nr_pages, unsigned int gup_flags,
@@ -793,7 +793,7 @@ next_page:
 	return i;
 }
 
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0) */
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
