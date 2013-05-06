@@ -21,6 +21,7 @@ module_name = swap_driver
 cross_compiler = $(subst gcc,,$(CC))
 
 inlude_opt = -I$(realpath $(top_srcdir)/src/modules/ksyms) \
+             -I$(realpath $(top_srcdir)/src/modules/driver) \
              -I$(realpath $(top_srcdir)/src/common) \
              -I$(realpath $(top_srcdir)/src/profile) \
              -I$(realpath $(top_srcdir)/src/modules/kprobe) \

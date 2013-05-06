@@ -42,6 +42,9 @@ struct sspt_procs {
 struct sspt_procs *sspt_procs_create(struct dentry* dentry, pid_t tgid);
 struct sspt_procs *sspt_procs_copy(struct sspt_procs *procs, struct task_struct *task);
 void sspt_procs_free(struct sspt_procs *procs);
+
+struct sspt_procs *sspt_procs_get_by_task(struct task_struct *task);
+struct sspt_procs *sspt_procs_get_by_task_or_new(struct task_struct *task);
 void sspt_procs_free_all(void);
 
 void sspt_procs_add_ip_data(struct sspt_procs *procs, struct dentry* dentry,

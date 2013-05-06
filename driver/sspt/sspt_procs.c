@@ -25,8 +25,9 @@
 #include "sspt_procs.h"
 #include <linux/slab.h>
 #include <linux/list.h>
+#include <us_slot_manager.h>
 
-extern struct list_head proc_probes_list;
+static LIST_HEAD(proc_probes_list);
 
 struct sspt_procs *sspt_procs_create(struct dentry* dentry, pid_t tgid)
 {
@@ -57,6 +58,36 @@ void sspt_procs_free(struct sspt_procs *procs)
 // TODO: remove "us_proc_info"
 #include "../storage.h"
 extern inst_us_proc_t us_proc_info;
+
+struct sspt_procs *sspt_procs_get_by_task(struct task_struct *task)
+{
+	struct sspt_procs *procs, *tmp;
+
+	list_for_each_entry_safe(procs, tmp, &proc_probes_list, list) {
+		if (procs->tgid == task->tgid) {
+			return procs;
+		}
+	}
+
+	return NULL;
+}
+
+static void add_proc_probes(struct sspt_procs *procs)
+{
+	list_add_tail(&procs->list, &proc_probes_list);
+}
+
+struct sspt_procs *sspt_procs_get_by_task_or_new(struct task_struct *task)
+{
+	struct sspt_procs *procs = sspt_procs_get_by_task(task);
+	if (procs == NULL) {
+		procs = sspt_procs_copy(us_proc_info.pp, task);
+		procs->sm = create_sm_us(task);
+		add_proc_probes(procs);
+	}
+
+	return procs;
+}
 
 void sspt_procs_free_all(void)
 {

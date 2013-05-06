@@ -53,8 +53,6 @@ void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned lon
 int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip);
 
 
-LIST_HEAD(proc_probes_list);
-
 #define print_event(fmt, args...) 						\
 { 										\
 	char *buf[1024];							\
@@ -71,45 +69,6 @@ int is_libonly(void)
 int is_us_instrumentation(void)
 {
 	return !!us_proc_info.path;
-}
-
-struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
-{
-	struct sspt_procs *procs, *tmp;
-
-	if (!is_libonly()) {
-		if (task != current) {
-			printk("ERROR get_proc_probes_by_task: \'task != current\'\n");
-			return NULL;
-		}
-
-		return us_proc_info.pp;
-	}
-
-	list_for_each_entry_safe(procs, tmp, &proc_probes_list, list) {
-		if (procs->tgid == task->tgid) {
-			return procs;
-		}
-	}
-
-	return NULL;
-}
-
-static void add_proc_probes(struct task_struct *task, struct sspt_procs *procs)
-{
-	list_add_tail(&procs->list, &proc_probes_list);
-}
-
-struct sspt_procs *get_proc_probes_by_task_or_new(struct task_struct *task)
-{
-	struct sspt_procs *procs = get_proc_probes_by_task(task);
-	if (procs == NULL) {
-		procs = sspt_procs_copy(us_proc_info.pp, task);
-		procs->sm = create_sm_us(task);
-		add_proc_probes(task, procs);
-	}
-
-	return procs;
 }
 
 struct dentry *dentry_by_path(const char *path)
@@ -224,7 +183,7 @@ int install_otg_ip(unsigned long addr,
 			unsigned long offset_addr = addr - vma->vm_start;
 			struct dentry *dentry = vma->vm_file->f_dentry;
 			char *name = dentry->d_iname;
-			struct sspt_procs *procs = get_proc_probes_by_task(task);
+			struct sspt_procs *procs = sspt_procs_get_by_task(task);
 			struct ip_data pd = {
 					.offset = offset_addr,
 					.pre_handler = pre_handler,
@@ -288,7 +247,7 @@ int deinst_usr_space_proc (void)
 		struct sspt_procs *procs;
 
 		for_each_process(task)	{
-			procs = get_proc_probes_by_task(task);
+			procs = sspt_procs_get_by_task(task);
 			if (procs) {
 				int ret = uninstall_us_proc_probes(task, procs, US_UNREGS_PROBE);
 				if (ret) {
@@ -375,7 +334,7 @@ int inst_usr_space_proc (void)
 				continue;
 			}
 
-			procs = get_proc_probes_by_task_or_new(task);
+			procs = sspt_procs_get_by_task_or_new(task);
 			DPRINTF("trying process");
 			install_proc_probes(task, procs, 1);
 			//put_task_struct (task);

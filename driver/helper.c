@@ -62,7 +62,7 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 	}
 
 	if (is_libonly()) {
-		procs = get_proc_probes_by_task_or_new(task);
+		procs = sspt_procs_get_by_task_or_new(task);
 	} else {
 		// find task
 		if (us_proc_info.tgid == 0) {
@@ -113,7 +113,7 @@ static void recover_child(struct task_struct *child_task, struct sspt_procs *pro
 static void rm_uprobes_child(struct task_struct *task)
 {
 	if (is_libonly()) {
-		struct sspt_procs *procs = get_proc_probes_by_task(current);
+		struct sspt_procs *procs = sspt_procs_get_by_task(current);
 		if(procs) {
 			recover_child(task, procs);
 		}
@@ -162,10 +162,10 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 
 	if (is_libonly()) {
-		procs = get_proc_probes_by_task(task);
+		procs = sspt_procs_get_by_task(task);
 	} else {
 		if (task->tgid == us_proc_info.tgid) {
-			procs = get_proc_probes_by_task(task);
+			procs = us_proc_info.pp;
 			us_proc_info.tgid = 0;
 		}
 	}
@@ -257,7 +257,7 @@ static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 
 	if (is_libonly()) {
-		procs = get_proc_probes_by_task(task);
+		procs = sspt_procs_get_by_task(task);
 	} else {
 		if (task->tgid == us_proc_info.tgid) {
 			procs = us_proc_info.pp;
