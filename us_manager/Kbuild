@@ -1,0 +1,5 @@
+EXTRA_CFLAGS := $(extra_cflags)
+
+obj-m := swap_us_manager.o
+swap_us_manager-y := us_manager.o
+
