@@ -167,14 +167,20 @@ static struct kretprobe pf_kretprobe = {
 	.data_size = sizeof(struct pf_data)
 };
 
-static void copy_process_ret_pre_code(struct task_struct *p);
+static void rm_uprobes_child(struct task_struct *task);
 
+/* Delete uprobs in children at fork */
 static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct task_struct* task = (struct task_struct *)regs_return_value(regs);
 
-	copy_process_ret_pre_code(task);
+	if(!task || IS_ERR(task))
+		goto out;
 
+	if(task->mm != current->mm)	/* check flags CLONE_VM */
+		rm_uprobes_child(task);
+
+out:
 	return 0;
 }
 
@@ -1078,28 +1084,18 @@ static void recover_child(struct task_struct *child_task, struct sspt_procs *pro
 	dbi_disarm_urp_inst_for_task(current, child_task);
 }
 
-static void rm_uprobes_child(struct task_struct *new_task)
+static void rm_uprobes_child(struct task_struct *task)
 {
 	if (is_libonly()) {
 		struct sspt_procs *procs = get_proc_probes_by_task(current);
 		if(procs) {
-			recover_child(new_task, procs);
+			recover_child(task, procs);
 		}
 	} else {
 		if(us_proc_info.tgid == current->tgid) {
-			recover_child(new_task, us_proc_info.pp);
+			recover_child(task, us_proc_info.pp);
 		}
 	}
-}
-
-/* Delete uprobs in children at fork */
-static void copy_process_ret_pre_code(struct task_struct *p)
-{
-	if(!p || IS_ERR(p))
-		return;
-
-	if(p->mm != current->mm)    // check flags CLONE_VM
-		rm_uprobes_child(p);
 }
 
 static DEFINE_PER_CPU(struct us_ip *, gpCurIp) = NULL;
