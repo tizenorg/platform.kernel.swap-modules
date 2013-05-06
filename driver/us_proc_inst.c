@@ -212,7 +212,7 @@ int install_otg_ip(unsigned long addr,
 					sspt_set_ip_addr(ip, page, file);
 
 					// TODO: error
-					ret = register_usprobe_my(task, ip);
+					ret = sspt_register_usprobe(task, ip);
 					if (ret == 0) {
 						sspt_page_installed(page);
 					} else {
@@ -393,7 +393,7 @@ static int register_us_page_probe(struct sspt_page *page,
 	sspt_set_all_ip_addr(page, file);
 
 	list_for_each_entry_safe(ip, n, &page->ip_list, list) {
-		err = register_usprobe_my(task, ip);
+		err = sspt_register_usprobe(task, ip);
 		if (err == -ENOEXEC) {
 			list_del(&ip->list);
 			free_ip(ip);
@@ -422,7 +422,7 @@ int unregister_us_page_probe(struct task_struct *task,
 	}
 
 	list_for_each_entry(ip, &page->ip_list, list) {
-		err = unregister_usprobe_my(task, ip, flag);
+		err = sspt_unregister_usprobe(task, ip, flag);
 		if (err != 0) {
 			//TODO: ERROR
 			break;
