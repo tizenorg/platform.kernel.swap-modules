@@ -69,15 +69,15 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 			pid_t tgid = find_proc_by_task(task, us_proc_info.m_f_dentry);
 			if (tgid) {
 				us_proc_info.tgid = gl_nNotifyTgid = tgid;
+				procs = sspt_procs_get_by_task_or_new(task);
 
-				us_proc_info.pp->sm = create_sm_us(task);
 				/* install probes in already mapped memory */
-				install_proc_probes(task, us_proc_info.pp);
+				install_proc_probes(task, procs);
 			}
 		}
 
 		if (us_proc_info.tgid == task->tgid) {
-			procs = us_proc_info.pp;
+			procs = sspt_procs_get_by_task_or_new(task);
 		}
 	}
 
@@ -112,15 +112,9 @@ static void recover_child(struct task_struct *child_task, struct sspt_procs *pro
 
 static void rm_uprobes_child(struct task_struct *task)
 {
-	if (is_libonly()) {
-		struct sspt_procs *procs = sspt_procs_get_by_task(current);
-		if(procs) {
-			recover_child(task, procs);
-		}
-	} else {
-		if(us_proc_info.tgid == current->tgid) {
-			recover_child(task, us_proc_info.pp);
-		}
+	struct sspt_procs *procs = sspt_procs_get_by_task(current);
+	if(procs) {
+		recover_child(task, procs);
 	}
 }
 
@@ -165,7 +159,7 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 		procs = sspt_procs_get_by_task(task);
 	} else {
 		if (task->tgid == us_proc_info.tgid) {
-			procs = us_proc_info.pp;
+			procs = sspt_procs_get_by_task(task);
 			us_proc_info.tgid = 0;
 		}
 	}
@@ -256,14 +250,7 @@ static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs)
 		goto out;
 	}
 
-	if (is_libonly()) {
-		procs = sspt_procs_get_by_task(task);
-	} else {
-		if (task->tgid == us_proc_info.tgid) {
-			procs = us_proc_info.pp;
-		}
-	}
-
+	procs = sspt_procs_get_by_task(task);
 	if (procs) {
 		if (remove_unmap_probes(task, procs, start, len)) {
 			printk("ERROR do_munmap: start=%lx, len=%x\n", start, len);

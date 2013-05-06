@@ -233,6 +233,7 @@ int deinst_usr_space_proc (void)
 {
 	int iRet = 0, found = 0;
 	struct task_struct *task = NULL;
+	struct sspt_procs *procs;
 
 	if (!is_us_instrumentation()) {
 		return 0;
@@ -243,52 +244,16 @@ int deinst_usr_space_proc (void)
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_munmap) result=%d!", iRet);
 
-	if (is_libonly()) {
-		struct sspt_procs *procs;
 
-		for_each_process(task)	{
-			procs = sspt_procs_get_by_task(task);
-			if (procs) {
-				int ret = uninstall_us_proc_probes(task, procs, US_UNREGS_PROBE);
-				if (ret) {
-					EPRINTF ("failed to uninstall IPs (%d)!", ret);
-				}
-
-				dbi_unregister_all_uprobes(task);
-			}
-		}
-	}
-	else
-	{
-		if (us_proc_info.tgid == 0)
-			return 0;
-			rcu_read_lock ();
-		for_each_process (task)
-		{
-			if (task->tgid == us_proc_info.tgid)
-			{
-				found = 1;
-				get_task_struct (task);
-				break;
-			}
-		}
-		rcu_read_unlock ();
-		if (found)
-		{
-			int i, ret;
-			// uninstall IPs
-			ret = uninstall_us_proc_probes(task, us_proc_info.pp, US_UNREGS_PROBE);
-			if (ret != 0) {
-				EPRINTF ("failed to uninstall IPs %d!", ret);
+	for_each_process(task) {
+		procs = sspt_procs_get_by_task(task);
+		if (procs) {
+			int ret = uninstall_us_proc_probes(task, procs, US_UNREGS_PROBE);
+			if (ret) {
+				EPRINTF ("failed to uninstall IPs (%d)!", ret);
 			}
 
-			put_task_struct (task);
-
-			printk("### 1 ### dbi_unregister_all_uprobes:\n");
 			dbi_unregister_all_uprobes(task);
-			us_proc_info.tgid = 0;
-			for(i = 0; i < us_proc_info.libs_count; i++)
-				us_proc_info.p_libs[i].loaded = 0;
 		}
 	}
 
@@ -342,14 +307,15 @@ int inst_usr_space_proc (void)
 	}
 	else
 	{
-		ret = find_task_by_path (us_proc_info.path, &task, NULL);
-		if ( task  )
-		{
-			DPRINTF("task found. installing probes");
+		ret = find_task_by_path(us_proc_info.path, &task, NULL);
+		if (task) {
+			struct sspt_procs *procs;
+
+			procs = sspt_procs_get_by_task_or_new(task);
+
 			us_proc_info.tgid = task->pid;
-			us_proc_info.pp->sm = create_sm_us(task);
-			install_proc_probes(task, us_proc_info.pp);
-			put_task_struct (task);
+			install_proc_probes(task, procs);
+			put_task_struct(task);
 		}
 	}
 
