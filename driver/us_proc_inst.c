@@ -22,8 +22,8 @@
 #include "../uprobe/swap_uprobes.h"
 
 #include "sspt/sspt.h"
-
-#include <dbi_insn_slots.h>
+#include "helper.h"
+#include "us_slot_manager.h"
 
 #define mm_read_lock(task, mm, atomic, lock) 			\
 	mm = atomic ? task->active_mm : get_task_mm(task); 	\
@@ -62,145 +62,18 @@ LIST_HEAD(proc_probes_list);
 	pack_event_info(US_PROBE_ID, RECORD_ENTRY, "ds", 0x0badc0de, buf);	\
 }
 
-static inline int is_libonly(void)
+int is_libonly(void)
 {
 	return !strcmp(us_proc_info.path,"*");
 }
 
 // is user-space instrumentation
-static inline int is_us_instrumentation(void)
+int is_us_instrumentation(void)
 {
 	return !!us_proc_info.path;
 }
 
-static unsigned long alloc_user_pages(struct task_struct *task, unsigned long len, unsigned long prot, unsigned long flags)
-{
-	unsigned long ret = 0;
-	struct task_struct *otask = current;
-	struct mm_struct *mm;
-	int atomic = in_atomic();
-
-	mm = atomic ? task->active_mm : get_task_mm (task);
-	if (mm) {
-		if (!atomic) {
-			if (!down_write_trylock(&mm->mmap_sem)) {
-				rcu_read_lock();
-
-				up_read(&mm->mmap_sem);
-				down_write(&mm->mmap_sem);
-
-				rcu_read_unlock();
-			}
-		}
-		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily
-		current_thread_info()->task = task;
-		ret = do_mmap_pgoff(NULL, 0, len, prot, flags, 0);
-		current_thread_info()->task = otask;
-		if (!atomic) {
-			downgrade_write (&mm->mmap_sem);
-			mmput(mm);
-		}
-	} else {
-		printk("proc %d has no mm", task->tgid);
-	}
-
-	return ret;
-}
-
-static void *sm_alloc_us(struct slot_manager *sm)
-{
-	struct task_struct *task = sm->data;
-
-	return (void *)alloc_user_pages(task, PAGE_SIZE,
-					PROT_EXEC|PROT_READ|PROT_WRITE,
-					MAP_ANONYMOUS|MAP_PRIVATE);
-}
-
-static void sm_free_us(struct slot_manager *sm, void *ptr)
-{
-	struct task_struct *task = sm->data;
-
-	/*
-	 * E. G.: This code provides kernel dump because of rescheduling while atomic.
-	 * As workaround, this code was commented. In this case we will have memory leaks
-	 * for instrumented process, but instrumentation process should functionate correctly.
-	 * Planned that good solution for this problem will be done during redesigning KProbe
-	 * for improving supportability and performance.
-	 */
-#if 0
-	mm = get_task_mm(task);
-	if (mm) {
-		down_write(&mm->mmap_sem);
-		do_munmap(mm, (unsigned long)(ptr), PAGE_SIZE);
-		up_write(&mm->mmap_sem);
-		mmput(mm);
-	}
-#endif
-	/* FIXME: implement the removal of memory for task */
-}
-
-struct slot_manager *create_sm_us(struct task_struct *task)
-{
-	struct slot_manager *sm = kmalloc(sizeof(*sm), GFP_ATOMIC);
-	sm->slot_size = UPROBES_TRAMP_LEN;
-	sm->alloc = sm_alloc_us;
-	sm->free = sm_free_us;
-	INIT_HLIST_NODE(&sm->page_list);
-	sm->data = task;
-}
-
-void free_sm_us(struct slot_manager *sm)
-{
-	/* FIXME: free */
-}
-
-struct pf_data {
-	unsigned long addr;
-};
-
-static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs);
-static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs);
-
-static struct kretprobe pf_kretprobe = {
-	.entry_handler = entry_handler_pf,
-	.handler = ret_handler_pf,
-	.data_size = sizeof(struct pf_data)
-};
-
-static void rm_uprobes_child(struct task_struct *task);
-
-/* Delete uprobs in children at fork */
-static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
-{
-	struct task_struct* task = (struct task_struct *)regs_return_value(regs);
-
-	if(!task || IS_ERR(task))
-		goto out;
-
-	if(task->mm != current->mm)	/* check flags CLONE_VM */
-		rm_uprobes_child(task);
-
-out:
-	return 0;
-}
-
-static struct kretprobe cp_kretprobe = {
-	.handler = ret_handler_cp,
-};
-
-static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs);
-
-static struct kprobe mr_kprobe = {
-	.pre_handler = mr_pre_handler
-};
-
-static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs);
-
-static struct kprobe unmap_kprobe = {
-	.pre_handler = unmap_pre_handler
-};
-
-static struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
+struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
 {
 	struct sspt_procs *procs, *tmp;
 
@@ -227,7 +100,7 @@ static void add_proc_probes(struct task_struct *task, struct sspt_procs *procs)
 	list_add_tail(&procs->list, &proc_probes_list);
 }
 
-static struct sspt_procs *get_proc_probes_by_task_or_new(struct task_struct *task)
+struct sspt_procs *get_proc_probes_by_task_or_new(struct task_struct *task)
 {
 	struct sspt_procs *procs = get_proc_probes_by_task(task);
 	if (procs == NULL) {
@@ -266,7 +139,7 @@ struct dentry *dentry_by_path(const char *path)
 	return dentry;
 }
 
-static int check_vma(struct vm_area_struct *vma)
+int check_vma(struct vm_area_struct *vma)
 {
 	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
 			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
@@ -397,108 +270,6 @@ int install_otg_ip(unsigned long addr,
 }
 EXPORT_SYMBOL_GPL(install_otg_ip);
 
-int init_helper(void)
-{
-	unsigned long addr;
-	addr = swap_ksyms("do_page_fault");
-	if (addr == 0) {
-		EPRINTF("Cannot find address for page fault function!");
-		return -EINVAL;
-	}
-	pf_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
-
-	addr = swap_ksyms("copy_process");
-	if (addr == 0) {
-		EPRINTF("Cannot find address for copy_process function!");
-		return -EINVAL;
-	}
-	cp_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
-
-	addr = swap_ksyms("mm_release");
-	if (addr == 0) {
-		EPRINTF("Cannot find address for mm_release function!");
-		return -EINVAL;
-	}
-	mr_kprobe.addr = (kprobe_opcode_t *)addr;
-
-	addr = swap_ksyms("do_munmap");
-	if (addr == 0) {
-		EPRINTF("Cannot find address for do_munmap function!");
-		return -EINVAL;
-	}
-	unmap_kprobe.addr = (kprobe_opcode_t *)addr;
-
-	return 0;
-}
-
-void uninit_helper(void)
-{
-}
-
-static int register_helper_ks_probes(void)
-{
-	int ret = 0;
-
-	/* install kprobe on 'do_munmap' to detect when for remove user space probes */
-	ret = dbi_register_kprobe(&unmap_kprobe);
-	if (ret) {
-		EPRINTF("dbi_register_kprobe(do_munmap) result=%d!", ret);
-		return ret;
-	}
-
-	/* install kprobe on 'mm_release' to detect when for remove user space probes */
-	ret = dbi_register_kprobe(&mr_kprobe);
-	if (ret != 0) {
-		EPRINTF("dbi_register_kprobe(mm_release) result=%d!", ret);
-		goto unregister_unmap;
-	}
-
-
-	/* install kretprobe on 'copy_process' */
-	ret = dbi_register_kretprobe(&cp_kretprobe);
-	if (ret) {
-		EPRINTF("dbi_register_kretprobe(copy_process) result=%d!", ret);
-		goto unregister_mr;
-	}
-
-	/* install kretprobe on 'do_page_fault' to detect when they will be loaded */
-	ret = dbi_register_kretprobe(&pf_kretprobe);
-	if (ret) {
-		EPRINTF("dbi_register_kretprobe(do_page_fault) result=%d!", ret);
-		goto unregister_cp;
-	}
-
-	return ret;
-
-unregister_cp:
-	dbi_unregister_kretprobe(&cp_kretprobe);
-
-unregister_mr:
-	dbi_unregister_kprobe(&mr_kprobe, NULL);
-
-unregister_unmap:
-	dbi_unregister_kprobe(&unmap_kprobe, NULL);
-
-	return ret;
-}
-
-static void unregister_helper_ks_probes(void)
-{
-	/* uninstall kretprobe with 'do_page_fault' */
-	dbi_unregister_kretprobe(&pf_kretprobe);
-
-	/* uninstall kretprobe with 'copy_process' */
-	dbi_unregister_kretprobe(&cp_kretprobe);
-
-	/* uninstall kprobe with 'mm_release' */
-	dbi_unregister_kprobe(&mr_kprobe, NULL);
-
-	/* uninstall kprobe with 'do_munmap' */
-	dbi_unregister_kprobe(&unmap_kprobe, NULL);
-}
-
-static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag);
-
 int deinst_usr_space_proc (void)
 {
 	int iRet = 0, found = 0;
@@ -508,7 +279,7 @@ int deinst_usr_space_proc (void)
 		return 0;
 	}
 
-	unregister_helper_ks_probes();
+	unregister_helper();
 
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_munmap) result=%d!", iRet);
@@ -565,8 +336,6 @@ int deinst_usr_space_proc (void)
 	return iRet;
 }
 
-static void install_proc_probes(struct task_struct *task, struct sspt_procs *procs, int atomic);
-
 int inst_usr_space_proc (void)
 {
 	int ret, i;
@@ -578,7 +347,7 @@ int inst_usr_space_proc (void)
 
 	DPRINTF("User space instr");
 
-	ret = register_helper_ks_probes();
+	ret = register_helper();
 	if (ret) {
 		return ret;
 	}
@@ -681,8 +450,8 @@ unlock:
 	return 0;
 }
 
-static int unregister_us_page_probe(struct task_struct *task,
-		struct sspt_page *page, enum US_FLAGS flag)
+int unregister_us_page_probe(struct task_struct *task,
+			     struct sspt_page *page, enum US_FLAGS flag)
 {
 	int err = 0;
 	struct us_ip *ip;
@@ -709,7 +478,7 @@ static int unregister_us_page_probe(struct task_struct *task,
 	return err;
 }
 
-static void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs, int atomic)
+void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs, int atomic)
 {
 	int lock;
 	struct mm_struct *mm;
@@ -753,7 +522,7 @@ static void install_file_probes(struct task_struct *task, struct mm_struct *mm, 
 	}
 }
 
-static void install_proc_probes(struct task_struct *task, struct sspt_procs *procs, int atomic)
+void install_proc_probes(struct task_struct *task, struct sspt_procs *procs, int atomic)
 {
 	int lock;
 	struct vm_area_struct *vma;
@@ -779,7 +548,7 @@ static void install_proc_probes(struct task_struct *task, struct sspt_procs *pro
 	mm_read_unlock(mm, atomic, lock);
 }
 
-static int check_install_pages_in_file(struct task_struct *task, struct sspt_file *file)
+int check_install_pages_in_file(struct task_struct *task, struct sspt_file *file)
 {
 	int i;
 	int table_size = (1 << file->page_probes_hash_bits);
@@ -799,7 +568,7 @@ static int check_install_pages_in_file(struct task_struct *task, struct sspt_fil
 	return 0;
 }
 
-static int unregister_us_file_probes(struct task_struct *task, struct sspt_file *file, enum US_FLAGS flag)
+int unregister_us_file_probes(struct task_struct *task, struct sspt_file *file, enum US_FLAGS flag)
 {
 	int i, err = 0;
 	int table_size = (1 << file->page_probes_hash_bits);
@@ -825,7 +594,7 @@ static int unregister_us_file_probes(struct task_struct *task, struct sspt_file 
 	return err;
 }
 
-static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag)
+int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag)
 {
 	int err = 0;
 	struct sspt_file *file;
@@ -841,7 +610,7 @@ static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs 
 	return err;
 }
 
-static pid_t find_proc_by_task(const struct task_struct *task, struct dentry *dentry)
+pid_t find_proc_by_task(const struct task_struct *task, struct dentry *dentry)
 {
 	struct vm_area_struct *vma;
 	struct mm_struct *mm = task->active_mm;
@@ -857,80 +626,6 @@ static pid_t find_proc_by_task(const struct task_struct *task, struct dentry *de
 		}
 	}
 
-	return 0;
-}
-
-static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
-{
-	struct pf_data *data = (struct pf_data *)ri->data;
-
-#ifdef CONFIG_X86
-	data->addr = read_cr2();
-#elif CONFIG_ARM
-	data->addr = regs->ARM_r0;
-#else
-#error this architecture is not supported
-#endif
-
-	return 0;
-}
-
-/* Detects when IPs are really loaded into phy mem and installs probes. */
-static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
-{
-	struct task_struct *task = current->group_leader;
-	struct mm_struct *mm = task->mm;
-	struct sspt_procs *procs = NULL;
-	/*
-	 * Because process threads have same address space
-	 * we instrument only group_leader of all this threads
-	 */
-	struct pf_data *data;
-	unsigned long addr = 0;
-	int valid_addr;
-
-	if (task->flags & PF_KTHREAD) {
-		goto out;
-	}
-
-	if (!is_us_instrumentation()) {
-		goto out;
-	}
-
-	data = (struct pf_data *)ri->data;
-	addr = data->addr;
-
-	valid_addr = mm && page_present(mm, addr);
-	if (!valid_addr) {
-		goto out;
-	}
-
-	if (is_libonly()) {
-		procs = get_proc_probes_by_task_or_new(task);
-	} else {
-		// find task
-		if (us_proc_info.tgid == 0) {
-			pid_t tgid = find_proc_by_task(task, us_proc_info.m_f_dentry);
-			if (tgid) {
-				us_proc_info.tgid = gl_nNotifyTgid = tgid;
-
-				us_proc_info.pp->sm = create_sm_us(task);
-				/* install probes in already mapped memory */
-				install_proc_probes(task, us_proc_info.pp, 1);
-			}
-		}
-
-		if (us_proc_info.tgid == task->tgid) {
-			procs = us_proc_info.pp;
-		}
-	}
-
-	if (procs) {
-		unsigned long page = addr & PAGE_MASK;
-		install_page_probes(page, task, procs, 1);
-	}
-
-out:
 	return 0;
 }
 
@@ -950,137 +645,6 @@ void print_vma(struct mm_struct *mm)
 				vma->vm_start, vma->vm_end, x, r, w, vma->vm_pgoff, name);
 	}
 	printk("### print_vma:  END\n");
-}
-
-static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *procs, unsigned long start, size_t len)
-{
-	struct mm_struct *mm = task->mm;
-	struct vm_area_struct *vma;
-
-	if ((start & ~PAGE_MASK) || start > TASK_SIZE || len > TASK_SIZE - start) {
-		return -EINVAL;
-	}
-
-	if ((len = PAGE_ALIGN(len)) == 0) {
-		return -EINVAL;
-	}
-
-	vma = find_vma(mm, start);
-	if (vma && check_vma(vma)) {
-		struct sspt_file *file;
-		unsigned long end = start + len;
-		struct dentry *dentry = vma->vm_file->f_dentry;
-
-		file = sspt_procs_find_file(procs, dentry);
-		if (file) {
-			if (vma->vm_start == start || vma->vm_end == end) {
-				unregister_us_file_probes(task, file, US_UNREGS_PROBE);
-				file->loaded = 0;
-			} else {
-				unsigned long page_addr;
-				struct sspt_page *page;
-
-				for (page_addr = vma->vm_start; page_addr < vma->vm_end; page_addr += PAGE_SIZE) {
-					page = sspt_find_page_mapped(file, page_addr);
-					if (page) {
-						unregister_us_page_probe(task, page, US_UNREGS_PROBE);
-					}
-				}
-
-				if (check_install_pages_in_file(task, file)) {
-					file->loaded = 0;
-				}
-			}
-		}
-	}
-
-	return 0;
-}
-
-/* Detects when target removes IPs. */
-static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs)
-{
-	/* for ARM */
-	struct mm_struct *mm = (struct mm_struct *)regs->ARM_r0;
-	unsigned long start = regs->ARM_r1;
-	size_t len = (size_t)regs->ARM_r2;
-
-	struct sspt_procs *procs = NULL;
-	struct task_struct *task = current;
-
-	//if user-space instrumentation is not set
-	if (!is_us_instrumentation()) {
-		goto out;
-	}
-
-	if (is_libonly()) {
-		procs = get_proc_probes_by_task(task);
-	} else {
-		if (task->tgid == us_proc_info.tgid) {
-			procs = us_proc_info.pp;
-		}
-	}
-
-	if (procs) {
-		if (remove_unmap_probes(task, procs, start, len)) {
-			printk("ERROR do_munmap: start=%lx, len=%x\n", start, len);
-		}
-	}
-
-out:
-	return 0;
-}
-
-/* Detects when target process removes IPs. */
-static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
-{
-	struct sspt_procs *procs = NULL;
-	struct task_struct *task = (struct task_struct *)regs->ARM_r0; /* for ARM */
-
-	if (!is_us_instrumentation() || task->tgid != task->pid) {
-		goto out;
-	}
-
-	if (is_libonly()) {
-		procs = get_proc_probes_by_task(task);
-	} else {
-		if (task->tgid == us_proc_info.tgid) {
-			procs = get_proc_probes_by_task(task);
-			us_proc_info.tgid = 0;
-		}
-	}
-
-	if (procs) {
-		int ret = uninstall_us_proc_probes(task, procs, US_UNREGS_PROBE);
-		if (ret != 0) {
-			EPRINTF ("failed to uninstall IPs (%d)!", ret);
-		}
-
-		dbi_unregister_all_uprobes(task, 1);
-	}
-
-out:
-	return 0;
-}
-
-static void recover_child(struct task_struct *child_task, struct sspt_procs *procs)
-{
-	uninstall_us_proc_probes(child_task, procs, US_DISARM);
-	dbi_disarm_urp_inst_for_task(current, child_task);
-}
-
-static void rm_uprobes_child(struct task_struct *task)
-{
-	if (is_libonly()) {
-		struct sspt_procs *procs = get_proc_probes_by_task(current);
-		if(procs) {
-			recover_child(task, procs);
-		}
-	} else {
-		if(us_proc_info.tgid == current->tgid) {
-			recover_child(task, us_proc_info.pp);
-		}
-	}
 }
 
 static DEFINE_PER_CPU(struct us_ip *, gpCurIp) = NULL;

@@ -24,9 +24,6 @@
 #include <linux/signal.h>	// struct sigpending
 #include "sspt/ip.h"
 
-int init_helper(void);
-void uninit_helper(void);
-
 /* Instruments or schedules pending instrumentation of user space process. */
 extern int inst_usr_space_proc (void);
 extern int deinst_usr_space_proc (void);
@@ -38,8 +35,15 @@ struct task_struct;
 struct pt_regs;
 struct us_proc_ip_t;
 struct us_ip;
+struct sspt_file;
+struct sspt_page;
+struct vm_area_struct;
+enum US_FLAGS;
 
 extern struct list_head proc_probes_list;
+
+int is_libonly(void);
+int is_us_instrumentation(void);
 
 int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
 int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);
@@ -49,5 +53,18 @@ int install_otg_ip(unsigned long addr,
 			kprobe_pre_entry_handler_t pre_handler,
 			unsigned long jp_handler,
 			uretprobe_handler_t rp_handler);
+
+
+int check_install_pages_in_file(struct task_struct *task, struct sspt_file *file);
+int unregister_us_page_probe(struct task_struct *task,
+			     struct sspt_page *page, enum US_FLAGS flag);
+struct sspt_procs *get_proc_probes_by_task_or_new(struct task_struct *task);
+void install_proc_probes(struct task_struct *task, struct sspt_procs *procs, int atomic);
+pid_t find_proc_by_task(const struct task_struct *task, struct dentry *dentry);
+void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs, int atomic);
+int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag);
+int check_vma(struct vm_area_struct *vma);
+int unregister_us_file_probes(struct task_struct *task, struct sspt_file *file, enum US_FLAGS flag);
+struct sspt_procs *get_proc_probes_by_task(struct task_struct *task);
 
 #endif /* !defined(__US_PROC_INST_H__) */
