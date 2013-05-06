@@ -336,7 +336,7 @@ int inst_usr_space_proc (void)
 
 			procs = sspt_procs_get_by_task_or_new(task);
 			DPRINTF("trying process");
-			install_proc_probes(task, procs, 1);
+			install_proc_probes(task, procs);
 			//put_task_struct (task);
 		}
 	}
@@ -348,7 +348,7 @@ int inst_usr_space_proc (void)
 			DPRINTF("task found. installing probes");
 			us_proc_info.tgid = task->pid;
 			us_proc_info.pp->sm = create_sm_us(task);
-			install_proc_probes(task, us_proc_info.pp, 0);
+			install_proc_probes(task, us_proc_info.pp);
 			put_task_struct (task);
 		}
 	}
@@ -437,12 +437,13 @@ int unregister_us_page_probe(struct task_struct *task,
 	return err;
 }
 
-void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs, int atomic)
+void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs)
 {
-	int lock;
+	int lock, atomic;
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
 
+	atomic = in_atomic();
 	mm_read_lock(task, mm, atomic, lock);
 
 	vma = find_vma(mm, page_addr);
@@ -481,12 +482,13 @@ static void install_file_probes(struct task_struct *task, struct mm_struct *mm, 
 	}
 }
 
-void install_proc_probes(struct task_struct *task, struct sspt_procs *procs, int atomic)
+void install_proc_probes(struct task_struct *task, struct sspt_procs *procs)
 {
-	int lock;
+	int lock, atomic;
 	struct vm_area_struct *vma;
 	struct mm_struct *mm;
 
+	atomic = in_atomic();
 	mm_read_lock(task, mm, atomic, lock);
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
