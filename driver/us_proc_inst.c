@@ -628,9 +628,6 @@ int inst_usr_space_proc (void)
 	return 0;
 }
 
-unsigned long imi_sum_time = 0;
-unsigned long imi_sum_hit = 0;
-
 static void set_mapping_file(struct sspt_file *file,
 		const struct sspt_procs *procs,
 		const struct task_struct *task,
@@ -892,11 +889,6 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 	unsigned long addr = 0;
 	int valid_addr;
 
-	// overhead
-	struct timeval imi_tv1;
-	struct timeval imi_tv2;
-#define USEC_IN_SEC_NUM				1000000
-
 	if (task->flags & PF_KTHREAD) {
 		goto out;
 	}
@@ -935,14 +927,7 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	if (procs) {
 		unsigned long page = addr & PAGE_MASK;
-
-		// overhead
-		do_gettimeofday(&imi_tv1);
 		install_page_probes(page, task, procs, 1);
-		do_gettimeofday(&imi_tv2);
-		imi_sum_hit++;
-		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
-				(imi_tv2.tv_usec - imi_tv1.tv_usec));
 	}
 
 out:

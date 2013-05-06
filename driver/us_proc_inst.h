@@ -39,9 +39,6 @@ struct pt_regs;
 struct us_proc_ip_t;
 struct us_ip;
 
-extern unsigned long imi_sum_time;
-extern unsigned long imi_sum_hit;
-
 extern struct list_head proc_probes_list;
 
 int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic);

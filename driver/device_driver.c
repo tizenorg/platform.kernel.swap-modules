@@ -22,10 +22,6 @@
 #include "sspt/sspt_procs.h"
 
 
-extern unsigned long imi_sum_time;
-extern unsigned long imi_sum_hit;
-
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
 static BLOCKING_NOTIFIER_HEAD(swap_notifier_list);
 #endif
@@ -506,16 +502,6 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		unsigned int local_module_refcount = 0;
 		int j;
 		dbi_module_callback dmc_stop;
-
-		printk("\n### imi_sum_time = %ld in install_mapped_ips()\n", imi_sum_time);
-		printk("### imi_sum_hit = %ld in install_mapped_ips()\n", imi_sum_hit);
-
-		if (imi_sum_hit != 0) {
-			printk("### time = %ld in install_mapped_ips()\n", imi_sum_time/imi_sum_hit);
-		}
-
-		imi_sum_time = 0;
-		imi_sum_hit = 0;
 
 		local_mh = get_dbi_modules_handlers();
 		if(ec_user_stop() != 0) {
