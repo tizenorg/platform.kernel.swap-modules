@@ -506,7 +506,7 @@ static struct uretprobe_instance *get_free_urp_inst(struct uretprobe *rp)
 }
 // ===================================================================
 
-int dbi_register_uprobe(struct uprobe *up, int atomic)
+int dbi_register_uprobe(struct uprobe *up)
 {
 	int ret = 0;
 	struct kprobe *p, *old_p;
@@ -551,7 +551,7 @@ int dbi_register_uprobe(struct uprobe *up, int atomic)
 		goto out;
 	}
 
-	ret = arch_prepare_uprobe(up, &uprobe_insn_pages, atomic);
+	ret = arch_prepare_uprobe(up, &uprobe_insn_pages);
 	if (ret) {
 		DBPRINTF("goto out\n", ret);
 		goto out;
@@ -570,7 +570,7 @@ out:
 	return ret;
 }
 
-void dbi_unregister_uprobe(struct uprobe *up, int atomic)
+void dbi_unregister_uprobe(struct uprobe *up)
 {
 	struct kprobe *p, *old_p, *list_p;
 	int cleanup_p;
@@ -635,7 +635,7 @@ valid_p:
 	}
 }
 
-int dbi_register_ujprobe(struct ujprobe *jp, int atomic)
+int dbi_register_ujprobe(struct ujprobe *jp)
 {
 	int ret = 0;
 
@@ -643,14 +643,14 @@ int dbi_register_ujprobe(struct ujprobe *jp, int atomic)
 	jp->up.kp.pre_handler = setjmp_upre_handler;
 	jp->up.kp.break_handler = longjmp_break_uhandler;
 
-	ret = dbi_register_uprobe(&jp->up, atomic);
+	ret = dbi_register_uprobe(&jp->up);
 
 	return ret;
 }
 
-void dbi_unregister_ujprobe(struct ujprobe *jp, int atomic)
+void dbi_unregister_ujprobe(struct ujprobe *jp)
 {
-	dbi_unregister_uprobe(&jp->up, atomic);
+	dbi_unregister_uprobe(&jp->up);
 	/*
 	 * Here is an attempt to unregister even those probes that have not been
 	 * installed (hence not added to the hlist).
@@ -753,7 +753,7 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-int dbi_register_uretprobe(struct uretprobe *rp, int atomic)
+int dbi_register_uretprobe(struct uretprobe *rp)
 {
 	int i, ret = 0;
 	struct uretprobe_instance *inst;
@@ -792,7 +792,7 @@ int dbi_register_uretprobe(struct uretprobe *rp, int atomic)
 	rp->nmissed = 0;
 
 	/* Establish function entry probe point */
-	ret = dbi_register_uprobe(&rp->up, atomic);
+	ret = dbi_register_uprobe(&rp->up);
 	if (ret) {
 		free_urp_inst(rp);
 		goto out;
@@ -888,7 +888,7 @@ int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct 
 }
 EXPORT_SYMBOL_GPL(dbi_disarm_urp_inst_for_task);
 
-void dbi_unregister_uretprobe(struct uretprobe *rp, int atomic)
+void dbi_unregister_uretprobe(struct uretprobe *rp)
 {
 	unsigned long flags;
 	struct uretprobe_instance *ri;
@@ -928,10 +928,10 @@ void dbi_unregister_uretprobe(struct uretprobe *rp, int atomic)
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
 	free_urp_inst(rp);
 
-	dbi_unregister_uprobe(&rp->up, atomic);
+	dbi_unregister_uprobe(&rp->up);
 }
 
-void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
+void dbi_unregister_all_uprobes(struct task_struct *task)
 {
 	struct hlist_head *head;
 	struct hlist_node *node, *tnode;
@@ -945,7 +945,7 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
 				struct uprobe *up = container_of(p, struct uprobe, kp);
 				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%lx] for %s/%d\n",
 						p->addr, (unsigned long)p->opcode, task->comm, task->pid);
-				dbi_unregister_uprobe(up, atomic);
+				dbi_unregister_uprobe(up);
 			}
 		}
 	}

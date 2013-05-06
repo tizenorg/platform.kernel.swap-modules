@@ -176,7 +176,7 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 			printk("failed to uninstall IPs (%d)!\n", ret);
 		}
 
-		dbi_unregister_all_uprobes(task, 1);
+		dbi_unregister_all_uprobes(task);
 	}
 
 out:

@@ -80,16 +80,16 @@ struct uretprobe_instance {
 	struct task_struct *task;
 };
 
-int dbi_register_uprobe(struct uprobe *p, int atomic);
-void dbi_unregister_uprobe(struct uprobe *p, int atomic);
+int dbi_register_uprobe(struct uprobe *p);
+void dbi_unregister_uprobe(struct uprobe *p);
 
-int dbi_register_ujprobe(struct ujprobe *jp, int atomic);
-void dbi_unregister_ujprobe(struct ujprobe *jp, int atomic);
+int dbi_register_ujprobe(struct ujprobe *jp);
+void dbi_unregister_ujprobe(struct ujprobe *jp);
 
-int dbi_register_uretprobe(struct uretprobe *rp, int atomic);
-void dbi_unregister_uretprobe(struct uretprobe *rp, int atomic);
+int dbi_register_uretprobe(struct uretprobe *rp);
+void dbi_unregister_uretprobe(struct uretprobe *rp);
 
-void dbi_unregister_all_uprobes(struct task_struct *task, int atomic);
+void dbi_unregister_all_uprobes(struct task_struct *task);
 
 void dbi_uprobe_return(void);
 struct kprobe *get_ukprobe(void *addr, pid_t tgid);

@@ -536,7 +536,7 @@ static int arch_copy_trampoline_thumb_uprobe(struct kprobe *p, struct task_struc
 	return 0;
 }
 
-int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list, int atomic)
+int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list)
 {
 	int ret = 0;
 	struct kprobe *p = &up->kp;

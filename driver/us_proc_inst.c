@@ -254,7 +254,7 @@ int deinst_usr_space_proc (void)
 					EPRINTF ("failed to uninstall IPs (%d)!", ret);
 				}
 
-				dbi_unregister_all_uprobes(task, 1);
+				dbi_unregister_all_uprobes(task);
 			}
 		}
 	}
@@ -285,7 +285,7 @@ int deinst_usr_space_proc (void)
 			put_task_struct (task);
 
 			printk("### 1 ### dbi_unregister_all_uprobes:\n");
-			dbi_unregister_all_uprobes(task, 1);
+			dbi_unregister_all_uprobes(task);
 			us_proc_info.tgid = 0;
 			for(i = 0; i < us_proc_info.libs_count; i++)
 				us_proc_info.p_libs[i].loaded = 0;
@@ -696,7 +696,7 @@ int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *re
 	return 0;
 }
 
-int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
+int register_usprobe(struct task_struct *task, struct us_ip *ip)
 {
 	int ret = 0;
 
@@ -713,7 +713,7 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 	ip->jprobe.priv_arg = ip;
 	ip->jprobe.up.task = task;
 	ip->jprobe.up.sm = ip->page->file->procs->sm;
-	ret = dbi_register_ujprobe(&ip->jprobe, atomic);
+	ret = dbi_register_ujprobe(&ip->jprobe);
 	if (ret) {
 		if (ret == -ENOEXEC) {
 			pack_event_info(ERR_MSG_ID, RECORD_ENTRY, "dp",
@@ -734,7 +734,7 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 		ip->retprobe.priv_arg = ip;
 		ip->retprobe.up.task = task;
 		ip->retprobe.up.sm = ip->page->file->procs->sm;
-		ret = dbi_register_uretprobe(&ip->retprobe, atomic);
+		ret = dbi_register_uretprobe(&ip->retprobe);
 		if (ret) {
 			EPRINTF ("dbi_register_uretprobe() failure %d", ret);
 			return ret;
@@ -744,12 +744,12 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 	return 0;
 }
 
-int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
+int unregister_usprobe(struct task_struct *task, struct us_ip *ip)
 {
-	dbi_unregister_ujprobe(&ip->jprobe, atomic);
+	dbi_unregister_ujprobe(&ip->jprobe);
 
 	if (ip->flag_retprobe) {
-		dbi_unregister_uretprobe(&ip->retprobe, atomic);
+		dbi_unregister_uretprobe(&ip->retprobe);
 	}
 
 	return 0;

@@ -96,7 +96,7 @@ enum US_FLAGS {
 
 static inline int register_usprobe_my(struct task_struct *task, struct us_ip *ip)
 {
-	return register_usprobe(task, ip, 1);
+	return register_usprobe(task, ip);
 }
 
 static inline int unregister_usprobe_my(struct task_struct *task, struct us_ip *ip, enum US_FLAGS flag)
@@ -105,7 +105,7 @@ static inline int unregister_usprobe_my(struct task_struct *task, struct us_ip *
 
 	switch (flag) {
 	case US_UNREGS_PROBE:
-		err = unregister_usprobe(task, ip, 1);
+		err = unregister_usprobe(task, ip);
 		break;
 	case US_DISARM:
 		disarm_uprobe(&ip->jprobe.up.kp, task);
