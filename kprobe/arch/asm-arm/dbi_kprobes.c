@@ -73,6 +73,40 @@ EXPORT_SYMBOL_GPL (swap_sum_hit);
 #define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
 #define branch_displacement(insn) sign_extend(((insn) & 0xffffff) << 2, 25)
 
+static inline long branch_t16_dest(kprobe_opcode_t insn, unsigned int insn_addr)
+{
+	long offset = insn & 0x3ff;
+	offset -= insn & 0x400;
+	return (insn_addr + 4 + offset * 2);
+}
+
+static inline long branch_cond_t16_dest(kprobe_opcode_t insn, unsigned int insn_addr)
+{
+	long offset = insn & 0x7f;
+	offset -= insn & 0x80;
+	return (insn_addr + 4 + offset * 2);
+}
+
+static inline long branch_t32_dest(kprobe_opcode_t insn, unsigned int insn_addr)
+{
+	unsigned int poff = insn & 0x3ff;
+	unsigned int offset = (insn & 0x07fe0000) >> 17;
+
+	poff -= (insn & 0x400);
+
+	if (insn & (1 << 12))
+		return ((insn_addr + 4 + (poff << 12) + offset * 4));
+	else
+		return ((insn_addr + 4 + (poff << 12) + offset * 4) & ~3);
+}
+
+static inline long cbz_t16_dest(kprobe_opcode_t insn, unsigned int insn_addr)
+{
+	unsigned int i = (insn & 0x200) >> 3;
+	unsigned int offset = (insn & 0xf8) >> 2;
+	return insn_addr + 4 + i + offset;
+}
+
 static kprobe_opcode_t get_addr_b(kprobe_opcode_t insn, kprobe_opcode_t *addr)
 {
 	// real position less then PC by 8
@@ -448,15 +482,8 @@ static int arch_check_insn_thumb (struct arch_specific_insn *ainsn)
 	if (	THUMB_INSN_MATCH (UNDEF, ainsn->insn_thumb[0]) ||
 		THUMB_INSN_MATCH (SWI, ainsn->insn_thumb[0]) ||
 		THUMB_INSN_MATCH (BREAK, ainsn->insn_thumb[0]) ||
-		THUMB2_INSN_MATCH (BL, ainsn->insn_thumb[0]) ||
-		THUMB_INSN_MATCH (B1, ainsn->insn_thumb[0]) ||
-		THUMB_INSN_MATCH (B2, ainsn->insn_thumb[0]) ||
-		THUMB_INSN_MATCH (CBZ, ainsn->insn_thumb[0]) ||
 		THUMB2_INSN_MATCH (B1, ainsn->insn_thumb[0]) ||
 		THUMB2_INSN_MATCH (B2, ainsn->insn_thumb[0]) ||
-		THUMB2_INSN_MATCH (BLX1, ainsn->insn_thumb[0]) ||
-		THUMB_INSN_MATCH (BLX2, ainsn->insn_thumb[0]) ||
-		THUMB_INSN_MATCH (BX, ainsn->insn_thumb[0]) ||
 		THUMB2_INSN_MATCH (BXJ, ainsn->insn_thumb[0]) ||
 		(THUMB2_INSN_MATCH (ADR, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RD(ainsn->insn_thumb[0]) == 15) ||
 		(THUMB2_INSN_MATCH (LDRW, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RT(ainsn->insn_thumb[0]) == 15) ||
@@ -677,7 +704,13 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 
 int arch_prepare_uretprobe (struct kretprobe *p, struct task_struct *task)
 {
-	DBPRINTF("Warrning: arch_prepare_uretprobe is not implemented\n");
+	/* Remove retprobe if first insn overwrites lr */
+	if (THUMB_INSN_MATCH(BLX2, p->kp.opcode) ||
+	    THUMB2_INSN_MATCH(BL, p->kp.opcode) ||
+	    THUMB2_INSN_MATCH(BLX1, p->kp.opcode)){
+		p->kp.pre_handler = NULL;
+	}
+
 	return 0;
 }
 
@@ -984,6 +1017,56 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 			*((unsigned short*)insns + 17) = addr >> 16;
 		}
+	}
+	if (THUMB_INSN_MATCH(B2, insn[0])) {
+		memcpy(insns, b_off_insn_execbuf_thumb, sizeof(insns));
+		*((unsigned short*)insns + 13) = 0xdeff;
+		addr = branch_t16_dest(insn[0], (unsigned int)p->addr);
+		*((unsigned short*)insns + 14) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)insns + 15) = addr >> 16;
+		*((unsigned short*)insns + 16) = 0;
+		*((unsigned short*)insns + 17) = 0;
+
+	} else if (THUMB_INSN_MATCH(B1, insn[0])) {
+		memcpy(insns, b_cond_insn_execbuf_thumb, sizeof(insns));
+		*((unsigned short*)insns + 13) = 0xdeff;
+		*((unsigned short*)insns + 0) |= (insn[0] & 0xf00);
+		addr = branch_cond_t16_dest(insn[0], (unsigned int)p->addr);
+		*((unsigned short*)insns + 14) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)insns + 15) = addr >> 16;
+		addr = ((unsigned int)p->addr) + 2;
+		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)insns + 17) = addr >> 16;
+
+	}else if (THUMB_INSN_MATCH(BLX2, insn[0]) || THUMB_INSN_MATCH(BX, insn[0])){
+		memcpy(insns, b_r_insn_execbuf_thumb, sizeof(insns));
+		*((unsigned short*)insns + 13) = 0xdeff;
+		*((unsigned short*)insns + 4) = insn[0];
+		addr = ((unsigned int)p->addr) + 2;
+		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)insns + 17) = addr >> 16;
+
+	} else if (THUMB2_INSN_MATCH(BLX1, insn[0]) ||
+		THUMB2_INSN_MATCH(BL, insn[0])){
+		memcpy(insns, blx_off_insn_execbuf_thumb, sizeof(insns));
+		*((unsigned short*)insns + 13) = 0xdeff;
+		addr = branch_t32_dest(insn[0], (unsigned int)p->addr);
+		*((unsigned short*)insns + 14) = (addr & 0x0000ffff);
+		*((unsigned short*)insns + 15) = addr >> 16;
+		addr = ((unsigned int)p->addr) + 4;
+		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)insns + 17) = addr >> 16;
+	} else if (THUMB_INSN_MATCH(CBZ, insn[0])) {
+		memcpy(insns, cbz_insn_execbuf_thumb, sizeof(insns));
+		*((unsigned short*)insns + 13) = 0xdeff;
+		*((unsigned short*)insns + 0) = insn[0] &  (~insn[0] & 0xf8);
+		*((unsigned short*)insns + 0) &= 0x20;
+		addr = cbz_t16_dest(insn[0], (unsigned int)p->addr);
+		*((unsigned short*)insns + 14) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)insns + 15) = addr >> 16;
+		addr = ((unsigned int)p->addr) + 2;
+		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)insns + 17) = addr >> 16;
 	}
 	if (!write_proc_vm_atomic (task, (unsigned long) p->ainsn.insn_thumb, insns, 18 * 2))
 	{

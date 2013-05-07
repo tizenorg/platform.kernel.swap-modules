@@ -1247,6 +1247,12 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip, int atomic)
 		return ret;
 	}
 
+	/*
+	 * Save opcode info into retprobe, for later
+	 * check for instructions w\o obvious return
+	 */
+	memcpy(&ip->retprobe.kp.opcode, &ip->jprobe.kp.opcode, sizeof(kprobe_opcode_t));
+
 	if (ip->flag_retprobe) {
 		// Mr_Nobody: comment for valencia
 		ip->retprobe.kp.tgid = task->tgid;
