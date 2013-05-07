@@ -148,7 +148,7 @@ int sspt_register_page(struct sspt_page *page,
 	sspt_set_all_ip_addr(page, file);
 
 	list_for_each_entry_safe(ip, n, &page->ip_list, list) {
-		err = sspt_register_usprobe(task, ip);
+		err = sspt_register_usprobe(ip);
 		if (err == -ENOEXEC) {
 			list_del(&ip->list);
 			free_ip(ip);

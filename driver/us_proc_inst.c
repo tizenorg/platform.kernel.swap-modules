@@ -212,7 +212,7 @@ int install_otg_ip(unsigned long addr,
 					sspt_set_ip_addr(ip, page, file);
 
 					// TODO: error
-					ret = sspt_register_usprobe(task, ip);
+					ret = sspt_register_usprobe(ip);
 					if (ret == 0) {
 						sspt_page_installed(page);
 					} else {

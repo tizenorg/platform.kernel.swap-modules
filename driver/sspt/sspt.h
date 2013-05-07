@@ -94,7 +94,7 @@ enum US_FLAGS {
 	US_DISARM
 };
 
-static inline int sspt_register_usprobe(struct task_struct *task, struct us_ip *ip)
+static inline int sspt_register_usprobe(struct us_ip *ip)
 {
 	return register_usprobe(ip);
 }
