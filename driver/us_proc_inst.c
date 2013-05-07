@@ -369,7 +369,7 @@ void install_page_probes(unsigned long page_addr, struct task_struct *task, stru
 	mm_read_unlock(mm, atomic, lock);
 }
 
-static void install_file_probes(struct task_struct *task, struct mm_struct *mm, struct sspt_file *file)
+static void install_file_probes(struct sspt_file *file)
 {
 	struct sspt_page *page = NULL;
 	struct hlist_node *node = NULL;
@@ -403,7 +403,7 @@ void install_proc_probes(struct task_struct *task, struct sspt_procs *procs)
 					file->loaded = 1;
 				}
 
-				install_file_probes(task, mm, file);
+				install_file_probes(file);
 			}
 		}
 	}
