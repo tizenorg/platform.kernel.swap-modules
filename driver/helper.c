@@ -66,9 +66,8 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 	} else {
 		// find task
 		if (us_proc_info.tgid == 0) {
-			pid_t tgid = find_proc_by_task(task, us_proc_info.m_f_dentry);
-			if (tgid) {
-				us_proc_info.tgid = gl_nNotifyTgid = tgid;
+			if (check_dentry(task, us_proc_info.m_f_dentry)) {
+				us_proc_info.tgid = gl_nNotifyTgid = task->tgid;
 				procs = sspt_procs_get_by_task_or_new(task);
 
 				/* install probes in already mapped memory */

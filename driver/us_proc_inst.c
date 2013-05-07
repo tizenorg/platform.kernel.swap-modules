@@ -473,19 +473,18 @@ int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs,
 	return err;
 }
 
-pid_t find_proc_by_task(const struct task_struct *task, struct dentry *dentry)
+int check_dentry(struct task_struct *task, struct dentry *dentry)
 {
 	struct vm_area_struct *vma;
 	struct mm_struct *mm = task->active_mm;
+
 	if (mm == NULL) {
 		return 0;
 	}
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if (check_vma(vma)) {
-			if (vma->vm_file->f_dentry == dentry) {
-				return task->tgid;
-			}
+		if (check_vma(vma) && vma->vm_file->f_dentry == dentry) {
+			return 1;
 		}
 	}
 
