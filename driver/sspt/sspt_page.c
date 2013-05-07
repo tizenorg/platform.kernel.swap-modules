@@ -129,9 +129,7 @@ void sspt_set_all_ip_addr(struct sspt_page *page, const struct sspt_file *file)
 	}
 }
 
-int sspt_register_page(struct sspt_page *page,
-		       struct sspt_file *file,
-		       struct task_struct *task)
+int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 {
 	int err = 0;
 	struct us_ip *ip, *n;
@@ -139,6 +137,8 @@ int sspt_register_page(struct sspt_page *page,
 	spin_lock(&page->lock);
 
 	if (sspt_page_is_install(page)) {
+		struct task_struct *task = page->file->procs->task;
+
 		printk("page %lx in %s task[tgid=%u, pid=%u] already installed\n",
 				page->offset, file->dentry->d_iname, task->tgid, task->pid);
 		goto unlock;

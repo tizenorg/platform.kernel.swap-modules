@@ -74,9 +74,7 @@ static inline void sspt_page_uninstalled(struct sspt_page *page)
 
 void sspt_set_all_ip_addr(struct sspt_page *page, const struct sspt_file *file);
 
-int sspt_register_page(struct sspt_page *page,
-		       struct sspt_file *file,
-		       struct task_struct *task);
+int sspt_register_page(struct sspt_page *page, struct sspt_file *file);
 
 int sspt_unregister_page(struct sspt_page *page,
 			 enum US_FLAGS flag,

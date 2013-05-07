@@ -361,7 +361,7 @@ void install_page_probes(unsigned long page_addr, struct task_struct *task, stru
 
 			page = sspt_find_page_mapped(file, page_addr);
 			if (page) {
-				sspt_register_page(page, file, task);
+				sspt_register_page(page, file);
 			}
 		}
 	}
@@ -379,7 +379,7 @@ static void install_file_probes(struct task_struct *task, struct mm_struct *mm, 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
 		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
-			sspt_register_page(page, file, task);
+			sspt_register_page(page, file);
 		}
 	}
 }
