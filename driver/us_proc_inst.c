@@ -369,21 +369,6 @@ void install_page_probes(unsigned long page_addr, struct task_struct *task, stru
 	mm_read_unlock(mm, atomic, lock);
 }
 
-static void install_file_probes(struct sspt_file *file)
-{
-	struct sspt_page *page = NULL;
-	struct hlist_node *node = NULL;
-	struct hlist_head *head = NULL;
-	int i, table_size = (1 << file->page_probes_hash_bits);
-
-	for (i = 0; i < table_size; ++i) {
-		head = &file->page_probes_table[i];
-		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
-			sspt_register_page(page, file);
-		}
-	}
-}
-
 void install_proc_probes(struct task_struct *task, struct sspt_procs *procs)
 {
 	int lock, atomic;
@@ -403,7 +388,7 @@ void install_proc_probes(struct task_struct *task, struct sspt_procs *procs)
 					file->loaded = 1;
 				}
 
-				install_file_probes(file);
+				sspt_file_install(file);
 			}
 		}
 	}
