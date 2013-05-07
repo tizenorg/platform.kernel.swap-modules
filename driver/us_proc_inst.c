@@ -615,7 +615,7 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip)
 	}
 
 	ip->jprobe.priv_arg = ip;
-	ip->jprobe.up.task = task;
+	ip->jprobe.up.task = ip->page->file->procs->task;
 	ip->jprobe.up.sm = ip->page->file->procs->sm;
 	ret = dbi_register_ujprobe(&ip->jprobe);
 	if (ret) {
@@ -636,7 +636,7 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip)
 		}
 
 		ip->retprobe.priv_arg = ip;
-		ip->retprobe.up.task = task;
+		ip->retprobe.up.task = ip->page->file->procs->task;
 		ip->retprobe.up.sm = ip->page->file->procs->sm;
 		ret = dbi_register_uretprobe(&ip->retprobe);
 		if (ret) {

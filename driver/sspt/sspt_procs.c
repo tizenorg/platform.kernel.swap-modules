@@ -29,13 +29,14 @@
 
 static LIST_HEAD(proc_probes_list);
 
-struct sspt_procs *sspt_procs_create(struct dentry* dentry, pid_t tgid)
+struct sspt_procs *sspt_procs_create(struct dentry* dentry, struct task_struct *task)
 {
 	struct sspt_procs *procs = kmalloc(sizeof(*procs), GFP_ATOMIC);
 
 	if (procs) {
 		INIT_LIST_HEAD(&procs->list);
-		procs->tgid = tgid;
+		procs->tgid = task ? task->tgid : 0;
+		procs->task = task;
 		procs->dentry = dentry;
 		procs->sm = NULL;
 		INIT_LIST_HEAD(&procs->file_list);
@@ -136,7 +137,7 @@ void sspt_procs_add_ip_data(struct sspt_procs *procs, struct dentry* dentry,
 struct sspt_procs *sspt_procs_copy(struct sspt_procs *procs, struct task_struct *task)
 {
 	struct sspt_file *file;
-	struct sspt_procs *procs_out = sspt_procs_create(procs->dentry, task->tgid);
+	struct sspt_procs *procs_out = sspt_procs_create(procs->dentry, task);
 
 	list_for_each_entry(file, &procs->file_list, list) {
 		sspt_procs_add_file(procs_out, sspt_file_copy(file));

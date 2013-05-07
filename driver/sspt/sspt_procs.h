@@ -29,17 +29,19 @@
 #include "sspt_file.h"
 
 struct slot_manager;
+struct task_struct;
 
 struct sspt_procs {
 	struct list_head list;
 	pid_t tgid;
+	struct task_struct *task;
 	struct dentry *dentry;
 	struct slot_manager *sm;
 	struct list_head file_list;
 };
 
 
-struct sspt_procs *sspt_procs_create(struct dentry* dentry, pid_t tgid);
+struct sspt_procs *sspt_procs_create(struct dentry* dentry, struct task_struct *task);
 struct sspt_procs *sspt_procs_copy(struct sspt_procs *procs, struct task_struct *task);
 void sspt_procs_free(struct sspt_procs *procs);
 
