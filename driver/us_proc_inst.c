@@ -411,26 +411,6 @@ void install_proc_probes(struct task_struct *task, struct sspt_procs *procs)
 	mm_read_unlock(mm, atomic, lock);
 }
 
-int check_install_pages_in_file(struct task_struct *task, struct sspt_file *file)
-{
-	int i;
-	int table_size = (1 << file->page_probes_hash_bits);
-	struct sspt_page *page;
-	struct hlist_node *node, *tmp;
-	struct hlist_head *head;
-
-	for (i = 0; i < table_size; ++i) {
-		head = &file->page_probes_table[i];
-		swap_hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
-			if (page->install) {
-				return 1;
-			}
-		}
-	}
-
-	return 0;
-}
-
 int unregister_us_file_probes(struct task_struct *task, struct sspt_file *file, enum US_FLAGS flag)
 {
 	int i, err = 0;

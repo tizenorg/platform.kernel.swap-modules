@@ -204,3 +204,23 @@ void sspt_put_page(struct sspt_page *page)
 {
 	spin_unlock(&page->lock);
 }
+
+int sspt_file_check_install_pages(struct sspt_file *file)
+{
+	int i, table_size;
+	struct sspt_page *page;
+	struct hlist_node *node, *tmp;
+	struct hlist_head *head;
+
+	table_size = (1 << file->page_probes_hash_bits);
+	for (i = 0; i < table_size; ++i) {
+		head = &file->page_probes_table[i];
+		swap_hlist_for_each_entry_safe(page, node, tmp, head, hlist) {
+			if (sspt_page_is_install(page)) {
+				return 1;
+			}
+		}
+	}
+
+	return 0;
+}

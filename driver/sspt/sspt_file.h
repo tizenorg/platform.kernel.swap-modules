@@ -53,4 +53,6 @@ void sspt_file_add_ip(struct sspt_file *file, struct ip_data *ip_d);
 struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_addr);
 void sspt_put_page(struct sspt_page *page);
 
+int sspt_file_check_install_pages(struct sspt_file *file);
+
 #endif /* __SSPT_FILE__ */

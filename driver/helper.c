@@ -223,7 +223,7 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 					}
 				}
 
-				if (check_install_pages_in_file(task, file)) {
+				if (sspt_file_check_install_pages(file)) {
 					file->loaded = 0;
 				}
 			}

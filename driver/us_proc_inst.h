@@ -52,8 +52,6 @@ int install_otg_ip(unsigned long addr,
 			unsigned long jp_handler,
 			uretprobe_handler_t rp_handler);
 
-
-int check_install_pages_in_file(struct task_struct *task, struct sspt_file *file);
 void install_proc_probes(struct task_struct *task, struct sspt_procs *procs);
 int check_dentry(struct task_struct *task, struct dentry *dentry);
 void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs);
