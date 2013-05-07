@@ -220,7 +220,7 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 				for (page_addr = vma->vm_start; page_addr < vma->vm_end; page_addr += PAGE_SIZE) {
 					page = sspt_find_page_mapped(file, page_addr);
 					if (page) {
-						unregister_us_page_probe(task, page, US_UNREGS_PROBE);
+						sspt_unregister_page(page, US_UNREGS_PROBE, task);
 					}
 				}
 

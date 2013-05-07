@@ -22,6 +22,7 @@
  *
  */
 
+#include "sspt.h"
 #include "sspt_page.h"
 #include "sspt_file.h"
 #include "ip.h"
@@ -126,4 +127,68 @@ void sspt_set_all_ip_addr(struct sspt_page *page, const struct sspt_file *file)
 		addr = file->vm_start + page->offset + ip->offset;
 		ip->retprobe.up.kp.addr = ip->jprobe.up.kp.addr = (kprobe_opcode_t *)addr;
 	}
+}
+
+int sspt_register_page(struct sspt_page *page,
+		       struct sspt_file *file,
+		       struct task_struct *task)
+{
+	int err = 0;
+	struct us_ip *ip, *n;
+
+	spin_lock(&page->lock);
+
+	if (sspt_page_is_install(page)) {
+		printk("page %lx in %s task[tgid=%u, pid=%u] already installed\n",
+				page->offset, file->dentry->d_iname, task->tgid, task->pid);
+		goto unlock;
+	}
+
+	sspt_page_assert_install(page);
+	sspt_set_all_ip_addr(page, file);
+
+	list_for_each_entry_safe(ip, n, &page->ip_list, list) {
+		err = sspt_register_usprobe(task, ip);
+		if (err == -ENOEXEC) {
+			list_del(&ip->list);
+			free_ip(ip);
+			continue;
+		} else if (err) {
+			printk("Failed to install probe\n");
+		}
+	}
+unlock:
+	sspt_page_installed(page);
+	spin_unlock(&page->lock);
+
+	return 0;
+}
+
+int sspt_unregister_page(struct sspt_page *page,
+			 enum US_FLAGS flag,
+			 struct task_struct *task)
+{
+	int err = 0;
+	struct us_ip *ip;
+
+	spin_lock(&page->lock);
+	if (!sspt_page_is_install(page)) {
+		spin_unlock(&page->lock);
+		return 0;
+	}
+
+	list_for_each_entry(ip, &page->ip_list, list) {
+		err = sspt_unregister_usprobe(task, ip, flag);
+		if (err != 0) {
+			//TODO: ERROR
+			break;
+		}
+	}
+
+	if (flag != US_DISARM) {
+		sspt_page_uninstalled(page);
+	}
+	spin_unlock(&page->lock);
+
+	return err;
 }

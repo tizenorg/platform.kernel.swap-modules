@@ -54,8 +54,6 @@ int install_otg_ip(unsigned long addr,
 
 
 int check_install_pages_in_file(struct task_struct *task, struct sspt_file *file);
-int unregister_us_page_probe(struct task_struct *task,
-			     struct sspt_page *page, enum US_FLAGS flag);
 void install_proc_probes(struct task_struct *task, struct sspt_procs *procs);
 pid_t find_proc_by_task(const struct task_struct *task, struct dentry *dentry);
 void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs);

@@ -25,6 +25,8 @@
  *
  */
 
+#include <dbi_kprobes_deps.h>
+
 static inline void print_jprobe(struct jprobe *jp)
 {
 	printk("###         JP: entry=%lx, pre_entry=%lx\n",
@@ -94,6 +96,7 @@ static inline void print_proc_probes(const struct sspt_procs *procs)
 	printk("### print_proc_probes\n");
 }
 
+/*
 static inline void print_inst_us_proc(const inst_us_proc_t *task_inst_info)
 {
 	int i;
@@ -118,5 +121,6 @@ static inline void print_inst_us_proc(const inst_us_proc_t *task_inst_info)
 	}
 	printk("### BUNDLE PRINT  END  ###\n");
 }
+*/
 
 #endif /* __SSPT_DEBUG__ */
