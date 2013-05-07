@@ -43,8 +43,8 @@ enum US_FLAGS;
 int is_libonly(void);
 int is_us_instrumentation(void);
 
-int register_usprobe(struct task_struct *task, struct us_ip *ip);
-int unregister_usprobe(struct task_struct *task, struct us_ip *ip);
+int register_usprobe(struct us_ip *ip);
+int unregister_usprobe(struct us_ip *ip);
 
 struct dentry *dentry_by_path(const char *path);
 int install_otg_ip(unsigned long addr,

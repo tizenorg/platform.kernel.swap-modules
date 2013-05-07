@@ -600,7 +600,7 @@ int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *re
 	return 0;
 }
 
-int register_usprobe(struct task_struct *task, struct us_ip *ip)
+int register_usprobe(struct us_ip *ip)
 {
 	int ret = 0;
 
@@ -648,7 +648,7 @@ int register_usprobe(struct task_struct *task, struct us_ip *ip)
 	return 0;
 }
 
-int unregister_usprobe(struct task_struct *task, struct us_ip *ip)
+int unregister_usprobe(struct us_ip *ip)
 {
 	dbi_unregister_ujprobe(&ip->jprobe);
 
