@@ -1,6 +1,6 @@
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/dbi_uprobes.h
+ *  modules/kprobe/dbi_uprobes.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +16,25 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * Copyright (C) Samsung Electronics, 2006-2010
+ * Copyright (C) Samsung Electronics, 2006-2013
  *
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
- *
+ *              Probes initial implementation; Support x86/ARM/MIPS for both
+ *              user and kernel spaces.
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module
+ *              for separating core and arch parts
+ * 2010-2012    Dmitry Kovalenko <d.kovalenko@samsung.com>,
+ *              Nikita Kalyazin <n.kalyazin@samsung.com>
+ *              improvement and bugs fixing
+ * 2010-2011    Alexander Shirshikov
+ *              improvement and bugs fixing
+ * 2011-2012    Stanislav Andreev <s.andreev@samsung.com>
+ *              improvement and bugs fixing
+ * 2012         Vitaliy Cherepanov <v.chereapanov@samsung.com>
+ *              improvement and bugs fixing
+ * 2012-2013    Vasiliy Ulyanov <v.ulyanov@samsung.com>,
+ *              Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *              improvement and bugs fixing 
  */
 
 
@@ -273,19 +286,19 @@ out:
 int dbi_disarm_urp_inst(struct kretprobe_instance *ri, struct task_struct *rm_task)
 {
 	struct task_struct *task = rm_task ? rm_task : ri->task;
-	kprobe_opcode_t *tramp;
-	kprobe_opcode_t *sp = (kprobe_opcode_t *)((long)ri->sp & ~1);
-	kprobe_opcode_t *stack = sp - RETPROBE_STACK_DEPTH + 1;
-	kprobe_opcode_t *found = NULL;
-	kprobe_opcode_t *buf[RETPROBE_STACK_DEPTH];
+	unsigned long *tramp;
+	unsigned long *sp = (unsigned long *)((long)ri->sp & ~1);
+	unsigned long *stack = sp - RETPROBE_STACK_DEPTH + 1;
+	unsigned long *found = NULL;
+	unsigned long *buf[RETPROBE_STACK_DEPTH];
 	int i, retval;
 
 	/* Understand function mode */
 	if ((long)ri->sp & 1) {
-		tramp = (kprobe_opcode_t *)
+		tramp = (unsigned long *)
 			((unsigned long)ri->rp->kp.ainsn.insn + 0x1b);
 	} else {
-		tramp = (kprobe_opcode_t *)
+		tramp = (unsigned long *)
 			(ri->rp->kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
 	}
 
