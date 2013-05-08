@@ -55,4 +55,7 @@ struct sspt_file *sspt_procs_find_file(struct sspt_procs *procs, struct dentry *
 struct sspt_file *sspt_procs_find_file_or_new(struct sspt_procs *procs,
 		struct dentry *dentry, char *name);
 
+void sspt_procs_install_page(struct sspt_procs *procs, unsigned long page_addr);
+void sspt_procs_install(struct sspt_procs *procs);
+
 #endif /* __SSPT_PROC__ */

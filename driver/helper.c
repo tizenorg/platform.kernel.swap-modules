@@ -71,7 +71,7 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 				procs = sspt_procs_get_by_task_or_new(task);
 
 				/* install probes in already mapped memory */
-				install_proc_probes(task, procs);
+				sspt_procs_install(procs);
 			}
 		}
 
@@ -82,7 +82,7 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	if (procs) {
 		unsigned long page = addr & PAGE_MASK;
-		install_page_probes(page, task, procs);
+		sspt_procs_install_page(procs, page);
 	}
 
 out:

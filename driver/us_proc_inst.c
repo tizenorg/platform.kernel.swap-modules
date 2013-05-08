@@ -25,29 +25,6 @@
 #include "helper.h"
 #include "us_slot_manager.h"
 
-#define mm_read_lock(task, mm, atomic, lock) 			\
-	mm = atomic ? task->active_mm : get_task_mm(task); 	\
-	if (mm == NULL) {					\
-		/* FIXME: */					\
-		panic("ERRR mm_read_lock: mm == NULL\n");	\
-	}							\
-								\
-	if (atomic) {						\
-		lock = down_read_trylock(&mm->mmap_sem);	\
-	} else {						\
-		lock = 1;					\
-		down_read(&mm->mmap_sem);			\
-	}
-
-#define mm_read_unlock(mm, atomic, lock) 			\
-	if (lock) {						\
-		up_read(&mm->mmap_sem);				\
-	}							\
-								\
-	if (!atomic) {						\
-		mmput(mm);					\
-	}
-
 unsigned long ujprobe_event_pre_handler (struct us_ip *ip, struct pt_regs *regs);
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
 int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *regs, struct us_ip *ip);
@@ -162,11 +139,6 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 	return 0;
 }
 
-static void set_mapping_file(struct sspt_file *file,
-		const struct sspt_procs *procs,
-		const struct task_struct *task,
-		const struct vm_area_struct *vma);
-
 int install_otg_ip(unsigned long addr,
 			kprobe_pre_entry_handler_t pre_handler,
 			unsigned long jp_handler,
@@ -197,7 +169,7 @@ int install_otg_ip(unsigned long addr,
 			struct us_ip *ip = sspt_find_ip(page, offset_addr & ~PAGE_MASK);
 
 			if (!file->loaded) {
-				set_mapping_file(file, procs, task, vma);
+				sspt_file_set_mapping(file, vma);
 				file->loaded = 1;
 			}
 
@@ -301,7 +273,7 @@ int inst_usr_space_proc (void)
 
 			procs = sspt_procs_get_by_task_or_new(task);
 			DPRINTF("trying process");
-			install_proc_probes(task, procs);
+			sspt_procs_install(procs);
 			//put_task_struct (task);
 		}
 	}
@@ -314,7 +286,7 @@ int inst_usr_space_proc (void)
 			procs = sspt_procs_get_by_task_or_new(task);
 
 			us_proc_info.tgid = task->pid;
-			install_proc_probes(task, procs);
+			sspt_procs_install(procs);
 			put_task_struct(task);
 		}
 	}
@@ -322,79 +294,7 @@ int inst_usr_space_proc (void)
 	return 0;
 }
 
-static void set_mapping_file(struct sspt_file *file,
-		const struct sspt_procs *procs,
-		const struct task_struct *task,
-		const struct vm_area_struct *vma)
-{
-	int app_flag = (vma->vm_file->f_dentry == procs->dentry);
-
-	file->vm_start = vma->vm_start;
-	file->vm_end = vma->vm_end;
-
-	pack_event_info(DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
-			task->tgid, file->name, vma->vm_start,
-			vma->vm_end - vma->vm_start, app_flag);
-}
-
 void print_vma(struct mm_struct *mm);
-
-void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs)
-{
-	int lock, atomic;
-	struct mm_struct *mm;
-	struct vm_area_struct *vma;
-
-	atomic = in_atomic();
-	mm_read_lock(task, mm, atomic, lock);
-
-	vma = find_vma(mm, page_addr);
-	if (vma && check_vma(vma)) {
-		struct dentry *dentry = vma->vm_file->f_dentry;
-		struct sspt_file *file = sspt_procs_find_file(procs, dentry);
-		if (file) {
-			struct sspt_page *page;
-			if (!file->loaded) {
-				set_mapping_file(file, procs, task, vma);
-				file->loaded = 1;
-			}
-
-			page = sspt_find_page_mapped(file, page_addr);
-			if (page) {
-				sspt_register_page(page, file);
-			}
-		}
-	}
-
-	mm_read_unlock(mm, atomic, lock);
-}
-
-void install_proc_probes(struct task_struct *task, struct sspt_procs *procs)
-{
-	int lock, atomic;
-	struct vm_area_struct *vma;
-	struct mm_struct *mm;
-
-	atomic = in_atomic();
-	mm_read_lock(task, mm, atomic, lock);
-
-	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if (check_vma(vma)) {
-			struct dentry *dentry = vma->vm_file->f_dentry;
-			struct sspt_file *file = sspt_procs_find_file(procs, dentry);
-			if (file) {
-				if (!file->loaded) {
-					set_mapping_file(file, procs, task, vma);
-					file->loaded = 1;
-				}
-
-				sspt_file_install(file);
-			}
-		}
-	}
-
-	mm_read_unlock(mm, atomic, lock);
-}
 
 int unregister_us_file_probes(struct task_struct *task, struct sspt_file *file, enum US_FLAGS flag)
 {

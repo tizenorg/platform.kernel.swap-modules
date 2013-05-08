@@ -24,9 +24,12 @@
 
 #include "sspt_file.h"
 #include "sspt_page.h"
+#include "sspt_procs.h"
+#include <storage.h>
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/hash.h>
+#include <linux/sched.h>
 #include <dbi_kprobes_deps.h>
 
 static int calculation_hash_bits(int cnt)
@@ -238,4 +241,17 @@ void sspt_file_install(struct sspt_file *file)
 			sspt_register_page(page, file);
 		}
 	}
+}
+
+void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma)
+{
+	struct task_struct *task = file->procs->task;
+	int app_flag = (vma->vm_file->f_dentry == file->procs->dentry);
+
+	file->vm_start = vma->vm_start;
+	file->vm_end = vma->vm_end;
+
+	pack_event_info(DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
+			task->tgid, file->name, vma->vm_start,
+			vma->vm_end - vma->vm_start, app_flag);
 }

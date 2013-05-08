@@ -28,6 +28,7 @@
 #include "ip.h"
 #include <linux/types.h>
 
+struct vm_area_struct;
 
 struct sspt_file {
 	struct list_head list;			// for proc_probes
@@ -55,5 +56,6 @@ void sspt_put_page(struct sspt_page *page);
 
 int sspt_file_check_install_pages(struct sspt_file *file);
 void sspt_file_install(struct sspt_file *file);
+void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma);
 
 #endif /* __SSPT_FILE__ */

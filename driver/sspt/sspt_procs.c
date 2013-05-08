@@ -23,9 +23,34 @@
  */
 
 #include "sspt_procs.h"
+#include "sspt_page.h"
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <us_slot_manager.h>
+#include <us_proc_inst.h>
+
+#define mm_read_lock(task, mm, atomic, lock)			\
+	mm = atomic ? task->active_mm : get_task_mm(task); 	\
+	if (mm == NULL) {					\
+		/* FIXME: */					\
+		panic("ERRR mm_read_lock: mm == NULL\n");	\
+	}							\
+								\
+	if (atomic) {						\
+		lock = down_read_trylock(&mm->mmap_sem);	\
+	} else {						\
+		lock = 1;					\
+		down_read(&mm->mmap_sem);			\
+	}
+
+#define mm_read_unlock(mm, atomic, lock) 			\
+	if (lock) {						\
+		up_read(&mm->mmap_sem);				\
+	}							\
+								\
+	if (!atomic) {						\
+		mmput(mm);					\
+	}
 
 static LIST_HEAD(proc_probes_list);
 
@@ -157,4 +182,63 @@ struct sspt_file *sspt_procs_find_file(struct sspt_procs *procs, struct dentry *
 	}
 
 	return NULL;
+}
+
+void sspt_procs_install_page(struct sspt_procs *procs, unsigned long page_addr)
+{
+	int lock, atomic;
+	struct mm_struct *mm;
+	struct vm_area_struct *vma;
+	struct task_struct *task = procs->task;
+
+	atomic = in_atomic();
+	mm_read_lock(task, mm, atomic, lock);
+
+	vma = find_vma(mm, page_addr);
+	if (vma && check_vma(vma)) {
+		struct dentry *dentry = vma->vm_file->f_dentry;
+		struct sspt_file *file = sspt_procs_find_file(procs, dentry);
+		if (file) {
+			struct sspt_page *page;
+			if (!file->loaded) {
+				sspt_file_set_mapping(file, vma);
+				file->loaded = 1;
+			}
+
+			page = sspt_find_page_mapped(file, page_addr);
+			if (page) {
+				sspt_register_page(page, file);
+			}
+		}
+	}
+
+	mm_read_unlock(mm, atomic, lock);
+}
+
+void sspt_procs_install(struct sspt_procs *procs)
+{
+	int lock, atomic;
+	struct vm_area_struct *vma;
+	struct task_struct *task = procs->task;
+	struct mm_struct *mm;
+
+	atomic = in_atomic();
+	mm_read_lock(task, mm, atomic, lock);
+
+	for (vma = mm->mmap; vma; vma = vma->vm_next) {
+		if (check_vma(vma)) {
+			struct dentry *dentry = vma->vm_file->f_dentry;
+			struct sspt_file *file = sspt_procs_find_file(procs, dentry);
+			if (file) {
+				if (!file->loaded) {
+					sspt_file_set_mapping(file, vma);
+					file->loaded = 1;
+				}
+
+				sspt_file_install(file);
+			}
+		}
+	}
+
+	mm_read_unlock(mm, atomic, lock);
 }
