@@ -1223,7 +1223,7 @@ void arch_prepare_kretprobe(struct kretprobe *rp, struct pt_regs *regs)
 	{
 		ri->rp = rp;
 		ri->task = current;
-		ri->sp = &regs->EREG(sp);
+		ri->sp = regs->EREG(sp);
 
 		/* Replace the return addr with trampoline addr */
 		if (rp->kp.tgid){
