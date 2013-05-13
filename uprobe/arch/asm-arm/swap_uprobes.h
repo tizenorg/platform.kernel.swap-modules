@@ -18,6 +18,7 @@ static inline int longjmp_break_uhandler(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
+int arch_opcode_analysis_uretprobe(kprobe_opcode_t opcode);
 void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs);
 
 unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs);

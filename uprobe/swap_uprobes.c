@@ -760,10 +760,19 @@ int dbi_register_uretprobe(struct uretprobe *rp)
 
 	DBPRINTF ("START\n");
 
-	rp->up.kp.pre_handler = pre_handler_uretprobe;
+	rp->up.kp.pre_handler = NULL;
 	rp->up.kp.post_handler = NULL;
 	rp->up.kp.fault_handler = NULL;
 	rp->up.kp.break_handler = NULL;
+
+	/* Establish function entry probe point */
+	ret = dbi_register_uprobe(&rp->up);
+	if (ret)
+		return ret;
+
+	ret = arch_opcode_analysis_uretprobe(rp->up.kp.opcode);
+	if (ret)
+		goto unregister;
 
 	/* Pre-allocate memory for max kretprobe instances */
 	if (rp->maxactive <= 0) {
@@ -782,7 +791,7 @@ int dbi_register_uretprobe(struct uretprobe *rp)
 		if (inst == NULL) {
 			free_urp_inst(rp);
 			ret = -ENOMEM;
-			goto out;
+			goto unregister;
 		}
 
 		INIT_HLIST_NODE(&inst->uflist);
@@ -790,15 +799,12 @@ int dbi_register_uretprobe(struct uretprobe *rp)
 	}
 
 	rp->nmissed = 0;
+	rp->up.kp.pre_handler = pre_handler_uretprobe;
 
-	/* Establish function entry probe point */
-	ret = dbi_register_uprobe(&rp->up);
-	if (ret) {
-		free_urp_inst(rp);
-		goto out;
-	}
+	return 0;
 
-out:
+unregister:
+	dbi_unregister_uprobe(&rp->up);
 	return ret;
 }
 

@@ -492,6 +492,12 @@ int register_usprobe(struct us_ip *ip)
 		return ret;
 	}
 
+	/* FIXME:
+	 * Save opcode info into retprobe, for later
+	 * check for instructions w\o obvious return
+	 */
+	memcpy(&ip->retprobe.up.kp.opcode, &ip->jprobe.up.kp.opcode, sizeof(kprobe_opcode_t));
+
 	if (ip->flag_retprobe) {
 		// Mr_Nobody: comment for valencia
 		if (ip->retprobe.handler == NULL) {
