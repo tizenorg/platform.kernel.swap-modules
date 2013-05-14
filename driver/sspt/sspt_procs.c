@@ -65,16 +65,16 @@ void sspt_procs_free_all(void)
 	}
 
 	if (strcmp(us_proc_info.path,"*") == 0) {
-		// app
-		sspt_procs_free(us_proc_info.pp);
-		us_proc_info.pp = NULL;
-	} else {
 		// libonly
 		struct sspt_procs *procs, *n;
 		list_for_each_entry_safe(procs, n, &proc_probes_list, list) {
 			list_del(&procs->list);
 			sspt_procs_free(procs);
 		}
+	} else {
+		// app
+		sspt_procs_free(us_proc_info.pp);
+		us_proc_info.pp = NULL;
 	}
 }
 
