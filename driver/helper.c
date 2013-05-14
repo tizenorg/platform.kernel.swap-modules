@@ -5,6 +5,7 @@
 #include "us_slot_manager.h"
 #include "storage.h"
 #include "sspt/sspt.h"
+#include "filters/filters_core.h"
 
 /*
  ******************************************************************************
@@ -36,7 +37,6 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct task_struct *task = current->group_leader;
 	struct mm_struct *mm = task->mm;
-	struct sspt_procs *procs = NULL;
 	/*
 	 * Because process threads have same address space
 	 * we instrument only group_leader of all this threads
@@ -61,28 +61,14 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 		goto out;
 	}
 
-	if (is_libonly()) {
+	task = check_task(task);
+	if (task) {
+		struct sspt_procs *procs;
 		procs = sspt_procs_get_by_task_or_new(task);
-	} else {
-		// find task
-		if (us_proc_info.tgid == 0) {
-			if (check_dentry(task, us_proc_info.m_f_dentry)) {
-				us_proc_info.tgid = gl_nNotifyTgid = task->tgid;
-				procs = sspt_procs_get_by_task_or_new(task);
-
-				/* install probes in already mapped memory */
-				sspt_procs_install(procs);
-			}
+		if (procs) {
+			unsigned long page = addr & PAGE_MASK;
+			sspt_procs_install_page(procs, page);
 		}
-
-		if (us_proc_info.tgid == task->tgid) {
-			procs = sspt_procs_get_by_task_or_new(task);
-		}
-	}
-
-	if (procs) {
-		unsigned long page = addr & PAGE_MASK;
-		sspt_procs_install_page(procs, page);
 	}
 
 out:
@@ -154,15 +140,7 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 		goto out;
 	}
 
-	if (is_libonly()) {
-		procs = sspt_procs_get_by_task(task);
-	} else {
-		if (task->tgid == us_proc_info.tgid) {
-			procs = sspt_procs_get_by_task(task);
-			us_proc_info.tgid = 0;
-		}
-	}
-
+	procs = sspt_procs_get_by_task(task);
 	if (procs) {
 		int ret = uninstall_us_proc_probes(task, procs, US_UNREGS_PROBE);
 		if (ret != 0) {

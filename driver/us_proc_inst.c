@@ -22,6 +22,7 @@
 #include "../uprobe/swap_uprobes.h"
 
 #include "sspt/sspt.h"
+#include "filters/filters_core.h"
 #include "helper.h"
 #include "us_slot_manager.h"
 
@@ -35,11 +36,6 @@ int uretprobe_event_handler(struct uretprobe_instance *probe, struct pt_regs *re
 	char *buf[1024];							\
 	sprintf(buf, fmt, ##args);						\
 	pack_event_info(US_PROBE_ID, RECORD_ENTRY, "ds", 0x0badc0de, buf);	\
-}
-
-int is_libonly(void)
-{
-	return !strcmp(us_proc_info.path,"*");
 }
 
 // is user-space instrumentation
@@ -235,7 +231,8 @@ int deinst_usr_space_proc (void)
 int inst_usr_space_proc (void)
 {
 	int ret, i;
-	struct task_struct *task = NULL;
+	struct task_struct *task = NULL, *ts;
+	struct sspt_procs *procs;
 
 	if (!is_us_instrumentation()) {
 		return 0;
@@ -248,46 +245,12 @@ int inst_usr_space_proc (void)
 		return ret;
 	}
 
-	for (i = 0; i < us_proc_info.libs_count; i++) {
-		us_proc_info.p_libs[i].loaded = 0;
-	}
-	/* check whether process is already running
-	 * 1) if process is running - look for the libraries in the process maps
-	 * 1.1) check if page for symbol does exist
-	 * 1.1.1) if page exists - instrument it
-	 * 1.1.2) if page does not exist - make sure that do_page_fault handler is installed
-	 * 2) if process is not running - make sure that do_page_fault handler is installed
-	 * */
+	for_each_process(task) {
+		ts = check_task(task);
 
-	if (is_libonly())
-	{
-		// FIXME: clear_task_inst_info();
-		for_each_process (task) {
-			struct sspt_procs *procs;
-
-			if (task->flags & PF_KTHREAD){
-				DPRINTF("ignored kernel thread %d\n",
-					task->pid);
-				continue;
-			}
-
-			procs = sspt_procs_get_by_task_or_new(task);
-			DPRINTF("trying process");
+		if (ts) {
+			procs = sspt_procs_get_by_task_or_new(ts);
 			sspt_procs_install(procs);
-			//put_task_struct (task);
-		}
-	}
-	else
-	{
-		ret = find_task_by_path(us_proc_info.path, &task, NULL);
-		if (task) {
-			struct sspt_procs *procs;
-
-			procs = sspt_procs_get_by_task_or_new(task);
-
-			us_proc_info.tgid = task->pid;
-			sspt_procs_install(procs);
-			put_task_struct(task);
 		}
 	}
 

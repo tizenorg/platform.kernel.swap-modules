@@ -40,7 +40,6 @@ struct sspt_page;
 struct vm_area_struct;
 enum US_FLAGS;
 
-int is_libonly(void);
 int is_us_instrumentation(void);
 
 int register_usprobe(struct us_ip *ip);
