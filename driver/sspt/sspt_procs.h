@@ -38,6 +38,7 @@ struct sspt_procs {
 	struct dentry *dentry;
 	struct slot_manager *sm;
 	struct list_head file_list;
+	unsigned first_install:1;
 };
 
 

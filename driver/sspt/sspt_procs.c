@@ -64,6 +64,7 @@ struct sspt_procs *sspt_procs_create(struct dentry* dentry, struct task_struct *
 		procs->task = task;
 		procs->dentry = dentry;
 		procs->sm = NULL;
+		procs->first_install = 0;
 		INIT_LIST_HEAD(&procs->file_list);
 	}
 
@@ -221,6 +222,8 @@ void sspt_procs_install(struct sspt_procs *procs)
 	struct vm_area_struct *vma;
 	struct task_struct *task = procs->task;
 	struct mm_struct *mm;
+
+	procs->first_install = 1;
 
 	atomic = in_atomic();
 	mm_read_lock(task, mm, atomic, lock);

@@ -66,8 +66,12 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 		struct sspt_procs *procs;
 		procs = sspt_procs_get_by_task_or_new(task);
 		if (procs) {
-			unsigned long page = addr & PAGE_MASK;
-			sspt_procs_install_page(procs, page);
+			if (procs->first_install) {
+				unsigned long page = addr & PAGE_MASK;
+				sspt_procs_install_page(procs, page);
+			} else {
+				sspt_procs_install(procs);
+			}
 		}
 	}
 
