@@ -23,8 +23,11 @@
 
 #include "sspt/sspt.h"
 #include "filters/filters_core.h"
+#include "filters/filter_by_pach.h"
 #include "helper.h"
 #include "us_slot_manager.h"
+
+static const char *app_filter = "app";
 
 unsigned long ujprobe_event_pre_handler (struct us_ip *ip, struct pt_regs *regs);
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
@@ -225,6 +228,9 @@ int deinst_usr_space_proc (void)
 		}
 	}
 
+	uninit_filter();
+	unregister_filter(app_filter);
+
 	return iRet;
 }
 
@@ -239,6 +245,20 @@ int inst_usr_space_proc (void)
 	}
 
 	DPRINTF("User space instr");
+
+	ret = register_filter(app_filter, get_filter_by_pach());
+	if (ret)
+		return ret;
+
+	if (strcmp(us_proc_info.path, "*")) {
+		ret = set_filter(app_filter);
+		if (ret)
+			return ret;
+
+		ret = init_filter(us_proc_info.m_f_dentry, 0);
+		if (ret)
+			return ret;
+	}
 
 	ret = register_helper();
 	if (ret) {
@@ -299,24 +319,6 @@ int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs,
 	}
 
 	return err;
-}
-
-int check_dentry(struct task_struct *task, struct dentry *dentry)
-{
-	struct vm_area_struct *vma;
-	struct mm_struct *mm = task->active_mm;
-
-	if (mm == NULL) {
-		return 0;
-	}
-
-	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if (check_vma(vma) && vma->vm_file->f_dentry == dentry) {
-			return 1;
-		}
-	}
-
-	return 0;
 }
 
 void print_vma(struct mm_struct *mm)
