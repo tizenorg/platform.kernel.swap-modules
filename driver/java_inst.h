@@ -26,13 +26,13 @@
  */
 
 struct pt_regs;
-struct sspt_procs;
+struct sspt_proc;
 
 #ifdef __ANDROID
-void add_java_inst(struct sspt_procs *procs);
+void add_java_inst(struct sspt_proc *proc);
 int handle_java_event(struct pt_regs *regs);
 #else /* __ANDROID */
-static inline void add_java_inst(struct sspt_procs *procs)
+static inline void add_java_inst(struct sspt_proc *proc)
 {
 }
 

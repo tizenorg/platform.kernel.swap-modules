@@ -19,7 +19,7 @@
 #include "device_driver.h"	// device driver
 #include "handlers_core.h"
 #include <linux/notifier.h>
-#include "sspt/sspt_procs.h"
+#include "sspt/sspt_proc.h"
 
 #ifdef OVERHEAD_DEBUG
 extern unsigned long swap_sum_time;
@@ -537,7 +537,7 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			goto sad_cleanup;
 		}
 
-		sspt_procs_free_all();
+		sspt_proc_free_all();
 
 		vfree(bundle);
 		result = 0;

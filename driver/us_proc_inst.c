@@ -95,9 +95,9 @@ static inline int is_us_instrumentation(void)
 	return !!us_proc_info.path;
 }
 
-static struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
+static struct sspt_proc *get_proc_probes_by_task(struct task_struct *task)
 {
-	struct sspt_procs *procs, *tmp;
+	struct sspt_proc *proc, *tmp;
 
 	if (!is_libonly()) {
 		if (task != current) {
@@ -108,29 +108,29 @@ static struct sspt_procs *get_proc_probes_by_task(struct task_struct *task)
 		return us_proc_info.pp;
 	}
 
-	list_for_each_entry_safe(procs, tmp, &proc_probes_list, list) {
-		if (procs->tgid == task->tgid) {
-			return procs;
+	list_for_each_entry_safe(proc, tmp, &proc_probes_list, list) {
+		if (proc->tgid == task->tgid) {
+			return proc;
 		}
 	}
 
 	return NULL;
 }
 
-static void add_proc_probes(struct task_struct *task, struct sspt_procs *procs)
+static void add_proc_probes(struct task_struct *task, struct sspt_proc *proc)
 {
-	list_add_tail(&procs->list, &proc_probes_list);
+	list_add_tail(&proc->list, &proc_probes_list);
 }
 
-static struct sspt_procs *get_proc_probes_by_task_or_new(struct task_struct *task)
+static struct sspt_proc *get_proc_probes_by_task_or_new(struct task_struct *task)
 {
-	struct sspt_procs *procs = get_proc_probes_by_task(task);
-	if (procs == NULL) {
-		procs = sspt_procs_copy(us_proc_info.pp, task);
-		add_proc_probes(task, procs);
+	struct sspt_proc *proc = get_proc_probes_by_task(task);
+	if (proc == NULL) {
+		proc = sspt_proc_copy(us_proc_info.pp, task);
+		add_proc_probes(task, proc);
 	}
 
-	return procs;
+	return proc;
 }
 
 #ifdef SLP_APP
@@ -292,7 +292,7 @@ static int find_task_by_path (const char *path, struct task_struct **p_task, str
 }
 
 static void set_mapping_file(struct sspt_file *file,
-		const struct sspt_procs *procs,
+		const struct sspt_proc *proc,
 		const struct task_struct *task,
 		const struct vm_area_struct *vma);
 
@@ -312,7 +312,7 @@ int install_otg_ip(unsigned long addr,
 			unsigned long offset_addr = addr - vma->vm_start;
 			struct dentry *dentry = vma->vm_file->f_dentry;
 			char *name = dentry->d_iname;
-			struct sspt_procs *procs = get_proc_probes_by_task(task);
+			struct sspt_proc *proc = get_proc_probes_by_task(task);
 			struct ip_data pd = {
 					.offset = offset_addr,
 					.pre_handler = pre_handler,
@@ -321,18 +321,18 @@ int install_otg_ip(unsigned long addr,
 					.flag_retprobe = 1
 			};
 
-			struct sspt_file *file = sspt_procs_find_file_or_new(procs, dentry, name);
+			struct sspt_file *file = sspt_proc_find_file_or_new(proc, dentry, name);
 			struct sspt_page *page = sspt_get_page(file, offset_addr);
 			struct us_ip *ip = sspt_find_ip(page, offset_addr & ~PAGE_MASK);
 
 			if (!file->loaded) {
-				set_mapping_file(file, procs, task, vma);
+				set_mapping_file(file, proc, task, vma);
 				file->loaded = 1;
 			}
 
 			if (ip == NULL) {
-				// TODO: sspt_procs_find_file_or_new --> sspt_procs_find_file ?!
-				struct sspt_file *file = sspt_procs_find_file_or_new(procs, dentry, name);
+				// TODO: sspt_proc_find_file_or_new --> sspt_proc_find_file ?!
+				struct sspt_file *file = sspt_proc_find_file_or_new(proc, dentry, name);
 				sspt_file_add_ip(file, &pd);
 
 				/* if addr mapping, that probe install, else it be installed in do_page_fault handler */
@@ -389,7 +389,7 @@ static int uninstall_kernel_probe (unsigned long addr, int uflag, int kflag, ker
 	return iRet;
 }
 
-static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag);
+static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_proc *proc, enum US_FLAGS flag);
 
 int deinst_usr_space_proc (void)
 {
@@ -426,12 +426,12 @@ int deinst_usr_space_proc (void)
 		EPRINTF ("uninstall_kernel_probe(do_munmap) result=%d!", iRet);
 
 	if (is_libonly()) {
-		struct sspt_procs *procs;
+		struct sspt_proc *proc;
 
 		for_each_process(task)	{
-			procs = get_proc_probes_by_task(task);
-			if (procs) {
-				int ret = uninstall_us_proc_probes(task, procs, US_UNREGS_PROBE);
+			proc = get_proc_probes_by_task(task);
+			if (proc) {
+				int ret = uninstall_us_proc_probes(task, proc, US_UNREGS_PROBE);
 				if (ret) {
 					EPRINTF ("failed to uninstall IPs (%d)!", ret);
 				}
@@ -510,7 +510,7 @@ static int install_kernel_probe (unsigned long addr, int uflag, int kflag, kerne
 	return 0;
 }
 
-static void install_proc_probes(struct task_struct *task, struct sspt_procs *procs, int atomic);
+static void install_proc_probes(struct task_struct *task, struct sspt_proc *proc, int atomic);
 
 int inst_usr_space_proc (void)
 {
@@ -556,7 +556,7 @@ int inst_usr_space_proc (void)
 	{
 		// FIXME: clear_task_inst_info();
 		for_each_process (task) {
-			struct sspt_procs *procs;
+			struct sspt_proc *proc;
 
 			if (task->flags & PF_KTHREAD){
 				DPRINTF("ignored kernel thread %d\n",
@@ -564,9 +564,9 @@ int inst_usr_space_proc (void)
 				continue;
 			}
 
-			procs = get_proc_probes_by_task_or_new(task);
+			proc = get_proc_probes_by_task_or_new(task);
 			DPRINTF("trying process");
-			install_proc_probes(task, procs, 1);
+			install_proc_probes(task, proc, 1);
 			//put_task_struct (task);
 		}
 	}
@@ -651,11 +651,11 @@ unsigned long imi_sum_time = 0;
 unsigned long imi_sum_hit = 0;
 
 static void set_mapping_file(struct sspt_file *file,
-		const struct sspt_procs *procs,
+		const struct sspt_proc *proc,
 		const struct task_struct *task,
 		const struct vm_area_struct *vma)
 {
-	int app_flag = (vma->vm_file->f_dentry == procs->dentry);
+	int app_flag = (vma->vm_file->f_dentry == proc->dentry);
 
 	file->vm_start = vma->vm_start;
 	file->vm_end = vma->vm_end;
@@ -731,7 +731,7 @@ static int unregister_us_page_probe(struct task_struct *task,
 	return err;
 }
 
-static void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_procs *procs, int atomic)
+static void install_page_probes(unsigned long page_addr, struct task_struct *task, struct sspt_proc *proc, int atomic)
 {
 	int lock;
 	struct mm_struct *mm;
@@ -742,11 +742,11 @@ static void install_page_probes(unsigned long page_addr, struct task_struct *tas
 	vma = find_vma(mm, page_addr);
 	if (vma && check_vma(vma)) {
 		struct dentry *dentry = vma->vm_file->f_dentry;
-		struct sspt_file *file = sspt_procs_find_file(procs, dentry);
+		struct sspt_file *file = sspt_proc_find_file(proc, dentry);
 		if (file) {
 			struct sspt_page *page;
 			if (!file->loaded) {
-				set_mapping_file(file, procs, task, vma);
+				set_mapping_file(file, proc, task, vma);
 				file->loaded = 1;
 			}
 
@@ -775,7 +775,7 @@ static void install_file_probes(struct task_struct *task, struct mm_struct *mm, 
 	}
 }
 
-static void install_proc_probes(struct task_struct *task, struct sspt_procs *procs, int atomic)
+static void install_proc_probes(struct task_struct *task, struct sspt_proc *proc, int atomic)
 {
 	int lock;
 	struct vm_area_struct *vma;
@@ -786,10 +786,10 @@ static void install_proc_probes(struct task_struct *task, struct sspt_procs *pro
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (check_vma(vma)) {
 			struct dentry *dentry = vma->vm_file->f_dentry;
-			struct sspt_file *file = sspt_procs_find_file(procs, dentry);
+			struct sspt_file *file = sspt_proc_find_file(proc, dentry);
 			if (file) {
 				if (!file->loaded) {
-					set_mapping_file(file, procs, task, vma);
+					set_mapping_file(file, proc, task, vma);
 					file->loaded = 1;
 				}
 
@@ -847,12 +847,12 @@ static int unregister_us_file_probes(struct task_struct *task, struct sspt_file 
 	return err;
 }
 
-static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag)
+static int uninstall_us_proc_probes(struct task_struct *task, struct sspt_proc *proc, enum US_FLAGS flag)
 {
 	int err = 0;
 	struct sspt_file *file;
 
-	list_for_each_entry_rcu(file, &procs->file_list, list) {
+	list_for_each_entry_rcu(file, &proc->file_list, list) {
 		err = unregister_us_file_probes(task, file, flag);
 		if (err != 0) {
 			// TODO:
@@ -896,7 +896,7 @@ void do_page_fault_ret_pre_code (void)
 {
 	struct task_struct *task = current->group_leader;
 	struct mm_struct *mm = task->mm;
-	struct sspt_procs *procs = NULL;
+	struct sspt_proc *proc = NULL;
 	/*
 	 * Because process threads have same address space
 	 * we instrument only group_leader of all this threads
@@ -934,7 +934,7 @@ void do_page_fault_ret_pre_code (void)
 	}
 
 	if (is_libonly()) {
-		procs = get_proc_probes_by_task_or_new(task);
+		proc = get_proc_probes_by_task_or_new(task);
 	} else {
 		// find task
 		if (us_proc_info.tgid == 0) {
@@ -948,16 +948,16 @@ void do_page_fault_ret_pre_code (void)
 		}
 
 		if (us_proc_info.tgid == task->tgid) {
-			procs = us_proc_info.pp;
+			proc = us_proc_info.pp;
 		}
 	}
 
-	if (procs) {
+	if (proc) {
 		unsigned long page = addr & PAGE_MASK;
 
 		// overhead
 		do_gettimeofday(&imi_tv1);
-		install_page_probes(page, task, procs, 1);
+		install_page_probes(page, task, proc, 1);
 		do_gettimeofday(&imi_tv2);
 		imi_sum_hit++;
 		imi_sum_time += ((imi_tv2.tv_sec - imi_tv1.tv_sec) *  USEC_IN_SEC_NUM +
@@ -992,7 +992,7 @@ void print_vma(struct mm_struct *mm)
 	printk("### print_vma:  END\n");
 }
 
-static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *procs, unsigned long start, size_t len)
+static int remove_unmap_probes(struct task_struct *task, struct sspt_proc *proc, unsigned long start, size_t len)
 {
 	struct mm_struct *mm = task->mm;
 	struct vm_area_struct *vma;
@@ -1011,7 +1011,7 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 		unsigned long end = start + len;
 		struct dentry *dentry = vma->vm_file->f_dentry;
 
-		file = sspt_procs_find_file(procs, dentry);
+		file = sspt_proc_find_file(proc, dentry);
 		if (file) {
 			if (vma->vm_start == start || vma->vm_end == end) {
 				unregister_us_file_probes(task, file, US_NOT_RP2);
@@ -1039,7 +1039,7 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 
 void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t len)
 {
-	struct sspt_procs *procs = NULL;
+	struct sspt_proc *proc = NULL;
 	struct task_struct *task = current;
 
 	//if user-space instrumentation is not set
@@ -1048,15 +1048,15 @@ void do_munmap_probe_pre_code(struct mm_struct *mm, unsigned long start, size_t 
 	}
 
 	if (is_libonly()) {
-		procs = get_proc_probes_by_task(task);
+		proc = get_proc_probes_by_task(task);
 	} else {
 		if (task->tgid == us_proc_info.tgid) {
-			procs = us_proc_info.pp;
+			proc = us_proc_info.pp;
 		}
 	}
 
-	if (procs) {
-		if (remove_unmap_probes(task, procs, start, len)) {
+	if (proc) {
+		if (remove_unmap_probes(task, proc, start, len)) {
 			printk("ERROR do_munmap: start=%lx, len=%x\n", start, len);
 		}
 	}
@@ -1066,23 +1066,23 @@ EXPORT_SYMBOL_GPL(do_munmap_probe_pre_code);
 void mm_release_probe_pre_code(void)
 {
 	struct task_struct *task = current;
-	struct sspt_procs *procs = NULL;
+	struct sspt_proc *proc = NULL;
 
 	if (!is_us_instrumentation() || task->tgid != task->pid) {
 		return;
 	}
 
 	if (is_libonly()) {
-		procs = get_proc_probes_by_task(task);
+		proc = get_proc_probes_by_task(task);
 	} else {
 		if (task->tgid == us_proc_info.tgid) {
-			procs = get_proc_probes_by_task(task);
+			proc = get_proc_probes_by_task(task);
 			us_proc_info.tgid = 0;
 		}
 	}
 
-	if (procs) {
-		int ret = uninstall_us_proc_probes(task, procs, US_NOT_RP2);
+	if (proc) {
+		int ret = uninstall_us_proc_probes(task, proc, US_NOT_RP2);
 		if (ret != 0) {
 			EPRINTF ("failed to uninstall IPs (%d)!", ret);
 		}
@@ -1093,18 +1093,18 @@ void mm_release_probe_pre_code(void)
 EXPORT_SYMBOL_GPL(mm_release_probe_pre_code);
 
 
-static void recover_child(struct task_struct *child_task, struct sspt_procs *procs)
+static void recover_child(struct task_struct *child_task, struct sspt_proc *proc)
 {
-	uninstall_us_proc_probes(child_task, procs, US_DISARM);
+	uninstall_us_proc_probes(child_task, proc, US_DISARM);
 	dbi_disarm_urp_inst_for_task(current, child_task);
 }
 
 static void rm_uprobes_child(struct task_struct *new_task)
 {
 	if (is_libonly()) {
-		struct sspt_procs *procs = get_proc_probes_by_task(current);
-		if(procs) {
-			recover_child(new_task, procs);
+		struct sspt_proc *proc = get_proc_probes_by_task(current);
+		if(proc) {
+			recover_child(new_task, proc);
 		}
 	} else {
 		if(us_proc_info.tgid == current->tgid) {

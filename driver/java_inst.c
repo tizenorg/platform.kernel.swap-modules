@@ -35,7 +35,7 @@
 #include "storage.h"
 #include "debug.h"
 #include "sspt/ip.h"
-#include "sspt/sspt_procs.h"
+#include "sspt/sspt_proc.h"
 
 
 /* Defines below are for libdvm.so with md5sum:
@@ -52,7 +52,7 @@ struct dentry *dentry_by_path(const char *path);
 unsigned long ujprobe_event_pre_handler(struct us_ip *ip, struct pt_regs *regs);
 void ujprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
 
-void add_java_inst(struct sspt_procs *procs)
+void add_java_inst(struct sspt_proc *proc)
 {
 	struct dentry *dentry = dentry_by_path("/system/lib/libdvm.so");
 	libdvm_dentry = dentry;
@@ -67,7 +67,7 @@ void add_java_inst(struct sspt_procs *procs)
 		.flag_retprobe = 0
 	};
 
-	sspt_procs_add_ip_data(procs, dentry, name, &ipd_entry);
+	sspt_proc_add_ip_data(proc, dentry, name, &ipd_entry);
 
 
 	struct ip_data ipd_return =  {
@@ -79,7 +79,7 @@ void add_java_inst(struct sspt_procs *procs)
 		.flag_retprobe = 0
 	};
 
-	sspt_procs_add_ip_data(procs, dentry, name, &ipd_return);
+	sspt_proc_add_ip_data(proc, dentry, name, &ipd_return);
 }
 
 extern void dbi_uprobe_return(void);

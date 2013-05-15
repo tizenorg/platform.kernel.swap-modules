@@ -83,12 +83,12 @@ static inline void print_file_probes(const struct sspt_file *file)
 	}
 }
 
-static inline void print_proc_probes(const struct sspt_procs *procs)
+static inline void print_proc_probes(const struct sspt_proc *proc)
 {
 	struct sspt_file *file;
 
 	printk("### print_proc_probes\n");
-	list_for_each_entry(file, &procs->file_list, list) {
+	list_for_each_entry(file, &proc->file_list, list) {
 		print_file_probes(file);
 	}
 	printk("### print_proc_probes\n");
