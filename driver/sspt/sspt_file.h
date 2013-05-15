@@ -32,7 +32,7 @@ struct vm_area_struct;
 
 struct sspt_file {
 	struct list_head list;			// for proc_probes
-	struct sspt_procs *procs;
+	struct sspt_proc *proc;
 	struct dentry *dentry;
 	char *name;
 	int loaded;

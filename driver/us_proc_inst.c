@@ -154,7 +154,7 @@ int install_otg_ip(unsigned long addr,
 			unsigned long offset_addr = addr - vma->vm_start;
 			struct dentry *dentry = vma->vm_file->f_dentry;
 			char *name = dentry->d_iname;
-			struct sspt_procs *procs = sspt_procs_get_by_task(task);
+			struct sspt_proc *proc = sspt_proc_get_by_task(task);
 			struct ip_data pd = {
 					.offset = offset_addr,
 					.pre_handler = pre_handler,
@@ -163,7 +163,7 @@ int install_otg_ip(unsigned long addr,
 					.flag_retprobe = 1
 			};
 
-			struct sspt_file *file = sspt_procs_find_file_or_new(procs, dentry, name);
+			struct sspt_file *file = sspt_proc_find_file_or_new(proc, dentry, name);
 			struct sspt_page *page = sspt_get_page(file, offset_addr);
 			struct us_ip *ip = sspt_find_ip(page, offset_addr & ~PAGE_MASK);
 
@@ -173,8 +173,8 @@ int install_otg_ip(unsigned long addr,
 			}
 
 			if (ip == NULL) {
-				// TODO: sspt_procs_find_file_or_new --> sspt_procs_find_file ?!
-				struct sspt_file *file = sspt_procs_find_file_or_new(procs, dentry, name);
+				// TODO: sspt_proc_find_file_or_new --> sspt_proc_find_file ?!
+				struct sspt_file *file = sspt_proc_find_file_or_new(proc, dentry, name);
 				sspt_file_add_ip(file, &pd);
 
 				/* if addr mapping, that probe install, else it be installed in do_page_fault handler */
@@ -204,7 +204,7 @@ int deinst_usr_space_proc (void)
 {
 	int iRet = 0, found = 0;
 	struct task_struct *task = NULL;
-	struct sspt_procs *procs;
+	struct sspt_proc *proc;
 
 	if (!is_us_instrumentation()) {
 		return 0;
@@ -217,9 +217,9 @@ int deinst_usr_space_proc (void)
 
 
 	for_each_process(task) {
-		procs = sspt_procs_get_by_task(task);
-		if (procs) {
-			int ret = uninstall_us_proc_probes(task, procs, US_UNREGS_PROBE);
+		proc = sspt_proc_get_by_task(task);
+		if (proc) {
+			int ret = uninstall_us_proc_probes(task, proc, US_UNREGS_PROBE);
 			if (ret) {
 				EPRINTF ("failed to uninstall IPs (%d)!", ret);
 			}
@@ -238,7 +238,7 @@ int inst_usr_space_proc (void)
 {
 	int ret, i;
 	struct task_struct *task = NULL, *ts;
-	struct sspt_procs *procs;
+	struct sspt_proc *proc;
 
 	if (!is_us_instrumentation()) {
 		return 0;
@@ -269,8 +269,8 @@ int inst_usr_space_proc (void)
 		ts = check_task(task);
 
 		if (ts) {
-			procs = sspt_procs_get_by_task_or_new(ts);
-			sspt_procs_install(procs);
+			proc = sspt_proc_get_by_task_or_new(ts);
+			sspt_proc_install(proc);
 		}
 	}
 
@@ -305,12 +305,12 @@ int unregister_us_file_probes(struct task_struct *task, struct sspt_file *file, 
 	return err;
 }
 
-int uninstall_us_proc_probes(struct task_struct *task, struct sspt_procs *procs, enum US_FLAGS flag)
+int uninstall_us_proc_probes(struct task_struct *task, struct sspt_proc *proc, enum US_FLAGS flag)
 {
 	int err = 0;
 	struct sspt_file *file;
 
-	list_for_each_entry_rcu(file, &procs->file_list, list) {
+	list_for_each_entry_rcu(file, &proc->file_list, list) {
 		err = unregister_us_file_probes(task, file, flag);
 		if (err != 0) {
 			// TODO:
@@ -444,8 +444,8 @@ int register_usprobe(struct us_ip *ip)
 	}
 
 	ip->jprobe.priv_arg = ip;
-	ip->jprobe.up.task = ip->page->file->procs->task;
-	ip->jprobe.up.sm = ip->page->file->procs->sm;
+	ip->jprobe.up.task = ip->page->file->proc->task;
+	ip->jprobe.up.sm = ip->page->file->proc->sm;
 	ret = dbi_register_ujprobe(&ip->jprobe);
 	if (ret) {
 		if (ret == -ENOEXEC) {
@@ -471,8 +471,8 @@ int register_usprobe(struct us_ip *ip)
 		}
 
 		ip->retprobe.priv_arg = ip;
-		ip->retprobe.up.task = ip->page->file->procs->task;
-		ip->retprobe.up.sm = ip->page->file->procs->sm;
+		ip->retprobe.up.task = ip->page->file->proc->task;
+		ip->retprobe.up.sm = ip->page->file->proc->sm;
 		ret = dbi_register_uretprobe(&ip->retprobe);
 		if (ret) {
 			EPRINTF ("dbi_register_uretprobe() failure %d", ret);

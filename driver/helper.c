@@ -63,14 +63,14 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	task = check_task(task);
 	if (task) {
-		struct sspt_procs *procs;
-		procs = sspt_procs_get_by_task_or_new(task);
-		if (procs) {
-			if (procs->first_install) {
+		struct sspt_proc *proc;
+		proc = sspt_proc_get_by_task_or_new(task);
+		if (proc) {
+			if (proc->first_install) {
 				unsigned long page = addr & PAGE_MASK;
-				sspt_procs_install_page(procs, page);
+				sspt_proc_install_page(proc, page);
 			} else {
-				sspt_procs_install(procs);
+				sspt_proc_install(proc);
 			}
 		}
 	}
@@ -93,17 +93,17 @@ static struct kretprobe pf_kretprobe = {
  ******************************************************************************
  */
 
-static void recover_child(struct task_struct *child_task, struct sspt_procs *procs)
+static void recover_child(struct task_struct *child_task, struct sspt_proc *proc)
 {
-	uninstall_us_proc_probes(child_task, procs, US_DISARM);
+	uninstall_us_proc_probes(child_task, proc, US_DISARM);
 	dbi_disarm_urp_inst_for_task(current, child_task);
 }
 
 static void rm_uprobes_child(struct task_struct *task)
 {
-	struct sspt_procs *procs = sspt_procs_get_by_task(current);
-	if(procs) {
-		recover_child(task, procs);
+	struct sspt_proc *proc = sspt_proc_get_by_task(current);
+	if(proc) {
+		recover_child(task, proc);
 	}
 }
 
@@ -137,16 +137,16 @@ static struct kretprobe cp_kretprobe = {
 /* Detects when target process removes IPs. */
 static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
-	struct sspt_procs *procs = NULL;
+	struct sspt_proc *proc = NULL;
 	struct task_struct *task = (struct task_struct *)regs->ARM_r0; /* for ARM */
 
 	if (!is_us_instrumentation() || task->tgid != task->pid) {
 		goto out;
 	}
 
-	procs = sspt_procs_get_by_task(task);
-	if (procs) {
-		int ret = uninstall_us_proc_probes(task, procs, US_UNREGS_PROBE);
+	proc = sspt_proc_get_by_task(task);
+	if (proc) {
+		int ret = uninstall_us_proc_probes(task, proc, US_UNREGS_PROBE);
 		if (ret != 0) {
 			printk("failed to uninstall IPs (%d)!\n", ret);
 		}
@@ -170,7 +170,7 @@ static struct kprobe mr_kprobe = {
  ******************************************************************************
  */
 
-static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *procs, unsigned long start, size_t len)
+static int remove_unmap_probes(struct task_struct *task, struct sspt_proc *proc, unsigned long start, size_t len)
 {
 	struct mm_struct *mm = task->mm;
 	struct vm_area_struct *vma;
@@ -189,7 +189,7 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_procs *proc
 		unsigned long end = start + len;
 		struct dentry *dentry = vma->vm_file->f_dentry;
 
-		file = sspt_procs_find_file(procs, dentry);
+		file = sspt_proc_find_file(proc, dentry);
 		if (file) {
 			if (vma->vm_start == start || vma->vm_end == end) {
 				unregister_us_file_probes(task, file, US_UNREGS_PROBE);
@@ -223,7 +223,7 @@ static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	unsigned long start = regs->ARM_r1;
 	size_t len = (size_t)regs->ARM_r2;
 
-	struct sspt_procs *procs = NULL;
+	struct sspt_proc *proc = NULL;
 	struct task_struct *task = current;
 
 	//if user-space instrumentation is not set
@@ -231,9 +231,9 @@ static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs)
 		goto out;
 	}
 
-	procs = sspt_procs_get_by_task(task);
-	if (procs) {
-		if (remove_unmap_probes(task, procs, start, len)) {
+	proc = sspt_proc_get_by_task(task);
+	if (proc) {
+		if (remove_unmap_probes(task, proc, start, len)) {
 			printk("ERROR do_munmap: start=%lx, len=%x\n", start, len);
 		}
 	}

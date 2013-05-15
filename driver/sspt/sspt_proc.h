@@ -3,7 +3,7 @@
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/driver/sspt/sspt_procs.h
+ *  modules/driver/sspt/sspt_proc.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@
 struct slot_manager;
 struct task_struct;
 
-struct sspt_procs {
+struct sspt_proc {
 	struct list_head list;
 	pid_t tgid;
 	struct task_struct *task;
@@ -42,21 +42,21 @@ struct sspt_procs {
 };
 
 
-struct sspt_procs *sspt_procs_create(struct dentry* dentry, struct task_struct *task);
-struct sspt_procs *sspt_procs_copy(struct sspt_procs *procs, struct task_struct *task);
-void sspt_procs_free(struct sspt_procs *procs);
+struct sspt_proc *sspt_proc_create(struct dentry* dentry, struct task_struct *task);
+struct sspt_proc *sspt_proc_copy(struct sspt_proc *proc, struct task_struct *task);
+void sspt_proc_free(struct sspt_proc *proc);
 
-struct sspt_procs *sspt_procs_get_by_task(struct task_struct *task);
-struct sspt_procs *sspt_procs_get_by_task_or_new(struct task_struct *task);
-void sspt_procs_free_all(void);
+struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task);
+struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task);
+void sspt_proc_free_all(void);
 
-void sspt_procs_add_ip_data(struct sspt_procs *procs, struct dentry* dentry,
+void sspt_proc_add_ip_data(struct sspt_proc *proc, struct dentry* dentry,
 		char *name, struct ip_data *ip_d);
-struct sspt_file *sspt_procs_find_file(struct sspt_procs *procs, struct dentry *dentry);
-struct sspt_file *sspt_procs_find_file_or_new(struct sspt_procs *procs,
+struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc, struct dentry *dentry);
+struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
 		struct dentry *dentry, char *name);
 
-void sspt_procs_install_page(struct sspt_procs *procs, unsigned long page_addr);
-void sspt_procs_install(struct sspt_procs *procs);
+void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr);
+void sspt_proc_install(struct sspt_proc *proc);
 
 #endif /* __SSPT_PROC__ */

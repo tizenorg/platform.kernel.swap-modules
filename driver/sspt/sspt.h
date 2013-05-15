@@ -28,7 +28,7 @@
 #include "ip.h"
 #include "sspt_page.h"
 #include "sspt_file.h"
-#include "sspt_procs.h"
+#include "sspt_proc.h"
 #include "sspt_debug.h"
 #include "../us_proc_inst.h"
 #include <swap_uprobes.h>
@@ -36,18 +36,18 @@
 
 #include "../storage.h"
 
-static void print_proc_probes(const struct sspt_procs *procs);
+static void print_proc_probes(const struct sspt_proc *proc);
 
-static inline struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst_info)
+static inline struct sspt_proc *get_file_probes(const inst_us_proc_t *task_inst_info)
 {
-	struct sspt_procs *procs = sspt_procs_create(task_inst_info->m_f_dentry, 0);
+	struct sspt_proc *proc = sspt_proc_create(task_inst_info->m_f_dentry, 0);
 
 	printk("####### get START #######\n");
 
-	if (procs) {
+	if (proc) {
 		int i;
 
-		printk("#2# get_file_probes: proc_p[dentry=%p]\n", procs->dentry);
+		printk("#2# get_file_probes: proc_p[dentry=%p]\n", proc->dentry);
 
 		for (i = 0; i < task_inst_info->libs_count; ++i) {
 			int k, j;
@@ -76,16 +76,16 @@ static inline struct sspt_procs *get_file_probes(const inst_us_proc_t *task_inst
 				pd.jp_handler = (unsigned long) ip->jprobe.entry;
 				pd.rp_handler = ip->retprobe.handler;
 
-				sspt_procs_add_ip_data(procs, dentry, name, &pd);
+				sspt_proc_add_ip_data(proc, dentry, name, &pd);
 			}
 		}
 	}
 
-//	print_proc_probes(procs);
+//	print_proc_probes(proc);
 
 	printk("####### get  END  #######\n");
 
-	return procs;
+	return proc;
 }
 
 

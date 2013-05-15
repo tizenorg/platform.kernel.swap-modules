@@ -24,7 +24,7 @@
 
 #include "sspt_file.h"
 #include "sspt_page.h"
-#include "sspt_procs.h"
+#include "sspt_proc.h"
 #include <storage.h>
 #include <linux/slab.h>
 #include <linux/list.h>
@@ -47,7 +47,7 @@ struct sspt_file *sspt_file_create(char *name, struct dentry *dentry, int page_c
 	if (obj) {
 		int i, table_size;
 		INIT_LIST_HEAD(&obj->list);
-		obj->procs = NULL;
+		obj->proc = NULL;
 		obj->name = name;
 		obj->dentry = dentry;
 		obj->loaded = 0;
@@ -109,7 +109,7 @@ struct sspt_file *sspt_file_copy(const struct sspt_file *file)
 		struct hlist_head *head = NULL;
 		int i, table_size;
 		INIT_LIST_HEAD(&file_out->list);
-		file_out->procs = NULL;
+		file_out->proc = NULL;
 		file_out->dentry = file->dentry;
 		file_out->name = file->name;
 		file_out->loaded = 0;
@@ -245,8 +245,8 @@ void sspt_file_install(struct sspt_file *file)
 
 void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma)
 {
-	struct task_struct *task = file->procs->task;
-	int app_flag = (vma->vm_file->f_dentry == file->procs->dentry);
+	struct task_struct *task = file->proc->task;
+	int app_flag = (vma->vm_file->f_dentry == file->proc->dentry);
 
 	file->vm_start = vma->vm_start;
 	file->vm_end = vma->vm_end;

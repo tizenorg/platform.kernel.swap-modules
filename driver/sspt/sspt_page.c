@@ -137,7 +137,7 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 	spin_lock(&page->lock);
 
 	if (sspt_page_is_install(page)) {
-		struct task_struct *task = page->file->procs->task;
+		struct task_struct *task = page->file->proc->task;
 
 		printk("page %lx in %s task[tgid=%u, pid=%u] already installed\n",
 				page->offset, file->dentry->d_iname, task->tgid, task->pid);

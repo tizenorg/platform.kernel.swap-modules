@@ -196,7 +196,7 @@ typedef struct
 	us_proc_lib_t *p_libs;
 
 	// new_dpf
-	struct sspt_procs *pp;
+	struct sspt_proc *pp;
 } inst_us_proc_t;
 
 typedef struct
