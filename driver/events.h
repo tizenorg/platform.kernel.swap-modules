@@ -159,8 +159,12 @@ static char *PackArguments (char *pBuffer, unsigned long nLen, const char *szFor
 				if(strncpy_from_user(pResult,
 						     user_s,
 						     nLengthOfString) != (nLengthOfString-1)) {
+					const char err_str[] =
+						"(failed strcpy_from_user)";
 					EPRINTF("failed to copy string from user %p, bytes %d",
 						user_s, nLengthOfString);
+					nLengthOfString = sizeof(err_str);
+					memcpy(pResult, err_str, nLengthOfString);
 				}
 			}
 			else
