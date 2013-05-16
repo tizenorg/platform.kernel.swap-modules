@@ -104,13 +104,22 @@ static void add_proc_probes(struct sspt_proc *proc)
 	list_add_tail(&proc->list, &proc_probes_list);
 }
 
+struct sspt_proc *sspt_proc_get_new(struct task_struct *task)
+{
+	struct sspt_proc *proc;
+
+	proc = sspt_proc_copy(us_proc_info.pp, task);
+	proc->sm = create_sm_us(task);
+	add_proc_probes(proc);
+
+	return proc;
+}
+
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 {
 	struct sspt_proc *proc = sspt_proc_get_by_task(task);
 	if (proc == NULL) {
-		proc = sspt_proc_copy(us_proc_info.pp, task);
-		proc->sm = create_sm_us(task);
-		add_proc_probes(proc);
+		proc = sspt_proc_get_new(task);
 	}
 
 	return proc;
@@ -234,8 +243,8 @@ void sspt_proc_install(struct sspt_proc *proc)
 			struct sspt_file *file = sspt_proc_find_file(proc, dentry);
 			if (file) {
 				if (!file->loaded) {
-					sspt_file_set_mapping(file, vma);
 					file->loaded = 1;
+					sspt_file_set_mapping(file, vma);
 				}
 
 				sspt_file_install(file);

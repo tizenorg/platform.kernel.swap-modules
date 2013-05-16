@@ -35,47 +35,41 @@ static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 /* Detects when IPs are really loaded into phy mem and installs probes. */
 static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct task_struct *task = current->group_leader;
-	struct mm_struct *mm = task->mm;
+	struct task_struct *task;
+	struct sspt_proc *proc;
+
 	/*
 	 * Because process threads have same address space
 	 * we instrument only group_leader of all this threads
 	 */
-	struct pf_data *data;
-	unsigned long addr = 0;
-	int valid_addr;
+	task = current->group_leader;
+	if (task->flags & PF_KTHREAD)
+		return 0;
 
-	if (task->flags & PF_KTHREAD) {
-		goto out;
-	}
+	if (!is_us_instrumentation())
+		return 0;
 
-	if (!is_us_instrumentation()) {
-		goto out;
-	}
-
-	data = (struct pf_data *)ri->data;
-	addr = data->addr;
-
-	valid_addr = mm && page_present(mm, addr);
-	if (!valid_addr) {
-		goto out;
-	}
+	proc = sspt_proc_get_by_task(task);
+	if (proc)
+		goto install_proc;
 
 	task = check_task(task);
 	if (task) {
-		struct sspt_proc *proc;
-		proc = sspt_proc_get_by_task_or_new(task);
-		if (proc) {
-			if (proc->first_install) {
-				unsigned long page = addr & PAGE_MASK;
-				sspt_proc_install_page(proc, page);
-			} else {
-				sspt_proc_install(proc);
-			}
-		}
+		proc = sspt_proc_get_new(task);
+		goto install_proc;
 	}
 
-out:
+	return 0;
+
+install_proc:
+	if (proc->first_install) {
+		unsigned long page;
+		page = ((struct pf_data *)ri->data)->addr & PAGE_MASK;
+		sspt_proc_install_page(proc, page);
+	} else {
+		sspt_proc_install(proc);
+	}
+
 	return 0;
 }
 
@@ -110,14 +104,21 @@ static void rm_uprobes_child(struct task_struct *task)
 /* Delete uprobs in children at fork */
 static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct task_struct* task = (struct task_struct *)regs_return_value(regs);
+	struct task_struct *task = (struct task_struct *)regs_return_value(regs);
 
 	if(!task || IS_ERR(task))
 		goto out;
 
-	if(task->mm != current->mm)	/* check flags CLONE_VM */
+	if(task->mm != current->mm) {	/* check flags CLONE_VM */
 		rm_uprobes_child(task);
 
+		if (check_task(current)) {
+			struct sspt_proc *proc;
+
+			proc = sspt_proc_get_new(task);
+			sspt_proc_install(proc);
+		}
+	}
 out:
 	return 0;
 }

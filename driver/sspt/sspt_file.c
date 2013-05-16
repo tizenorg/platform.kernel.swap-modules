@@ -251,7 +251,7 @@ void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma)
 	file->vm_start = vma->vm_start;
 	file->vm_end = vma->vm_end;
 
-	pack_event_info(DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
-			task->tgid, file->name, vma->vm_start,
-			vma->vm_end - vma->vm_start, app_flag);
+	pack_task_event_info(task, DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
+			     task->tgid, file->name, vma->vm_start,
+			     vma->vm_end - vma->vm_start, app_flag);
 }
