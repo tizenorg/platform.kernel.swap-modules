@@ -52,8 +52,9 @@ install-exec-local:
 
 	install -m 644 $(driver_module_dir)/$(module_name).ko $(prefix)
 	install -m 644 $(driver_module_dir)/$(module_name).ko.addr $(prefix)
-	install -m 755 $(driver_module_dir)/patchko.sh $(prefix)/bin
-	install -m 755 $(driver_module_dir)/insmod.sh $(prefix)/bin
+	mkdir -p $(prefix)/bin/
+	install -m 755 $(driver_module_dir)/patchko.sh $(prefix)/bin/
+	install -m 755 $(driver_module_dir)/insmod.sh $(prefix)/bin/
 
 	if [ "$(android)" != "yes" ] ; then \
 	sed "s|__DEV_NAME__|`basename $(dev_path)`|" $(driver_module_dir)/$(module_name).sh | \
