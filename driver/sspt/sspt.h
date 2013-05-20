@@ -32,6 +32,7 @@
 #include "sspt_debug.h"
 #include "../us_proc_inst.h"
 #include <swap_uprobes.h>
+#include "us_def_handler.h"
 
 
 #include "../storage.h"
@@ -72,9 +73,9 @@ static inline struct sspt_proc *get_file_probes(const inst_us_proc_t *task_inst_
 				pd.flag_retprobe = 1;
 				pd.offset = ip->offset;
 				pd.got_addr = got_addr;
-				pd.pre_handler = ip->jprobe.pre_entry;
-				pd.jp_handler = (unsigned long) ip->jprobe.entry;
-				pd.rp_handler = ip->retprobe.handler;
+				pd.pre_handler = ip->jprobe.pre_entry ? ip->jprobe.pre_entry : ujprobe_event_pre_handler;
+				pd.jp_handler = (unsigned long) (ip->jprobe.entry ? ip->jprobe.entry : ujprobe_event_handler);
+				pd.rp_handler = ip->retprobe.handler ?  ip->retprobe.handler : uretprobe_event_handler;
 
 				sspt_proc_add_ip_data(proc, dentry, name, &pd);
 			}
