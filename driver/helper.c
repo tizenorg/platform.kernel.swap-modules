@@ -89,7 +89,7 @@ static struct kretprobe pf_kretprobe = {
 
 static void recover_child(struct task_struct *child_task, struct sspt_proc *proc)
 {
-	uninstall_us_proc_probes(child_task, proc, US_DISARM);
+	sspt_proc_uninstall(proc, child_task, US_DISARM);
 	dbi_disarm_urp_inst_for_task(current, child_task);
 }
 
@@ -147,7 +147,7 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 
 	proc = sspt_proc_get_by_task(task);
 	if (proc) {
-		int ret = uninstall_us_proc_probes(task, proc, US_UNREGS_PROBE);
+		int ret = sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
 		if (ret != 0) {
 			printk("failed to uninstall IPs (%d)!\n", ret);
 		}

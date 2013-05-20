@@ -162,7 +162,7 @@ int deinst_usr_space_proc (void)
 	for_each_process(task) {
 		proc = sspt_proc_get_by_task(task);
 		if (proc) {
-			int ret = uninstall_us_proc_probes(task, proc, US_UNREGS_PROBE);
+			int ret = sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
 			if (ret) {
 				EPRINTF ("failed to uninstall IPs (%d)!", ret);
 			}
@@ -221,22 +221,6 @@ int inst_usr_space_proc (void)
 }
 
 void print_vma(struct mm_struct *mm);
-
-int uninstall_us_proc_probes(struct task_struct *task, struct sspt_proc *proc, enum US_FLAGS flag)
-{
-	int err = 0;
-	struct sspt_file *file;
-
-	list_for_each_entry_rcu(file, &proc->file_list, list) {
-		err = sspt_file_uninstall(file, task, flag);
-		if (err != 0) {
-			// TODO:
-			return err;
-		}
-	}
-
-	return err;
-}
 
 void print_vma(struct mm_struct *mm)
 {

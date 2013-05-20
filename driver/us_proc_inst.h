@@ -51,7 +51,6 @@ int install_otg_ip(unsigned long addr,
 			unsigned long jp_handler,
 			uretprobe_handler_t rp_handler);
 
-int uninstall_us_proc_probes(struct task_struct *task, struct sspt_proc *proc, enum US_FLAGS flag);
 int check_vma(struct vm_area_struct *vma);
 
 #endif /* !defined(__US_PROC_INST_H__) */

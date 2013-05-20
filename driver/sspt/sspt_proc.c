@@ -22,6 +22,7 @@
  *
  */
 
+#include "sspt.h"
 #include "sspt_proc.h"
 #include "sspt_page.h"
 #include <linux/slab.h>
@@ -252,4 +253,20 @@ void sspt_proc_install(struct sspt_proc *proc)
 	}
 
 	mm_read_unlock(mm, atomic, lock);
+}
+
+int sspt_proc_uninstall(struct sspt_proc *proc, struct task_struct *task, enum US_FLAGS flag)
+{
+	int err = 0;
+	struct sspt_file *file;
+
+	list_for_each_entry_rcu(file, &proc->file_list, list) {
+		err = sspt_file_uninstall(file, task, flag);
+		if (err != 0) {
+			printk("ERROR sspt_proc_uninstall: err=%d\n", err);
+			return err;
+		}
+	}
+
+	return err;
 }
