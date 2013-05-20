@@ -63,7 +63,7 @@ struct sspt_proc *sspt_proc_create(struct dentry* dentry, struct task_struct *ta
 		proc->tgid = task ? task->tgid : 0;
 		proc->task = task;
 		proc->dentry = dentry;
-		proc->sm = NULL;
+		proc->sm = create_sm_us(task);
 		proc->first_install = 0;
 		INIT_LIST_HEAD(&proc->file_list);
 	}
@@ -109,7 +109,6 @@ struct sspt_proc *sspt_proc_get_new(struct task_struct *task)
 	struct sspt_proc *proc;
 
 	proc = sspt_proc_copy(us_proc_info.pp, task);
-	proc->sm = create_sm_us(task);
 	add_proc_probes(proc);
 
 	return proc;
