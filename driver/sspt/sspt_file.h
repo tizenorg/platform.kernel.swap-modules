@@ -56,6 +56,7 @@ void sspt_put_page(struct sspt_page *page);
 
 int sspt_file_check_install_pages(struct sspt_file *file);
 void sspt_file_install(struct sspt_file *file);
+int sspt_file_uninstall(struct sspt_file *file, struct task_struct *task, enum US_FLAGS flag);
 void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma);
 
 #endif /* __SSPT_FILE__ */

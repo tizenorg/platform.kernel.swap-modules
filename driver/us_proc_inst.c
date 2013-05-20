@@ -222,39 +222,13 @@ int inst_usr_space_proc (void)
 
 void print_vma(struct mm_struct *mm);
 
-int unregister_us_file_probes(struct task_struct *task, struct sspt_file *file, enum US_FLAGS flag)
-{
-	int i, err = 0;
-	int table_size = (1 << file->page_probes_hash_bits);
-	struct sspt_page *page;
-	struct hlist_node *node, *tmp;
-	struct hlist_head *head;
-
-	for (i = 0; i < table_size; ++i) {
-		head = &file->page_probes_table[i];
-		swap_hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
-			err = sspt_unregister_page(page, flag, task);
-			if (err != 0) {
-				// TODO: ERROR
-				return err;
-			}
-		}
-	}
-
-	if (flag != US_DISARM) {
-		file->loaded = 0;
-	}
-
-	return err;
-}
-
 int uninstall_us_proc_probes(struct task_struct *task, struct sspt_proc *proc, enum US_FLAGS flag)
 {
 	int err = 0;
 	struct sspt_file *file;
 
 	list_for_each_entry_rcu(file, &proc->file_list, list) {
-		err = unregister_us_file_probes(task, file, flag);
+		err = sspt_file_uninstall(file, task, flag);
 		if (err != 0) {
 			// TODO:
 			return err;

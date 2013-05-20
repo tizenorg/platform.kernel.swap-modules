@@ -22,6 +22,7 @@
  *
  */
 
+#include "sspt.h"
 #include "sspt_file.h"
 #include "sspt_page.h"
 #include "sspt_proc.h"
@@ -241,6 +242,32 @@ void sspt_file_install(struct sspt_file *file)
 			sspt_register_page(page, file);
 		}
 	}
+}
+
+int sspt_file_uninstall(struct sspt_file *file, struct task_struct *task, enum US_FLAGS flag)
+{
+	int i, err = 0;
+	int table_size = (1 << file->page_probes_hash_bits);
+	struct sspt_page *page;
+	struct hlist_node *node, *tmp;
+	struct hlist_head *head;
+
+	for (i = 0; i < table_size; ++i) {
+		head = &file->page_probes_table[i];
+		swap_hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
+			err = sspt_unregister_page(page, flag, task);
+			if (err != 0) {
+				printk("ERROR sspt_file_uninstall: err=%d\n", err);
+				return err;
+			}
+		}
+	}
+
+	if (flag != US_DISARM) {
+		file->loaded = 0;
+	}
+
+	return err;
 }
 
 void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma)

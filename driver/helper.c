@@ -193,7 +193,7 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_proc *proc,
 		file = sspt_proc_find_file(proc, dentry);
 		if (file) {
 			if (vma->vm_start == start || vma->vm_end == end) {
-				unregister_us_file_probes(task, file, US_UNREGS_PROBE);
+				sspt_file_uninstall(file, task, US_UNREGS_PROBE);
 				file->loaded = 0;
 			} else {
 				unsigned long page_addr;
