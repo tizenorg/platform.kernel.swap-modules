@@ -81,63 +81,6 @@ int check_vma(struct vm_area_struct *vma)
 			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
 }
 
-static int find_task_by_path (const char *path, struct task_struct **p_task, struct list_head *tids)
-{
-	int found = 0;
-	struct task_struct *task;
-	struct vm_area_struct *vma;
-	struct mm_struct *mm;
-	struct dentry *dentry = dentry_by_path(path);
-
-	*p_task = NULL;
-
-	/* find corresponding dir entry, this is also check for valid path */
-	// TODO: test - try to instrument process with non-existing path
-	// TODO: test - try to instrument process  with existing path and delete file just after start
-	if (dentry == NULL) {
-		return -EINVAL;
-	}
-
-	rcu_read_lock();
-	for_each_process (task)	{
-
-		if  ( 0 != inst_pid && ( inst_pid != task->pid ) )
-			continue;
-
-		mm = get_task_mm(task);
-		if (!mm)
-			continue;
-		vma = mm->mmap;
-		while (vma) {
-			if (check_vma(vma)) {
-				if (vma->vm_file->f_dentry == dentry) {
-					if (!*p_task) {
-						*p_task = task;
-						get_task_struct (task);
-					}
-						//break;
-				}
-			}
-			vma = vma->vm_next;
-		}
-		// only decrement usage count on mm since we cannot sleep here
-		atomic_dec(&mm->mm_users);
-		if (found)
-			break;
-	}
-	rcu_read_unlock();
-
-	if (*p_task) {
-		DPRINTF ("found pid %d for %s.", (*p_task)->pid, path);
-		*p_task = (*p_task)->group_leader;
-		gl_nNotifyTgid = (*p_task)->tgid;
-	} else {
-		DPRINTF ("pid for %s not found!", path);
-	}
-
-	return 0;
-}
-
 int install_otg_ip(unsigned long addr,
 			kprobe_pre_entry_handler_t pre_handler,
 			unsigned long jp_handler,
