@@ -22,6 +22,7 @@
 #include <linux/module.h>
 #include <linux/list.h>
 #include <linux/spinlock.h>
+#include <dbi_kprobes.h>
 #include "picl.h"
 #include "ec_ioctl.h"
 #include "ec_probe.h"

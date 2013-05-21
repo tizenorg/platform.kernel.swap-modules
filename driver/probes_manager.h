@@ -37,9 +37,6 @@ extern int reset_probes(void);
 int set_kernel_probes(void);
 int unset_kernel_probes(void);
 
-extern unsigned long def_jprobe_event_pre_handler (kernel_probe_t * probe, struct pt_regs *regs);
-extern void def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);
-extern int def_retprobe_event_handler (struct kretprobe_instance *probe, struct pt_regs *regs, kernel_probe_t * p);
 void dbi_install_user_handlers(void);
 void dbi_uninstall_user_handlers(void);
 int install_kern_otg_probe(unsigned long addr,

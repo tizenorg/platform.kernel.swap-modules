@@ -170,37 +170,6 @@ int reset_probes(void)
 	return 0;
 }
 
-static DEFINE_PER_CPU(kernel_probe_t *, gpKernProbe) = NULL;
-
-unsigned long
-def_jprobe_event_pre_handler (kernel_probe_t * probe, struct pt_regs *regs)
-{
-	__get_cpu_var (gpKernProbe) = probe;
-
-	return 0;
-}
-
-void
-def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6)
-{
-	//static int nCount;
-	kernel_probe_t *probe = __get_cpu_var(gpKernProbe);
-
-	pack_event_info(KS_PROBE_ID, RECORD_ENTRY, "pxxxxxx", probe->addr, arg1, arg2, arg3, arg4, arg5, arg6);
-	dbi_jprobe_return ();
-}
-
-int
-def_retprobe_event_handler (struct kretprobe_instance *pi, struct pt_regs *regs, kernel_probe_t * probe)
-{
-	int ret_val;
-
-	ret_val = regs_return_value(regs);
-	pack_event_info(KS_PROBE_ID, RECORD_RET, "pd", probe->addr, ret_val);
-
-	return 0;
-}
-
 int install_kern_otg_probe(unsigned long addr,
 			   unsigned long pre_handler,
 			   unsigned long jp_handler,

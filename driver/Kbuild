@@ -4,4 +4,5 @@ obj-m := swap_driver.o
 swap_driver-y := error_storage.o device_driver.o ec.o legacy.o module.o probes.o \
                  probes_manager.o storage.o us_proc_inst.o helper.o us_slot_manager.o \
                  sspt/ip.o sspt/sspt_page.o sspt/sspt_file.o sspt/sspt_proc.o \
-                 filters/filters_core.o filters/filter_by_pach.o us_def_handler.o
+                 filters/filters_core.o filters/filter_by_pach.o us_def_handler.o \
+                 ks_def_handler.o

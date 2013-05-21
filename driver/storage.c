@@ -30,6 +30,7 @@
 #include "CProfile.h"
 #include "sspt/sspt.h"
 #include "sspt/sspt_debug.h"
+#include "ks_def_handler.h"
 
 #define after_buffer ec_info.buffer_size
 
