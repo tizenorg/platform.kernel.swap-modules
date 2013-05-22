@@ -633,6 +633,80 @@ static int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
+int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
+{
+	struct kretprobe_instance *ri = NULL;
+	struct hlist_head *head;
+	struct hlist_node *node, *tmp;
+	unsigned long flags, orig_ret_address = 0;
+	unsigned long trampoline_address = (unsigned long)&kretprobe_trampoline;
+
+	struct kretprobe *crp = NULL;
+	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk();
+
+	spin_lock_irqsave(&kretprobe_lock, flags);
+
+	/*
+	 * We are using different hash keys (current and mm) for finding kernel
+	 * space and user space probes.  Kernel space probes can change mm field in
+	 * task_struct.  User space probes can be shared between threads of one
+	 * process so they have different current but same mm.
+	 */
+	head = kretprobe_inst_table_head(current);
+
+	/*
+	 * It is possible to have multiple instances associated with a given
+	 * task either because an multiple functions in the call path
+	 * have a return probe installed on them, and/or more then one
+	 * return probe was registered for a target function.
+	 *
+	 * We can handle this because:
+	 *     - instances are always inserted at the head of the list
+	 *     - when multiple return probes are registered for the same
+	 *       function, the first instance's ret_addr will point to the
+	 *       real return address, and all the rest will point to
+	 *       kretprobe_trampoline
+	 */
+	swap_hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
+		if (ri->task != current)
+			/* another task is sharing our hash bucket */
+			continue;
+		if (ri->rp && ri->rp->handler) {
+			ri->rp->handler(ri, regs, ri->rp->priv_arg);
+		}
+
+		orig_ret_address = (unsigned long)ri->ret_addr;
+		recycle_rp_inst(ri);
+		if (orig_ret_address != trampoline_address)
+			/*
+			 * This is the real return address. Any other
+			 * instances associated with this task are for
+			 * other calls deeper on the call stack
+			 */
+			break;
+	}
+	kretprobe_assert(ri, orig_ret_address, trampoline_address);
+
+	dbi_set_ret_addr(regs, orig_ret_address);
+	dbi_set_instr_ptr(regs, orig_ret_address);
+
+	if (kcb->kprobe_status == KPROBE_REENTER) {
+		restore_previous_kprobe(kcb);
+	} else {
+		reset_current_kprobe();
+	}
+
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+
+	/*
+	 * By returning a non-zero value, we are telling
+	 * kprobe_handler() that we don't want the post_handler
+	 * to run (and have re-enabled preemption)
+	 */
+
+	return 1;
+}
+
 struct kretprobe *sched_rp;
 
 #define SCHED_RP_NR 200

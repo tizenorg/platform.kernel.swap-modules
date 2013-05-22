@@ -503,7 +503,6 @@ void arch_disarm_kprobe(struct kprobe *p);
 
 int setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs);
 int longjmp_break_handler(struct kprobe *p, struct pt_regs *regs);
-int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs);
 
 void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *cur_p);
 void restore_previous_kprobe(struct kprobe_ctlblk *kcb);
