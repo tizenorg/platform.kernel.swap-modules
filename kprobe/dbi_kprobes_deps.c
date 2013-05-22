@@ -41,6 +41,7 @@ unsigned long fork_addr;
 unsigned long exit_addr;
 unsigned long sys_exit_group_addr;
 unsigned long do_group_exit_addr;
+unsigned long sys_exit_addr;
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 /* kernel define 'pgd_offset_k' redefinition */

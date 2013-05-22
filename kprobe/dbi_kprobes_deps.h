@@ -104,6 +104,7 @@ extern unsigned long fork_addr;
 extern unsigned long exit_addr;
 extern unsigned long sys_exit_group_addr;
 extern unsigned long do_group_exit_addr;
+extern unsigned long sys_exit_addr;
 
 DECLARE_MOD_DEP_WRAPPER (__flush_anon_page, \
 			void, struct vm_area_struct *vma, \
