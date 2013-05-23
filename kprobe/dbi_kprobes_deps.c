@@ -87,6 +87,10 @@ DECLARE_MOD_DEP_WRAPPER(do_mmap_pgoff, unsigned long, struct file *file, unsigne
 IMP_MOD_DEP_WRAPPER(do_mmap_pgoff, file, addr, len, prot, flags, pgoff)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) */
 
+#ifdef LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+EXPORT_SYMBOL_GPL(do_mmap_pgoff);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) */
+
 /* copy_to_user_page */
 #ifndef copy_to_user_page
 static DECLARE_MOD_FUNC_DEP(copy_to_user_page, void, struct vm_area_struct *vma, struct page *page, unsigned long uaddr, void *dst, const void *src, unsigned long len);
