@@ -654,6 +654,12 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	 */
 	head = kretprobe_inst_table_head(current);
 
+#ifdef CONFIG_X86
+	regs->XREG(cs) = __KERNEL_CS | get_kernel_rpl();
+	regs->EREG(ip) = trampoline_address;
+	regs->ORIG_EAX_REG = 0xffffffff;
+#endif
+
 	/*
 	 * It is possible to have multiple instances associated with a given
 	 * task either because an multiple functions in the call path
@@ -672,7 +678,10 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 			/* another task is sharing our hash bucket */
 			continue;
 		if (ri->rp && ri->rp->handler) {
+			__get_cpu_var(current_kprobe) = &ri->rp->kp;
+			get_kprobe_ctlblk()->kprobe_status = KPROBE_HIT_ACTIVE;
 			ri->rp->handler(ri, regs, ri->rp->priv_arg);
+			__get_cpu_var(current_kprobe) = NULL;
 		}
 
 		orig_ret_address = (unsigned long)ri->ret_addr;
@@ -687,8 +696,10 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 	kretprobe_assert(ri, orig_ret_address, trampoline_address);
 
-	dbi_set_ret_addr(regs, orig_ret_address);
-	dbi_set_instr_ptr(regs, orig_ret_address);
+#ifdef CONFIG_ARM
+	regs->ARM_lr = orig_ret_address;
+	regs->ARM_pc = orig_ret_address;
+#endif
 
 	if (kcb->kprobe_status == KPROBE_REENTER) {
 		restore_previous_kprobe(kcb);
@@ -704,7 +715,11 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	 * to run (and have re-enabled preemption)
 	 */
 
+#if defined (CONFIG_X86)
+	return (int)orig_ret_address;
+#elif defined (CONFIG_ARM)
 	return 1;
+#endif
 }
 
 struct kretprobe *sched_rp;

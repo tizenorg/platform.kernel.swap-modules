@@ -49,8 +49,8 @@
 
  */
 
-#include "../../dbi_kprobes_deps.h"
-#include "../dbi_kprobes.h"
+#include <linux/version.h>
+#include <dbi_kprobes_deps.h>
 
 typedef u8 kprobe_opcode_t;
 
@@ -183,7 +183,10 @@ static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
 
 extern int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, void *data);
 
-struct prev_kprobe;
+struct prev_kprobe {
+	struct kprobe *kp;
+	unsigned long status;
+};
 
 /* per-cpu kprobe control block */
 struct kprobe_ctlblk {
@@ -198,8 +201,6 @@ struct kprobe_ctlblk {
 
 
 int kprobe_fault_handler (struct pt_regs *regs, int trapnr);
-
-void * trampoline_probe_handler_x86 (struct pt_regs *regs);
 
 /* Architecture specific copy of original instruction */
 struct arch_specific_insn {
@@ -216,5 +217,18 @@ typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned
 
 int arch_init_module_deps(void);
 
+struct slot_manager;
+struct kretprobe_instance;
+
+int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm);
+void arch_arm_kprobe(struct kprobe *p);
+void arch_disarm_kprobe(struct kprobe *p);
+void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs);
+void kretprobe_trampoline(void);
+
+void restore_previous_kprobe(struct kprobe_ctlblk *kcb);
+
+int arch_init_kprobes(void);
+void arch_exit_kprobes(void);
 
 #endif /* _SRC_ASM_X86_KPROBES_H */

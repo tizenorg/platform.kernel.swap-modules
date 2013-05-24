@@ -21,9 +21,9 @@ static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct pf_data *data = (struct pf_data *)ri->data;
 
-#ifdef CONFIG_X86
+#if defined(CONFIG_X86)
 	data->addr = read_cr2();
-#elif CONFIG_ARM
+#elif defined(CONFIG_ARM)
 	data->addr = regs->ARM_r0;
 #else
 #error this architecture is not supported
@@ -139,7 +139,15 @@ static struct kretprobe cp_kretprobe = {
 static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct sspt_proc *proc = NULL;
-	struct task_struct *task = (struct task_struct *)regs->ARM_r0; /* for ARM */
+	struct task_struct *task;
+
+#if defined(CONFIG_X86)
+	return 0;
+#elif defined(CONFIG_ARM)
+	task = (struct task_struct *)regs->ARM_r0;
+#else
+#error this architecture is not supported
+#endif
 
 	if (!is_us_instrumentation() || task->tgid != task->pid) {
 		goto out;
@@ -220,9 +228,19 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_proc *proc,
 static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	/* for ARM */
-	struct mm_struct *mm = (struct mm_struct *)regs->ARM_r0;
-	unsigned long start = regs->ARM_r1;
-	size_t len = (size_t)regs->ARM_r2;
+	struct mm_struct *mm;
+	unsigned long start;
+	size_t len;
+
+#if defined(CONFIG_X86)
+	return 0;
+#elif defined(CONFIG_ARM)
+	mm = (struct mm_struct *)regs->ARM_r0;
+	start = regs->ARM_r1;
+	len = (size_t)regs->ARM_r2;
+#else
+#error this architecture is not supported
+#endif
 
 	struct sspt_proc *proc = NULL;
 	struct task_struct *task = current;

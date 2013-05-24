@@ -55,8 +55,6 @@
 #include "../../dbi_kdebug.h"
 #include "../../dbi_insn_slots.h"
 #include "../../dbi_kprobes_deps.h"
-#include "../../dbi_uprobes.h"
-
 #define SUPRESS_BUG_MESSAGES
 
 extern struct kprobe * per_cpu__current_kprobe;
@@ -136,6 +134,51 @@ IMP_MOD_DEP_WRAPPER(text_poke, addr, opcode, len)
 
 DECLARE_MOD_DEP_WRAPPER(show_registers, void, struct pt_regs * regs)
 IMP_MOD_DEP_WRAPPER(show_registers, regs)
+
+/*
+ * Function return probe trampoline:
+ *      - init_kprobes() establishes a probepoint here
+ *      - When the probed function returns, this probe
+ *        causes the handlers to fire
+ */
+static __used void kretprobe_trampoline_holder(void)
+{
+	asm volatile(".global kretprobe_trampoline\n"
+			"kretprobe_trampoline:\n"
+			"	pushf\n"
+			/* skip cs, eip, orig_eax */
+			"	subl $12, %esp\n"
+			"	pushl %fs\n"
+			"	pushl %ds\n"
+			"	pushl %es\n"
+			"	pushl %eax\n"
+			"	pushl %ebp\n"
+			"	pushl %edi\n"
+			"	pushl %esi\n"
+			"	pushl %edx\n"
+			"	pushl %ecx\n"
+			"	pushl %ebx\n"
+			"	movl %esp, %eax\n"
+			"	call trampoline_probe_handler_x86\n"
+			/* move eflags to cs */
+			"	movl 52(%esp), %edx\n"
+			"	movl %edx, 48(%esp)\n"
+			/* save true return address on eflags */
+			"	movl %eax, 52(%esp)\n"
+			"	popl %ebx\n" ""
+			"	popl %ecx\n"
+			"	popl %edx\n"
+			"	popl %esi\n"
+			"	popl %edi\n"
+			"	popl %ebp\n"
+			"	popl %eax\n"
+			/* skip eip, orig_eax, es, ds, fs */
+			"	addl $20, %esp\n"
+			"	popf\n"
+			"	ret\n");
+}
+
+void kretprobe_trampoline(void);
 
 struct kprobe trampoline_p =
 {
@@ -276,7 +319,7 @@ int arch_check_insn (struct arch_specific_insn *ainsn)
 	return 0;
 }
 
-int arch_prepare_kprobe (struct kprobe *p)
+int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 {
 	kprobe_opcode_t insns[KPROBES_TRAMP_LEN];
 
@@ -294,7 +337,7 @@ int arch_prepare_kprobe (struct kprobe *p)
 		kprobe_opcode_t insn[MAX_INSN_SIZE];
 		struct arch_specific_insn ainsn;
 		/* insn: must be on special executable page on i386. */
-		p->ainsn.insn = get_insn_slot (NULL, 0);
+		p->ainsn.insn = alloc_insn_slot(sm);
 		if (!p->ainsn.insn)
 			return -ENOMEM;
 		memcpy (insn, p->addr, MAX_INSN_SIZE * sizeof (kprobe_opcode_t));
@@ -313,47 +356,7 @@ int arch_prepare_kprobe (struct kprobe *p)
 	}
 	else
 	{
-		free_insn_slot(&kprobe_insn_pages, NULL, p->ainsn.insn);
-	}
-
-	return ret;
-}
-
-int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
-{
-	int ret = 0;
-	kprobe_opcode_t insns[UPROBES_TRAMP_LEN];
-
-	if (!ret)
-	{
-		kprobe_opcode_t insn[MAX_INSN_SIZE];
-		struct arch_specific_insn ainsn;
-
-		if (!read_proc_vm_atomic (task, (unsigned long) p->addr, &insn, MAX_INSN_SIZE * sizeof(kprobe_opcode_t)))
-			panic ("failed to read memory %p!\n", p->addr);
-		ainsn.insn = insn;
-		ret = arch_check_insn (&ainsn);
-		if (!ret)
-		{
-			p->opcode = insn[0];
-			p->ainsn.insn = get_insn_slot(task, atomic);
-			if (!p->ainsn.insn)
-				return -ENOMEM;
-			if (can_boost (insn))
-				p->ainsn.boostable = 0;
-			else
-				p->ainsn.boostable = -1;
-			memcpy (&insns[UPROBES_TRAMP_INSN_IDX], insn, MAX_INSN_SIZE*sizeof(kprobe_opcode_t));
-			insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-
-			if (!write_proc_vm_atomic (task, (unsigned long) p->ainsn.insn, insns, sizeof (insns)))
-			{
-				panic("failed to write memory %p!\n", p->ainsn.insn);
-				DBPRINTF ("failed to write insn slot to process memory: insn %p, addr %p, probe %p!", insn, p->ainsn.insn, p->addr);
-				free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn);
-				return -EINVAL;
-			}
-		}
+		free_insn_slot(sm, p->ainsn.insn);
 	}
 
 	return ret;
@@ -385,9 +388,9 @@ void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
 {
 	if (kcb->prev_kprobe.kp != NULL)
 	{
-		panic ("no space to save new probe[]: task = %d/%s, prev %d/%p, current %d/%p, new %d/%p,",
-				current->pid, current->comm, kcb->prev_kprobe.kp->tgid, kcb->prev_kprobe.kp->addr,
-				kprobe_running()->tgid, kprobe_running()->addr, cur_p->tgid, cur_p->addr);
+		panic("no space to save new probe[]: task = %d/%s, prev %p, current %p, new %p,",
+				current->pid, current->comm, kcb->prev_kprobe.kp->addr,
+				kprobe_running()->addr, cur_p->addr);
 	}
 
 
@@ -416,7 +419,7 @@ void set_current_kprobe (struct kprobe *p, struct pt_regs *regs, struct kprobe_c
 int kprobe_handler (struct pt_regs *regs)
 {
 	struct kprobe *p = 0;
-	int ret = 0, pid = 0, retprobe = 0, reenter = 0;
+	int ret = 0, reenter = 0;
 	kprobe_opcode_t *addr = NULL;
 	struct kprobe_ctlblk *kcb;
 #ifdef SUPRESS_BUG_MESSAGES
@@ -435,31 +438,16 @@ int kprobe_handler (struct pt_regs *regs)
 
 	kcb = get_kprobe_ctlblk ();
 
-	if (user_mode_vm(regs))
-	{
-		//printk("exception[%lu] from user mode %s/%u/%u addr %p.\n", nCount, current->comm, current->pid, current->tgid, addr);
-		pid = current->tgid;
-	}
-
 	/* Check we're not actually recursing */
-	if (kprobe_running ())
-	{
-		DBPRINTF ("lock???");
-		p = get_kprobe(addr, pid);
-		if (p)
-		{
-			DBPRINTF ("reenter p = %p", p);
-			if(!pid){
-				if (kcb->kprobe_status == KPROBE_HIT_SS && *p->ainsn.insn == BREAKPOINT_INSTRUCTION)
-				{
-					regs->EREG (flags) &= ~TF_MASK;
-					regs->EREG (flags) |= kcb->kprobe_saved_eflags;
-					goto no_kprobe;
-				}
+	if (kprobe_running()) {
+		p = get_kprobe(addr);
+		if (p) {
+			if (kcb->kprobe_status == KPROBE_HIT_SS && *p->ainsn.insn == BREAKPOINT_INSTRUCTION) {
+				regs->EREG(flags) &= ~TF_MASK;
+				regs->EREG(flags) |= kcb->kprobe_saved_eflags;
+				goto no_kprobe;
 			}
-			else {
-				//#warning BREAKPOINT_INSTRUCTION user mode handling is missed!!!
-			}
+
 
 			/* We have reentered the kprobe_handler(), since
 			 * another probe was hit while within the handler.
@@ -478,101 +466,58 @@ int kprobe_handler (struct pt_regs *regs)
 			oops_in_progress = swap_oops_in_progress;
 #endif
 			return 1;
-		}
-		else
-		{
-			if(!pid){
-				if (*addr != BREAKPOINT_INSTRUCTION)
-				{
-					/* The breakpoint instruction was removed by
-					 * another cpu right after we hit, no further
-					 * handling of this interrupt is appropriate
-					 */
-					regs->EREG (ip) -= sizeof (kprobe_opcode_t);
-					ret = 1;
-					goto no_kprobe;
-				}
-			}
-			else {
-				//#warning BREAKPOINT_INSTRUCTION user mode handling is missed!!!
-				//we can reenter probe upon uretprobe exception
-				DBPRINTF ("check for UNDEF_INSTRUCTION %p\n", addr);
-				// UNDEF_INSTRUCTION from user space
-				p = get_kprobe_by_insn_slot (addr-UPROBES_TRAMP_RET_BREAK_IDX, pid, current);
-				if (p) {
-					save_previous_kprobe (kcb, p);
-					kcb->kprobe_status = KPROBE_REENTER;
-					reenter = 1;
-					retprobe = 1;
-					DBPRINTF ("uretprobe %p\n", addr);
-				}
-			}
-			if(!p){
-				p = __get_cpu_var (current_kprobe);
-				if(p->tgid)
-					panic("after uhandler");
-				DBPRINTF ("kprobe_running !!! p = 0x%p p->break_handler = 0x%p", p, p->break_handler);
-				if (p->break_handler && p->break_handler (p, regs))
-				{
-					DBPRINTF ("kprobe_running !!! goto ss");
-					goto ss_probe;
-				}
-				DBPRINTF ("kprobe_running !!! goto no");
-				DBPRINTF ("no_kprobe");
+		} else {
+			if (*addr != BREAKPOINT_INSTRUCTION) {
+				/* The breakpoint instruction was removed by
+				 * another cpu right after we hit, no further
+				 * handling of this interrupt is appropriate
+				 */
+				regs->EREG(ip) -= sizeof(kprobe_opcode_t);
+				ret = 1;
 				goto no_kprobe;
 			}
+
+			p = __get_cpu_var(current_kprobe);
+			if (p->break_handler && p->break_handler(p, regs))
+				goto ss_probe;
+
+			goto no_kprobe;
 		}
 	}
 
 	DBPRINTF ("get_kprobe %p", addr);
 	if (!p)
-		p = get_kprobe(addr, pid);
-	if (!p)
-	{
-		if(!pid){
-			if (*addr != BREAKPOINT_INSTRUCTION)
-			{
-				/*
-				 * The breakpoint instruction was removed right
-				 * after we hit it.  Another cpu has removed
-				 * either a probepoint or a debugger breakpoint
-				 * at this address.  In either case, no further
-				 * handling of this interrupt is appropriate.
-				 * Back up over the (now missing) int3 and run
-				 * the original instruction.
-				 */
-				regs->EREG (ip) -= sizeof (kprobe_opcode_t);
-				ret = 1;
-			}
+		p = get_kprobe(addr);
+
+	if (!p) {
+		if (*addr != BREAKPOINT_INSTRUCTION) {
+			/*
+			 * The breakpoint instruction was removed right
+			 * after we hit it.  Another cpu has removed
+			 * either a probepoint or a debugger breakpoint
+			 * at this address.  In either case, no further
+			 * handling of this interrupt is appropriate.
+			 * Back up over the (now missing) int3 and run
+			 * the original instruction.
+			 */
+			regs->EREG(ip) -= sizeof(kprobe_opcode_t);
+			ret = 1;
 		}
-		else {
-			//#warning BREAKPOINT_INSTRUCTION user mode handling is missed!!!
-			DBPRINTF ("search UNDEF_INSTRUCTION %p\n", addr);
-			// UNDEF_INSTRUCTION from user space
-			p = get_kprobe_by_insn_slot (addr-UPROBES_TRAMP_RET_BREAK_IDX, pid, current);
-			if (!p) {
-				// Not one of ours: let kernel handle it
-				DBPRINTF ("no_kprobe");
-				//printk("no_kprobe2 ret = %d\n", ret);
-				goto no_kprobe;
-			}
-			retprobe = 1;
-			DBPRINTF ("uretprobe %p\n", addr);
-		}
-		if(!p) {
+
+		if (!p) {
 			/* Not one of ours: let kernel handle it */
 			DBPRINTF ("no_kprobe");
 			goto no_kprobe;
 		}
 	}
+
 	set_current_kprobe (p, regs, kcb);
+
 	if(!reenter)
 		kcb->kprobe_status = KPROBE_HIT_ACTIVE;
 
-	if (retprobe)		//(einsn == UNDEF_INSTRUCTION)
-		ret = trampoline_probe_handler (p, regs);
-	else if (p->pre_handler)
-		ret = p->pre_handler (p, regs);
+	if (p->pre_handler)
+		ret = p->pre_handler(p, regs);
 
 	if (ret)
 	{
@@ -639,110 +584,32 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	pre_entry = (kprobe_pre_entry_handler_t) jp->pre_entry;
 	entry = (entry_point_t) jp->entry;
 
-	if (!p->tgid || (p->tgid == current->tgid)) {
-		/* handle __switch_to probe */
-		if(!p->tgid && (p->addr == sched_addr) && sched_rp) {
-			/* FIXME: Actually 2nd parameter is not used for x86 */
-			patch_suspended_task(sched_rp, (struct task_struct *)regs->dx, regs);
-		}
+	/* handle __switch_to probe */
+	if ((p->addr == sched_addr) && sched_rp) {
+		/* FIXME: Actually 2nd parameter is not used for x86 */
+		patch_suspended_task(sched_rp, (struct task_struct *)regs->dx, regs);
 	}
 
-	if (p->tgid) {
-		/* FIXME some user space apps crash if we clean interrupt bit */
-		//regs->EREG(flags) &= ~IF_MASK;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
-		trace_hardirqs_off ();
-#endif
-		if (p->tgid == current->tgid) {
-			// read first 6 args from stack
-			if (!read_proc_vm_atomic (current, regs->EREG(sp) + 4, args, sizeof(args)))
-				panic ("failed to read user space func arguments %lx!\n", regs->EREG(sp)+4);
-			if (pre_entry)
-				p->ss_addr = pre_entry (jp->priv_arg, regs);
-			if (entry)
-				entry (args[0], args[1], args[2], args[3], args[4], args[5]);
-		} else {
-			dbi_arch_uprobe_return();
-		}
+	kcb->jprobe_saved_regs = *regs;
+	kcb->jprobe_saved_esp = &regs->EREG(sp);
+	addr = (unsigned long)(kcb->jprobe_saved_esp);
 
-		return 2;
-	} else {
-		kcb->jprobe_saved_regs = *regs;
-		kcb->jprobe_saved_esp = &regs->EREG(sp);
-		addr = (unsigned long) (kcb->jprobe_saved_esp);
-
-		/* TBD: As Linus pointed out, gcc assumes that the callee
-		 * owns the argument space and could overwrite it, e.g.
-		 * tailcall optimization. So, to be absolutely safe
-		 * we also save and restore enough stack bytes to cover
-		 * the argument area. */
-		memcpy (kcb->jprobes_stack, (kprobe_opcode_t *)addr, MIN_STACK_SIZE (addr));
-		regs->EREG (flags) &= ~IF_MASK;
+	/* TBD: As Linus pointed out, gcc assumes that the callee
+	 * owns the argument space and could overwrite it, e.g.
+	 * tailcall optimization. So, to be absolutely safe
+	 * we also save and restore enough stack bytes to cover
+	 * the argument area. */
+	memcpy(kcb->jprobes_stack, (kprobe_opcode_t *)addr, MIN_STACK_SIZE (addr));
+	regs->EREG(flags) &= ~IF_MASK;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
-		trace_hardirqs_off ();
+	trace_hardirqs_off();
 #endif
-		if (pre_entry)
-			p->ss_addr = pre_entry(jp->priv_arg, regs);
-		regs->EREG(ip) = (unsigned long) (jp->entry);
-	}
+	if (pre_entry)
+		p->ss_addr = pre_entry(jp->priv_arg, regs);
+
+	regs->EREG(ip) = (unsigned long)(jp->entry);
 
 	return 1;
-
-#if 0 /* initial version */
-	struct jprobe *jp = container_of (p, struct jprobe, kp);
-	kprobe_pre_entry_handler_t pre_entry;
-	entry_point_t entry;
-
-	unsigned long addr, args[6];
-	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
-
-	DBPRINTF ("setjmp_pre_handler %p:%d", p->addr, p->tgid);
-	pre_entry = (kprobe_pre_entry_handler_t) jp->pre_entry;
-	entry = (entry_point_t) jp->entry;
-	if(p->tgid) {
-		regs->EREG (flags) &= ~IF_MASK;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
-		trace_hardirqs_off ();
-#endif
-		if (p->tgid == current->tgid)
-		{
-			// read first 6 args from stack
-			if (!read_proc_vm_atomic (current, regs->EREG(sp)+4, args, sizeof(args)))
-				panic ("failed to read user space func arguments %lx!\n", regs->EREG(sp)+4);
-			if (pre_entry)
-				p->ss_addr = pre_entry (jp->priv_arg, regs);
-			if (entry)
-				entry (args[0], args[1], args[2], args[3], args[4], args[5]);
-		}
-		else
-			dbi_arch_uprobe_return ();
-
-		return 2;
-	}
-	else {
-		kcb->jprobe_saved_regs = *regs;
-		kcb->jprobe_saved_esp = &regs->EREG (sp);
-		addr = (unsigned long) (kcb->jprobe_saved_esp);
-
-		/*
-		 * TBD: As Linus pointed out, gcc assumes that the callee
-		 * owns the argument space and could overwrite it, e.g.
-		 * tailcall optimization. So, to be absolutely safe
-		 * we also save and restore enough stack bytes to cover
-		 * the argument area.
-		 */
-		memcpy (kcb->jprobes_stack, (kprobe_opcode_t *) addr, MIN_STACK_SIZE (addr));
-		regs->EREG (flags) &= ~IF_MASK;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
-		trace_hardirqs_off ();
-#endif
-		if (pre_entry)
-			p->ss_addr = pre_entry (jp->priv_arg, regs);
-		regs->EREG (ip) = (unsigned long) (jp->entry);
-	}
-
-	return 1;
-#endif /* 0 */
 }
 
 void dbi_jprobe_return (void)
@@ -794,18 +661,9 @@ static void resume_execution (struct kprobe *p, struct pt_regs *regs, struct kpr
 
 	regs->EREG (flags) &= ~TF_MASK;
 
-	if(p->tgid){
-		tos = (unsigned long *) &tos_dword;
-		if (!read_proc_vm_atomic (current, regs->EREG (sp), &tos_dword, sizeof(tos_dword)))
-			panic ("failed to read dword from top of the user space stack %lx!\n", regs->EREG (sp));
-		if (!read_proc_vm_atomic (current, (unsigned long)p->ainsn.insn, insns, 2*sizeof(kprobe_opcode_t)))
-			panic ("failed to read first 2 opcodes of instruction copy from user space %p!\n", p->ainsn.insn);
-	}
-	else {
-		tos = (unsigned long *) &regs->EREG (sp);
-		insns[0] = p->ainsn.insn[0];
-		insns[1] = p->ainsn.insn[1];
-	}
+	tos = (unsigned long *)&regs->EREG(sp);
+	insns[0] = p->ainsn.insn[0];
+	insns[1] = p->ainsn.insn[1];
 
 	switch (insns[0])
 	{
@@ -827,10 +685,6 @@ static void resume_execution (struct kprobe *p, struct pt_regs *regs, struct kpr
 			break;
 		case 0x9a:		/* call absolute -- same as call absolute, indirect */
 			*tos = orig_eip + (*tos - copy_eip);
-			if(p->tgid){
-				if (!write_proc_vm_atomic (current, regs->EREG (sp), &tos_dword, sizeof(tos_dword)))
-					panic ("failed to write dword to top of the user space stack %lx!\n", regs->EREG (sp));
-			}
 			goto no_change;
 		case 0xff:
 			if ((insns[1] & 0x30) == 0x10)
@@ -841,10 +695,6 @@ static void resume_execution (struct kprobe *p, struct pt_regs *regs, struct kpr
 				 * But this is not boostable
 				 */
 				*tos = orig_eip + (*tos - copy_eip);
-				if(p->tgid){
-					if (!write_proc_vm_atomic (current, regs->EREG (sp), &tos_dword, sizeof(tos_dword)))
-						panic ("failed to write dword to top of the user space stack %lx!\n", regs->EREG (sp));
-				}
 				goto no_change;
 			}
 			else if (((insns[1] & 0x31) == 0x20) ||	/* jmp near, absolute indirect */
@@ -858,11 +708,6 @@ static void resume_execution (struct kprobe *p, struct pt_regs *regs, struct kpr
 			break;
 	}
 
-	if(p->tgid){
-		if (!write_proc_vm_atomic (current, regs->EREG (sp), &tos_dword, sizeof(tos_dword)))
-			panic ("failed to write dword to top of the user space stack %lx!\n", regs->EREG (sp));
-	}
-
 	if (p->ainsn.boostable == 0)
 	{
 		if ((regs->EREG (ip) > copy_eip) && (regs->EREG (ip) - copy_eip) + 5 < MAX_INSN_SIZE)
@@ -871,10 +716,7 @@ static void resume_execution (struct kprobe *p, struct pt_regs *regs, struct kpr
 			 * These instructions can be executed directly if it
 			 * jumps back to correct address.
 			 */
-			if(p->tgid)
-				set_user_jmp_op ((void *) regs->EREG (ip), (void *) orig_eip + (regs->EREG (ip) - copy_eip));
-			else
-				set_jmp_op ((void *) regs->EREG (ip), (void *) orig_eip + (regs->EREG (ip) - copy_eip));
+			set_jmp_op((void *)regs->EREG(ip), (void *)orig_eip + (regs->EREG(ip) - copy_eip));
 			p->ainsn.boostable = 1;
 		}
 		else
@@ -1000,8 +842,8 @@ int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, vo
 
 	DBPRINTF ("val = %ld, data = 0x%X", val, (unsigned int) data);
 
-	/*if (args->regs && user_mode_vm (args->regs))
-	  return ret;*/
+	if (args->regs && user_mode_vm(args->regs))
+		return ret;
 
 	DBPRINTF ("switch (val) %lu %d %d", val, DIE_INT3, DIE_TRAP);
 	switch (val)
@@ -1082,176 +924,20 @@ void arch_disarm_kprobe (struct kprobe *p)
 	text_poke (p->addr, &p->opcode, 1);
 }
 
-void * trampoline_probe_handler_x86 (struct pt_regs *regs)
+static __used void *trampoline_probe_handler_x86(struct pt_regs *regs)
 {
 	return (void *)trampoline_probe_handler(NULL, regs);
 }
 
-
-
-
-/*
- * Called when the probe at kretprobe trampoline is hit
- */
-int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
+void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct kretprobe_instance *ri = NULL;
-	struct hlist_head *head, empty_rp;
-	struct hlist_node *node, *tmp;
-	unsigned long flags, orig_ret_address = 0;
-	unsigned long trampoline_address = (unsigned long) &kretprobe_trampoline;
-	struct kretprobe *crp = NULL;
-	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
+	unsigned long *sara = (unsigned long *)&regs->EREG(sp);
+	ri->ret_addr = (kprobe_opcode_t *)*sara;
+	ri->sp = regs->EREG(sp);
 
-	DBPRINTF ("start");
-
-	if (p && p->tgid){
-		// in case of user space retprobe trampoline is at the Nth instruction of US tramp
-		trampoline_address = (unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
-	}
-
-	INIT_HLIST_HEAD (&empty_rp);
-	spin_lock_irqsave (&kretprobe_lock, flags);
-	/*
-	 * We are using different hash keys (current and mm) for finding kernel
-	 * space and user space probes.  Kernel space probes can change mm field in
-	 * task_struct.  User space probes can be shared between threads of one
-	 * process so they have different current but same mm.
-	 */
-	if (p && p->tgid) {
-		head = kretprobe_inst_table_head(current->mm);
-	} else {
-		head = kretprobe_inst_table_head(current);
-	}
-
-	if(!p){ // X86 kernel space
-		DBPRINTF ("regs %p", regs);
-		/* fixup registers */
-		regs->XREG (cs) = __KERNEL_CS | get_kernel_rpl ();
-		regs->EREG (ip) = trampoline_address;
-		regs->ORIG_EAX_REG = 0xffffffff;
-	}
-
-	/*
-	 * It is possible to have multiple instances associated with a given
-	 * task either because an multiple functions in the call path
-	 * have a return probe installed on them, and/or more then one
-	 * return probe was registered for a target function.
-	 *
-	 * We can handle this because:
-	 *     - instances are always inserted at the head of the list
-	 *     - when multiple return probes are registered for the same
-	 *       function, the first instance's ret_addr will point to the
-	 *       real return address, and all the rest will point to
-	 *       kretprobe_trampoline
-	 */
-	hlist_for_each_entry_safe (ri, node, tmp, head, hlist)
-	{
-		if (ri->task != current)
-			/* another task is sharing our hash bucket */
-			continue;
-		if (ri->rp && ri->rp->handler){
-
-			if(!p){ // X86 kernel space
-				__get_cpu_var (current_kprobe) = &ri->rp->kp;
-				get_kprobe_ctlblk ()->kprobe_status = KPROBE_HIT_ACTIVE;
-			}
-
-			ri->rp->handler (ri, regs, ri->rp->priv_arg);
-
-			if(!p) // X86 kernel space
-				__get_cpu_var (current_kprobe) = NULL;
-
-		}
-
-		orig_ret_address = (unsigned long) ri->ret_addr;
-		recycle_rp_inst (ri);
-		if (orig_ret_address != trampoline_address)
-			/*
-			 * This is the real return address. Any other
-			 * instances associated with this task are for
-			 * other calls deeper on the call stack
-			 */
-			break;
-	}
-	kretprobe_assert (ri, orig_ret_address, trampoline_address);
-	//BUG_ON(!orig_ret_address || (orig_ret_address == trampoline_address));
-	if (trampoline_address != (unsigned long) &kretprobe_trampoline){
-		if (ri->rp) BUG_ON (ri->rp->kp.tgid == 0);
-	}
-	if (ri->rp && ri->rp->kp.tgid)
-		BUG_ON (trampoline_address == (unsigned long) &kretprobe_trampoline);
-
-	if(p){ // X86 user space
-		regs->EREG(ip) = orig_ret_address;
-		//printk (" uretprobe regs->eip = 0x%lx\n", regs->EREG(ip));
-	}
-
-	if(p){ // ARM, MIPS, X86 user space
-		if (kcb->kprobe_status == KPROBE_REENTER)
-			restore_previous_kprobe (kcb);
-		else
-			reset_current_kprobe ();
-	}
-
-	hlist_for_each_entry_safe (ri, node, tmp, &empty_rp, hlist)
-	{
-		hlist_del (&ri->hlist);
-		kfree (ri);
-	}
-	spin_unlock_irqrestore (&kretprobe_lock, flags);
-
-	if(!p) // X86 kernel space
-		return (int)orig_ret_address;
-
-	preempt_enable_no_resched ();
-	/*
-	 * By returning a non-zero value, we are telling
-	 * kprobe_handler() that we don't want the post_handler
-	 * to run (and have re-enabled preemption)
-	 */
-	return 1;
+	/* Replace the return addr with trampoline addr */
+	*sara = (unsigned long)&kretprobe_trampoline;
 }
-
-void arch_prepare_kretprobe(struct kretprobe *rp, struct pt_regs *regs)
-{
-	struct kretprobe_instance *ri;
-
-	DBPRINTF ("start\n");
-	//TODO: test - remove retprobe after func entry but before its exit
-	if ((ri = get_free_rp_inst (rp)) != NULL)
-	{
-		ri->rp = rp;
-		ri->task = current;
-		ri->sp = regs->EREG(sp);
-
-		/* Replace the return addr with trampoline addr */
-		if (rp->kp.tgid){
-			unsigned long ra = (unsigned long) (rp->kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);/*, stack[6];
-													       if (!read_proc_vm_atomic (current, regs->EREG(sp), stack, sizeof(stack)))
-													       panic ("failed to read user space func stack %lx!\n", regs->EREG(sp));
-													       printk("stack: %lx %lx %lx %lx %lx %lx\n", stack[0], stack[1], stack[2], stack[3], stack[4], stack[5]);*/
-			if (!read_proc_vm_atomic (current, regs->EREG(sp), &(ri->ret_addr), sizeof(ri->ret_addr)))
-				panic ("failed to read user space func ra %lx!\n", regs->EREG(sp));
-			if (!write_proc_vm_atomic (current, regs->EREG(sp), &ra, sizeof(ra)))
-				panic ("failed to write user space func ra %lx!\n", regs->EREG(sp));
-			//printk("__arch_prepare_kretprobe: ra %lx %p->%lx\n",regs->EREG(sp), ri->ret_addr, ra);
-		}
-		else {
-			unsigned long *sara = (unsigned long *)&regs->EREG(sp);
-			ri->ret_addr = (kprobe_opcode_t *)*sara;
-			*sara = (unsigned long)&kretprobe_trampoline;
-			DBPRINTF ("ra loc %p, origr_ra %p new ra %lx\n", sara, ri->ret_addr, *sara);
-		}
-
-		add_rp_inst (ri);
-	}
-	else {
-		DBPRINTF ("WARNING: missed retprobe %p\n", rp->kp.addr);
-		rp->nmissed++;
-	}
-}
-
 
 int arch_init_module_deps()
 {
@@ -1272,21 +958,12 @@ int arch_init_module_deps()
 	return 0;
 }
 
-int __init arch_init_kprobes (void)
+int arch_init_kprobes(void)
 {
-	if (arch_init_module_dependencies())
-	{
-		DBPRINTF ("Unable to init module dependencies\n");
-		return -1;
-	}
-
 	return register_die_notifier (&kprobe_exceptions_nb);
 }
 
-void __exit dbi_arch_exit_kprobes (void)
+void arch_exit_kprobes(void)
 {
 	unregister_die_notifier (&kprobe_exceptions_nb);
 }
-
-//EXPORT_SYMBOL_GPL (dbi_arch_uprobe_return);
-//EXPORT_SYMBOL_GPL (dbi_arch_exit_kprobes);
