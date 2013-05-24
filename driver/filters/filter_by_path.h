@@ -3,7 +3,7 @@
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/driver/filters/filter_by_pach.h
+ *  modules/driver/filters/filter_by_path.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,6 @@
 
 struct task_filter;
 
-struct task_filter *get_filter_by_pach(void);
+struct task_filter *get_filter_by_path(void);
 
 #endif /* _FILTER_BY_PACH_H */

@@ -23,7 +23,7 @@
 
 #include "sspt/sspt.h"
 #include "filters/filters_core.h"
-#include "filters/filter_by_pach.h"
+#include "filters/filter_by_path.h"
 #include "helper.h"
 #include "us_slot_manager.h"
 
@@ -184,7 +184,7 @@ int inst_usr_space_proc (void)
 
 	DPRINTF("User space instr");
 
-	ret = register_filter(app_filter, get_filter_by_pach());
+	ret = register_filter(app_filter, get_filter_by_path());
 	if (ret)
 		return ret;
 

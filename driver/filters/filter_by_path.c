@@ -1,6 +1,6 @@
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/driver/filters/filter_by_pach.c
+ *  modules/driver/filters/filter_by_path.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,7 +46,7 @@ static int check_dentry(struct task_struct *task, struct dentry *dentry)
 	return 0;
 }
 
-static int init_by_pach(void *data, size_t size)
+static int init_by_path(void *data, size_t size)
 {
 	if (dentry) {
 		return -EPERM;
@@ -57,12 +57,12 @@ static int init_by_pach(void *data, size_t size)
 	return 0;
 }
 
-static void uninit_by_pach(void)
+static void uninit_by_path(void)
 {
 	dentry = NULL;
 }
 
-static struct task_struct *call_by_pach(struct task_struct *task)
+static struct task_struct *call_by_path(struct task_struct *task)
 {
 	if (dentry && check_dentry(task, dentry))
 		return task;
@@ -71,12 +71,12 @@ static struct task_struct *call_by_pach(struct task_struct *task)
 }
 
 static struct task_filter ts_filter = {
-	.init = init_by_pach,
-	.uninit = uninit_by_pach,
-	.call = call_by_pach
+	.init = init_by_path,
+	.uninit = uninit_by_path,
+	.call = call_by_path
 };
 
-struct task_filter *get_filter_by_pach(void)
+struct task_filter *get_filter_by_path(void)
 {
 	return &ts_filter;
 }
