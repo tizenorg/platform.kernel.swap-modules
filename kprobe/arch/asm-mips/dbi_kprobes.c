@@ -477,13 +477,13 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 		}
 		else {
 			if (p->tgid)
-				dbi_arch_uprobe_return ();
+				arch_ujprobe_return();
 			else
 				dbi_jprobe_return ();
 		}
 	}
 	else if (p->tgid)
-		dbi_arch_uprobe_return ();
+		arch_ujprobe_return();
 
 	prepare_singlestep (p, regs);
 
@@ -496,7 +496,7 @@ void dbi_jprobe_return (void)
 	preempt_enable_no_resched();
 }
 
-void dbi_arch_uprobe_return (void)
+void arch_ujprobe_return(void)
 {
 	preempt_enable_no_resched();
 }
@@ -724,6 +724,5 @@ void __exit dbi_arch_exit_kprobes (void)
 	arr_traps_original = NULL;
 }
 
-//EXPORT_SYMBOL_GPL (dbi_arch_uprobe_return);
 //EXPORT_SYMBOL_GPL (dbi_arch_exit_kprobes);
 

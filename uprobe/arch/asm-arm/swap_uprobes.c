@@ -717,7 +717,7 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 		entry(regs->ARM_r0, regs->ARM_r1, regs->ARM_r2,
 		      regs->ARM_r3, regs->ARM_r4, regs->ARM_r5);
 	} else {
-		dbi_arch_uprobe_return();
+		arch_ujprobe_return();
 	}
 
 	return 0;

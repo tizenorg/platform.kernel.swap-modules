@@ -6,7 +6,7 @@ struct pt_regs;
 struct task_struct;
 
 
-static inline void dbi_arch_uprobe_return(void)
+static inline void arch_ujprobe_return(void)
 {
 }
 

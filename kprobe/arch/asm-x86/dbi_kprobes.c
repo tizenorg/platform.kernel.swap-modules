@@ -623,9 +623,8 @@ void dbi_jprobe_return (void)
 			"       nop			\n"::"b" (kcb->jprobe_saved_esp):"memory");
 }
 
-void dbi_arch_uprobe_return (void)
+void arch_ujprobe_return(void)
 {
-	DBPRINTF("dbi_arch_uprobe_return (void) is empty");
 }
 
 /*

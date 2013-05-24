@@ -3,7 +3,7 @@
 
 #include <asm/dbi_kprobes.h>
 
-static inline void dbi_arch_uprobe_return(void)
+static inline void arch_ujprobe_return(void)
 {
 }
 
