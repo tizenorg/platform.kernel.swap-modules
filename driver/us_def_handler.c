@@ -34,7 +34,7 @@ void ujprobe_event_handler(unsigned long arg0, unsigned long arg1,
 
 	pack_event_info(US_PROBE_ID, RECORD_ENTRY, "ppppppp", addr, arg0, arg1,
 			arg2, arg3, arg4, arg5);
-	dbi_uprobe_return();
+	swap_ujprobe_return();
 }
 EXPORT_SYMBOL_GPL(ujprobe_event_handler);
 

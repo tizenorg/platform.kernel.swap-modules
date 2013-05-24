@@ -957,10 +957,11 @@ void dbi_unregister_all_uprobes(struct task_struct *task)
 	}
 }
 
-void dbi_uprobe_return(void)
+void swap_ujprobe_return(void)
 {
 	dbi_arch_uprobe_return();
 }
+EXPORT_SYMBOL_GPL(swap_ujprobe_return);
 
 static int __init init_uprobes(void)
 {
@@ -976,7 +977,6 @@ static void __exit exit_uprobes(void)
 	swap_arch_exit_uprobes();
 }
 
-EXPORT_SYMBOL_GPL(dbi_uprobe_return);
 EXPORT_SYMBOL_GPL(dbi_register_ujprobe);
 EXPORT_SYMBOL_GPL(dbi_unregister_ujprobe);
 EXPORT_SYMBOL_GPL(dbi_register_uretprobe);

@@ -91,7 +91,7 @@ void dbi_unregister_uretprobe(struct uretprobe *rp);
 
 void dbi_unregister_all_uprobes(struct task_struct *task);
 
-void dbi_uprobe_return(void);
+void swap_ujprobe_return(void);
 struct kprobe *get_ukprobe(void *addr, pid_t tgid);
 struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *regs);
 
