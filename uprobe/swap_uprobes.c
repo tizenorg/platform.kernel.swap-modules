@@ -360,6 +360,8 @@ struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *
 	struct hlist_node *node;
 	struct kprobe *p;
 
+	addr -= UPROBES_TRAMP_RET_BREAK_IDX;
+
 	/* TODO: test - two processes invokes instrumented function */
 	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
 	swap_hlist_for_each_entry_rcu(p, node, head, is_hlist) {

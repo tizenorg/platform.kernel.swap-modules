@@ -216,7 +216,7 @@ static void set_user_jmp_op (void *from, void *to)
 /*
  * returns non-zero if opcodes can be boosted.
  */
-static __always_inline int can_boost (kprobe_opcode_t * opcodes)
+int can_boost(kprobe_opcode_t *opcodes)
 {
 #define W(row,b0,b1,b2,b3,b4,b5,b6,b7,b8,b9,ba,bb,bc,bd,be,bf)		      \
 	(((b0##UL << 0x0)|(b1##UL << 0x1)|(b2##UL << 0x2)|(b3##UL << 0x3) |   \
@@ -296,6 +296,7 @@ retry:
 			return (opcode != 0x2e && opcode != 0x9a);
 	}
 }
+EXPORT_SYMBOL_GPL(can_boost);
 
 /*
  * returns non-zero if opcode modifies the interrupt flag.
@@ -310,12 +311,6 @@ static int is_IF_modifier (kprobe_opcode_t opcode)
 		case 0x9d:		/* popf/popfd */
 			return 1;
 	}
-	return 0;
-}
-
-int arch_check_insn (struct arch_specific_insn *ainsn)
-{
-	DBPRINTF("Warrning: arch_check_insn is not implemented for x86\n");
 	return 0;
 }
 
@@ -382,7 +377,7 @@ void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 			regs->EREG (ip) = (unsigned long) p->ainsn.insn;
 	}
 }
-
+EXPORT_SYMBOL_GPL(prepare_singlestep);
 
 void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
 {
