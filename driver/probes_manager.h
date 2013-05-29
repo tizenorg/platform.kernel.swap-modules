@@ -17,17 +17,6 @@
 #if !defined(__PROBES_MANAGER_H__)
 #define __PROBES_MANAGER_H__
 
-#include "ec_probe.h"
-#include "probes.h"
-
-typedef struct
-{
-	unsigned long addr;
-	struct jprobe jprobe;
-	struct kretprobe retprobe;
-	struct hlist_node hlist;
-} kernel_probe_t;
-
 extern int add_probe(unsigned long addr,
 		     unsigned long pre_handler,
 		     unsigned long jp_handler,

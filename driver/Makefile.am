@@ -24,6 +24,7 @@ inlude_opt = -I$(realpath $(top_srcdir)/src/modules/ksyms) \
              -I$(realpath $(top_srcdir)/src/modules/driver) \
              -I$(realpath $(top_srcdir)/src/common) \
              -I$(realpath $(top_srcdir)/src/profile) \
+             -I$(realpath $(top_srcdir)/src/modules/ks_manager) \
              -I$(realpath $(top_srcdir)/src/modules/kprobe) \
              -I$(realpath $(top_srcdir)/src/modules/kprobe/arch) \
              -I$(realpath $(top_srcdir)/src/modules/uprobe)
