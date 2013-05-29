@@ -90,14 +90,19 @@ int ksm_register_probe(unsigned long addr, void *pre_handler,
 
 	ret = dbi_register_jprobe(&p->p.jp);
 	if (ret)
-		return ret;
+		goto free;
 
 	ret = dbi_register_kretprobe(&p->p.rp);
 	if (ret)
-		dbi_unregister_jprobe(&p->p.jp);
-	else
-		add_probe_to_list(p);
+		goto unregister_jprobe;
 
+	add_probe_to_list(p);
+	return 0;
+
+unregister_jprobe:
+	dbi_unregister_jprobe(&p->p.jp);
+free:
+	free_probe(p);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(ksm_register_probe);
