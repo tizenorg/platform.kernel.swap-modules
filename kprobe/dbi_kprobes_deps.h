@@ -94,8 +94,6 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 #define write_proc_vm_atomic(tsk, addr, buf, len)	access_process_vm_atomic (tsk, addr, buf, len, 1)
 int page_present (struct mm_struct *mm, unsigned long addr);
 
-extern unsigned long sched_addr;
-
 DECLARE_MOD_DEP_WRAPPER (__flush_anon_page, \
 			void, struct vm_area_struct *vma, \
 			struct page *page, unsigned long vmaddr);

@@ -64,6 +64,7 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 
+unsigned long sched_addr;
 static unsigned long exit_addr;
 static unsigned long do_group_exit_addr;
 static unsigned long sys_exit_group_addr;

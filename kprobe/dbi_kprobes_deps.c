@@ -36,8 +36,6 @@
 #include <linux/slab.h>
 #include <linux/mm.h>
 
-unsigned long sched_addr;
-
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 /* kernel define 'pgd_offset_k' redefinition */
 #undef pgd_offset_k
