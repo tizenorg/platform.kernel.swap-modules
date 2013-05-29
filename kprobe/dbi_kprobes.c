@@ -987,14 +987,12 @@ static int init_module_deps(void)
 	int ret;
 
 	sched_addr = swap_ksyms("__switch_to");
-	fork_addr = swap_ksyms("do_fork");
 	exit_addr = swap_ksyms("do_exit");
 	sys_exit_group_addr = swap_ksyms("sys_exit_group");
         do_group_exit_addr = swap_ksyms("do_group_exit");
         sys_exit_addr = swap_ksyms("sys_exit");
 
 	if (sched_addr == 0 ||
-	    fork_addr == 0 ||
 	    exit_addr == 0 ||
 	    sys_exit_group_addr == 0 ||
 	    do_group_exit_addr == 0 ||
