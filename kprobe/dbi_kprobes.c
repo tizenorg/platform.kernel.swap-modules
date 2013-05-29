@@ -64,6 +64,11 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 
+static unsigned long exit_addr;
+static unsigned long do_group_exit_addr;
+static unsigned long sys_exit_group_addr;
+static unsigned long sys_exit_addr;
+
 struct slot_manager sm;
 
 DEFINE_PER_CPU(struct kprobe *, current_kprobe) = NULL;
