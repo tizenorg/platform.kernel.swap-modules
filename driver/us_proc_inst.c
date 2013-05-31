@@ -143,6 +143,7 @@ int deinst_usr_space_proc (void)
 	int iRet = 0, found = 0;
 	struct task_struct *task = NULL;
 	struct sspt_proc *proc;
+	int tmp_oops_in_progress;
 
 	if (!is_us_instrumentation()) {
 		return 0;
@@ -154,6 +155,9 @@ int deinst_usr_space_proc (void)
 		EPRINTF ("uninstall_kernel_probe(do_munmap) result=%d!", iRet);
 
 
+	tmp_oops_in_progress = oops_in_progress;
+	oops_in_progress = 1;
+	rcu_read_lock();
 	for_each_process(task) {
 		proc = sspt_proc_get_by_task(task);
 		if (proc) {
@@ -165,6 +169,8 @@ int deinst_usr_space_proc (void)
 			dbi_unregister_all_uprobes(task);
 		}
 	}
+	rcu_read_unlock();
+	oops_in_progress = tmp_oops_in_progress;
 
 	uninit_filter();
 	unregister_filter(app_filter);
@@ -177,6 +183,7 @@ int inst_usr_space_proc (void)
 	int ret, i;
 	struct task_struct *task = NULL, *ts;
 	struct sspt_proc *proc;
+	int tmp_oops_in_progress;
 
 	if (!is_us_instrumentation()) {
 		return 0;
@@ -203,6 +210,9 @@ int inst_usr_space_proc (void)
 		return ret;
 	}
 
+	tmp_oops_in_progress = oops_in_progress;
+	oops_in_progress = 1;
+	rcu_read_lock();
 	for_each_process(task) {
 		ts = check_task(task);
 
@@ -211,6 +221,8 @@ int inst_usr_space_proc (void)
 			sspt_proc_install(proc);
 		}
 	}
+	rcu_read_unlock();
+	oops_in_progress = tmp_oops_in_progress;
 
 	return 0;
 }
