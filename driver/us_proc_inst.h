@@ -101,6 +101,11 @@ int unregister_usprobe(struct task_struct *task, struct us_ip *ip, int atomic, i
 		dump_backtrace(US_PROBE_ID, current, ip->jprobe.kp.addr, regs, size); \
 	} while (0)
 
+static inline int is_kthread(struct task_struct *task)
+{
+	return !task->mm;
+}
+
 struct dentry *dentry_by_path(const char *path);
 int install_otg_ip(unsigned long addr,
 			kprobe_pre_entry_handler_t pre_handler,
