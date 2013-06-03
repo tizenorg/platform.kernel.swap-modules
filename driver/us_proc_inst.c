@@ -76,68 +76,6 @@ int check_vma(struct vm_area_struct *vma)
 			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
 }
 
-int install_otg_ip(unsigned long addr,
-			kprobe_pre_entry_handler_t pre_handler,
-			unsigned long jp_handler,
-			uretprobe_handler_t rp_handler)
-{
-	int ret = 0;
-	struct task_struct *task = current->group_leader;
-	struct mm_struct *mm = task->mm;
-
-	if (mm) {
-		struct vm_area_struct *vma = find_vma(mm, addr);
-		if (vma && (vma->vm_flags & VM_EXEC) &&
-		    vma->vm_file && vma->vm_file->f_dentry) {
-			unsigned long offset_addr = addr - vma->vm_start;
-			struct dentry *dentry = vma->vm_file->f_dentry;
-			char *name = dentry->d_iname;
-			struct sspt_proc *proc = sspt_proc_get_by_task(task);
-			struct ip_data pd = {
-					.offset = offset_addr,
-					.pre_handler = pre_handler,
-					.jp_handler = jp_handler,
-					.rp_handler = rp_handler,
-					.flag_retprobe = 1
-			};
-
-			struct sspt_file *file = sspt_proc_find_file_or_new(proc, dentry, name);
-			struct sspt_page *page = sspt_get_page(file, offset_addr);
-			struct us_ip *ip = sspt_find_ip(page, offset_addr & ~PAGE_MASK);
-
-			if (!file->loaded) {
-				sspt_file_set_mapping(file, vma);
-				file->loaded = 1;
-			}
-
-			if (ip == NULL) {
-				// TODO: sspt_proc_find_file_or_new --> sspt_proc_find_file ?!
-				struct sspt_file *file = sspt_proc_find_file_or_new(proc, dentry, name);
-				sspt_file_add_ip(file, &pd);
-
-				/* if addr mapping, that probe install, else it be installed in do_page_fault handler */
-				if (page_present(mm, addr)) {
-					ip = sspt_find_ip(page, offset_addr & ~PAGE_MASK);
-					sspt_set_ip_addr(ip, page, file);
-
-					// TODO: error
-					ret = sspt_register_usprobe(ip);
-					if (ret == 0) {
-						sspt_page_installed(page);
-					} else {
-						printk("ERROR install_otg_ip: ret=%d\n", ret);
-					}
-				}
-			}
-
-			sspt_put_page(page);
-		}
-	}
-
-	return ret;
-}
-EXPORT_SYMBOL_GPL(install_otg_ip);
-
 int deinst_usr_space_proc (void)
 {
 	int iRet = 0, found = 0;
