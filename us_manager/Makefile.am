@@ -5,7 +5,12 @@ module_dir = $(realpath $(top_srcdir)/src/modules/us_manager)
 module_name = swap_us_manager
 cross_compiler = $(subst gcc,,$(CC))
 
-extra_cflags = "$(board_opt)"
+inlude_opt = -I$(realpath $(top_srcdir)/src/modules/driver) \
+             -I$(realpath $(top_srcdir)/src/modules/uprobe) \
+             -I$(realpath $(top_srcdir)/src/modules/kprobe) \
+             -I$(realpath $(top_srcdir)/src/modules/kprobe/arch)
+
+extra_cflags = "$(inlude_opt) $(board_opt)"
 
 all-local:
 	$(MAKE) CROSS_COMPILE=$(cross_compiler) ARCH=$(target_arch) extra_cflags=$(extra_cflags) \
