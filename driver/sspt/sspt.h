@@ -97,7 +97,45 @@ enum US_FLAGS {
 
 static inline int sspt_register_usprobe(struct us_ip *ip)
 {
-	return register_usprobe(ip);
+	int ret = 0;
+
+	ip->jprobe.priv_arg = ip;
+	ip->jprobe.up.task = ip->page->file->proc->task;
+	ip->jprobe.up.sm = ip->page->file->proc->sm;
+	ret = dbi_register_ujprobe(&ip->jprobe);
+	if (ret) {
+		if (ret == -ENOEXEC) {
+			pack_event_info(ERR_MSG_ID, RECORD_ENTRY, "dp",
+					0x1,
+					ip->jprobe.up.kp.addr);
+		}
+		printk("dbi_register_ujprobe() failure %d\n", ret);
+		return ret;
+	}
+
+	if (ip->flag_retprobe) {
+		ip->retprobe.priv_arg = ip;
+		ip->retprobe.up.task = ip->page->file->proc->task;
+		ip->retprobe.up.sm = ip->page->file->proc->sm;
+		ret = dbi_register_uretprobe(&ip->retprobe);
+		if (ret) {
+			printk("dbi_register_uretprobe() failure %d\n", ret);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+static inline int do_unregister_usprobe(struct us_ip *ip)
+{
+	dbi_unregister_ujprobe(&ip->jprobe);
+
+	if (ip->flag_retprobe) {
+		dbi_unregister_uretprobe(&ip->retprobe);
+	}
+
+	return 0;
 }
 
 static inline int sspt_unregister_usprobe(struct task_struct *task, struct us_ip *ip, enum US_FLAGS flag)
@@ -106,7 +144,7 @@ static inline int sspt_unregister_usprobe(struct task_struct *task, struct us_ip
 
 	switch (flag) {
 	case US_UNREGS_PROBE:
-		err = unregister_usprobe(ip);
+		err = do_unregister_usprobe(ip);
 		break;
 	case US_DISARM:
 		disarm_uprobe(&ip->jprobe.up.kp, task);
