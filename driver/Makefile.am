@@ -24,6 +24,7 @@ inlude_opt = -I$(realpath $(top_srcdir)/src/modules/ksyms) \
              -I$(realpath $(top_srcdir)/src/modules/driver) \
              -I$(realpath $(top_srcdir)/src/common) \
              -I$(realpath $(top_srcdir)/src/profile) \
+             -I$(realpath $(top_srcdir)/src/modules/ks_manager) \
              -I$(realpath $(top_srcdir)/src/modules/kprobe) \
              -I$(realpath $(top_srcdir)/src/modules/kprobe/arch) \
              -I$(realpath $(top_srcdir)/src/modules/uprobe)
@@ -45,8 +46,9 @@ install-exec-local:
 
 	install -m 644 $(driver_module_dir)/$(module_name).ko $(prefix)
 	install -m 644 $(driver_module_dir)/$(module_name).ko.addr $(prefix)
-	install -m 755 $(driver_module_dir)/patchko.sh $(prefix)/bin
-	install -m 755 $(driver_module_dir)/insmod.sh $(prefix)/bin
+	mkdir -p $(prefix)/bin/
+	install -m 755 $(driver_module_dir)/patchko.sh $(prefix)/bin/
+	install -m 755 $(driver_module_dir)/insmod.sh $(prefix)/bin/
 
 	sed "s|__DEV_NAME__|`basename $(dev_path)`|" $(driver_module_dir)/$(module_name).sh | \
 	sed "s|__DEV_DIR__|`dirname $(dev_path)`|" > \

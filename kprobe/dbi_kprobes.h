@@ -270,6 +270,7 @@ extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 //extern struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 extern atomic_t kprobe_count;
 extern struct kretprobe *sched_rp;
+extern unsigned long sched_addr;
 
 struct kprobe *kprobe_running (void);
 void reset_current_kprobe (void);

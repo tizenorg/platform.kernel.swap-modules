@@ -227,6 +227,11 @@ void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 void kretprobe_trampoline(void);
 
 void restore_previous_kprobe(struct kprobe_ctlblk *kcb);
+int can_boost(kprobe_opcode_t *opcodes);
+static inline int arch_check_insn(struct arch_specific_insn *ainsn)
+{
+	return 0;
+}
 
 int arch_init_kprobes(void);
 void arch_exit_kprobes(void);

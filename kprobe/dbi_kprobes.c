@@ -64,6 +64,12 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 
+unsigned long sched_addr;
+static unsigned long exit_addr;
+static unsigned long do_group_exit_addr;
+static unsigned long sys_exit_group_addr;
+static unsigned long sys_exit_addr;
+
 struct slot_manager sm;
 
 DEFINE_PER_CPU(struct kprobe *, current_kprobe) = NULL;
@@ -786,6 +792,9 @@ int dbi_register_kretprobe(struct kretprobe *rp)
 	} else if ((unsigned long)rp->kp.addr == sys_exit_group_addr) {
 		rp->kp.pre_handler = NULL;
 		rp->maxactive = 0;
+	} else if ((unsigned long)rp->kp.addr == sys_exit_addr) {
+		rp->kp.pre_handler = NULL;
+		rp->maxactive = 0;
 	} else if (rp->maxactive <= 0) {
 #if 1//def CONFIG_PREEMPT
 		rp->maxactive = max (COMMON_RP_NR, 2 * NR_CPUS);
@@ -979,10 +988,16 @@ static int init_module_deps(void)
 	int ret;
 
 	sched_addr = swap_ksyms("__switch_to");
-	fork_addr = swap_ksyms("do_fork");
 	exit_addr = swap_ksyms("do_exit");
+	sys_exit_group_addr = swap_ksyms("sys_exit_group");
+        do_group_exit_addr = swap_ksyms("do_group_exit");
+        sys_exit_addr = swap_ksyms("sys_exit");
 
-	if (sched_addr == 0 || fork_addr == 0 || exit_addr == 0) {
+	if (sched_addr == 0 ||
+	    exit_addr == 0 ||
+	    sys_exit_group_addr == 0 ||
+	    do_group_exit_addr == 0 ||
+	    sys_exit_addr == 0) {
 		return -ESRCH;
 	}
 

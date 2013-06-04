@@ -142,7 +142,7 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	struct task_struct *task;
 
 #if defined(CONFIG_X86)
-	return 0;
+	task = (struct task_struct *)regs->EREG(ax);
 #elif defined(CONFIG_ARM)
 	task = (struct task_struct *)regs->ARM_r0;
 #else
@@ -233,7 +233,9 @@ static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	size_t len;
 
 #if defined(CONFIG_X86)
-	return 0;
+	mm = (struct mm_struct *)regs->EREG(ax);
+	start = regs->EREG(dx);
+	len = (size_t)regs->EREG(cx);
 #elif defined(CONFIG_ARM)
 	mm = (struct mm_struct *)regs->ARM_r0;
 	start = regs->ARM_r1;

@@ -36,12 +36,6 @@
 #include <linux/slab.h>
 #include <linux/mm.h>
 
-unsigned long sched_addr;
-unsigned long fork_addr;
-unsigned long exit_addr;
-unsigned long sys_exit_group_addr;
-unsigned long do_group_exit_addr;
-
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 29)
 /* kernel define 'pgd_offset_k' redefinition */
 #undef pgd_offset_k
@@ -87,7 +81,7 @@ DECLARE_MOD_DEP_WRAPPER(do_mmap_pgoff, unsigned long, struct file *file, unsigne
 IMP_MOD_DEP_WRAPPER(do_mmap_pgoff, file, addr, len, prot, flags, pgoff)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) */
 
-#ifdef LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 EXPORT_SYMBOL_GPL(do_mmap_pgoff);
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) */
 

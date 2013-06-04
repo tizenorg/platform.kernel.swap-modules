@@ -17,17 +17,6 @@
 #if !defined(__PROBES_MANAGER_H__)
 #define __PROBES_MANAGER_H__
 
-#include "ec_probe.h"
-#include "probes.h"
-
-typedef struct
-{
-	unsigned long addr;
-	struct jprobe jprobe;
-	struct kretprobe retprobe;
-	struct hlist_node hlist;
-} kernel_probe_t;
-
 extern int add_probe(unsigned long addr,
 		     unsigned long pre_handler,
 		     unsigned long jp_handler,
@@ -39,9 +28,5 @@ int unset_kernel_probes(void);
 
 void dbi_install_user_handlers(void);
 void dbi_uninstall_user_handlers(void);
-int install_kern_otg_probe(unsigned long addr,
-			   unsigned long pre_handler,
-			   unsigned long jp_handler,
-			   unsigned long rp_handler);
 
 #endif // !defined(__PROBES_MANAGER_H__)
