@@ -7,8 +7,11 @@ cross_compiler = $(subst gcc,,$(CC))
 
 inlude_opt = -I$(realpath $(top_srcdir)/src/modules/driver) \
              -I$(realpath $(top_srcdir)/src/modules/uprobe) \
+             -I$(realpath $(top_srcdir)/src/modules/ksyms) \
              -I$(realpath $(top_srcdir)/src/modules/kprobe) \
-             -I$(realpath $(top_srcdir)/src/modules/kprobe/arch)
+             -I$(realpath $(top_srcdir)/src/modules/kprobe/arch) \
+             -I$(realpath $(top_srcdir)/src/modules/us_manager) \
+             -I$(realpath $(top_srcdir)/src/common)
 
 extra_cflags = "$(inlude_opt) $(board_opt)"
 

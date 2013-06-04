@@ -71,17 +71,12 @@ static int probes_manager_init(void)
 	spin_lock_init(&ec_spinlock);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
-	ret = init_helper();
-	if (ret)
-		return ret;
-
 	return storage_init();
 }
 
 static void probes_manager_down(void)
 {
 	unset_kernel_probes();
-	uninit_helper();
 	storage_down();
 }
 

@@ -27,19 +27,11 @@
 #include "helper.h"
 #include "us_slot_manager.h"
 
-static const char *app_filter = "app";
-
 #define print_event(fmt, args...) 						\
 { 										\
 	char *buf[1024];							\
 	sprintf(buf, fmt, ##args);						\
 	pack_event_info(US_PROBE_ID, RECORD_ENTRY, "ds", 0x0badc0de, buf);	\
-}
-
-// is user-space instrumentation
-int is_us_instrumentation(void)
-{
-	return !!us_proc_info.path;
 }
 
 struct dentry *dentry_by_path(const char *path)
@@ -67,102 +59,6 @@ struct dentry *dentry_by_path(const char *path)
 	path_put(&st_path);
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) */
 	return dentry;
-}
-
-int check_vma(struct vm_area_struct *vma)
-{
-	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
-			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
-			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
-}
-
-int deinst_usr_space_proc (void)
-{
-	int iRet = 0, found = 0;
-	struct task_struct *task = NULL;
-	struct sspt_proc *proc;
-	int tmp_oops_in_progress;
-
-	if (!is_us_instrumentation()) {
-		return 0;
-	}
-
-	unregister_helper();
-
-	if (iRet)
-		EPRINTF ("uninstall_kernel_probe(do_munmap) result=%d!", iRet);
-
-
-	tmp_oops_in_progress = oops_in_progress;
-	oops_in_progress = 1;
-	rcu_read_lock();
-	for_each_process(task) {
-		proc = sspt_proc_get_by_task(task);
-		if (proc) {
-			int ret = sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
-			if (ret) {
-				EPRINTF ("failed to uninstall IPs (%d)!", ret);
-			}
-
-			dbi_unregister_all_uprobes(task);
-		}
-	}
-	rcu_read_unlock();
-	oops_in_progress = tmp_oops_in_progress;
-
-	uninit_filter();
-	unregister_filter(app_filter);
-
-	return iRet;
-}
-
-int inst_usr_space_proc (void)
-{
-	int ret, i;
-	struct task_struct *task = NULL, *ts;
-	struct sspt_proc *proc;
-	int tmp_oops_in_progress;
-
-	if (!is_us_instrumentation()) {
-		return 0;
-	}
-
-	DPRINTF("User space instr");
-
-	ret = register_filter(app_filter, get_filter_by_path());
-	if (ret)
-		return ret;
-
-	if (strcmp(us_proc_info.path, "*")) {
-		ret = set_filter(app_filter);
-		if (ret)
-			return ret;
-
-		ret = init_filter(us_proc_info.m_f_dentry, 0);
-		if (ret)
-			return ret;
-	}
-
-	ret = register_helper();
-	if (ret) {
-		return ret;
-	}
-
-	tmp_oops_in_progress = oops_in_progress;
-	oops_in_progress = 1;
-	rcu_read_lock();
-	for_each_process(task) {
-		ts = check_task(task);
-
-		if (ts) {
-			proc = sspt_proc_get_by_task_or_new(ts);
-			sspt_proc_install(proc);
-		}
-	}
-	rcu_read_unlock();
-	oops_in_progress = tmp_oops_in_progress;
-
-	return 0;
 }
 
 void print_vma(struct mm_struct *mm);

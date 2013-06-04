@@ -1,5 +1,6 @@
 EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_us_manager.o
-swap_us_manager-y := us_manager.o
-
+swap_us_manager-y := us_manager.o us_slot_manager.o helper.o \
+                     sspt/ip.o sspt/sspt_page.o sspt/sspt_file.o sspt/sspt_proc.o \
+                     filters/filters_core.o filters/filter_by_path.o

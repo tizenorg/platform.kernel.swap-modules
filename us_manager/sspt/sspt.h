@@ -30,65 +30,71 @@
 #include "sspt_file.h"
 #include "sspt_proc.h"
 #include "sspt_debug.h"
-#include "../us_proc_inst.h"
 #include <swap_uprobes.h>
 #include "us_def_handler.h"
 
 
-#include "../storage.h"
+#include "../../driver/storage.h"
+
+#include "picl.h"
+#include "../../common/ec_probe.h"
+
+#include <us_manager.h>
 
 static void print_proc_probes(const struct sspt_proc *proc);
 
-static inline struct sspt_proc *get_file_probes(const inst_us_proc_t *task_inst_info)
+struct sspt_proc;
+
+static inline struct sspt_proc *get_file_probes(inst_us_proc_t *task_inst_info)
 {
-	struct sspt_proc *proc = sspt_proc_create(task_inst_info->m_f_dentry, 0);
+	int i, ret;
 
-	printk("####### get START #######\n");
+	for (i = 0; i < task_inst_info->libs_count; ++i) {
+		int k, j;
+		us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
+		struct dentry *dentry = p_libs->m_f_dentry;
+		char *path = p_libs->path;
+		char *name = strrchr(path, '/');
+		name = name ? name + 1 : path;
 
-	if (proc) {
-		int i;
+		for (k = 0; k < p_libs->ips_count; ++k) {
+			struct ip_data pd;
+			us_proc_ip_t *ip = &p_libs->p_ips[k];
+			unsigned long got_addr = 0;
 
-		printk("#2# get_file_probes: proc_p[dentry=%p]\n", proc->dentry);
-
-		for (i = 0; i < task_inst_info->libs_count; ++i) {
-			int k, j;
-			us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
-			struct dentry *dentry = p_libs->m_f_dentry;
-			char *path = p_libs->path;
-			char *name = strrchr(path, '/');
-			name = name ? name + 1 : path;
-
-			for (k = 0; k < p_libs->ips_count; ++k) {
-				struct ip_data pd;
-				us_proc_ip_t *ip = &p_libs->p_ips[k];
-				unsigned long got_addr = 0;
-
-				for (j = 0; j < p_libs->plt_count; ++j) {
-					if (ip->offset == p_libs->p_plt[j].func_addr) {
-						got_addr = p_libs->p_plt[j].got_addr;
-						break;
-					}
+			for (j = 0; j < p_libs->plt_count; ++j) {
+				if (ip->offset == p_libs->p_plt[j].func_addr) {
+					got_addr = p_libs->p_plt[j].got_addr;
+					break;
 				}
-
-				pd.flag_retprobe = 1;
-				pd.offset = ip->offset;
-				pd.got_addr = got_addr;
-				pd.pre_handler = ip->jprobe.pre_entry ? ip->jprobe.pre_entry : ujprobe_event_pre_handler;
-				pd.jp_handler = (unsigned long) (ip->jprobe.entry ? ip->jprobe.entry : ujprobe_event_handler);
-				pd.rp_handler = ip->retprobe.handler ?  ip->retprobe.handler : uretprobe_event_handler;
-
-				sspt_proc_add_ip_data(proc, dentry, name, &pd);
 			}
+
+			pd.flag_retprobe = 1;
+			pd.offset = ip->offset;
+			pd.got_addr = got_addr;
+			pd.pre_handler = ip->jprobe.pre_entry ? ip->jprobe.pre_entry : ujprobe_event_pre_handler;
+			pd.jp_handler = (unsigned long) (ip->jprobe.entry ? ip->jprobe.entry : ujprobe_event_handler);
+			pd.rp_handler = ip->retprobe.handler ?  ip->retprobe.handler : uretprobe_event_handler;
+
+			ret = usm_register_probe(dentry, pd.offset, pd.pre_handler, pd.jp_handler, pd.rp_handler);
+			if (ret)
+				printk("### ERROR: usm_register_probe ret=%d\n", ret);
 		}
 	}
 
-//	print_proc_probes(proc);
+	usm_set_dentry(task_inst_info->m_f_dentry);
 
 	printk("####### get  END  #######\n");
 
-	return proc;
+	return NULL;
 }
 
+static int check_vma(struct vm_area_struct *vma)
+{
+	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
+			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
+			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
+}
 
 enum US_FLAGS {
 	US_UNREGS_PROBE,
@@ -105,9 +111,10 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	ret = dbi_register_ujprobe(&ip->jprobe);
 	if (ret) {
 		if (ret == -ENOEXEC) {
-			pack_event_info(ERR_MSG_ID, RECORD_ENTRY, "dp",
-					0x1,
-					ip->jprobe.up.kp.addr);
+			ptr_pack_task_event_info(current, ERR_MSG_ID,
+						 RECORD_ENTRY, "dp",
+						 0x1,
+						 ip->jprobe.up.kp.addr);
 		}
 		printk("dbi_register_ujprobe() failure %d\n", ret);
 		return ret;
