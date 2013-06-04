@@ -1,6 +1,6 @@
 /*
  *  SWAP Buffer Module
- *  modules/buffer/swap_buffer_module.c
+ *  modules/buffer/buffer_description.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,14 +27,17 @@
 #ifndef __BUFFER_DESCRIPTION_H__
 #define __BUFFER_DESCRIPTION_H__
 
-#include "space_dep_types_and_def.h"
+#include "kernel_operations.h"
 
-struct swap_buffer {
-    struct swap_buffer* next_in_queue;      // Next buffer in queue
-    size_t full_buffer_part;                // Buffer length
-    swap_subbuffer_ptr buffer;              // Points to subbuffers virt mem(user)
-                                            // or to subbuffers first page(kernel)
-    buffer_rw_sync_type buffer_sync;        // Buffer sync primitive
+struct swap_subbuffer {
+	/* Pointer to the next subbuffer in queue */
+	struct swap_subbuffer *next_in_queue;
+	/* Size of the filled part of a subbuffer */
+	size_t full_buffer_part;
+	/* Pointer to data buffer */
+	swap_subbuffer_ptr data_buffer;
+	/* Buffer rw sync */
+	sync_t buffer_sync;
 };
 
 #endif /* __BUFFER_DESCRIPTION_H__ */

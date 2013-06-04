@@ -1,4 +1,4 @@
 obj-m := swap_buffer.o
 
-swap_buffer-y := swap_buffer_module.o buffer_queue.o space_dep_operations.o
+swap_buffer-y := swap_buffer_module.o buffer_queue.o
 

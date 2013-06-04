@@ -24,25 +24,34 @@
 
 /* SWAP Buffer interface description */
 
-#ifndef __SWAP_BUFFER_HEADER_H__
-#define __SWAP_BUFFER_HEADER_H__
+#ifndef __SWAP_BUFFER_MODULE_H__
+#define __SWAP_BUFFER_MODULE_H__
 
 #include "buffer_description.h"
 
+/* SWAP Buffer initialization function. Call it before using buffer.
+ * Returns memory pages count (>0) in one subbuffer on success, or error code
+ * (<0) otherwise. */
 int swap_buffer_init(size_t subbuffer_size, unsigned int nr_subbuffers,
-                     int (*subbuffer_full_callback)(void));
+		     int (*subbuffer_full_callback)(void));
 
+/* SWAP Buffer uninitialization function. Call it every time before removing
+ * this module. 
+ * Returns E_SB_SUCCESS (0) on success, otherwise error code. */
 int swap_buffer_uninit(void);
+
+/* SWAP Buffer write function. Pass it size of the data and pointer to the data.
+ * On success returns number of bytes written (>=0) or error code (<0) otherwise */
 ssize_t swap_buffer_write(size_t size, void* data);
 
-int swap_buffer_get(struct swap_buffer **subbuffer);
-int swap_buffer_release(struct swap_buffer **subbuffer);
+/* SWAP Buffer get. Put subbuffer pointer to the variable *subbuffer. */
+int swap_buffer_get(struct swap_subbuffer **subbuffer);
 
-/* Takes pointer to array of subbuffers pointers. Supposed to be NULL,
- * allocation occures in buf_flush.
- * BE AWARE!!! Function returns:
- * =<0 - IF IT FINISHED UNSUCCESSFUL
- * >0 - count of readable buffers */
-int swap_buffer_flush(struct swap_buffer ***subbuffer);
+/* SWAP Buffer release. All 'get' buffers must be released with this function.
+ * Just pass &subbuffer_ptr to it */
+int swap_buffer_release(struct swap_subbuffer **subbuffer);
 
-#endif /* __SWAP_BUFFER_HEADER_H__ */
+/* SWAP Buffer flush. Puts all buffers to read queue and returns their count. */
+int swap_buffer_flush(void);
+
+#endif /* __SWAP_BUFFER_MODULE_H__ */

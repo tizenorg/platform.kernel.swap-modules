@@ -18,7 +18,7 @@
  *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Alexander Aksenov <a.aksenov@samsung.com>: SWAP Buffer implement
+ * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP Buffer implement
  *
  */
 
@@ -26,292 +26,230 @@
 
 #include "swap_buffer_module.h"
 #include "buffer_queue.h"
-#include "buffer_description.h"
-#include "space_dep_operations.h"
+#include "swap_buffer_errors.h"
 
-#define BUFFER_WORK 1
-#define BUFFER_STOP 0
+/* Bitwise mask for buffer status */
+#define BUFFER_WORK	 1
+#define BUFFER_ALLOC	2
 
-typedef int(*subbuffer_callback_type)(void*);
-typedef unsigned char buffer_status;
+/* Current buffer status:
+ * 00 - memory isn't allocated, buffer doesn't work
+ * 10 - memory allocated, buffer doesn't work
+ * 11 - memory allocated, buffer is working
+ * 01 - memory isn't allocated, buffer is working. Never occurs. */
+static unsigned char swap_buffer_status = 0;
 
-static subbuffer_callback_type subbuffer_callback = NULL;   //Callback, called
-                                                            //when new readalbe
-                                                            //subbuffer appears
-static size_t subbuffers_size = 0;                          //Subbuffers size
-static unsigned int subbuffers_num = 0;                     //Subbuffres count
-static buffer_status swap_buffer_status = BUFFER_STOP;      //Buffer status
+/* Callback type */
+typedef int(*subbuffer_callback_type)(void *);
 
-//static buffer_access_sync_type buffer_sync;
+/* Callback that is called when full subbuffer appears */
+static subbuffer_callback_type subbuffer_callback = NULL;
+
+/* One subbuffer size */
+static size_t subbuffers_size = 0;
+
+/* Subbuffers count */
+static unsigned int subbuffers_num = 0;
 
 //TODO Swap restart
 
-static inline int are_two_regions_overlap(const void* region1,
-                                          const void* region2, size_t size)
+static inline int areas_overlap(const void *area1,const void *area2, size_t size)
 {
-    int i;
+	int i;
 
-    for (i = 0; i < size; i++) {
-        if ((region1 + i == region2) || (region1 + i == region2)) {
-            return 1;
-        }
-    }
+	for (i = 0; i < size; i++)
+		if ((area1 + i == area2) || (area1 + i == area2))
+			return 1;
 
-    return 0;
+	return 0;
 }
 
 int swap_buffer_init(size_t subbuffer_size, unsigned int nr_subbuffers,
-                     int (*subbuffer_full_callback)(void))
+		     int (*subbuffer_full_callback)(void))
 {
-    int result = 0;
+	int result = 0;
 
-    /*  >0 - mem pages in one subbuffer
-     */
+	if (swap_buffer_status & BUFFER_WORK)
+		swap_buffer_flush();
 
-    // TODO Different initialization for first one and initialization after stop
-    // TODO Test if wrong function type
-    subbuffer_callback = (subbuffer_callback_type)subbuffer_full_callback;
-    subbuffers_size = subbuffer_size;
-    subbuffers_num = nr_subbuffers;
+	if (swap_buffer_status & BUFFER_ALLOC)
+		swap_buffer_uninit();
 
-    result = buffer_queue_allocation(subbuffers_size, subbuffers_num);
-    if (result < 0) {
-        return result;
-    }
+	// TODO Test if wrong function type
+	subbuffer_callback = (subbuffer_callback_type)subbuffer_full_callback;
+	subbuffers_size = subbuffer_size;
+	subbuffers_num = nr_subbuffers;
 
-    swap_buffer_status = BUFFER_WORK;
-    result = get_pages_in_subbuffer();
+	result = buffer_queue_allocation(subbuffers_size, subbuffers_num);
+	if (result < 0)
+		return result;
 
-    return result;
+	swap_buffer_status |= BUFFER_WORK;
+	print_debug("status buffer work = %d\n", swap_buffer_status);
+	result = get_pages_count_in_subbuffer();
+
+	swap_buffer_status |= BUFFER_ALLOC;
+	print_debug("status buffer alloc = %d\n", swap_buffer_status);
+
+	return result;
 }
+EXPORT_SYMBOL_GPL(swap_buffer_init);
+
 
 int swap_buffer_uninit(void)
 {
-    int result;
+	/* Stop swap_buffer */
+	swap_buffer_status &= ~BUFFER_WORK;
+	print_debug("status buffer stop = %d\n", swap_buffer_status);
 
-    /*  0 - ok
-     * -1 - not all buffers released
-     * 2 - mutex_destroy failed
-     */
+	/* Checking whether all buffers are released */
+	if (get_busy_buffers_count())
+		return E_SB_UNRELEASED_BUFFERS;
 
-    /* Stop swap_buffer */
-    swap_buffer_status = BUFFER_STOP;
+	/* Free */
+	buffer_queue_free();
 
-    /* Checking whether all buffers are released */
-    if (get_busy_buffers_count()) {
-        result = -1;
-        return result;
-    }
+	subbuffer_callback = NULL;
+	subbuffers_size = 0;
+	subbuffers_num = 0;
 
-    /* Free */
-    result = buffer_queue_free();
+	swap_buffer_status &= ~BUFFER_ALLOC;
+	print_debug("status buffer dealloc = %d\n", swap_buffer_status);
 
-    subbuffer_callback = NULL;
-    subbuffers_size = 0;
-    subbuffers_num = 0;
-
-//TODO 
-/*#ifdef BUFFER_FOR_USER
-    if (pthread_mutex_destroy(&buffer_sync)) {
-        result = 2;
-        return result;
-    }
-
-// TODO Think for spinlock*/
-//#endif /* BUFFER_FOR_USER */
-
-    return result;
+	return E_SB_SUCCESS;
 }
+EXPORT_SYMBOL_GPL(swap_buffer_uninit);
 
-ssize_t swap_buffer_write(size_t size, void* data)
+
+ssize_t swap_buffer_write(size_t size, void *data)
 {
-    int result = 0;
-    struct swap_buffer* buffer_to_write = NULL;
+	int result = E_SB_SUCCESS;
+	struct swap_subbuffer *buffer_to_write = NULL;
+	void *ptr_to_write = NULL;
 
-    /* >0 - ok, written size
-     * -1 - no buffers in write list
-     * -2 - wrong size
-     * -3 - swap_buffer stopped
-     * -4 - cannot lock semaphore
-     * -5 - cannot unlock semaphore
-     * -6 - regions are overlapping
-     */
+	/* Check buffer status */
+	if (!(swap_buffer_status & BUFFER_WORK))
+		return E_SB_IS_STOPPED;
 
-    /* Check buffer status */
-    if (!(swap_buffer_status & BUFFER_WORK)) {
-        result = -3;
-        return result;
-    }
+	/* Size sanitization */
+	if ((size > subbuffers_size) || (size == 0))
+		return E_SB_WRONG_DATA_SIZE;
 
-    /* Size sanitization */
-    if ((size > subbuffers_size) || (size == 0)) {
-        result = -2;
-        return result;
-    }
+	/* Get next write buffer and occupying semaphore */
+	buffer_to_write = get_from_write_list(size, &ptr_to_write);
+	if (!buffer_to_write)
+		return E_SB_NO_WRITABLE_BUFFERS;
 
-    /* Get next write buffer and occupying semaphore */
-    buffer_to_write = get_from_write_list(size);
-    if (!buffer_to_write) {
-        result = -1;
-        return result;
-    }
+	/* Check for overlapping */
+	if (areas_overlap(ptr_to_write, data, size)) {
+		result = E_SB_OVERLAP;
+		goto buf_write_sem_post;
+	}
 
-    /* Check for overlapping */
-    if (are_two_regions_overlap(buffer_address(buffer_to_write->buffer) +
-                                buffer_to_write->full_buffer_part, data,
-                                size)) {
-        result = -6;
-        goto buf_write_sem_post;
-    }
+	/* Copy data to buffer */
+	/* XXX Think of using memmove instead - useless, anyway overlapping means
+	 * that something went wrong. */
+	memcpy(ptr_to_write, data, size);
 
-    /* Copy data to buffer */
-    /* XXX Think of using memmove instead */
-    memcpy((void*)((unsigned long)(buffer_address(buffer_to_write->buffer)) +
-           buffer_to_write->full_buffer_part), data, size);
+	result = size;
 
-    /* Inc buffer full part size */
-    buffer_to_write->full_buffer_part += size;
-
-    result = size;
-
-    /* Unlock semaphpore (Locked in get_from_write_list()) */
+	/* Unlock semaphpore (Locked in get_from_write_list()) */
 buf_write_sem_post:
-    if (buffer_rw_unlock(&buffer_to_write->buffer_sync)) {
-        result = -5;
-        return result;
-    }
+	sync_unlock(&buffer_to_write->buffer_sync);
 
-    return result;
+	return result;
 }
+EXPORT_SYMBOL_GPL(swap_buffer_write);
 
-int swap_buffer_get(struct swap_buffer** subbuffer)
+
+int swap_buffer_get(struct swap_subbuffer **subbuffer)
 {
-    int result = 0;
-    struct swap_buffer* buffer_to_read = NULL;
+	int result = 0;
+	struct swap_subbuffer *buffer_to_read = NULL;
 
-    /* >0 - page count in subbuffer (in kernel) or 0 (in user)
-     * -1 - no buffer for reading
-     * -2 - problems with add_to_busy_list
-     */
+	/* Get next read buffer */
+	buffer_to_read = get_from_read_list();
+	if (!buffer_to_read)
+		return E_SB_NO_READABLE_BUFFERS;
 
-    /* Get next read buffer */
-    buffer_to_read = get_from_read_list();
-    if (!buffer_to_read) {
-        result = -1;
-        return result;
-    }
+	/* Add to busy list */
+	buffer_to_read->next_in_queue = NULL;
+	add_to_busy_list(buffer_to_read);
 
-    /* Add to busy list */
-    buffer_to_read->next_in_queue = NULL;
-    if (add_to_busy_list(buffer_to_read) < 0) {
-        result = -2;
-        return result;
-    }
+	*subbuffer = buffer_to_read;
 
-    // TODO Useless check
-    if (!result) {
-        *subbuffer = buffer_to_read;
-    }
+	result = get_pages_count_in_subbuffer();
 
-    return get_pages_in_subbuffer();
+	return result;
 }
+EXPORT_SYMBOL_GPL(swap_buffer_get);
 
-int swap_buffer_release(struct swap_buffer** subbuffer)
+
+int swap_buffer_release(struct swap_subbuffer **subbuffer)
 {
-    int result = 0;
+	int result;
 
-    /*  0 - ok
-     * -1 - can't remove from busy list!
-     * -2 - can't add to write list
-     */
+	/* Remove from busy list (includes sanitization) */
+	result = remove_from_busy_list(*subbuffer);
+	if (result < 0)
+		return result;
 
-    /* Remove from busy list (includes sanitization) */
-    if (remove_from_busy_list(*subbuffer) < 0) {
-        result = -1;
-        return result;
-    }
+	/* Add to write list */
+	add_to_write_list(*subbuffer);
 
-    /* Add to write list */
-    if (add_to_write_list(*subbuffer) < 0) {
-        result = -2;
-        return result;
-    }
-
-    return result;
+	return E_SB_SUCCESS;
 }
+EXPORT_SYMBOL_GPL(swap_buffer_release);
 
-int swap_buffer_flush(struct swap_buffer ***subbuffers)
+
+int swap_buffer_flush(void)
 {
-    int result = 0;
+	int result = 0;
 
-    /* >=0 - buffers count
-     * <0  - set_all_to_read_list() error code
-     */
+	/* Stop swap_buffer */
+	swap_buffer_status &= ~BUFFER_WORK;
+	print_debug("status buffer stop = %d\n", swap_buffer_status);
 
-    /* Stop swap_buffer */
-    swap_buffer_status = BUFFER_STOP;
+	/* Set all write buffers to read list */
+	set_all_to_read_list();
 
-    /* Set all write buffers to read list */
-    result = set_all_to_read_list();
-    if (result < 0) {
-        return result;
-    }
+	/* Get count of all full buffers */
+	result = get_full_buffers_count();
 
-    /* Get count of all full buffers */
-    result = get_full_buffers_count();
-    if (result <= 0) {
-        result = 0;
-        return result;
-    }
-
-// Relict code, not used now. You can just enjoy how it was some time before.
-//
-//    /* Memory allocation for swap_buffer structures array.
-//     * Must be freed in module that called this one */
-//    *subbuffers = memory_allocation(sizeof(struct swap_buffer*) * result);
-//    if (!(*subbuffers)) {
-//        result = -1;
-//        return result;
-//    }
-//
-//    /* Adding all subbufers from read list to subbuffers array */
-//    do {
-//        i++;
-//        (*subbuffers)[i] = get_from_read_list(); //TODO Are we need mutex? 
-//                                                 //Buffer stopped - nobody's
-//                                                 //writing
-//    } while ((*subbuffers)[i]);
-
-    return result;
+	return result;
 }
+EXPORT_SYMBOL_GPL(swap_buffer_flush);
+
 
 int swap_buffer_callback(void *buffer)
 {
-    int result;
+	int result;
 
-    /*   0 - ok
-     *  <0 - subbuffer_callback error
-     * -99 - subbuffer_callback is not registered */
+	if (!subbuffer_callback) {
+		return E_SB_NO_CALLBACK;
+	}
 
-    if (!subbuffer_callback) {
-        return -99;
-    }
+	result = subbuffer_callback(buffer);
+	if (result < 0)
+		print_err("Callback error! Error code: %d\n", result);
 
-    result = subbuffer_callback(buffer);
-    if (result < 0) {
-        print_err("Callback error! Error code: %d\n", result);
-    }
-
-    return result;
+	return result;
 }
 
-#ifndef BUFFER_FOR_USER
-EXPORT_SYMBOL_GPL(swap_buffer_init);
-EXPORT_SYMBOL_GPL(swap_buffer_uninit);
-EXPORT_SYMBOL_GPL(swap_buffer_write);
-EXPORT_SYMBOL_GPL(swap_buffer_get);
-EXPORT_SYMBOL_GPL(swap_buffer_release);
-EXPORT_SYMBOL_GPL(swap_buffer_flush);
-#endif /* BUFFER_FOR_USER */
 
-SWAP_BUFFER_MODULE_INFORMATION
+static int __init swap_buffer_module_init(void)
+{
+	printk(KERN_NOTICE "SWAP_BUFFER : Buffer module initialized\n");
+	return 0;
+}
+
+static void __exit swap_buffer_module_exit(void)
+{
+	if (swap_buffer_status & BUFFER_ALLOC)
+		swap_buffer_uninit();
+	printk(KERN_NOTICE "SWAP_BUFFER : Buffer module unintialized\n");
+}
+
+module_init(swap_buffer_module_init);
+module_exit(swap_buffer_module_exit);
+

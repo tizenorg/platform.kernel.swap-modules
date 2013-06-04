@@ -1,6 +1,6 @@
 /*
  *  SWAP Buffer Module
- *  modules/buffer/swap_buffer_module.c
+ *  modules/buffer/buffer_queue.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,23 +24,23 @@
 
 /* SWAP Buffer queues interface */
 
-#ifndef __BUFFER_QUEUE_HEADER__
-#define __BUFFER_QUEUE_HEADER__
+#ifndef __BUFFER_QUEUE_H__
+#define __BUFFER_QUEUE_H__
 
 #include "buffer_description.h"
 
 int buffer_queue_allocation(size_t subbuffer_size, unsigned int subbuffers_count);
-int buffer_queue_free(void);
-struct swap_buffer* get_from_write_list(size_t size);
-struct swap_buffer* get_from_read_list(void);
-int add_to_write_list(struct swap_buffer* subbuffer);
-int add_to_read_list(struct swap_buffer* subbuffer);
-int add_to_busy_list(struct swap_buffer* subbuffer);
-int remove_from_busy_list(struct swap_buffer* subbuffer);
+void buffer_queue_free(void);
+struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write);
+struct swap_subbuffer *get_from_read_list(void);
+void add_to_write_list(struct swap_subbuffer *subbuffer);
+void add_to_read_list(struct swap_subbuffer *subbuffer);
+void add_to_busy_list(struct swap_subbuffer *subbuffer);
+int remove_from_busy_list(struct swap_subbuffer *subbuffer);
 int get_full_buffers_count(void);
 
-int set_all_to_read_list(void);
+void set_all_to_read_list(void);
 int get_busy_buffers_count(void);
-int get_pages_in_subbuffer(void);
+int get_pages_count_in_subbuffer(void);
 
-#endif /* __BUFFER_QUEUE_HEADER__ */
+#endif /* __BUFFER_QUEUE_H__ */
