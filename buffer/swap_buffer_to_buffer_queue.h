@@ -1,6 +1,6 @@
 /*
  *  SWAP Buffer Module
- *  modules/buffer/swap_buffer_module.c
+ *  modules/buffer/swap_buffer_to_buffer_queue.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,4 +24,9 @@
 
 /* SWAP Buffer interface for buffer queue */
 
-void swap_buffer_callback(void* buffer);
+#ifndef __SWAP_BUFFER_TO_BUFFER_QUEUE_H__
+#define __SWAP_BUFFER_TO_BUFFER_QUEUE_H__
+
+int swap_buffer_callback(void *buffer);
+
+#endif /* __SWAP_BUFFER_TO_BUFFER_QUEUE_H__ */
