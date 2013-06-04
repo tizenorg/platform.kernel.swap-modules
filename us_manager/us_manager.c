@@ -91,6 +91,9 @@ int usm_stop(void)
 	oops_in_progress = 1;
 	rcu_read_lock();
 	for_each_process(task) {
+		if (is_kthread(task))
+			continue;
+
 		proc = sspt_proc_get_by_task(task);
 		if (proc) {
 			int ret = sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
@@ -142,6 +145,9 @@ int usm_start(void)
 	oops_in_progress = 1;
 	rcu_read_lock();
 	for_each_process(task) {
+		if (is_kthread(task))
+			continue;
+
 		ts = check_task(task);
 
 		if (ts) {

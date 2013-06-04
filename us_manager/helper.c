@@ -6,6 +6,7 @@
 #include "storage.h"
 #include "sspt/sspt.h"
 #include "filters/filters_core.h"
+#include "helper.h"
 
 /*
  ******************************************************************************
@@ -43,7 +44,7 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 	 * we instrument only group_leader of all this threads
 	 */
 	task = current->group_leader;
-	if (task->flags & PF_KTHREAD)
+	if (is_kthread(task))
 		return 0;
 
 	proc = sspt_proc_get_by_task(task);
@@ -146,6 +147,9 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 #error this architecture is not supported
 #endif
 
+	if (is_kthread(task))
+		goto out;
+
 	if (task->tgid != task->pid) {
 		goto out;
 	}
@@ -243,6 +247,9 @@ static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs)
 
 	struct sspt_proc *proc = NULL;
 	struct task_struct *task = current;
+
+	if (is_kthread(task))
+		goto out;
 
 	proc = sspt_proc_get_by_task(task);
 	if (proc) {
