@@ -558,7 +558,7 @@ int inst_usr_space_proc (void)
 		for_each_process (task) {
 			struct sspt_proc *proc;
 
-			if (task->flags & is_kthread(task)){
+			if (is_kthread(task)){
 				DPRINTF("ignored kernel thread %d\n",
 					task->pid);
 				continue;
@@ -628,7 +628,7 @@ void do_page_fault_j_pre_code(unsigned long addr, unsigned int fsr, struct pt_re
 {
 	struct task_struct *task = current->group_leader;
 
-	if (task->flags & is_kthread(task)) {
+	if (is_kthread(task)) {
 		DPRINTF("ignored kernel thread %d\n", task->pid);
 		return;
 	}
@@ -909,7 +909,7 @@ void do_page_fault_ret_pre_code (void)
 	struct timeval imi_tv2;
 #define USEC_IN_SEC_NUM				1000000
 
-	if (task->flags & is_kthread(task)) {
+	if (is_kthread(task)) {
 		DPRINTF("ignored kernel thread %d\n", task->pid);
 		return;
 	}
