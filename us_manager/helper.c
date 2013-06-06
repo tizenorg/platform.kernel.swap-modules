@@ -5,8 +5,11 @@
 #include "us_slot_manager.h"
 #include "storage.h"
 #include "sspt/sspt.h"
-#include "filters/filters_core.h"
 #include "helper.h"
+
+struct task_struct;
+
+struct task_struct *check_task(struct task_struct *task);
 
 /*
  ******************************************************************************

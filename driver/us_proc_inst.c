@@ -22,8 +22,6 @@
 #include "../uprobe/swap_uprobes.h"
 
 #include "sspt/sspt.h"
-#include "filters/filters_core.h"
-#include "filters/filter_by_path.h"
 #include "helper.h"
 #include "us_slot_manager.h"
 

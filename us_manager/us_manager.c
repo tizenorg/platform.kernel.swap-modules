@@ -2,11 +2,10 @@
 #include <sspt/sspt.h>
 #include <sspt/sspt_proc.h>
 #include <sspt/sspt_page.h>
-#include <filters/filters_core.h>
-#include <filters/filter_by_path.h>
 #include <helper.h>
+#include "pf/proc_filters.h"
 
-static const char *app_filter = "app";
+struct proc_filter *pf;
 
 struct sspt_proc *proc_base;
 void (*ptr_pack_task_event_info)(struct task_struct *task,
@@ -15,6 +14,14 @@ void (*ptr_pack_task_event_info)(struct task_struct *task,
 				 const char *fmt, ...) = NULL;
 
 EXPORT_SYMBOL_GPL(ptr_pack_task_event_info);
+
+struct task_struct *check_task(struct task_struct *task)
+{
+	if (is_kthread(task))
+		return NULL;
+
+	return pf->call(pf, task);
+}
 
 int usm_register_probe(struct dentry *dentry, unsigned long offset,
 		       void *pre_handler, void *jp_handler, void *rp_handler)
@@ -106,8 +113,7 @@ int usm_stop(void)
 	rcu_read_unlock();
 	oops_in_progress = tmp_oops_in_progress;
 
-	uninit_filter();
-	unregister_filter(app_filter);
+	free_pf(pf);
 
 	sspt_proc_free_all();
 
@@ -122,19 +128,7 @@ int usm_start(void)
 	struct sspt_proc *proc;
 	int tmp_oops_in_progress;
 
-	ret = register_filter(app_filter, get_filter_by_path());
-	if (ret)
-		return ret;
-
-	if (proc_base->dentry) {
-		ret = set_filter(app_filter);
-		if (ret)
-			return ret;
-
-		ret = init_filter(proc_base->dentry, 0);
-		if (ret)
-			return ret;
-	}
+	pf = create_pf_by_dentry(proc_base->dentry);
 
 	ret = register_helper();
 	if (ret) {
