@@ -48,6 +48,7 @@ struct sspt_page *sspt_page_copy(const struct sspt_page *page);
 void sspt_page_free(struct sspt_page *page);
 
 void sspt_add_ip(struct sspt_page *page, struct us_ip *ip);
+void sspt_del_ip(struct us_ip *ip);
 struct us_ip *sspt_find_ip(struct sspt_page *page, unsigned long offset);
 
 static inline void sspt_page_assert_install(const struct sspt_page *page)

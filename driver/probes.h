@@ -24,14 +24,14 @@
 #ifndef regs_return_value
 /* "regs_return_value" is ARCH-dependent. ARCH is passed via "EC_ARCH_*" */
 
-#if defined(EC_ARCH_arm)    /* ARCH == arm */
+#if defined(CONFIG_ARM)
 #define regs_return_value(regs) ((regs)->ARM_r0)
-#elif defined(EC_ARCH_x86) /* ARCH == x86 */
+#elif defined(CONFIG_X86)
 #define regs_return_value(regs) ((regs)->ax)
-#elif defined(EC_ARCH_mips) /* ARCH == mips */
+#elif defined(CONFIG_MIPS)
 #define regs_return_value(regs) ((regs)->regs[2])
 #else
-#error "Cannot define -DEC_ARCH_$(ARCH) or architecture no supported"
+#error this architecture is not supported
 #endif
 
 #endif /* ndef regs_return_value */

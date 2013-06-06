@@ -31,6 +31,7 @@
 #include "sspt/sspt.h"
 #include "sspt/sspt_debug.h"
 #include "ks_def_handler.h"
+#include "../us_manager/us_manager.h"
 
 #define after_buffer ec_info.buffer_size
 
@@ -1090,6 +1091,9 @@ int storage_init (void)
 
 	spin_lock_init(&dbi_mh.lock);
 	INIT_LIST_HEAD(&dbi_mh.modules_handlers);
+
+	ptr_pack_task_event_info = pack_task_event_info;
+
 	return 0;
 }
 

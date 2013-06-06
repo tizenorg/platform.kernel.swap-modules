@@ -27,7 +27,8 @@ inlude_opt = -I$(realpath $(top_srcdir)/src/modules/ksyms) \
              -I$(realpath $(top_srcdir)/src/modules/ks_manager) \
              -I$(realpath $(top_srcdir)/src/modules/kprobe) \
              -I$(realpath $(top_srcdir)/src/modules/kprobe/arch) \
-             -I$(realpath $(top_srcdir)/src/modules/uprobe)
+             -I$(realpath $(top_srcdir)/src/modules/uprobe) \
+             -I$(realpath $(top_srcdir)/src/modules/us_manager)
 extra_cflags = "$(inlude_opt) -DEC_ARCH_$(ARCH) -D__DEBUG $(memchecker) $(debug_opt) $(android_opt) $(slp_opt) $(android_app_opt) $(board_opt)"
 
 #bin_SCRIPTS = patchko.sh insmod.sh

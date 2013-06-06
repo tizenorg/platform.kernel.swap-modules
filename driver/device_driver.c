@@ -19,7 +19,7 @@
 #include "device_driver.h"	// device driver
 #include "handlers_core.h"
 #include <linux/notifier.h>
-#include "sspt/sspt_proc.h"
+#include <sspt/sspt_proc.h>
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
@@ -513,8 +513,6 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 			result = -1;
 			goto sad_cleanup;
 		}
-
-		sspt_proc_free_all();
 
 		vfree(bundle);
 		result = 0;

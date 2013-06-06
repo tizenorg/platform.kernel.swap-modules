@@ -22,11 +22,6 @@
 #define __US_PROC_INST_H__
 
 #include <linux/signal.h>	// struct sigpending
-#include "sspt/ip.h"
-
-/* Instruments or schedules pending instrumentation of user space process. */
-extern int inst_usr_space_proc (void);
-extern int deinst_usr_space_proc (void);
 
 extern pid_t gl_nNotifyTgid;
 
@@ -40,17 +35,6 @@ struct sspt_page;
 struct vm_area_struct;
 enum US_FLAGS;
 
-int is_us_instrumentation(void);
-
-int register_usprobe(struct us_ip *ip);
-int unregister_usprobe(struct us_ip *ip);
-
 struct dentry *dentry_by_path(const char *path);
-int install_otg_ip(unsigned long addr,
-			kprobe_pre_entry_handler_t pre_handler,
-			unsigned long jp_handler,
-			uretprobe_handler_t rp_handler);
-
-int check_vma(struct vm_area_struct *vma);
 
 #endif /* !defined(__US_PROC_INST_H__) */

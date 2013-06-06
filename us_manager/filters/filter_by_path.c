@@ -23,9 +23,13 @@
  */
 
 #include <linux/sched.h>
+#include <linux/mm_types.h>
+#include <linux/fs.h>
 #include <us_proc_inst.h>
 #include "filters_core.h"
+#include <sspt/sspt.h>
 
+struct dentry;
 static struct dentry *dentry = NULL;
 
 static int check_dentry(struct task_struct *task, struct dentry *dentry)

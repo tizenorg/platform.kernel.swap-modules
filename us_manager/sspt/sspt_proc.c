@@ -55,6 +55,8 @@
 
 static LIST_HEAD(proc_probes_list);
 
+extern struct sspt_proc *proc_base;
+
 struct sspt_proc *sspt_proc_create(struct dentry* dentry, struct task_struct *task)
 {
 	struct sspt_proc *proc = kmalloc(sizeof(*proc), GFP_ATOMIC);
@@ -83,10 +85,6 @@ void sspt_proc_free(struct sspt_proc *proc)
 	kfree(proc);
 }
 
-// TODO: remove "us_proc_info"
-#include "../storage.h"
-extern inst_us_proc_t us_proc_info;
-
 struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 {
 	struct sspt_proc *proc, *tmp;
@@ -109,7 +107,7 @@ struct sspt_proc *sspt_proc_get_new(struct task_struct *task)
 {
 	struct sspt_proc *proc;
 
-	proc = sspt_proc_copy(us_proc_info.pp, task);
+	proc = sspt_proc_copy(proc_base, task);
 	add_proc_probes(proc);
 
 	return proc;
@@ -127,11 +125,6 @@ struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 
 void sspt_proc_free_all(void)
 {
-	// is user-space instrumentation
-	if (us_proc_info.path == NULL) {
-		return;
-	}
-
 	struct sspt_proc *proc, *n;
 	list_for_each_entry_safe(proc, n, &proc_probes_list, list) {
 		list_del(&proc->list);

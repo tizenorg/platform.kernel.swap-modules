@@ -17,6 +17,7 @@
 
 #include "module.h"
 #include "ec.h"
+#include <us_manager.h>
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -192,7 +193,7 @@ int ec_user_attach (void)
 		pack_event_info(EVENT_FMT_PROBE_ID, RECORD_ENTRY, "x", tmp);
 		event_mask = tmp;
 
-		result = inst_usr_space_proc();
+		result = usm_start();
 		if (result == 0)	// instrument user space process
 			result = set_kernel_probes();
 		// FIXME: SAFETY CHECK
@@ -237,7 +238,7 @@ int ec_user_activate (void)
 		pack_event_info(EVENT_FMT_PROBE_ID, RECORD_ENTRY, "x", tmp);
 		event_mask = tmp;
 
-		result = inst_usr_space_proc();
+		result = usm_start();
 		if (result == 0)	// instrument user space process
 			result = set_kernel_probes();
 
@@ -287,7 +288,7 @@ int ec_user_stop (void)
 		ec_info.ec_state = EC_STATE_IDLE;
 		spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);	// open our data for other CPUs
 
-		ret = deinst_usr_space_proc ();
+		ret = usm_stop();
 		result = unset_kernel_probes();
 		if (result == 0)
 			result = ret;

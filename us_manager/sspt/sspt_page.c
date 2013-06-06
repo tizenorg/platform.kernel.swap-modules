@@ -62,6 +62,11 @@ static void sspt_list_add_ip(struct sspt_page *page, struct us_ip *ip)
 	ip->page = page;
 }
 
+static void sspt_list_del_ip(struct us_ip *ip)
+{
+	list_del(&ip->list);
+}
+
 struct sspt_page *sspt_page_copy(const struct sspt_page *page)
 {
 	struct us_ip *ip, *new_ip;
@@ -103,6 +108,12 @@ void sspt_add_ip(struct sspt_page *page, struct us_ip *ip)
 	}
 
 	sspt_list_add_ip(page, ip);
+}
+
+void sspt_del_ip(struct us_ip *ip)
+{
+	sspt_list_del_ip(ip);
+	free_ip(ip);
 }
 
 struct us_ip *sspt_find_ip(struct sspt_page *page, unsigned long offset)
