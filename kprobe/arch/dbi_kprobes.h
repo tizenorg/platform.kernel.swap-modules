@@ -48,7 +48,7 @@
  * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
  *
  */
-
+#include <linux/compiler.h>
 
 #define REENTER
 
@@ -64,7 +64,7 @@ struct prev_kprobe {
 	unsigned long status;
 };
 
-void kretprobe_trampoline (void);
+void __naked kretprobe_trampoline (void);
 
 extern void __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs);
 extern int arch_prepare_kprobe (struct kprobe *p);

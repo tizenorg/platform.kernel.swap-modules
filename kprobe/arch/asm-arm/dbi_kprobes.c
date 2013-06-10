@@ -1438,6 +1438,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	struct hlist_node *node, *tmp;
 	unsigned long flags, orig_ret_address = 0;
 	unsigned long trampoline_address = (unsigned long) &kretprobe_trampoline;
+	unsigned long ret = 1;
 
 	struct kretprobe *crp = NULL;
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
@@ -1509,7 +1510,9 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	if ((ri->rp && ri->rp->kp.tgid) || (ri->rp2 && ri->rp2->kp.tgid))
 		BUG_ON (trampoline_address == (unsigned long) &kretprobe_trampoline);
 
-	regs->uregs[14] = orig_ret_address;
+	if (p && p->tgid)
+		regs->uregs[14] = orig_ret_address;
+
 	DBPRINTF ("regs->uregs[14] = 0x%lx\n", regs->uregs[14]);
 	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);
 
@@ -1517,8 +1520,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	{
 		regs->uregs[15] = orig_ret_address;
 	}else{
-		if (!thumb_mode( regs )) regs->uregs[15] += 4;
-		else regs->uregs[15] += 2;
+		ret = (void *)orig_ret_address;
 	}
 
 	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);
@@ -1596,7 +1598,20 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	 * to run (and have re-enabled preemption)
 	 */
 
-	return 1;
+	return ret;
+}
+
+void __naked kretprobe_trampoline(void)
+{
+	__asm__ __volatile__ (
+		"stmdb	sp!, {r0 - r11}		\n\t"
+		"mov	r1, sp			\n\t"
+		"mov	r0, #0			\n\t"
+		"bl	trampoline_probe_handler\n\t"
+		"mov	lr, r0			\n\t"
+		"ldmia	sp!, {r0 - r11}		\n\t"
+		"bx	lr			\n\t"
+		: : : "memory");
 }
 
 void  __arch_prepare_kretprobe (struct kretprobe *rp, struct pt_regs *regs)
@@ -1706,10 +1721,6 @@ int __init arch_init_kprobes (void)
 	do_kpro(&undef_ho_k);
 	do_kpro(&undef_ho_u);
 	do_kpro(&undef_ho_u_t);
-	if ((ret = dbi_register_kprobe (&trampoline_p)) != 0) {
-		//dbi_unregister_jprobe(&do_exit_p, 0);
-		return ret;
-	}
 	return ret;
 }
 

@@ -767,12 +767,12 @@ void dbi_unregister_kretprobe (struct kretprobe *rp)
 		sched_rp = NULL;
 
 	while ((ri = get_used_rp_inst (rp)) != NULL) {
-		if (dbi_disarm_krp_inst(ri) == 0)
-			recycle_rp_inst(ri);
-		else
-			panic("%s (%d/%d): cannot disarm krp instance (%08lx)",
+		if (!dbi_disarm_krp_inst(ri)) {
+			printk("%s (%d/%d): cannot disarm krp instance (%08lx)\n",
 					ri->task->comm, ri->task->tgid, ri->task->pid,
 					(unsigned long)rp->kp.addr);
+		}
+		recycle_rp_inst(ri);
 	}
 
 	spin_unlock_irqrestore (&kretprobe_lock, flags);
