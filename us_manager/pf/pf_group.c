@@ -24,7 +24,7 @@ struct pl_struct {
 	struct sspt_proc *proc;
 };
 
-static LIST_HEAD(proc_list);
+static LIST_HEAD(pfg_list);
 
 /* struct pl_struct */
 static struct pl_struct *create_pl_struct(struct sspt_proc *proc)
@@ -80,15 +80,27 @@ void copy_proc_form_img_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc)
 	}
 }
 
-static struct sspt_proc *get_proc_by_pfg(struct pf_group *pfg,
-					 struct task_struct *task)
+static struct pl_struct *find_pl_struct(struct pf_group *pfg,
+					struct task_struct *task)
 {
 	struct pl_struct *pls;
 
 	list_for_each_entry(pls, &pfg->proc_list, list) {
 		if (pls->proc->tgid == task->tgid)
-			return pls->proc;
+			return pls;
 	}
+
+	return NULL;
+}
+
+static struct sspt_proc *get_proc_by_pfg(struct pf_group *pfg,
+					 struct task_struct *task)
+{
+	struct pl_struct *pls;
+
+	pls = find_pl_struct(pfg, task);
+	if (pls)
+		return pls->proc;
 
 	return NULL;
 }
@@ -134,7 +146,7 @@ static void free_pfg(struct pf_group *pfg)
 
 static void add_pfg_by_list(struct pf_group *pfg)
 {
-	list_add(&pfg->list, &proc_list);
+	list_add(&pfg->list, &pfg_list);
 }
 
 static void del_pfg_by_list(struct pf_group *pfg)
@@ -147,7 +159,7 @@ struct pf_group *get_pf_group_by_dentry(struct dentry *dentry)
 	struct pf_group *pfg;
 	struct proc_filter *filter;
 
-	list_for_each_entry(pfg, &proc_list, list) {
+	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_pf_by_dentry(pfg->filter, dentry))
 			return pfg;
 	}
@@ -166,7 +178,7 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid)
 	struct pf_group *pfg;
 	struct proc_filter *filter;
 
-	list_for_each_entry(pfg, &proc_list, list) {
+	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_pf_by_tgid(pfg->filter, tgid))
 			return pfg;
 	}
@@ -206,7 +218,7 @@ void install_all(void)
 void uninstall_all(void)
 {
 //	struct pf_group *pfg;
-//	list_for_each_entry(pfg, &proc_list, list) {
+//	list_for_each_entry(pfg, &pfg_list, list) {
 //		struct task_struct *task, ts;
 //
 //		rcu_read_lock();
@@ -253,7 +265,7 @@ install_proc:
 		sspt_proc_install(proc);
 }
 
-void install_page(unsigned long addr)
+void call_page_fault(unsigned long addr)
 {
 	struct pf_group *pfg;
 	struct task_struct *task, *ts;
@@ -262,8 +274,31 @@ void install_page(unsigned long addr)
 	if (is_kthread(task))
 		return;
 
-	list_for_each_entry(pfg, &proc_list, list) {
+	list_for_each_entry(pfg, &pfg_list, list) {
 		install_page_by_pfg(addr, task, pfg);
+	}
+}
+
+void call_mm_release(struct task_struct *task)
+{
+	struct sspt_struct *proc;
+	struct pf_group *pfg;
+	struct pls_struct *pls;
+
+	proc = sspt_proc_get_by_task(task);
+	if (proc == NULL)
+		return;
+
+	list_for_each_entry(pfg, &pfg_list, list) {
+		pls = find_pl_struct(pfg, task);
+		if (pls == NULL)
+			continue;
+
+		sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
+
+		/* FIXME: for many filters */
+		sspt_proc_free(proc);
+		free_pl_struct(pls);
 	}
 }
 

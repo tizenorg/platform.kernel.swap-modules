@@ -55,8 +55,6 @@
 
 static LIST_HEAD(proc_probes_list);
 
-extern struct sspt_proc *proc_base;
-
 struct sspt_proc *sspt_proc_create(struct dentry* dentry, struct task_struct *task)
 {
 	struct sspt_proc *proc = kmalloc(sizeof(*proc), GFP_ATOMIC);
@@ -69,6 +67,9 @@ struct sspt_proc *sspt_proc_create(struct dentry* dentry, struct task_struct *ta
 		proc->sm = create_sm_us(task);
 		proc->first_install = 0;
 		INIT_LIST_HEAD(&proc->file_list);
+
+		/* add to list */
+		list_add(&proc->list, &proc_probes_list);
 	}
 
 	return proc;
@@ -77,6 +78,10 @@ struct sspt_proc *sspt_proc_create(struct dentry* dentry, struct task_struct *ta
 void sspt_proc_free(struct sspt_proc *proc)
 {
 	struct sspt_file *file, *n;
+
+	/* delete from list */
+	list_del(&proc->list);
+
 	list_for_each_entry_safe(file, n, &proc->file_list, list) {
 		list_del(&file->list);
 		sspt_file_free(file);
@@ -98,17 +103,11 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 	return NULL;
 }
 
-static void add_proc_probes(struct sspt_proc *proc)
-{
-	list_add_tail(&proc->list, &proc_probes_list);
-}
-
 struct sspt_proc *sspt_proc_get_new(struct task_struct *task)
 {
 	struct sspt_proc *proc;
 
-	proc = sspt_proc_copy(proc_base, task);
-	add_proc_probes(proc);
+	proc = sspt_proc_create(NULL, task);
 
 	return proc;
 }
@@ -127,7 +126,6 @@ void sspt_proc_free_all(void)
 {
 	struct sspt_proc *proc, *n;
 	list_for_each_entry_safe(proc, n, &proc_probes_list, list) {
-		list_del(&proc->list);
 		sspt_proc_free(proc);
 	}
 }

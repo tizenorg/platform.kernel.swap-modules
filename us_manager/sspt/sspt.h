@@ -90,8 +90,6 @@ static inline struct sspt_proc *get_file_probes(inst_us_proc_t *task_inst_info)
 		}
 	}
 
-	usm_set_dentry(task_inst_info->m_f_dentry);
-
 	printk("####### get  END  #######\n");
 
 	pfg_print(pfg);
@@ -105,11 +103,6 @@ static int check_vma(struct vm_area_struct *vma)
 			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
 			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
 }
-
-enum US_FLAGS {
-	US_UNREGS_PROBE,
-	US_DISARM
-};
 
 static inline int sspt_register_usprobe(struct us_ip *ip)
 {

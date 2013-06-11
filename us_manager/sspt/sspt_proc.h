@@ -31,6 +31,11 @@
 struct slot_manager;
 struct task_struct;
 
+enum US_FLAGS {
+	US_UNREGS_PROBE,
+	US_DISARM
+};
+
 struct sspt_proc {
 	struct list_head list;
 	pid_t tgid;

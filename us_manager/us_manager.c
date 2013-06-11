@@ -7,7 +7,6 @@
 
 struct proc_filter *pf;
 
-struct sspt_proc *proc_base;
 void (*ptr_pack_task_event_info)(struct task_struct *task,
 				 int probe_id,
 				 int record_type,
@@ -26,6 +25,7 @@ struct task_struct *check_task(struct task_struct *task)
 int usm_register_probe(struct dentry *dentry, unsigned long offset,
 		       void *pre_handler, void *jp_handler, void *rp_handler)
 {
+/*
 	char *file_name;
 	struct sspt_file *file;
 	struct ip_data ip_d;
@@ -41,6 +41,7 @@ int usm_register_probe(struct dentry *dentry, unsigned long offset,
 	ip_d.rp_handler = rp_handler;
 
 	sspt_file_add_ip(file, &ip_d);
+*/
 
 	return 0;
 }
@@ -48,6 +49,7 @@ EXPORT_SYMBOL_GPL(usm_register_probe);
 
 int usm_unregister_probe(struct dentry *dentry, unsigned long offset)
 {
+/*
 	struct sspt_file *file;
 	struct sspt_page *page;
 	struct us_ip *ip;
@@ -68,18 +70,11 @@ int usm_unregister_probe(struct dentry *dentry, unsigned long offset)
 
 	sspt_del_ip(ip);
 	sspt_put_page(page);
+*/
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(usm_unregister_probe);
-
-int usm_set_dentry(struct dentry *dentry)
-{
-	proc_base->dentry = dentry;
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(usm_set_dentry);
 
 int usm_stop(void)
 {
@@ -93,7 +88,7 @@ int usm_stop(void)
 	if (iRet)
 		printk("uninstall_kernel_probe(do_munmap) result=%d!\n", iRet);
 
-
+/*
 	tmp_oops_in_progress = oops_in_progress;
 	oops_in_progress = 1;
 	rcu_read_lock();
@@ -114,6 +109,7 @@ int usm_stop(void)
 	oops_in_progress = tmp_oops_in_progress;
 
 	free_pf(pf);
+*/
 
 	sspt_proc_free_all();
 
@@ -128,13 +124,12 @@ int usm_start(void)
 	struct sspt_proc *proc;
 	int tmp_oops_in_progress;
 
-	pf = create_pf_by_dentry(proc_base->dentry);
-
 	ret = register_helper();
 	if (ret) {
 		return ret;
 	}
 
+/*
 	tmp_oops_in_progress = oops_in_progress;
 	oops_in_progress = 1;
 	rcu_read_lock();
@@ -151,7 +146,7 @@ int usm_start(void)
 	}
 	rcu_read_unlock();
 	oops_in_progress = tmp_oops_in_progress;
-
+*/
 	return 0;
 }
 EXPORT_SYMBOL_GPL(usm_start);
@@ -164,16 +159,11 @@ static int __init init_us_manager(void)
 	if (ret)
 		return ret;
 
-	proc_base = sspt_proc_create(NULL, NULL);
-	if (proc_base == NULL)
-		return -ENOMEM;
-
 	return 0;
 }
 
 static void __exit exit_us_manager(void)
 {
-	sspt_proc_free(proc_base);
 	uninit_helper();
 }
 

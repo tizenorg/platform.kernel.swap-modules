@@ -42,7 +42,7 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 	struct task_struct *task;
 	struct sspt_proc *proc;
 
-	install_page(((struct pf_data *)ri->data)->addr);
+	call_page_fault(((struct pf_data *)ri->data)->addr);
 	return 0;
 
 	/*
@@ -110,6 +110,8 @@ static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct task_struct *task = (struct task_struct *)regs_return_value(regs);
 
+	return 0;
+
 	if(!task || IS_ERR(task))
 		goto out;
 
@@ -160,6 +162,9 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 		goto out;
 	}
 
+	call_mm_release(task);
+	return 0;
+
 	proc = sspt_proc_get_by_task(task);
 	if (proc) {
 		int ret = sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
@@ -190,6 +195,8 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_proc *proc,
 {
 	struct mm_struct *mm = task->mm;
 	struct vm_area_struct *vma;
+
+	return 0;
 
 	if ((start & ~PAGE_MASK) || start > TASK_SIZE || len > TASK_SIZE - start) {
 		return -EINVAL;
