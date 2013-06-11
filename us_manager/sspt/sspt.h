@@ -40,6 +40,7 @@
 #include "../../common/ec_probe.h"
 
 #include <us_manager.h>
+#include <pf/pf_group.h>
 
 static void print_proc_probes(const struct sspt_proc *proc);
 
@@ -48,6 +49,9 @@ struct sspt_proc;
 static inline struct sspt_proc *get_file_probes(inst_us_proc_t *task_inst_info)
 {
 	int i, ret;
+	struct pf_group *pfg;
+
+	pfg = get_pf_group_by_dentry(task_inst_info->m_f_dentry);
 
 	for (i = 0; i < task_inst_info->libs_count; ++i) {
 		int k, j;
@@ -76,15 +80,21 @@ static inline struct sspt_proc *get_file_probes(inst_us_proc_t *task_inst_info)
 			pd.jp_handler = (unsigned long) (ip->jprobe.entry ? ip->jprobe.entry : ujprobe_event_handler);
 			pd.rp_handler = ip->retprobe.handler ?  ip->retprobe.handler : uretprobe_event_handler;
 
-			ret = usm_register_probe(dentry, pd.offset, pd.pre_handler, pd.jp_handler, pd.rp_handler);
+//			ret = usm_register_probe(dentry, pd.offset, pd.pre_handler, pd.jp_handler, pd.rp_handler);
+//			if (ret)
+//				printk("### ERROR: usm_register_probe ret=%d\n", ret);
+
+			ret = pf_register_probe(pfg, dentry, pd.offset, pd.pre_handler, pd.jp_handler, pd.rp_handler);
 			if (ret)
-				printk("### ERROR: usm_register_probe ret=%d\n", ret);
+				printk("### ERROR: pf_register_probe ret=%d\n", ret);
 		}
 	}
 
 	usm_set_dentry(task_inst_info->m_f_dentry);
 
 	printk("####### get  END  #######\n");
+
+	pfg_print(pfg);
 
 	return NULL;
 }

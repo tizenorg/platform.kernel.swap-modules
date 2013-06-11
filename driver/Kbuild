@@ -3,5 +3,4 @@ EXTRA_CFLAGS := $(extra_cflags)
 obj-m := swap_driver.o
 swap_driver-y := error_storage.o device_driver.o ec.o legacy.o module.o probes.o \
                  probes_manager.o storage.o us_proc_inst.o \
-                 us_def_handler.o \
                  ks_def_handler.o

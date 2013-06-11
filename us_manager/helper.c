@@ -42,6 +42,9 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 	struct task_struct *task;
 	struct sspt_proc *proc;
 
+	install_page(((struct pf_data *)ri->data)->addr);
+	return 0;
+
 	/*
 	 * Because process threads have same address space
 	 * we instrument only group_leader of all this threads

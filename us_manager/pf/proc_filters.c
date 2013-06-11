@@ -75,3 +75,14 @@ void free_pf(struct proc_filter *pf)
 {
 	kfree(pf);
 }
+
+int check_pf_by_dentry(struct proc_filter *filter, struct dentry *dentry)
+{
+	return filter->data == (void *)dentry &&
+	       filter->call == &call_by_dentry;
+}
+
+int check_pf_by_tgid(struct proc_filter *filter, pid_t tgid)
+{
+	return filter->data == (void *)tgid && filter->call == &call_by_tgid;
+}
