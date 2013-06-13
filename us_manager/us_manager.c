@@ -88,6 +88,8 @@ int usm_stop(void)
 	if (iRet)
 		printk("uninstall_kernel_probe(do_munmap) result=%d!\n", iRet);
 
+	uninstall_all();
+
 /*
 	tmp_oops_in_progress = oops_in_progress;
 	oops_in_progress = 1;
@@ -128,6 +130,8 @@ int usm_start(void)
 	if (ret) {
 		return ret;
 	}
+
+	install_all();
 
 /*
 	tmp_oops_in_progress = oops_in_progress;

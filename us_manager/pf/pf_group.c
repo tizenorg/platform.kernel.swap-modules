@@ -210,37 +210,6 @@ int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 	return img_proc_del_ip(pfg->i_proc, dentry, offset);
 }
 
-void install_all(void)
-{
-
-}
-
-void uninstall_all(void)
-{
-//	struct pf_group *pfg;
-//	list_for_each_entry(pfg, &pfg_list, list) {
-//		struct task_struct *task, ts;
-//
-//		rcu_read_lock();
-//		for_each_process(task) {
-//			if (task->tgid != task->pid)
-//				continue;
-//
-//			if (is_kthread(task))
-//				continue;
-//
-//			ts = check_task_f(pfg->filter, task);
-//
-//			if (ts) {
-//				proc = sspt_proc_get_by_task_or_new(ts);
-//				sspt_proc_install(proc);
-//			}
-//		}
-//		rcu_read_unlock();
-//	}
-}
-
-
 static void install_page_by_pfg(unsigned long addr, struct task_struct *task,
 				struct pf_group *pfg)
 {
@@ -305,6 +274,65 @@ void call_mm_release(struct task_struct *task)
 void uninstall_page(unsigned long addr)
 {
 
+}
+
+void install_all(void)
+{
+	struct pf_group *pfg;
+	struct sspt_proc *proc;
+	struct task_struct *task;
+	int tmp_oops_in_progress;
+
+	tmp_oops_in_progress = oops_in_progress;
+	oops_in_progress = 1;
+	rcu_read_lock();
+	for_each_process(task) {
+		if (task->tgid != task->pid)
+			continue;
+
+		if (is_kthread(task))
+			continue;
+
+		list_for_each_entry(pfg, &pfg_list, list) {
+			if (check_task_f(pfg->filter, task)) {
+				proc = sspt_proc_get_by_task_or_new(task);
+				sspt_proc_install(proc);
+			}
+		}
+	}
+	rcu_read_unlock();
+	oops_in_progress = tmp_oops_in_progress;
+}
+
+static void clean_pfg(void)
+{
+	struct pf_group *pfg, *n;
+	struct proc_filter *filter;
+
+	list_for_each_entry_safe(pfg, n, &pfg_list, list) {
+		list_del(&pfg->list);
+		free_pfg(pfg);
+	}
+}
+
+void uninstall_all(void)
+{
+	int tmp_oops_in_progress;
+	struct task_struct *task;
+
+	tmp_oops_in_progress = oops_in_progress;
+	oops_in_progress = 1;
+	rcu_read_lock();
+	for_each_process(task) {
+		if (is_kthread(task))
+			continue;
+
+		call_mm_release(task);
+	}
+	rcu_read_unlock();
+	oops_in_progress = tmp_oops_in_progress;
+
+	clean_pfg();
 }
 
 /* debug */
