@@ -129,7 +129,14 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 		ip->retprobe.up.sm = ip->page->file->proc->sm;
 		ret = dbi_register_uretprobe(&ip->retprobe);
 		if (ret) {
-			printk("dbi_register_uretprobe() failure %d\n", ret);
+			struct sspt_file *file = ip->page->file;
+			char *name = file->dentry->d_iname;
+			unsigned long addr =ip->retprobe.up.kp.addr;
+			unsigned long offset = addr - file->vm_start;
+
+			printk("dbi_register_uretprobe() failure %d (%s:%x|%x)\n",
+			       ret, name, offset, ip->retprobe.up.kp.opcode);
+
 			return ret;
 		}
 	}
