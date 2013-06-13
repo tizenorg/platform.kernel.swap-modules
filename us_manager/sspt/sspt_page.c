@@ -67,33 +67,6 @@ static void sspt_list_del_ip(struct us_ip *ip)
 	list_del(&ip->list);
 }
 
-struct sspt_page *sspt_page_copy(const struct sspt_page *page)
-{
-	struct us_ip *ip, *new_ip;
-	struct sspt_page *new_page = kmalloc(sizeof(*new_page), GFP_ATOMIC);
-
-	if (new_page) {
-		INIT_LIST_HEAD(&new_page->ip_list);
-		list_for_each_entry(ip, &page->ip_list, list) {
-			new_ip = copy_ip(ip);
-			if (new_ip == NULL) {
-				sspt_page_free(new_page);
-				return NULL;
-			}
-
-			sspt_list_add_ip(new_page, new_ip);
-		}
-
-		new_page->offset = page->offset;
-		new_page->install = 0;
-		spin_lock_init(&new_page->lock);
-		INIT_HLIST_NODE(&new_page->hlist);
-		new_page->file = NULL;
-	}
-
-	return new_page;
-}
-
 void sspt_add_ip(struct sspt_page *page, struct us_ip *ip)
 {
 	struct us_ip *ip_tmp;

@@ -150,18 +150,6 @@ void sspt_proc_add_ip_data(struct sspt_proc *proc, struct dentry* dentry,
 	sspt_file_add_ip(file, ip_d);
 }
 
-struct sspt_proc *sspt_proc_copy(struct sspt_proc *proc, struct task_struct *task)
-{
-	struct sspt_file *file;
-	struct sspt_proc *proc_out = sspt_proc_create(task);
-
-	list_for_each_entry(file, &proc->file_list, list) {
-		sspt_proc_add_file(proc_out, sspt_file_copy(file));
-	}
-
-	return proc_out;
-}
-
 struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc, struct dentry *dentry)
 {
 	struct sspt_file *file;

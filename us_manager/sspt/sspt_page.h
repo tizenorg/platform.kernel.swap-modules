@@ -44,7 +44,6 @@ struct sspt_page {
 };
 
 struct sspt_page *sspt_page_create(unsigned long offset);
-struct sspt_page *sspt_page_copy(const struct sspt_page *page);
 void sspt_page_free(struct sspt_page *page);
 
 void sspt_add_ip(struct sspt_page *page, struct us_ip *ip);

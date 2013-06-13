@@ -60,26 +60,6 @@ static inline void set_ip_got_addr(struct us_ip *ip, unsigned long got_addr)
 	ip->got_addr = got_addr;
 }
 
-struct us_ip *copy_ip(const struct us_ip *ip)
-{
-	struct us_ip *new_ip = create_ip(ip->offset);
-
-	if (new_ip == NULL) {
-		printk("us_proc_ip_copy: No enough memory\n");
-		return NULL;
-	}
-
-	// jprobe
-	set_ip_jp_handler(new_ip, ip->jprobe.pre_entry, ip->jprobe.entry);
-
-	// retprobe
-	if (ip->flag_retprobe) {
-		set_ip_rp_handler(new_ip, ip->retprobe.handler);
-	}
-
-	return new_ip;
-}
-
 struct us_ip *create_ip_by_ip_data(struct ip_data *ip_d)
 {
 	struct us_ip *ip = create_ip(ip_d->offset);

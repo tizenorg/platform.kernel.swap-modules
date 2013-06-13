@@ -60,7 +60,6 @@ struct us_ip {
 
 
 struct us_ip *create_ip(unsigned long offset);
-struct us_ip *copy_ip(const struct us_ip *ip);
 struct us_ip *create_ip_by_ip_data(struct ip_data *ip_d);
 void free_ip(struct us_ip *ip);
 

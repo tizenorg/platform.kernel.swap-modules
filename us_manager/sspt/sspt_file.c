@@ -94,51 +94,6 @@ static void sspt_add_page(struct sspt_file *file, struct sspt_page *page)
 				file->page_probes_hash_bits)]);
 }
 
-struct sspt_file *sspt_file_copy(const struct sspt_file *file)
-{
-	struct sspt_file *file_out;
-
-	if (file == NULL) {
-		printk("### WARNING: file_p == NULL\n");
-		return NULL;
-	}
-
-	file_out = kmalloc(sizeof(*file_out), GFP_ATOMIC);
-	if (file_out) {
-		struct sspt_page *page = NULL;
-		struct hlist_node *node = NULL;
-		struct hlist_head *head = NULL;
-		int i, table_size;
-		INIT_LIST_HEAD(&file_out->list);
-		file_out->proc = NULL;
-		file_out->dentry = file->dentry;
-		file_out->name = file->name;
-		file_out->loaded = 0;
-		file_out->vm_start = 0;
-		file_out->vm_end = 0;
-
-		file_out->page_probes_hash_bits = file->page_probes_hash_bits;
-		table_size = (1 << file_out->page_probes_hash_bits);
-
-		file_out->page_probes_table =
-				kmalloc(sizeof(*file_out->page_probes_table)*table_size, GFP_ATOMIC);
-
-		for (i = 0; i < table_size; ++i) {
-			INIT_HLIST_HEAD(&file_out->page_probes_table[i]);
-		}
-
-		// copy pages
-		for (i = 0; i < table_size; ++i) {
-			head = &file->page_probes_table[i];
-			swap_hlist_for_each_entry(page, node, head, hlist) {
-				sspt_add_page(file_out, sspt_page_copy(page));
-			}
-		}
-	}
-
-	return file_out;
-}
-
 static struct sspt_page *sspt_find_page(struct sspt_file *file, unsigned long offset)
 {
 	struct hlist_node *node;
