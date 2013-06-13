@@ -235,11 +235,14 @@ void sspt_file_install(struct sspt_file *file)
 	struct hlist_node *node = NULL;
 	struct hlist_head *head = NULL;
 	int i, table_size = (1 << file->page_probes_hash_bits);
+	struct mm_struct *mm;
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
 		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
-			sspt_register_page(page, file);
+			mm = page->file->proc->task->mm;
+			if (page_present(mm, page->offset))
+				sspt_register_page(page, file);
 		}
 	}
 }
