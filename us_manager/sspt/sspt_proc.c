@@ -55,7 +55,7 @@
 
 static LIST_HEAD(proc_probes_list);
 
-struct sspt_proc *sspt_proc_create(struct dentry* dentry, struct task_struct *task)
+struct sspt_proc *sspt_proc_create(struct task_struct *task)
 {
 	struct sspt_proc *proc = kmalloc(sizeof(*proc), GFP_ATOMIC);
 
@@ -63,7 +63,6 @@ struct sspt_proc *sspt_proc_create(struct dentry* dentry, struct task_struct *ta
 		INIT_LIST_HEAD(&proc->list);
 		proc->tgid = task ? task->tgid : 0;
 		proc->task = task;
-		proc->dentry = dentry;
 		proc->sm = create_sm_us(task);
 		proc->first_install = 0;
 		INIT_LIST_HEAD(&proc->file_list);
@@ -107,7 +106,7 @@ struct sspt_proc *sspt_proc_get_new(struct task_struct *task)
 {
 	struct sspt_proc *proc;
 
-	proc = sspt_proc_create(NULL, task);
+	proc = sspt_proc_create(task);
 
 	return proc;
 }
@@ -163,7 +162,7 @@ void sspt_proc_add_ip_data(struct sspt_proc *proc, struct dentry* dentry,
 struct sspt_proc *sspt_proc_copy(struct sspt_proc *proc, struct task_struct *task)
 {
 	struct sspt_file *file;
-	struct sspt_proc *proc_out = sspt_proc_create(proc->dentry, task);
+	struct sspt_proc *proc_out = sspt_proc_create(task);
 
 	list_for_each_entry(file, &proc->file_list, list) {
 		sspt_proc_add_file(proc_out, sspt_file_copy(file));

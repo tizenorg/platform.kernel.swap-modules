@@ -276,12 +276,11 @@ int sspt_file_uninstall(struct sspt_file *file, struct task_struct *task, enum U
 void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma)
 {
 	struct task_struct *task = file->proc->task;
-	int app_flag = (vma->vm_file->f_dentry == file->proc->dentry);
 
 	file->vm_start = vma->vm_start;
 	file->vm_end = vma->vm_end;
 
 	ptr_pack_task_event_info(task, DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
 				 task->tgid, file->name, vma->vm_start,
-				 vma->vm_end - vma->vm_start, app_flag);
+				 vma->vm_end - vma->vm_start, 0);
 }

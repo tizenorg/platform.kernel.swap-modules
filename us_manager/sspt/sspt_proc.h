@@ -40,14 +40,13 @@ struct sspt_proc {
 	struct list_head list;
 	pid_t tgid;
 	struct task_struct *task;
-	struct dentry *dentry;
 	struct slot_manager *sm;
 	struct list_head file_list;
 	unsigned first_install:1;
 };
 
 
-struct sspt_proc *sspt_proc_create(struct dentry* dentry, struct task_struct *task);
+struct sspt_proc *sspt_proc_create(struct task_struct *task);
 struct sspt_proc *sspt_proc_copy(struct sspt_proc *proc, struct task_struct *task);
 void sspt_proc_free(struct sspt_proc *proc);
 
