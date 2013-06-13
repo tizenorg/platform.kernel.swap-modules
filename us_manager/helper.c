@@ -59,7 +59,7 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	task = check_task(task);
 	if (task) {
-		proc = sspt_proc_get_new(task);
+		proc = sspt_proc_create(task);
 		goto install_proc;
 	}
 
@@ -121,7 +121,7 @@ static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 		if (check_task(current)) {
 			struct sspt_proc *proc;
 
-			proc = sspt_proc_get_new(task);
+			proc = sspt_proc_create(task);
 			sspt_proc_install(proc);
 		}
 	}

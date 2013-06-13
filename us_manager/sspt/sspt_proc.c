@@ -102,20 +102,11 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 	return NULL;
 }
 
-struct sspt_proc *sspt_proc_get_new(struct task_struct *task)
-{
-	struct sspt_proc *proc;
-
-	proc = sspt_proc_create(task);
-
-	return proc;
-}
-
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 {
 	struct sspt_proc *proc = sspt_proc_get_by_task(task);
 	if (proc == NULL) {
-		proc = sspt_proc_get_new(task);
+		proc = sspt_proc_create(task);
 	}
 
 	return proc;
