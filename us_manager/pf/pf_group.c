@@ -110,8 +110,7 @@ static struct sspt_proc *get_proc_by_pfg_or_new(struct pf_group *pfg,
 	if (proc == NULL) {
 		struct pl_struct *pls;
 
-		/* or find?! */
-		proc = sspt_proc_create(task);
+		proc = sspt_proc_get_by_task_or_new(task);
 		copy_proc_form_img_to_sspt(pfg->i_proc, proc);
 
 		pls = create_pl_struct(proc);
