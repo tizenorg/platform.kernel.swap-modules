@@ -131,14 +131,11 @@ struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
 {
 	struct sspt_file *file;
 
-	list_for_each_entry(file, &proc->file_list, list) {
-		if (file->dentry == dentry) {
-			return file;
-		}
+	file = sspt_proc_find_file(proc, dentry);
+	if (file == NULL) {
+		file = sspt_file_create(name, dentry, 10);
+		sspt_proc_add_file(proc, file);
 	}
-
-	file = sspt_file_create(name, dentry, 10);
-	sspt_proc_add_file(proc, file);
 
 	return file;
 }
