@@ -104,7 +104,7 @@ int swap_buffer_uninit(void)
 
 	/* Checking whether all buffers are released */
 	if (get_busy_buffers_count())
-		return E_SB_UNRELEASED_BUFFERS;
+		return -E_SB_UNRELEASED_BUFFERS;
 
 	/* Free */
 	buffer_queue_free();
@@ -129,16 +129,16 @@ ssize_t swap_buffer_write(size_t size, void *data)
 
 	/* Check buffer status */
 	if (!(swap_buffer_status & BUFFER_WORK))
-		return E_SB_IS_STOPPED;
+		return -E_SB_IS_STOPPED;
 
 	/* Size sanitization */
 	if ((size > subbuffers_size) || (size == 0))
-		return E_SB_WRONG_DATA_SIZE;
+		return -E_SB_WRONG_DATA_SIZE;
 
 	/* Get next write buffer and occupying semaphore */
 	buffer_to_write = get_from_write_list(size, &ptr_to_write);
 	if (!buffer_to_write)
-		return E_SB_NO_WRITABLE_BUFFERS;
+		return -E_SB_NO_WRITABLE_BUFFERS;
 
 	/* Check for overlapping */
 	if (areas_overlap(ptr_to_write, data, size)) {
@@ -170,7 +170,7 @@ int swap_buffer_get(struct swap_subbuffer **subbuffer)
 	/* Get next read buffer */
 	buffer_to_read = get_from_read_list();
 	if (!buffer_to_read)
-		return E_SB_NO_READABLE_BUFFERS;
+		return -E_SB_NO_READABLE_BUFFERS;
 
 	/* Add to busy list */
 	buffer_to_read->next_in_queue = NULL;
@@ -226,7 +226,7 @@ int swap_buffer_callback(void *buffer)
 	int result;
 
 	if (!subbuffer_callback) {
-		return E_SB_NO_CALLBACK;
+		return -E_SB_NO_CALLBACK;
 	}
 
 	result = subbuffer_callback(buffer);
@@ -240,7 +240,7 @@ int swap_buffer_callback(void *buffer)
 static int __init swap_buffer_module_init(void)
 {
 	printk(KERN_NOTICE "SWAP_BUFFER : Buffer module initialized\n");
-	return 0;
+	return E_SB_SUCCESS;
 }
 
 static void __exit swap_buffer_module_exit(void)
