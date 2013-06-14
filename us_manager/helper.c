@@ -40,10 +40,18 @@ static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct task_struct *task;
-	struct sspt_proc *proc;
+	unsigned long page_addr;
 
-	call_page_fault(((struct pf_data *)ri->data)->addr);
+	task = current->group_leader;
+	if (is_kthread(task))
+		return 0;
+
+	page_addr = ((struct pf_data *)ri->data)->addr & PAGE_MASK;
+	call_page_fault(task, page_addr);
 	return 0;
+
+
+	struct sspt_proc *proc;
 
 	/*
 	 * Because process threads have same address space

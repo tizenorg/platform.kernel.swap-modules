@@ -19,7 +19,7 @@ int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 void install_all(void);
 void uninstall_all(void);
 
-void call_page_fault(unsigned long addr);
+void call_page_fault(struct task_struct *task, unsigned long page_addr);
 void call_mm_release(struct task_struct *task);
 
 void uninstall_page(unsigned long addr);

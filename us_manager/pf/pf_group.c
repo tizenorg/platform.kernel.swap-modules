@@ -205,8 +205,8 @@ int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 	return img_proc_del_ip(pfg->i_proc, dentry, offset);
 }
 
-static void install_page_by_pfg(unsigned long addr, struct task_struct *task,
-				struct pf_group *pfg)
+static void install_page_by_pfg(struct pf_group *pfg, struct task_struct *task,
+				unsigned long page_addr)
 {
 	struct sspt_proc *proc;
 
@@ -216,6 +216,7 @@ static void install_page_by_pfg(unsigned long addr, struct task_struct *task,
 
 	task = check_task_f(pfg->filter, task);
 	if (task) {
+		/* TODO: two call get_proc_by_pfg() */
 		proc = get_proc_by_pfg_or_new(pfg, task);
 		goto install_proc;
 	}
@@ -224,22 +225,17 @@ static void install_page_by_pfg(unsigned long addr, struct task_struct *task,
 
 install_proc:
 	if (proc->first_install)
-		sspt_proc_install_page(proc, addr & PAGE_MASK);
+		sspt_proc_install_page(proc, page_addr);
 	else
 		sspt_proc_install(proc);
 }
 
-void call_page_fault(unsigned long addr)
+void call_page_fault(struct task_struct *task, unsigned long page_addr)
 {
 	struct pf_group *pfg;
-	struct task_struct *task, *ts;
-
-	task = current->group_leader;
-	if (is_kthread(task))
-		return;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
-		install_page_by_pfg(addr, task, pfg);
+		install_page_by_pfg(pfg, task, page_addr);
 	}
 }
 
