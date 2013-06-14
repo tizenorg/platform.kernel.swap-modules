@@ -54,18 +54,14 @@ static void del_pl_struct(struct pl_struct *pls)
 
 void copy_proc_form_img_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc)
 {
-	char *file_name;
 	struct sspt_file *file;
 	struct ip_data ip_d;
-	struct dentry *dentry;
 
 	struct img_file *i_file;
 	struct img_ip *i_ip;
 
 	list_for_each_entry(i_file, &i_proc->file_list, list) {
-		dentry = i_file->dentry;
-		file_name = dentry->d_iname;
-		file = sspt_proc_find_file_or_new(proc, dentry, file_name);
+		file = sspt_proc_find_file_or_new(proc, i_file->dentry);
 
 		list_for_each_entry(i_ip, &i_file->ip_list, list) {
 			ip_d.flag_retprobe = 1;

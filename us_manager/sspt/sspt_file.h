@@ -34,7 +34,6 @@ struct sspt_file {
 	struct list_head list;			// for proc_probes
 	struct sspt_proc *proc;
 	struct dentry *dentry;
-	char *name;
 	int loaded;
 	unsigned long vm_start;
 	unsigned long vm_end;
@@ -44,7 +43,7 @@ struct sspt_file {
 };
 
 
-struct sspt_file *sspt_file_create(char *name, struct dentry *dentry, int page_cnt);
+struct sspt_file *sspt_file_create(struct dentry *dentry, int page_cnt);
 void sspt_file_free(struct sspt_file *file);
 
 struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long page);

@@ -41,7 +41,7 @@ static int calculation_hash_bits(int cnt)
 	return bits;
 }
 
-struct sspt_file *sspt_file_create(char *name, struct dentry *dentry, int page_cnt)
+struct sspt_file *sspt_file_create(struct dentry *dentry, int page_cnt)
 {
 	struct sspt_file *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 
@@ -49,7 +49,6 @@ struct sspt_file *sspt_file_create(char *name, struct dentry *dentry, int page_c
 		int i, table_size;
 		INIT_LIST_HEAD(&obj->list);
 		obj->proc = NULL;
-		obj->name = name;
 		obj->dentry = dentry;
 		obj->loaded = 0;
 		obj->vm_start = 0;
@@ -128,8 +127,8 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long pa
 
 	if (file->vm_start > page || file->vm_end < page) {
 		// TODO: or panic?!
-		printk("ERROR: file_p[vm_start..vm_end] <> page: file_p[vm_start=%lx, vm_end=%lx, path=%s, d_iname=%s] page=%lx\n",
-				file->vm_start, file->vm_end, file->name, file->dentry->d_iname, page);
+		printk("ERROR: file_p[vm_start..vm_end] <> page: file_p[vm_start=%lx, vm_end=%lx, d_iname=%s] page=%lx\n",
+				file->vm_start, file->vm_end, file->dentry->d_iname, page);
 		return NULL;
 	}
 
@@ -236,6 +235,6 @@ void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma)
 	file->vm_end = vma->vm_end;
 
 	ptr_pack_task_event_info(task, DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
-				 task->tgid, file->name, vma->vm_start,
+				 task->tgid, file->dentry->d_iname, vma->vm_start,
 				 vma->vm_end - vma->vm_start, 0);
 }

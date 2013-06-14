@@ -127,13 +127,13 @@ static void sspt_proc_add_file(struct sspt_proc *proc, struct sspt_file *file)
 }
 
 struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
-		struct dentry *dentry, char *name)
+					     struct dentry *dentry)
 {
 	struct sspt_file *file;
 
 	file = sspt_proc_find_file(proc, dentry);
 	if (file == NULL) {
-		file = sspt_file_create(name, dentry, 10);
+		file = sspt_file_create(dentry, 10);
 		sspt_proc_add_file(proc, file);
 	}
 
