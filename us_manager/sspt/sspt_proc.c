@@ -140,13 +140,6 @@ struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
 	return file;
 }
 
-void sspt_proc_add_ip_data(struct sspt_proc *proc, struct dentry* dentry,
-		char *name, struct ip_data *ip_d)
-{
-	struct sspt_file *file = sspt_proc_find_file_or_new(proc, dentry, name);
-	sspt_file_add_ip(file, ip_d);
-}
-
 struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc, struct dentry *dentry)
 {
 	struct sspt_file *file;

@@ -53,8 +53,6 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task);
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task);
 void sspt_proc_free_all(void);
 
-void sspt_proc_add_ip_data(struct sspt_proc *proc, struct dentry* dentry,
-		char *name, struct ip_data *ip_d);
 struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc, struct dentry *dentry);
 struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
 		struct dentry *dentry, char *name);
