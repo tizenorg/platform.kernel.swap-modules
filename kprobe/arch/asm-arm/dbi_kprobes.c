@@ -692,7 +692,7 @@ int arch_prepare_uprobe (struct kprobe *p, struct task_struct *task, int atomic)
 		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_thumb);
 		return -EFAULT;
 	}
-	if ((p->safe_arm == -1) && (p->safe_thumb == -1)) {
+	if ((p->safe_arm == 1) && (p->safe_thumb == 1)) {
 		printk("Error in %s at %d: failed arch_copy_trampoline_*_uprobe() (both) [tgid=%u, addr=%lx, data=%lx]\n",
 				__FILE__, __LINE__, task->tgid, (unsigned long)p->addr, (unsigned long)p->opcode);
 		free_insn_slot(&uprobe_insn_pages, task, p->ainsn.insn_arm);
@@ -759,7 +759,7 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 	kprobe_opcode_t insn[MAX_INSN_SIZE];
 	struct arch_specific_insn ainsn;
 
-	p->safe_arm = -1;
+	p->safe_arm = 1;
 	if ((unsigned long) p->addr & 0x01)
 	{
 		printk("Error in %s at %d: attempt to register kprobe at an unaligned address\n", __FILE__, __LINE__);
@@ -821,7 +821,7 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 	if (pc_dep  && (ARM_INSN_REG_RD (ainsn.insn_arm[0]) == 13))
 	{
 		printk("Error in %s at %d: instruction check failed (arm)\n", __FILE__, __LINE__);
-		p->safe_arm = -1;
+		p->safe_arm = 1;
 		// TODO: move free to later phase
 		//free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_arm, 0);
 		//ret = -EFAULT;
@@ -833,7 +833,7 @@ int arch_copy_trampoline_arm_uprobe (struct kprobe *p, struct task_struct *task,
 		{
 			printk("Error in %s at %d: failed to prepare exec buffer for insn %lx!",
 				__FILE__, __LINE__, insn[0]);
-			p->safe_arm = -1;
+			p->safe_arm = 1;
 			// TODO: move free to later phase
 			//free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_arm, 0);
 			//return -EINVAL;
@@ -879,7 +879,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 	struct arch_specific_insn ainsn;
 	kprobe_opcode_t insns[UPROBES_TRAMP_LEN * 2];
 
-	p->safe_thumb = -1;
+	p->safe_thumb = 1;
 	if ((unsigned long) p->addr & 0x01)
 	{
 		printk("Error in %s at %d: attempt to register kprobe at an unaligned address\n", __FILE__, __LINE__);
@@ -981,7 +981,7 @@ int arch_copy_trampoline_thumb_uprobe (struct kprobe *p, struct task_struct *tas
 		{
 			printk("Error in %s at %d: failed to prepare exec buffer for insn %lx!",
 				__FILE__, __LINE__, insn[0]);
-			p->safe_thumb = -1;
+			p->safe_thumb = 1;
 			//free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_thumb, 0);
 			//return -EINVAL;
 		}
@@ -1083,7 +1083,7 @@ static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct ta
 	struct kprobe *kp;
 
 	if (unlikely(thumb_mode(regs))) {
-		if (p->safe_thumb != -1) {
+		if (p->safe_thumb != 1) {
 			p->ainsn.insn = p->ainsn.insn_thumb;
 			list_for_each_entry_rcu(kp, &p->list, list) {
 				kp->ainsn.insn = p->ainsn.insn_thumb;
@@ -1096,7 +1096,7 @@ static int check_validity_insn(struct kprobe *p, struct pt_regs *regs, struct ta
 			return -1;
 		}
 	} else {
-		if (p->safe_arm != -1) {
+		if (p->safe_arm != 1) {
 			p->ainsn.insn = p->ainsn.insn_arm;
 			list_for_each_entry_rcu(kp, &p->list, list) {
 				kp->ainsn.insn = p->ainsn.insn_arm;

@@ -134,8 +134,8 @@ struct kprobe
 	kprobe_opcode_t					*ss_addr;
 	// safe/unsafe to use probe
 #ifdef CONFIG_ARM
-	int						safe_arm;
-	int						safe_thumb;
+	unsigned					safe_arm:1;
+	unsigned					safe_thumb:1;
 #endif
 };
 
