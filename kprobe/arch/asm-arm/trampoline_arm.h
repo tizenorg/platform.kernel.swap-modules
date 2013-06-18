@@ -1,7 +1,6 @@
 #ifndef __ASM_ARM_TRAMPOLINE_ARM_H
 #define __ASM_ARM_TRAMPOLINE_ARM_H
 
-void kretprobe_trampoline(void);
 void gen_insn_execbuf(void);
 void pc_dep_insn_execbuf(void);
 

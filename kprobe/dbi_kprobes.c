@@ -648,7 +648,10 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	unsigned long trampoline_address = (unsigned long)&kretprobe_trampoline;
 
 	struct kretprobe *crp = NULL;
-	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk();
+	struct kprobe_ctlblk *kcb;
+
+	preempt_disable();
+	kcb = get_kprobe_ctlblk();
 
 	spin_lock_irqsave(&kretprobe_lock, flags);
 
@@ -702,11 +705,6 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 	kretprobe_assert(ri, orig_ret_address, trampoline_address);
 
-#ifdef CONFIG_ARM
-	regs->ARM_lr = orig_ret_address;
-	regs->ARM_pc = orig_ret_address;
-#endif
-
 	if (kcb->kprobe_status == KPROBE_REENTER) {
 		restore_previous_kprobe(kcb);
 	} else {
@@ -714,6 +712,7 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
+	preempt_enable_no_resched();
 
 	/*
 	 * By returning a non-zero value, we are telling
@@ -721,11 +720,7 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	 * to run (and have re-enabled preemption)
 	 */
 
-#if defined (CONFIG_X86)
 	return (int)orig_ret_address;
-#elif defined (CONFIG_ARM)
-	return 1;
-#endif
 }
 
 struct kretprobe *sched_rp;
@@ -843,13 +838,13 @@ void dbi_unregister_kretprobe(struct kretprobe *rp)
 	if ((unsigned long)rp->kp.addr == sched_addr)
 		sched_rp = NULL;
 
-	while ((ri = get_used_rp_inst(rp)) != NULL) {
-		if (dbi_disarm_krp_inst(ri) == 0)
-			recycle_rp_inst(ri);
-		else
-			panic("%s (%d/%d): cannot disarm krp instance (%08lx)",
+	while ((ri = get_used_rp_inst (rp)) != NULL) {
+		if (!dbi_disarm_krp_inst(ri)) {
+			printk("%s (%d/%d): cannot disarm krp instance (%08lx)\n",
 					ri->task->comm, ri->task->tgid, ri->task->pid,
 					(unsigned long)rp->kp.addr);
+		}
+		recycle_rp_inst(ri);
 	}
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);

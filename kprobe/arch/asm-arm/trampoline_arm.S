@@ -4,14 +4,6 @@
  * 	- When the probed function returns, this probe
  * 		causes the handlers to fire
  */
-		.global kretprobe_trampoline
-
-kretprobe_trampoline:
-		nop
-		nop
-		mov pc, r14
-
-
 
 		.global gen_insn_execbuf
 gen_insn_execbuf:

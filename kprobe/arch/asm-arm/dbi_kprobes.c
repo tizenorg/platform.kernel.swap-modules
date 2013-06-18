@@ -56,12 +56,6 @@ extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 static void (*__swap_register_undef_hook)(struct undef_hook *hook);
 static void (*__swap_unregister_undef_hook)(struct undef_hook *hook);
 
-static struct kprobe trampoline_p =
-{
-	.addr = (kprobe_opcode_t *)&kretprobe_trampoline,
-	.pre_handler = trampoline_probe_handler
-};
-
 int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int uregs)
 {
 	int i;
@@ -404,6 +398,19 @@ void arch_disarm_kprobe(struct kprobe *p)
 	flush_icache_range((unsigned long)p->addr, (unsigned long)p->addr + sizeof(kprobe_opcode_t));
 }
 
+void __naked kretprobe_trampoline(void)
+{
+	__asm__ __volatile__ (
+		"stmdb	sp!, {r0 - r11}		\n\t"
+		"mov	r1, sp			\n\t"
+		"mov	r0, #0			\n\t"
+		"bl	trampoline_probe_handler\n\t"
+		"mov	lr, r0			\n\t"
+		"ldmia	sp!, {r0 - r11}		\n\t"
+		"bx	lr			\n\t"
+		: : : "memory");
+}
+
 void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
@@ -436,8 +443,6 @@ static struct undef_hook undef_ho_k = {
 
 int arch_init_kprobes(void)
 {
-	int ret = 0;
-
 	// Register hooks (kprobe_handler)
 	__swap_register_undef_hook = swap_ksyms("register_undef_hook");
 	if (__swap_register_undef_hook == NULL) {
@@ -453,17 +458,12 @@ int arch_init_kprobes(void)
         }
 
 	swap_register_undef_hook(&undef_ho_k);
-	if ((ret = dbi_register_kprobe (&trampoline_p)) != 0) {
-		//dbi_unregister_jprobe(&do_exit_p, 0);
-		return ret;
-	}
 
-	return ret;
+	return 0;
 }
 
 void arch_exit_kprobes(void)
 {
-	dbi_unregister_kprobe(&trampoline_p, NULL);
 	swap_unregister_undef_hook(&undef_ho_k);
 }
 
