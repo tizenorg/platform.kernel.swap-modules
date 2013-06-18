@@ -55,10 +55,16 @@ struct queue {
 };
 
 /* Write queue */
-struct queue write_queue = {NULL, NULL};
+struct queue write_queue = {
+	.start_ptr = NULL,
+	.end_ptr = NULL
+};
 
 /* Read queue */
-struct queue read_queue = {NULL, NULL};
+struct queue read_queue = {
+	.start_ptr = NULL,
+	.end_ptr = NULL
+};
 
 /* Pointers array. Points to busy buffers */
 static struct swap_buffer **queue_busy = NULL;
@@ -315,8 +321,10 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 	struct swap_subbuffer *result = NULL;
 
 	/* Callbacks are called at the end of the function to prevent deadlocks */
-	struct swap_subbuffer *queue_callback_start_ptr = NULL;
-	struct swap_subbuffer *queue_callback_end_ptr = NULL;
+	struct queue callback_queue = {
+		.start_ptr = NULL,
+		.end_ptr = NULL
+	};
 	struct swap_subbuffer *tmp_buffer = NULL;
 
 	/* Init pointer */
@@ -346,29 +354,28 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 
 			/* Lock rw sync. Should be unlocked in swap_buffer_write() */
 			sync_lock(&result->buffer_sync);
-
 			break;
 		/* This subbuffer is not enough => it goes to read list */
 		} else {
 
 			result = write_queue.start_ptr;
+
 			/* If we reached end of the list */
 			if (write_queue.start_ptr == write_queue.end_ptr) {
 				write_queue.end_ptr = NULL;
 			}
+
 			/* Move start write pointer */
 			write_queue.start_ptr = write_queue.start_ptr->next_in_queue;
 
 			/* Add to callback list */
-			if (!queue_callback_start_ptr)
-				queue_callback_start_ptr = result;
+			if (!callback_queue.start_ptr)
+				callback_queue.start_ptr = result;
 
-			if (queue_callback_end_ptr)
-				queue_callback_end_ptr->next_in_queue = result;
-
-			queue_callback_end_ptr = result;
-			queue_callback_end_ptr->next_in_queue = NULL;
-
+			if (callback_queue.end_ptr)
+				callback_queue.end_ptr->next_in_queue = result;
+			callback_queue.end_ptr = result;
+			callback_queue.end_ptr->next_in_queue = NULL;
 			result = NULL;
 		}
 	}
@@ -378,13 +385,12 @@ get_from_write_list_unlock:
 	sync_unlock(&write_queue.queue_sync);
 
 	/* Adding buffers to read list and calling callbacks */
-	for (tmp_buffer = NULL; queue_callback_start_ptr; ) {
+	for (tmp_buffer = NULL; callback_queue.start_ptr; ) {
+		if (callback_queue.start_ptr == callback_queue.end_ptr)
+			callback_queue.end_ptr = NULL;
 
-		if (queue_callback_start_ptr == queue_callback_end_ptr)
-			queue_callback_end_ptr = NULL;
-
-		tmp_buffer = queue_callback_start_ptr;
-		queue_callback_start_ptr = queue_callback_start_ptr->next_in_queue;
+		tmp_buffer = callback_queue.start_ptr;
+		callback_queue.start_ptr = callback_queue.start_ptr->next_in_queue;
 
 		add_to_read_list_with_callback(tmp_buffer);
 	}
