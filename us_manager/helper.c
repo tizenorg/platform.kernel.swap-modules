@@ -48,39 +48,6 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	page_addr = ((struct pf_data *)ri->data)->addr & PAGE_MASK;
 	call_page_fault(task, page_addr);
-	return 0;
-
-
-	struct sspt_proc *proc;
-
-	/*
-	 * Because process threads have same address space
-	 * we instrument only group_leader of all this threads
-	 */
-	task = current->group_leader;
-	if (is_kthread(task))
-		return 0;
-
-	proc = sspt_proc_get_by_task(task);
-	if (proc)
-		goto install_proc;
-
-	task = check_task(task);
-	if (task) {
-		proc = sspt_proc_create(task);
-		goto install_proc;
-	}
-
-	return 0;
-
-install_proc:
-	if (proc->first_install) {
-		unsigned long page;
-		page = ((struct pf_data *)ri->data)->addr & PAGE_MASK;
-		sspt_proc_install_page(proc, page);
-	} else {
-		sspt_proc_install(proc);
-	}
 
 	return 0;
 }
@@ -168,18 +135,6 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 
 	call_mm_release(task);
-	return 0;
-
-	proc = sspt_proc_get_by_task(task);
-	if (proc) {
-		int ret = sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
-		if (ret != 0) {
-			printk("failed to uninstall IPs (%d)!\n", ret);
-		}
-
-		dbi_unregister_all_uprobes(task);
-	}
-
 out:
 	return 0;
 }
@@ -201,6 +156,7 @@ static int remove_unmap_probes(struct task_struct *task, struct sspt_proc *proc,
 	struct mm_struct *mm = task->mm;
 	struct vm_area_struct *vma;
 
+	/* FIXME: not implemented */
 	return 0;
 
 	if ((start & ~PAGE_MASK) || start > TASK_SIZE || len > TASK_SIZE - start) {
