@@ -118,20 +118,17 @@ static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct task_struct *task = (struct task_struct *)regs_return_value(regs);
 
-	return 0;
-
 	if(!task || IS_ERR(task))
 		goto out;
 
 	if(task->mm != current->mm) {	/* check flags CLONE_VM */
 		rm_uprobes_child(task);
 
-		if (check_task(current)) {
-			struct sspt_proc *proc;
-
-			proc = sspt_proc_create(task);
-			sspt_proc_install(proc);
-		}
+		/*
+		 * Ignoring page_addr, because it is
+		 * first calling call_page_fault()
+		 */
+		call_page_fault(task, 0xbadc0de);
 	}
 out:
 	return 0;

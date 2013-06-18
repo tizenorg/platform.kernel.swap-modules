@@ -235,6 +235,7 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	struct pf_group *pfg;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
+		/* FIXME: install page more then once */
 		install_page_by_pfg(pfg, task, page_addr);
 	}
 }
