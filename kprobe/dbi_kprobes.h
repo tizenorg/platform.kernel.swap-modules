@@ -193,6 +193,13 @@ struct kretprobe
 	size_t data_size;
 	struct hlist_head free_instances;
 	struct hlist_head used_instances;
+
+#ifdef CONFIG_ARM
+	// probe with noreturn (bl,blx)
+	unsigned					arm_noret:1;
+	unsigned					thumb_noret:1;
+#endif
+
 };
 
 struct kretprobe_instance

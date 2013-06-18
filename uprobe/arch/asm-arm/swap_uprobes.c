@@ -674,15 +674,18 @@ int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list)
 	return ret;
 }
 
-int arch_opcode_analysis_uretprobe(kprobe_opcode_t opcode)
+void arch_opcode_analysis_uretprobe(struct uretprobe *rp)
 {
-	if (THUMB_INSN_MATCH(BLX2, opcode) ||
-	    THUMB2_INSN_MATCH(BL, opcode) ||
-	    THUMB2_INSN_MATCH(BLX1, opcode)) {
-		return -EINVAL;
-	}
+	kprobe_opcode_t opcode = rp->up.kp.opcode;
 
-	return 0;
+	/* Remove retprobe if first insn overwrites lr */
+	rp->thumb_noret = !!(THUMB2_INSN_MATCH(BL, opcode) ||
+			     THUMB2_INSN_MATCH(BLX1, opcode) ||
+			     THUMB_INSN_MATCH(BLX2, opcode));
+
+	rp->arm_noret = !!(ARM_INSN_MATCH(BL, opcode) ||
+			   ARM_INSN_MATCH(BLX1, opcode) ||
+			   ARM_INSN_MATCH(BLX2, opcode));
 }
 
 void arch_prepare_uretprobe(struct uretprobe_instance *ri,

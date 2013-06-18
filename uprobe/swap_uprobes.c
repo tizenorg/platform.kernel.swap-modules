@@ -732,8 +732,12 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 {
 	struct uprobe *up = container_of(p, struct uprobe, kp);
 	struct uretprobe *rp = container_of(up, struct uretprobe, up);
+	int noret = thumb_mode(regs) ? rp->thumb_noret : rp->arm_noret;
 	struct uretprobe_instance *ri;
 	unsigned long flags;
+
+	if (noret)
+		return 0;
 
 	/* TODO: consider to only swap the RA after the last pre_handler fired */
 	spin_lock_irqsave(&uretprobe_lock, flags);
@@ -762,19 +766,10 @@ int dbi_register_uretprobe(struct uretprobe *rp)
 
 	DBPRINTF ("START\n");
 
-	rp->up.kp.pre_handler = NULL;
+	rp->up.kp.pre_handler = pre_handler_uretprobe;
 	rp->up.kp.post_handler = NULL;
 	rp->up.kp.fault_handler = NULL;
 	rp->up.kp.break_handler = NULL;
-
-	/* Establish function entry probe point */
-	ret = dbi_register_uprobe(&rp->up);
-	if (ret)
-		return ret;
-
-	ret = arch_opcode_analysis_uretprobe(rp->up.kp.opcode);
-	if (ret)
-		goto unregister;
 
 	/* Pre-allocate memory for max kretprobe instances */
 	if (rp->maxactive <= 0) {
@@ -792,8 +787,7 @@ int dbi_register_uretprobe(struct uretprobe *rp)
 		inst = kmalloc(sizeof(*inst), GFP_KERNEL);
 		if (inst == NULL) {
 			free_urp_inst(rp);
-			ret = -ENOMEM;
-			goto unregister;
+			return -ENOMEM;
 		}
 
 		INIT_HLIST_NODE(&inst->uflist);
@@ -801,13 +795,15 @@ int dbi_register_uretprobe(struct uretprobe *rp)
 	}
 
 	rp->nmissed = 0;
-	rp->up.kp.pre_handler = pre_handler_uretprobe;
+
+	/* Establish function entry probe point */
+	ret = dbi_register_uprobe(&rp->up);
+	if (ret)
+		return ret;
+
+	arch_opcode_analysis_uretprobe(rp->up.kp.opcode);
 
 	return 0;
-
-unregister:
-	dbi_unregister_uprobe(&rp->up);
-	return ret;
 }
 
 int dbi_disarm_urp_inst(struct uretprobe_instance *ri, struct task_struct *rm_task)
