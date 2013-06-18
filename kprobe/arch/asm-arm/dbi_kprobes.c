@@ -707,9 +707,17 @@ int arch_prepare_uretprobe (struct kretprobe *p, struct task_struct *task)
 	/* Remove retprobe if first insn overwrites lr */
 	if (THUMB_INSN_MATCH(BLX2, p->kp.opcode) ||
 	    THUMB2_INSN_MATCH(BL, p->kp.opcode) ||
-	    THUMB2_INSN_MATCH(BLX1, p->kp.opcode)){
-		p->kp.pre_handler = NULL;
-	}
+	    THUMB2_INSN_MATCH(BLX1, p->kp.opcode))
+		p->thumb_noret = 0;
+	else
+		p->thumb_noret = 1;
+
+	if (ARM_INSN_MATCH(BLX1, p->kp.opcode) ||
+	    ARM_INSN_MATCH(BLX2, p->kp.opcode) ||
+	    ARM_INSN_MATCH(BL, p->kp.opcode))
+		p->arm_noret = 0;
+	else
+		p->arm_noret = 1;
 
 	return 0;
 }

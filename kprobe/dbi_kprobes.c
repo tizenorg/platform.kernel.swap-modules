@@ -633,6 +633,14 @@ int pre_handler_kretprobe (struct kprobe *p, struct pt_regs *regs)
 	unsigned long flags = 0;
 	DBPRINTF ("START\n");
 
+	if (p && p->tgid) { 	/* Userspace */
+		if (unlikely(thumb_mode(regs))) {
+			if (!rp->thumb_noret)
+				return 0;
+		} else if (!rp->arm_noret)
+			return 0;
+	}
+
 	/*TODO: consider to only swap the RA after the last pre_handler fired */
 	spin_lock_irqsave (&kretprobe_lock, flags);
 	if (!rp->disarm)
