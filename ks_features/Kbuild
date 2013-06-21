@@ -1,0 +1,4 @@
+EXTRA_CFLAGS := $(extra_cflags)
+
+obj-m := swap_ks_features.o
+swap_ks_features-y := ks_features.o
