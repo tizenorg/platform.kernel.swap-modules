@@ -10,8 +10,8 @@ enum feature_id {
 	FID_DESC
 };
 
-int set_features(enum feature_id id);
-int unset_features(enum feature_id id);
+int set_feature(enum feature_id id);
+int unset_feature(enum feature_id id);
 
 /* debug */
 void print_features(void);

@@ -5,8 +5,9 @@ module_dir = $(realpath $(top_srcdir)/src/modules/ks_features)
 module_name = swap_ks_features
 cross_compiler = $(subst gcc,,$(CC))
 
-#inlude_opt = -I$(realpath $(top_srcdir)/src/modules/kprobe) \
-#             -I$(realpath $(top_srcdir)/src/modules/kprobe/arch)
+inlude_opt = -I$(realpath $(top_srcdir)/src/modules/kprobe) \
+             -I$(realpath $(top_srcdir)/src/modules/kprobe/arch) \
+             -I$(realpath $(top_srcdir)/src/modules/ksyms)
 extra_cflags = "$(inlude_opt) $(board_opt)"
 
 all-local:

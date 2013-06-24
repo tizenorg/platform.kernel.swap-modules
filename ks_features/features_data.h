@@ -1,18 +1,7 @@
 #ifndef _FEATURES_DATA_H
 #define _FEATURES_DATA_H
 
-#include <linux/types.h>
 #include "syscall_list.h"
-
-#define X(x) #x
-static const char *const syscall_name[] = {
-	SYSCALL_LIST
-};
-#undef X
-
-enum {
-	syscall_name_cnt = sizeof(syscall_name) / sizeof(char *)
-};
 
 #define X(x) id_##x
 enum syscall_id {
@@ -20,17 +9,19 @@ enum syscall_id {
 };
 #undef X
 
-static char sys_counter[syscall_name_cnt] = { 0 };
-
 static enum syscall_id id_file[] = {
 	id_sys_acct,
 	id_sys_mount,
 	id_sys_umount,
 	id_sys_truncate,
-	id_sys_stat,
+/* TODO:
+ *	id_sys_stat,
+ */
 	id_sys_statfs,
 	id_sys_statfs64,
-	id_sys_lstat,
+/* TODO:
+ *	id_sys_lstat,
+ */
 	id_sys_stat64,
 	id_sys_fstat64,
 	id_sys_lstat64,
@@ -77,7 +68,9 @@ static enum syscall_id id_file[] = {
 	id_sys_fchmodat,
 	id_sys_fchownat,
 	id_sys_openat,
-	id_sys_newfstatat,
+/* TODO:
+ *	id_sys_newfstatat,
+ */
 	id_sys_readlinkat,
 	id_sys_utimensat,
 	id_sys_fanotify_mark,
@@ -133,7 +126,9 @@ static enum syscall_id id_process[] = {
 	id_sys_exit_group,
 	id_sys_wait4,
 	id_sys_waitid,
-	id_sys_waitpid,
+/* TODO:
+ *	id_sys_waitpid,
+ */
 	id_sys_rt_tgsigqueueinfo,
 	id_sys_unshare,
 	id_sys_fork,
@@ -148,7 +143,9 @@ static enum syscall_id id_process[] = {
 static enum syscall_id id_signal[] = {
 	id_sys_sigpending,
 	id_sys_sigprocmask,
-	id_sys_sigaltstack,
+/* TODO:
+ *	id_sys_sigaltstack,
+ */
 /* TODO: add support CONFIG_OLD_SIGSUSPEND and CONFIG_OLD_SIGSUSPEND3
  *	id_sys_sigsuspend,
  *	id_sys_sigsuspend,
@@ -161,7 +158,9 @@ static enum syscall_id id_signal[] = {
 	id_sys_rt_tgsigqueueinfo,
 	id_sys_kill,
 	id_sys_tgkill,
-	id_sys_signal,
+/* TODO:
+ *	id_sys_signal,
+ */
 	id_sys_pause,
 	id_sys_signalfd,
 	id_sys_signalfd4
@@ -197,7 +196,9 @@ static enum syscall_id id_desc[] = {
 	id_sys_fchmodat,
 	id_sys_fchownat,
 	id_sys_openat,
-	id_sys_newfstatat,
+/* TODO:
+ *	id_sys_newfstatat,
+ */
 	id_sys_readlinkat,
 	id_sys_utimensat,
 	id_sys_splice,
@@ -220,32 +221,6 @@ static enum syscall_id id_desc[] = {
 	id_sys_old_mmap,
 	id_sys_name_to_handle_at,
 	id_sys_setns
-};
-
-struct feature {
-	size_t cnt;
-	enum syscall_id *feature_list;
-};
-
-#define CREATE_FEATURE(x) 				\
-{ 							\
-	.cnt = sizeof(x) / sizeof(enum syscall_id),	\
-	.feature_list = x				\
-}
-
-static struct feature features[] = {
-	CREATE_FEATURE(id_file),
-	CREATE_FEATURE(id_irq),
-	CREATE_FEATURE(id_net),
-	CREATE_FEATURE(id_process),
-	CREATE_FEATURE(id_signal),
-	CREATE_FEATURE(id_desc)
-};
-
-#undef CREATE_FEATURE
-
-enum {
-	feature_cnt = sizeof(features) / sizeof(struct feature)
 };
 
 #endif /* _FEATURES_DATA_H */

@@ -55,7 +55,7 @@
 	X(sys_listen), \
 	X(sys_listxattr), \
 	X(sys_lstat64), \
-	X(sys_lstat), \
+/* TODO: X(sys_lstat), */ \
 	X(sys_mkdirat), \
 	X(sys_mkdir), \
 	X(sys_mknodat), \
@@ -67,7 +67,7 @@
 	X(sys_msgrcv), \
 	X(sys_msgsnd), \
 	X(sys_name_to_handle_at), \
-	X(sys_newfstatat), \
+/* TODO: X(sys_newfstatat), */ \
 	X(sys_old_mmap), \
 	X(sys_openat), \
 	X(sys_open_by_handle_at), \
@@ -114,10 +114,10 @@
 	X(sys_shmget), \
 	X(sys_shutdown), \
 	X(sys_sigaction), \
-	X(sys_sigaltstack), \
+/* TODO: X(sys_sigaltstack), */ \
 	X(sys_signalfd4), \
 	X(sys_signalfd), \
-	X(sys_signal), \
+/* TODO: X(sys_signal), */ \
 	X(sys_sigpending), \
 	X(sys_sigprocmask), \
 	X(sys_sigsuspend), \
@@ -128,7 +128,7 @@
 	X(sys_stat64), \
 	X(sys_statfs64), \
 	X(sys_statfs), \
-	X(sys_stat), \
+/* TODO: X(sys_stat), */ \
 	X(sys_swapoff), \
 	X(sys_swapon), \
 	X(sys_symlinkat), \
@@ -152,7 +152,7 @@
 	X(sys_vfork), \
 	X(sys_vmsplice), \
 	X(sys_wait4), \
-	X(sys_waitid), \
-	X(sys_waitpid)
+	X(sys_waitid)
+/* TODO: X(sys_waitpid) */
 
 #endif /* _SYSCALL_LIST_H */
