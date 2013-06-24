@@ -1,7 +1,9 @@
-#ifndef _FEATURES_DATA_H
-#define _FEATURES_DATA_H
-
 #include "syscall_list.h"
+
+struct feature {
+	size_t cnt;
+	enum syscall_id *feature_list;
+};
 
 #define X(x) id_##x
 enum syscall_id {
@@ -223,4 +225,21 @@ static enum syscall_id id_desc[] = {
 	id_sys_setns
 };
 
-#endif /* _FEATURES_DATA_H */
+#define CREATE_FEATURE(x)	 				\
+{ 								\
+	.cnt = sizeof(x) / sizeof(enum syscall_id),		\
+	.feature_list = x					\
+}
+
+static struct feature features[] = {
+	CREATE_FEATURE(id_file),
+	CREATE_FEATURE(id_irq),
+	CREATE_FEATURE(id_net),
+	CREATE_FEATURE(id_process),
+	CREATE_FEATURE(id_signal),
+	CREATE_FEATURE(id_desc)
+};
+
+enum {
+	feature_cnt = sizeof(features) / sizeof(struct feature)
+};

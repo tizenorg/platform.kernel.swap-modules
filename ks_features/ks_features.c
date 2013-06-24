@@ -3,21 +3,15 @@
 #include <ksyms.h>
 #include <dbi_kprobes.h>
 #include "ks_features.h"
-#include "features_data.h"
 #include "syscall_list.h"
+#include "features_data.c"
 
-
-struct feature {
-	size_t cnt;
-	enum syscall_id *feature_list;
-};
 
 struct ks_probe {
 	struct jprobe jp;
 	struct kretprobe rp;
 	int counter;
 };
-
 
 #define CREATE_JP(name)						\
 {								\
@@ -30,13 +24,6 @@ struct ks_probe {
 	.entry_handler = NULL,					\
 	.handler = NULL						\
 }
-
-#define CREATE_FEATURE(x)	 				\
-{ 								\
-	.cnt = sizeof(x) / sizeof(enum syscall_id),		\
-	.feature_list = x					\
-}
-
 
 #define X(x) #x
 static const char *const syscall_name[] = {
@@ -60,20 +47,6 @@ static struct ks_probe ksp[] = {
 	SYSCALL_LIST
 };
 #undef X
-
-
-static struct feature features[] = {
-	CREATE_FEATURE(id_file),
-	CREATE_FEATURE(id_irq),
-	CREATE_FEATURE(id_net),
-	CREATE_FEATURE(id_process),
-	CREATE_FEATURE(id_signal),
-	CREATE_FEATURE(id_desc)
-};
-
-enum {
-	feature_cnt = sizeof(features) / sizeof(struct feature)
-};
 
 
 static char *get_sys_name(size_t id)
