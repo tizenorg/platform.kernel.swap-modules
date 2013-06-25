@@ -51,23 +51,29 @@
 struct queue {
 	struct swap_subbuffer *start_ptr;
 	struct swap_subbuffer *end_ptr;
-	sync_t queue_sync;
+	struct sync_t queue_sync;
 };
 
 /* Write queue */
 struct queue write_queue = {
 	.start_ptr = NULL,
-	.end_ptr = NULL
+	.end_ptr = NULL,
+	.queue_sync = {
+		.flags = 0x0
+	}
 };
 
 /* Read queue */
 struct queue read_queue = {
 	.start_ptr = NULL,
-	.end_ptr = NULL
+	.end_ptr = NULL,
+	.queue_sync = {
+		.flags = 0x0
+	}
 };
 
 /* Pointers array. Points to busy buffers */
-static struct swap_buffer **queue_busy = NULL;
+static struct swap_subbuffer **queue_busy = NULL;
 
 /* Store last busy element */
 static unsigned int queue_busy_last_element;
@@ -79,7 +85,9 @@ static unsigned int queue_subbuffer_count = 0;
 static size_t queue_subbuffer_size = 0;
 
 /* Busy list sync */
-static sync_t buffer_busy_sync;
+static struct sync_t buffer_busy_sync = {
+	.flags = 0x0
+};
 
 /* Memory pages count in one subbuffer */
 static int pages_order_in_subbuffer = 0;
@@ -323,7 +331,10 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 	/* Callbacks are called at the end of the function to prevent deadlocks */
 	struct queue callback_queue = {
 		.start_ptr = NULL,
-		.end_ptr = NULL
+		.end_ptr = NULL,
+		.queue_sync = {
+			.flags = 0x0
+		}
 	};
 	struct swap_subbuffer *tmp_buffer = NULL;
 
@@ -357,7 +368,6 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 			break;
 		/* This subbuffer is not enough => it goes to read list */
 		} else {
-
 			result = write_queue.start_ptr;
 
 			/* If we reached end of the list */
