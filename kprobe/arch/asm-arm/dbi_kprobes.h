@@ -162,8 +162,8 @@ static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
 # define PTRN_ARM_INSN_AUNDEF           0x07F000F0
 
 // branches
-# define MASK_ARM_INSN_B		0x0E000000		// xxxx111xxxxxxxxxxxxxxxxxxxxxxxxx
-# define PTRN_ARM_INSN_B		0x0A000000		// cccc101xxxxxxxxxxxxxxxxxxxxxxxxx
+# define MASK_ARM_INSN_B		0x0F000000		// xxxx1111xxxxxxxxxxxxxxxxxxxxxxxx
+# define PTRN_ARM_INSN_B		0x0A000000		// cccc1010xxxxxxxxxxxxxxxxxxxxxxxx
 
 # define MASK_THUMB_INSN_B1		0xF000			// 1111xxxxxxxxxxxx
 # define PTRN_THUMB_INSN_B1		0xD000			// 1101xxxxxxxxxxxx						// b<cond> label
@@ -180,7 +180,7 @@ static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
 # define MASK_THUMB2_INSN_B2		0xD000F800		// 11x1xxxxxxxxxxxx 11111xxxxxxxxxxx				// swapped
 # define PTRN_THUMB2_INSN_B2		0x9000F000		// 10x1xxxxxxxxxxxx 11110xxxxxxxxxxx				// swapped
 
-# define MASK_ARM_INSN_BL		0x0E000000		// xxxx111xxxxxxxxxxxxxxxxxxxxxxxxx
+# define MASK_ARM_INSN_BL		0x0F000000		// xxxx1111xxxxxxxxxxxxxxxxxxxxxxxx
 # define PTRN_ARM_INSN_BL		0x0B000000		// cccc1011xxxxxxxxxxxxxxxxxxxxxxxx
 
 //# define MASK_THUMB_INSN_BL		0xF800			// 11111xxxxxxxxxxx
@@ -190,8 +190,8 @@ static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
 # define MASK_THUMB2_INSN_BL		0xD000F800		// 11x1xxxxxxxxxxxx 11111xxxxxxxxxxx				// swapped
 # define PTRN_THUMB2_INSN_BL		0xD000F000		// 11x1xxxxxxxxxxxx 11110xxxxxxxxxxx				// bl imm  swapped
 
-# define MASK_ARM_INSN_BLX1		0xFF000000		// 11111111xxxxxxxxxxxxxxxxxxxxxxxx
-# define PTRN_ARM_INSN_BLX1		0xFA000000		// 11111011xxxxxxxxxxxxxxxxxxxxxxxx
+# define MASK_ARM_INSN_BLX1		0xFE000000		// 1111111axxxxxxxxxxxxxxxxxxxxxxxx
+# define PTRN_ARM_INSN_BLX1		0xFA000000		// 1111101axxxxxxxxxxxxxxxxxxxxxxxx
 
 //# define MASK_THUMB_INSN_BLX1		0xF800			// 11111xxxxxxxxxxx						/ blx imm
 //# define PTRN_THUMB_INSN_BLX1		0xF000			// 11101xxxxxxxxxxx
