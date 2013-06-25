@@ -252,16 +252,16 @@ int dbi_register_uretprobe(struct task_struct *task, struct kretprobe *rp, int a
 
 	rp->nmissed = 0;
 
-	/* Establish function exit probe point */
-	ret = arch_prepare_uretprobe(rp, task);
-	if (ret) {
-		goto out;
-	}
-
 	/* Establish function entry probe point */
 	ret = __register_uprobe(&rp->kp, task, atomic);
 	if (ret) {
 		free_rp_inst(rp);
+		goto out;
+	}
+
+	/* Establish function exit probe point */
+	ret = arch_prepare_uretprobe(rp, task);
+	if (ret) {
 		goto out;
 	}
 
