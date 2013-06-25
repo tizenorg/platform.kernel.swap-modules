@@ -1075,6 +1075,9 @@ int link_bundle(void)
 	return 0;
 }
 
+void pack_task_event_info(struct task_struct *task, probe_id_t probe_id,
+			  record_type_t record_type, const char *fmt, ...);
+
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++//
 int storage_init (void)
 {

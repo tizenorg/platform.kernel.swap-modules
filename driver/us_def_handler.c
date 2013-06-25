@@ -33,7 +33,7 @@ void ujprobe_event_handler(unsigned long arg0, unsigned long arg1,
 	addr = ip->offset & 0x01 ? addr | 0x01 : addr;
 #endif
 
-	ptr_pack_task_event_info(current, US_PROBE_ID, RECORD_ENTRY, "ppppppp", addr, arg0, arg1,
+	pack_event_info(US_PROBE_ID, RECORD_ENTRY, "ppppppp", addr, arg0, arg1,
 			arg2, arg3, arg4, arg5);
 	swap_ujprobe_return();
 }
@@ -65,11 +65,11 @@ static void send_plt(struct us_ip *ip)
 		}
 
 		if (name)
-			ptr_pack_task_event_info(current, PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp",
+			pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp",
 					addr, real_addr, name,
 					real_addr - vma->vm_start);
 		else
-			ptr_pack_task_event_info(current, PLT_ADDR_PROBE_ID, RECORD_RET, "ppp",
+			pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppp",
 					addr, real_addr,
 					real_addr - vma->vm_start);
 	}
@@ -91,7 +91,7 @@ int uretprobe_event_handler(struct uretprobe_instance *probe,
 	addr = ip->offset & 0x01 ? addr | 0x01 : addr;
 #endif
 
-	ptr_pack_task_event_info(current, US_PROBE_ID, RECORD_RET, "pd", addr, retval);
+	pack_event_info(US_PROBE_ID, RECORD_RET, "pd", addr, retval);
 
 	return 0;
 }

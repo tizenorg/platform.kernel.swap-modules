@@ -121,10 +121,8 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	ret = dbi_register_ujprobe(&ip->jprobe);
 	if (ret) {
 		if (ret == -ENOEXEC) {
-			ptr_pack_task_event_info(current, ERR_MSG_ID,
-						 RECORD_ENTRY, "dp",
-						 0x1,
-						 ip->jprobe.up.kp.addr);
+			pack_event_info(ERR_MSG_ID, RECORD_ENTRY, "dp",
+					0x1, ip->jprobe.up.kp.addr);
 		}
 		printk("dbi_register_ujprobe() failure %d\n", ret);
 		return ret;

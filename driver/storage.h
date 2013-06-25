@@ -57,10 +57,15 @@ extern void storage_down (void);
     Function "pack_event_info()" saves information about event into buffer. It
     is used in 'probes' to pack and save event data.
 */
-extern void pack_task_event_info (struct task_struct *task, probe_id_t probe_id,
-		record_type_t record_type, const char *fmt, ...);
+
+extern void (*ptr_pack_task_event_info)(struct task_struct *task,
+					int probe_id,
+					int record_type,
+					const char *fmt, ...);
+
 #define pack_event_info(probe_id, record_type, fmt, ...) \
-	pack_task_event_info(current, probe_id, record_type, fmt, __VA_ARGS__)
+	ptr_pack_task_event_info(current, probe_id, record_type, \
+				 fmt, __VA_ARGS__)
 
 /* Set most links from us_proc_info to data in the bundle */
 int link_bundle(void);
