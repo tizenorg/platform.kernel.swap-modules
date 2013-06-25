@@ -37,30 +37,46 @@
 #include <linux/mm.h>
 
 
+
+/* MESSAGES */
+#define print_debug(msg, args...) \
+	printk(KERN_DEBUG "SWAP_BUFFER DEBUG : " msg, ##args)
+#define print_msg(msg, args...)   \
+	printk(KERN_INFO "SWAP_BUFFER : " msg, ##args)
+#define print_warn(msg, args...)  \
+	printk(KERN_WARNING "SWAP_BUFFER WARNING : " msg, ##args)
+#define print_err(msg, args...)   \
+	printk(KERN_ERR "SWAP_BUFFER ERROR : " msg, ##args)
+#define print_crit(msg, args...)  \
+	printk(KERN_CRIT "SWAP_BUFFER CRITICAL : " msg, ##args)
+
+
+
+
 /* LOCKS */
 
 /* Using spinlocks as sync primitives */
-typedef spinlock_t sync_t;
-
-/* Spinlock flags */
-static unsigned long flags;
+struct sync_t {
+	spinlock_t spinlock;
+	unsigned long flags;
+};
 
 /* Spinlocks initialization */
-static inline void sync_init(sync_t *buffer_sync)
+static inline void sync_init(struct sync_t *buffer_sync)
 {
-	spin_lock_init(buffer_sync);
+	spin_lock_init(&buffer_sync->spinlock);
 }
 
 /* Lock spinlock */
-static inline void sync_lock(sync_t *buffer_sync)
+static inline void sync_lock(struct sync_t *buffer_sync)
 {
-	spin_lock_irqsave(buffer_sync, flags);
+	spin_lock_irqsave(&buffer_sync->spinlock, buffer_sync->flags);
 }
 
 /* Unlock spinlock */
-static inline void sync_unlock(sync_t *buffer_sync)
+static inline void sync_unlock(struct sync_t *buffer_sync)
 {
-	spin_unlock_irqrestore(buffer_sync, flags);
+	spin_unlock_irqrestore(&buffer_sync->spinlock, buffer_sync->flags);
 }
 
 
@@ -119,18 +135,5 @@ static inline unsigned int get_order_for_alloc_pages(size_t memory_size)
 
 	return nearest_power_of_two(aligned_size / PAGE_SIZE);
 }
-
-
-/* MESSAGES */
-#define print_debug(msg, args...) \
-	printk(KERN_DEBUG "SWAP_BUFFER DEBUG : " msg, ##args)
-#define print_msg(msg, args...)   \
-	printk(KERN_INFO "SWAP_BUFFER : " msg, ##args)
-#define print_warn(msg, args...)  \
-	printk(KERN_WARNING "SWAP_BUFFER WARNING : " msg, ##args)
-#define print_err(msg, args...)   \
-	printk(KERN_ERR "SWAP_BUFFER ERROR : " msg, ##args)
-#define print_crit(msg, args...)  \
-	printk(KERN_CRIT "SWAP_BUFFER CRITICAL : " msg, ##args)
 
 #endif /* __KERNEL_OPERATIONS_H__ */

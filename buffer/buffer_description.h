@@ -37,7 +37,7 @@ struct swap_subbuffer {
 	/* Pointer to data buffer */
 	swap_subbuffer_ptr data_buffer;
 	/* Buffer rw sync */
-	sync_t buffer_sync;
+	struct sync_t buffer_sync;
 };
 
 #endif /* __BUFFER_DESCRIPTION_H__ */
