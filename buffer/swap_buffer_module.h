@@ -44,7 +44,8 @@ int swap_buffer_uninit(void);
  * On success returns number of bytes written (>=0) or error code (<0) otherwise */
 ssize_t swap_buffer_write(size_t size, void* data);
 
-/* SWAP Buffer get. Put subbuffer pointer to the variable *subbuffer. */
+/* SWAP Buffer get. Put subbuffer pointer to the variable *subbuffer. 
+ * Return pages count in subbuffer. */
 int swap_buffer_get(struct swap_subbuffer **subbuffer);
 
 /* SWAP Buffer release. All 'get' buffers must be released with this function.

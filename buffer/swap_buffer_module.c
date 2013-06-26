@@ -142,7 +142,7 @@ ssize_t swap_buffer_write(size_t size, void *data)
 
 	/* Check for overlapping */
 	if (areas_overlap(ptr_to_write, data, size)) {
-		result = E_SB_OVERLAP;
+		result = -E_SB_OVERLAP;
 		goto buf_write_sem_post;
 	}
 
