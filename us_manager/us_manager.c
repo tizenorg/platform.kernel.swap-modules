@@ -5,6 +5,8 @@
 #include <helper.h>
 #include "pf/proc_filters.h"
 
+#include "../driver/msg/swap_msg.h"
+
 struct proc_filter *pf;
 
 void (*ptr_pack_task_event_info)(struct task_struct *task,
@@ -159,6 +161,8 @@ static int __init init_us_manager(void)
 {
 	int ret;
 
+	init_msg(32*1024);
+
 	ret = init_helper();
 	if (ret)
 		return ret;
@@ -168,6 +172,7 @@ static int __init init_us_manager(void)
 
 static void __exit exit_us_manager(void)
 {
+	uninit_msg();
 	uninit_helper();
 }
 
