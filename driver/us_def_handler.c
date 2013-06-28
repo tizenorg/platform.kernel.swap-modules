@@ -18,6 +18,7 @@ unsigned long ujprobe_event_pre_handler(struct us_ip *ip, struct pt_regs *regs)
 {
 	__get_cpu_var(gpCurIp) = ip;
 	__get_cpu_var(gpUserRegs) = regs;
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(ujprobe_event_pre_handler);
@@ -33,7 +34,7 @@ void ujprobe_event_handler(unsigned long arg0, unsigned long arg1,
 	addr = ip->offset & 0x01 ? addr | 0x01 : addr;
 #endif
 
-	pack_event_info(US_PROBE_ID, RECORD_ENTRY, "ppppppp", addr, arg0, arg1,
+	pack_event_info(US_PROBE_ID, RECORD_ENTRY, "pspppppp", addr, ip->jprobe.args, arg0, arg1,
 			arg2, arg3, arg4, arg5);
 	swap_ujprobe_return();
 }

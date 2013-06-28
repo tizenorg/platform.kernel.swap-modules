@@ -46,8 +46,10 @@ struct sspt_file {
 struct sspt_file *sspt_file_create(struct dentry *dentry, int page_cnt);
 void sspt_file_free(struct sspt_file *file);
 
-struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long page);
-void sspt_file_add_ip(struct sspt_file *file, struct ip_data *ip_d);
+struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
+					unsigned long page);
+void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
+		      const char *args);
 
 struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_addr);
 void sspt_put_page(struct sspt_page *page);

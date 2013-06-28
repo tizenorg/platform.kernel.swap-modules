@@ -44,6 +44,7 @@ struct ujprobe {
 	// handler whichw willb bec called before 'entry'
 	uprobe_pre_entry_handler_t pre_entry;
 	void *priv_arg;
+	char *args;
 };
 
 struct uretprobe_instance;

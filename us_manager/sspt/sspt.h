@@ -62,7 +62,6 @@ static inline struct sspt_proc *get_file_probes(inst_us_proc_t *task_inst_info)
 		name = name ? name + 1 : path;
 
 		for (k = 0; k < p_libs->ips_count; ++k) {
-			struct ip_data pd;
 			us_proc_ip_t *ip = &p_libs->p_ips[k];
 			unsigned long got_addr = 0;
 
@@ -73,18 +72,7 @@ static inline struct sspt_proc *get_file_probes(inst_us_proc_t *task_inst_info)
 				}
 			}
 
-			pd.flag_retprobe = 1;
-			pd.offset = ip->offset;
-			pd.got_addr = got_addr;
-			pd.pre_handler = ip->jprobe.pre_entry ? ip->jprobe.pre_entry : ujprobe_event_pre_handler;
-			pd.jp_handler = (unsigned long) (ip->jprobe.entry ? ip->jprobe.entry : ujprobe_event_handler);
-			pd.rp_handler = ip->retprobe.handler ?  ip->retprobe.handler : uretprobe_event_handler;
-
-//			ret = usm_register_probe(dentry, pd.offset, pd.pre_handler, pd.jp_handler, pd.rp_handler);
-//			if (ret)
-//				printk("### ERROR: usm_register_probe ret=%d\n", ret);
-
-			ret = pf_register_probe(pfg, dentry, pd.offset, pd.pre_handler, pd.jp_handler, pd.rp_handler);
+			ret = pf_register_probe(pfg, dentry, ip->offset, "dddd");
 			if (ret)
 				printk("### ERROR: pf_register_probe ret=%d\n", ret);
 		}

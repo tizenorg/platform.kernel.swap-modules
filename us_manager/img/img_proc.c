@@ -39,18 +39,19 @@ static struct img_file *find_img_file(struct img_proc *proc, struct dentry *dent
 	return NULL;
 }
 
-int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry, unsigned long addr)
+int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
+		    unsigned long addr, const char *args)
 {
 	int ret;
 	struct img_file *file;
 
 	file = find_img_file(proc, dentry);
 	if (file)
-		return img_file_add_ip(file, addr);
+		return img_file_add_ip(file, addr, args);
 
 	file = create_img_file(dentry);
 
-	ret = img_file_add_ip(file, addr);
+	ret = img_file_add_ip(file, addr, args);
 	if (ret)
 		free_img_file(file);
 	else

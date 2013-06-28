@@ -27,7 +27,10 @@
 #include "sspt_page.h"
 #include "sspt_file.h"
 
-struct us_ip *create_ip(unsigned long offset)
+/* FIXME: */
+#include "../../driver/us_def_handler.h"
+
+struct us_ip *create_ip(unsigned long offset, const char *args)
 {
 	struct us_ip *ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
 	memset(ip, 0, sizeof(*ip));
@@ -35,41 +38,24 @@ struct us_ip *create_ip(unsigned long offset)
 	INIT_LIST_HEAD(&ip->list);
 	ip->offset = offset;
 
+	ip->got_addr = 0;
+	ip->flag_got = 1;
+
+	/* jprobe */
+	ip->jprobe.pre_entry = ujprobe_event_pre_handler;
+	ip->jprobe.entry = ujprobe_event_handler;
+
+	/* TODO: or copy args?! */
+	ip->jprobe.args = args;
+
+	/* retprobe */
+	ip->flag_retprobe = 1;
+	ip->retprobe.handler = uretprobe_event_handler;
+
 	return ip;
 }
 
 void free_ip(struct us_ip *ip)
 {
 	kfree(ip);
-}
-
-static inline void set_ip_jp_handler(struct us_ip *ip, kprobe_pre_entry_handler_t per_entry, void *entry)
-{
-	ip->jprobe.pre_entry = per_entry;
-	ip->jprobe.entry = entry;
-}
-
-static inline void set_ip_rp_handler(struct us_ip *ip, uretprobe_handler_t handler)
-{
-	ip->flag_retprobe = 1;
-	ip->retprobe.handler = handler;
-}
-
-static inline void set_ip_got_addr(struct us_ip *ip, unsigned long got_addr)
-{
-	ip->got_addr = got_addr;
-}
-
-struct us_ip *create_ip_by_ip_data(struct ip_data *ip_d)
-{
-	struct us_ip *ip = create_ip(ip_d->offset);
-	set_ip_jp_handler(ip, ip_d->pre_handler, (void *)ip_d->jp_handler);
-
-	if (ip_d->flag_retprobe) {
-		set_ip_rp_handler(ip, ip_d->rp_handler);
-	}
-
-	set_ip_got_addr(ip, ip_d->got_addr);
-
-	return ip;
 }

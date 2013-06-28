@@ -8,8 +8,6 @@
 #include <sspt/sspt_proc.h>
 #include <helper.h>
 
-#include "../../driver/us_def_handler.h"
-
 struct pf_group {
 	struct list_head list;
 	struct img_proc *i_proc;
@@ -55,24 +53,14 @@ static void del_pl_struct(struct pl_struct *pls)
 void copy_proc_form_img_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc)
 {
 	struct sspt_file *file;
-	struct ip_data ip_d;
-
 	struct img_file *i_file;
 	struct img_ip *i_ip;
 
 	list_for_each_entry(i_file, &i_proc->file_list, list) {
 		file = sspt_proc_find_file_or_new(proc, i_file->dentry);
 
-		list_for_each_entry(i_ip, &i_file->ip_list, list) {
-			ip_d.flag_retprobe = 1;
-			ip_d.got_addr = 0;
-			ip_d.jp_handler = ujprobe_event_handler;
-			ip_d.offset = i_ip->addr;
-			ip_d.pre_handler = ujprobe_event_pre_handler;
-			ip_d.rp_handler = uretprobe_event_handler;
-
-			sspt_file_add_ip(file, &ip_d);
-		}
+		list_for_each_entry(i_ip, &i_file->ip_list, list)
+			sspt_file_add_ip(file, i_ip->addr, i_ip->args);
 	}
 }
 
@@ -192,10 +180,9 @@ void put_pf_group(struct pf_group *pfg)
 }
 
 int pf_register_probe(struct pf_group *pfg, struct dentry *dentry,
-		      unsigned long offset, void *pre_handler,
-		      void *jp_handler, void *rp_handler)
+		      unsigned long offset, const char *args)
 {
-	return img_proc_add_ip(pfg->i_proc, dentry, offset);
+	return img_proc_add_ip(pfg->i_proc, dentry, offset, args);
 }
 EXPORT_SYMBOL_GPL(pf_register_probe);
 

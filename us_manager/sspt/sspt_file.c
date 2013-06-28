@@ -137,13 +137,13 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long pa
 	return sspt_find_page(file, offset);
 }
 
-void sspt_file_add_ip(struct sspt_file *file, struct ip_data *ip_d)
+void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
+		      const char *args)
 {
-	unsigned long offset = ip_d->offset & PAGE_MASK;
-	struct sspt_page *page = sspt_find_page_or_new(file, offset);
+	struct sspt_page *page = sspt_find_page_or_new(file, offset & PAGE_MASK);
 
 	// FIXME: delete ip
-	struct us_ip *ip = create_ip_by_ip_data(ip_d);
+	struct us_ip *ip = create_ip(offset, args);
 
 	sspt_add_ip(page, ip);
 }
