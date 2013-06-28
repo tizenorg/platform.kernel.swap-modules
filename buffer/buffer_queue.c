@@ -122,7 +122,7 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	queue_busy = memory_allocation(sizeof(&queue_busy) * queue_subbuffer_count);
 
 	if (!queue_busy) {
-		result = E_SB_NO_MEM_QUEUE_BUSY;
+		result = -E_SB_NO_MEM_QUEUE_BUSY;
 		goto buffer_allocation_error_ret;
 	}
 
@@ -132,7 +132,7 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	write_queue.start_ptr = memory_allocation(sizeof(&write_queue.start_ptr));
 
 	if (!write_queue.start_ptr) {
-		result = E_SB_NO_MEM_BUFFER_STRUCT;
+		result = -E_SB_NO_MEM_BUFFER_STRUCT;
 		goto buffer_allocation_queue_busy_free;
 	}
 	allocated_structs++;
@@ -145,7 +145,7 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	write_queue.end_ptr->data_buffer = buffer_allocation(queue_subbuffer_size);
 	if (!write_queue.end_ptr->data_buffer) {
 		print_err("Cannot allocate memory for buffer 1\n");
-		result = E_SB_NO_MEM_DATA_BUFFER;
+		result = -E_SB_NO_MEM_DATA_BUFFER;
 		goto buffer_allocation_error_free;
 	}
 	allocated_buffers++;
@@ -162,7 +162,7 @@ int buffer_queue_allocation(size_t subbuffer_size,
 		write_queue.end_ptr->next_in_queue =
 		    memory_allocation(sizeof(write_queue.end_ptr->next_in_queue));
 		if (!write_queue.end_ptr->next_in_queue) {
-			result = E_SB_NO_MEM_BUFFER_STRUCT;
+			result = -E_SB_NO_MEM_BUFFER_STRUCT;
 			goto buffer_allocation_error_free;
 		}
 		allocated_structs++;
@@ -175,7 +175,7 @@ int buffer_queue_allocation(size_t subbuffer_size,
 		write_queue.end_ptr->data_buffer = 
 			buffer_allocation(queue_subbuffer_size);
 		if (!write_queue.end_ptr->data_buffer) {
-			result = E_SB_NO_MEM_DATA_BUFFER;
+			result = -E_SB_NO_MEM_DATA_BUFFER;
 			goto buffer_allocation_error_free;
 		}
 		allocated_buffers++;
@@ -449,7 +449,7 @@ void add_to_busy_list(struct swap_subbuffer *subbuffer)
 /* Remove subbuffer from busy list when it is released */
 int remove_from_busy_list(struct swap_subbuffer *subbuffer)
 {
-	int result = E_SB_NO_SUBBUFFER_IN_BUSY; // For sanitization
+	int result = -E_SB_NO_SUBBUFFER_IN_BUSY; // For sanitization
 	int i;
 
 	/* Lock busy list sync primitive */
