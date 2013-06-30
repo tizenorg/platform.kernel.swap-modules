@@ -1,0 +1,5 @@
+EXTRA_CFLAGS :=
+
+obj-m := swap_message_parser.o
+
+swap_message_parser-y := swap_message_parser_module.o message_parser.o message_handler.o
