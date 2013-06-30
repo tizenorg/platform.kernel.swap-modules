@@ -168,8 +168,7 @@ int driver_to_buffer_fill_pages_arrays(struct page ***pages,
                                         : data_to_splice;
 
         /* Fill pages array */
-        (*pages)[page_counter] = (void *)((unsigned long)busy_buffer->data_buffer +
-                                          (sizeof(struct page *) * page_counter));
+        (*pages)[page_counter] = &busy_buffer->data_buffer[page_counter];
 
         /* Offset is always 0, cause we write to buffers from the very beginning
          * of the first page */
