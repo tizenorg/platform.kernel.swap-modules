@@ -4,8 +4,8 @@
 #include "message_handler.h"
 #include "swap_message_parser_errors.h"
 
-#include "/home/alexander/swap_driver/swap_driver_module.h" //TODO Remove hardcode
-#include "/home/alexander/swap_driver/ioctl_commands.h" // TODO Remove hardcode
+#include <driver_new/swap_driver_module.h>
+#include <driver_new/ioctl_commands.h>
 
 
 int swap_message_parser_handler(unsigned int cmd, void __user *msg)
