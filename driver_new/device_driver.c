@@ -417,7 +417,9 @@ static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
     spd.pages = pages;
     spd.partial = partial;
     spd.nr_pages = subbuffers_count;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 5))
     spd.nr_pages_max = subbuffers_count;
+#endif
     spd.flags = flags;
     spd.ops = &swap_device_pipe_buf_ops;
     spd.spd_release = swap_device_page_release;
