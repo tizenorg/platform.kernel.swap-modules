@@ -18,7 +18,7 @@
 #include "driver_defs.h"
 #include "device_driver_to_driver_to_buffer.h"
 
-#include "../ksyms/ksyms.h"
+#include <ksyms/ksyms.h>
 
 #define SWAP_DEVICE_NAME "swap_device"
 
