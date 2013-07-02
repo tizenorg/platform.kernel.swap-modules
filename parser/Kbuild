@@ -1,5 +1,6 @@
-EXTRA_CFLAGS :=
+EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_message_parser.o
-
-swap_message_parser-y := swap_message_parser_module.o message_parser.o message_handler.o
+swap_message_parser-y := swap_message_parser_module.o \
+                         message_parser.o \
+                         message_handler.o
