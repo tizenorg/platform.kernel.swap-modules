@@ -206,10 +206,6 @@ int swap_buffer_flush(void)
 {
 	int result = 0;
 
-	/* Stop swap_buffer */
-	swap_buffer_status &= ~BUFFER_WORK;
-	print_debug("status buffer stop = %d\n", swap_buffer_status);
-
 	/* Set all write buffers to read list */
 	set_all_to_read_list();
 

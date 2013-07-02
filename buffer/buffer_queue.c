@@ -495,7 +495,8 @@ void set_all_to_read_list(void)
 	/* Locking write sync primitive */
 	sync_lock(&write_queue.queue_sync);
 
-	while (write_queue.start_ptr) {
+	while (write_queue.start_ptr &&
+	       write_queue.start_ptr->full_buffer_part) {
 		/* Waiting till semaphore should be posted */
 
 // TODO To think: It's not bad as it is, but maybe it would be better locking
