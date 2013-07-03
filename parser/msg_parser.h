@@ -11,6 +11,10 @@ enum APP_TYPE {
 	AT_COMMON_EXEC		= 0x03
 };
 
+enum {
+	SIZE_APP_TYPE = 4
+};
+
 /* Basic application information */
 struct app_info_data {
 	enum APP_TYPE app_type;
@@ -71,5 +75,25 @@ void destroy_app_inst_data(struct app_inst_data *app_inst);
 
 struct us_inst_data *create_us_inst_data(struct msg_buf *mb);
 void destroy_us_inst_data(struct us_inst_data *us_inst);
+
+
+/* empty functions for calculating size fields in structures */
+struct func_inst_data make_func_inst_data(void);
+struct lib_inst_data make_lib_inst_data(void);
+struct app_inst_data make_app_inst_data(void);
+struct us_inst_data make_us_inst_data(void);
+
+enum {
+	MIN_SIZE_STRING = 1,
+	MIN_SIZE_FUNC_INST = sizeof(make_func_inst_data().addr) +
+			     MIN_SIZE_STRING,
+	MIN_SIZE_LIB_INST = MIN_SIZE_STRING +
+			    sizeof(make_lib_inst_data().cnt_func),
+	MIN_SIZE_APP_INFO = SIZE_APP_TYPE + MIN_SIZE_STRING + MIN_SIZE_STRING,
+	MIN_SIZE_APP_INST = MIN_SIZE_APP_INFO +
+			    sizeof(make_app_inst_data().cnt_func) +
+			    sizeof(make_app_inst_data().cnt_lib),
+	MIN_SIZE_US_INST = sizeof(make_us_inst_data().cnt)
+};
 
 #endif /* _MSG_PARSER_H */

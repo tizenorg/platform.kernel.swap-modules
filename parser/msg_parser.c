@@ -206,6 +206,9 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 	if (get_u32(mb, &cnt))
 		return NULL;
 
+	if (remained_mb(mb) / MIN_SIZE_FUNC_INST < cnt)
+		return NULL;
+
 	li = kmalloc(sizeof(*li), GFP_KERNEL);
 	if (li)
 		goto free_path;
@@ -278,6 +281,9 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 	if (get_u32(mb, &cnt_func))
 		goto free_app_info;
 
+	if (remained_mb(mb) / MIN_SIZE_FUNC_INST < cnt_func)
+		goto free_app_info;
+
 	app_inst = kmalloc(sizeof(*app_inst), GFP_KERNEL);
 	if (app_inst == NULL)
 		goto free_app_info;
@@ -296,6 +302,9 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 	}
 
 	if (get_u32(mb, &cnt_lib))
+		goto free_func;
+
+	if (remained_mb(mb) / MIN_SIZE_LIB_INST < cnt_lib)
 		goto free_func;
 
 	app_inst->lib = kmalloc(sizeof(struct lib_inst_data *) * cnt_lib,
@@ -368,7 +377,10 @@ struct us_inst_data *create_us_inst_data(struct msg_buf *mb)
 	if (get_u32(mb, &cnt))
 		return NULL;
 
-	ui = kmalloc(sizeof(struct us_inst_data) * cnt, GFP_KERNEL);
+	if (remained_mb(mb) / MIN_SIZE_APP_INST < cnt)
+		return NULL;
+
+	ui = kmalloc(sizeof(struct us_inst_data), GFP_KERNEL);
 	if (ui == NULL)
 		return NULL;
 
