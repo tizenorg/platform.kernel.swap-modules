@@ -210,11 +210,11 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 		return NULL;
 
 	li = kmalloc(sizeof(*li), GFP_KERNEL);
-	if (li)
+	if (li == NULL)
 		goto free_path;
 
 	li->func = kmalloc(sizeof(struct func_inst_data *) * cnt, GFP_KERNEL);
-	if (li->cnt_func)
+	if (li->func == NULL)
 		goto free_li;
 
 	for (i = 0; i < cnt; ++i) {
