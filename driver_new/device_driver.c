@@ -14,7 +14,7 @@
 #include "device_driver.h"
 #include "swap_driver_errors.h"
 #include "driver_to_buffer.h"
-#include "ioctl_commands.h"
+#include "swap_ioctl.h"
 #include "driver_defs.h"
 #include "device_driver_to_driver_to_buffer.h"
 
