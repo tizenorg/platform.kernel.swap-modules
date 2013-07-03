@@ -198,7 +198,7 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 	struct lib_inst_data *li;
 	struct func_inst_data *fi;
 	char *path;
-	u32 cnt, i = 0;
+	u32 cnt, j, i = 0;
 
 	if (get_string(mb, &path))
 		return NULL;
@@ -231,8 +231,8 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 	return li;
 
 free_func:
-	for (i -= 1; i >= 0; --i)
-		destroy_func_inst_data(li->func[i]);
+	for (j = 0; j < i; ++j)
+		destroy_func_inst_data(li->func[j]);
 	kfree(li->func);
 
 free_li:
@@ -271,8 +271,7 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 	struct app_info_data *app_info;
 	struct func_inst_data *func;
 	struct lib_inst_data *lib;
-	u32 cnt_func, i_func = 0;
-	u32 cnt_lib, i_lib = 0;
+	u32 cnt_func, i_func = 0, cnt_lib, i_lib = 0, i;
 
 	app_info = create_app_info(mb);
 	if (app_info == NULL)
@@ -326,13 +325,13 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 	return app_inst;
 
 free_lib:
-	for (i_lib -= 1; i_lib >= 0; --i_lib)
-		destroy_lib_inst_data(app_inst->lib[i_lib]);
+	for (i = 0; i < i_lib; ++i)
+		destroy_lib_inst_data(app_inst->lib[i]);
 	kfree(app_inst->lib);
 
 free_func:
-	for (i_func -= 1; i_func >= 0; --i_func)
-		destroy_func_inst_data(app_inst->func[i_func]);
+	for (i = 0; i < i_func; ++i)
+		destroy_func_inst_data(app_inst->func[i]);
 	kfree(app_inst->func);
 
 free_app_inst:
@@ -372,7 +371,7 @@ struct us_inst_data *create_us_inst_data(struct msg_buf *mb)
 {
 	struct us_inst_data *ui;
 	struct app_inst_data *ai;
-	u32 cnt, i = 0;
+	u32 cnt, j, i = 0;
 
 	if (get_u32(mb, &cnt))
 		return NULL;
@@ -402,8 +401,8 @@ struct us_inst_data *create_us_inst_data(struct msg_buf *mb)
 	return ui;
 
 free_app_inst:
-	for (i -= 1; i >= 0; --i)
-		destroy_app_inst_data(ui->app_inst[i]);
+	for (j = 0; j < i; ++j)
+		destroy_app_inst_data(ui->app_inst[j]);
 	kfree(ui->app_inst);
 
 free_ui:
