@@ -72,13 +72,13 @@ int get_string(struct msg_buf *mb, char **str)
 	if(len_max < 0)
 		return -EINVAL;
 
-	len = strlen(mb->begin) + 1;
+	len = strlen(mb->ptr) + 1;
 
 	*str = kmalloc(len, GFP_KERNEL);
 	if (*str == NULL)
 		return -ENOMEM;
 
-	memcpy(*str, mb->begin, len);
+	memcpy(*str, mb->ptr, len);
 	mb->ptr += len;
 
 	return 0;
