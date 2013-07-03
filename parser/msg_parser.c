@@ -1,6 +1,7 @@
 #include <linux/slab.h>
 #include "msg_parser.h"
 #include "msg_buf.h"
+#include "parser_defs.h"
 
 
 static int str_to_u32(const char* str, u32 *val)
@@ -37,20 +38,28 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 	char *ta_id, *exec_path;
 
 	ret = get_u32(mb, &app_type);
-	if (ret)
+	if (ret) {
+		print_err("failed to read target application type\n");
 		return NULL;
+	}
 
 	ret = get_string(mb, &ta_id);
-	if (ret)
+	if (ret) {
+		print_err("failed to read target application ID\n");
 		return NULL;
+	}
 
 	ret = get_string(mb, &exec_path);
-	if (ret)
+	if (ret) {
+		print_err("failed to read executable path\n");
 		goto free_ta_id;
+	}
 
 	ai = kmalloc(sizeof(*ai), GFP_KERNEL);
-	if (ai == NULL)
+	if (ai == NULL) {
+		print_err("out of memory\n");
 		goto free_exec_path;
+	}
 
 	switch (app_type) {
 	case AT_TIZEN_NATIVE_APP:
@@ -60,13 +69,16 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 	case AT_PID: {
 		u32 pid;
 		ret = str_to_u32(ta_id, &pid);
-		if (ret)
+		if (ret) {
+			print_err("converting string to PID, str='%s'\n", ta_id);
 			goto free_ai;
+		}
 
 		ai->at_data = (void *)pid;
 		break;
 	}
 	default:
+		print_err("wrong application type(%u)\n", app_type);
 		ret = -EINVAL;
 		goto free_ai;
 	}
@@ -100,7 +112,7 @@ void destroy_app_info(struct app_info_data *ai)
 		break;
 
 	default:
-		printk("### BUG()\n");
+		print_err("wrong application type(%u)\n", ai->app_type);
 		break;
 	}
 
@@ -122,18 +134,26 @@ struct conf_data *create_conf_data(struct msg_buf *mb)
 	u64 uf;
 	u32 stp, dmp;
 
-	if (get_u64(mb, &uf))
+	if (get_u64(mb, &uf)) {
+		print_err("failed to read use_features\n");
 		return NULL;
+	}
 
-	if (get_u32(mb, &stp))
+	if (get_u32(mb, &stp)) {
+		print_err("failed to read sys trace period\n");
 		return NULL;
+	}
 
-	if (get_u32(mb, &dmp))
+	if (get_u32(mb, &dmp)) {
+		print_err("failed to read data message period\n");
 		return NULL;
+	}
 
 	conf = kmalloc(sizeof(*conf), GFP_KERNEL);
-	if (conf == NULL)
+	if (conf == NULL) {
+		print_err("out of memory\n");
 		return NULL;
+	}
 
 	conf->use_features = uf;
 	conf->sys_trace_period = stp;
@@ -161,14 +181,19 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 	u64 addr;
 	char *args;
 
-	if (get_u64(mb, &addr))
+	if (get_u64(mb, &addr)) {
+		print_err("failed to read data function address\n");
 		return NULL;
+	}
 
-	if (get_string(mb, &args))
+	if (get_string(mb, &args)) {
+		print_err("failed to read data function arguments\n");
 		return NULL;
+	}
 
 	fi = kmalloc(sizeof(*fi), GFP_KERNEL);
 	if (fi == NULL) {
+		print_err("out of memory\n");
 		put_strung(args);
 		return NULL;
 	}
@@ -200,22 +225,34 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 	char *path;
 	u32 cnt, j, i = 0;
 
-	if (get_string(mb, &path))
+	if (get_string(mb, &path)) {
+		print_err("failed to read path of binary\n");
 		return NULL;
+	}
 
-	if (get_u32(mb, &cnt))
+	if (get_u32(mb, &cnt)) {
+		print_err("failed to read count of functions\n");
 		return NULL;
+	}
 
-	if (remained_mb(mb) / MIN_SIZE_FUNC_INST < cnt)
+	if (remained_mb(mb) / MIN_SIZE_FUNC_INST < cnt) {
+		print_err("to match count of functions(%u)\n", cnt);
 		return NULL;
+	}
 
 	li = kmalloc(sizeof(*li), GFP_KERNEL);
 	if (li == NULL)
+	if (li == NULL) {
+		print_err("out of memory\n");
 		goto free_path;
+	}
 
 	li->func = kmalloc(sizeof(struct func_inst_data *) * cnt, GFP_KERNEL);
 	if (li->func == NULL)
+	if (li->func == NULL) {
+		print_err("out of memory\n");
 		goto free_li;
+	}
 
 	for (i = 0; i < cnt; ++i) {
 		fi = create_func_inst_data(mb);
@@ -277,20 +314,28 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 	if (app_info == NULL)
 		return NULL;
 
-	if (get_u32(mb, &cnt_func))
+	if (get_u32(mb, &cnt_func)) {
+		print_err("failed to read count of functions\n");
 		goto free_app_info;
+	}
 
-	if (remained_mb(mb) / MIN_SIZE_FUNC_INST < cnt_func)
+	if (remained_mb(mb) / MIN_SIZE_FUNC_INST < cnt_func) {
+		print_err("to match count of functions(%u)\n", cnt_func);
 		goto free_app_info;
+	}
 
 	app_inst = kmalloc(sizeof(*app_inst), GFP_KERNEL);
-	if (app_inst == NULL)
+	if (app_inst == NULL) {
+		print_err("out of memory\n");
 		goto free_app_info;
+	}
 
 	app_inst->func = kmalloc(sizeof(struct func_inst_data *) * cnt_func,
 				 GFP_KERNEL);
-	if (app_inst->func == NULL)
+	if (app_inst->func == NULL) {
+		print_err("out of memory\n");
 		goto free_app_inst;
+	}
 
 	for (i_func = 0; i_func < cnt_func; ++i_func) {
 		func = create_func_inst_data(mb);
@@ -300,16 +345,22 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 		app_inst->func[i_func] = func;
 	}
 
-	if (get_u32(mb, &cnt_lib))
+	if (get_u32(mb, &cnt_lib)) {
+		print_err("failed to read count of libraries\n");
 		goto free_func;
+	}
 
-	if (remained_mb(mb) / MIN_SIZE_LIB_INST < cnt_lib)
+	if (remained_mb(mb) / MIN_SIZE_LIB_INST < cnt_lib) {
+		print_err("to match count of libraries(%u)\n", cnt_lib);
 		goto free_func;
+	}
 
 	app_inst->lib = kmalloc(sizeof(struct lib_inst_data *) * cnt_lib,
 				GFP_KERNEL);
-	if (app_inst->lib == NULL)
+	if (app_inst->lib == NULL) {
+		print_err("out of memory\n");
 		goto free_func;
+	}
 
 	for (i_lib = 0; i_lib < cnt_lib; ++i_lib) {
 		lib = create_lib_inst_data(mb);
@@ -319,6 +370,7 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 		app_inst->lib[i_lib] = lib;
 	}
 
+	app_inst->app_info = app_info;
 	app_inst->cnt_func = cnt_func;
 	app_inst->cnt_lib = cnt_lib;
 
@@ -373,20 +425,28 @@ struct us_inst_data *create_us_inst_data(struct msg_buf *mb)
 	struct app_inst_data *ai;
 	u32 cnt, j, i = 0;
 
-	if (get_u32(mb, &cnt))
+	if (get_u32(mb, &cnt)) {
+		print_err("failed to read count of applications\n");
 		return NULL;
+	}
 
-	if (remained_mb(mb) / MIN_SIZE_APP_INST < cnt)
+	if (remained_mb(mb) / MIN_SIZE_APP_INST < cnt) {
+		print_err("to match count of applications(%u)\n", cnt);
 		return NULL;
+	}
 
 	ui = kmalloc(sizeof(struct us_inst_data), GFP_KERNEL);
-	if (ui == NULL)
+	if (ui == NULL) {
+		print_err("out of memory\n");
 		return NULL;
+	}
 
 	ui->app_inst = kmalloc(sizeof(struct app_inst_data *) * cnt,
 			       GFP_KERNEL);
-	if (ui->app_inst == NULL)
+	if (ui->app_inst == NULL) {
+		print_err("out of memory\n");
 		goto free_ui;
+	}
 
 	for (i = 0; i < cnt; ++i) {
 		ai = create_app_inst_data(mb);
