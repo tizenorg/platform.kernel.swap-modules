@@ -42,6 +42,11 @@ size_t remained_mb(struct msg_buf *mb)
 	return mb->end - mb->ptr;
 }
 
+int is_end_mb(struct msg_buf *mb)
+{
+	return mb->ptr == mb->end;
+}
+
 int get_u32(struct msg_buf *mb, u32 *val)
 {
 	if (cmp_mb(mb, sizeof(*val)) < 0)
