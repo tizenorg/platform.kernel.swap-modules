@@ -51,21 +51,27 @@ static int msg_handler(void __user *msg)
 	msg_id = bmf.msg_id;
 	switch (msg_id) {
 	case MSG_KEEP_ALIVE:
+		print_parse_debug("MSG_KEEP_ALIVE\n");
 		ret = msg_keep_alive(&mb);
 		break;
 	case MSG_START:
+		print_parse_debug("MSG_START\n");
 		ret = msg_start(&mb);
 		break;
 	case MSG_STOP:
+		print_parse_debug("MSG_STOP\n");
 		ret = msg_stop(&mb);
 		break;
 	case MSG_CONFIG:
+		print_parse_debug("MSG_CONFIG\n");
 		ret = msg_config(&mb);
 		break;
 	case MSG_SWAP_INST_ADD:
+		print_parse_debug("MSG_SWAP_INST_ADD\n");
 		ret = msg_swap_inst_add(&mb);
 		break;
 	case MSG_SWAP_INST_REMOVE:
+		print_parse_debug("MSG_SWAP_INST_REMOVE\n");
 		ret = msg_swap_inst_remove(&mb);
 		break;
 	default:

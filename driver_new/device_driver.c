@@ -275,6 +275,7 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
     switch(cmd) {
         case SWAP_DRIVER_BUFFER_INITIALIZE:
         {
+            print_debug("SWAP_DRIVER_BUFFER_INITIALIZE\n");
             struct buffer_initialize initialize_struct;
 
             result = copy_from_user(&initialize_struct, (void*)arg,
@@ -295,6 +296,7 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
         }
         case SWAP_DRIVER_BUFFER_UNINITIALIZE:
         {
+            print_debug("SWAP_DRIVER_BUFFER_UNINITIALIZE\n");
             result = driver_to_buffer_uninitialize();
             if (result < 0)
                 print_err("Buffer uninitialization failed %d\n"< result);
@@ -303,6 +305,7 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
         }
         case SWAP_DRIVER_NEXT_BUFFER_TO_READ:
         {
+            print_debug("SWAP_DRIVER_NEXT_BUFFER_TO_READ\n");
             /* Use this carefully */
             result = driver_to_buffer_next_buffer_to_read();
             if (result == E_SD_NO_DATA_TO_READ) {
@@ -313,11 +316,13 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
         }
         case SWAP_DRIVER_FLUSH_BUFFER:
         {
+            print_debug("SWAP_DRIVER_FLUSH_BUFFER\n");
             result = driver_to_buffer_flush();
             break;
         }
         default:
         {
+            print_debug("SWAP_DRIVER_BUFFER MESSAGE\n");
             if (msg_handler) {
                 result = msg_handler((void __user *)arg);
             } else {
