@@ -1,13 +1,9 @@
 #ifndef __SWAP_DRIVER_DEVICE_DRIVER__
 #define __SWAP_DRIVER_DEVICE_DRIVER__
 
-/* Create and register device */
-int swap_device_init(void);
+typedef int (*msg_handler_t)(void __user *data);
 
-/* Delete device */
-void swap_device_exit(void);
-
-/* Register swap_message_parser handler */
-int register_message_handler(void *s_m_p_h);
+/* Set the message handler */
+void set_msg_handler(msg_handler_t mh);
 
 #endif /* __SWAP_DRIVER_DEVICE_DRIVER__ */

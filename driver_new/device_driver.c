@@ -56,10 +56,7 @@ static splice_to_pipe_p_t splice_to_pipe_p = NULL;
 static splice_shrink_spd_p_t splice_shrink_spd_p = NULL;
 static splice_grow_spd_p_t splice_grow_spd_p = NULL;
 
-/* Typedef for swap_message_parser handler func */
-typedef int(*swap_message_parser_handler_t)(unsigned int cmd, void __user * arg);
-
-static swap_message_parser_handler_t swap_message_parser_handler = NULL;
+static msg_handler_t msg_handler = NULL;
 
 /* Device numbers */
 static dev_t swap_device_no = 0;
@@ -321,8 +318,8 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
         }
         default:
         {
-            if (swap_message_parser_handler) {
-                result = swap_message_parser_handler(cmd, (void __user *) arg);
+            if (msg_handler) {
+                result = msg_handler((void __user *)arg);
             } else {
 //                print_warn("Unknown command %d\n", cmd);
                 result = -EINVAL;
@@ -449,10 +446,25 @@ void swap_device_wake_up_process(void)
     wake_up_interruptible(&swap_device_wait);
 }
 
-int register_message_handler(void *s_m_p_h)
+void set_msg_handler(msg_handler_t mh)
 {
-    print_debug("Register message handler\n");
-
-    swap_message_parser_handler = s_m_p_h;
-    return E_SD_SUCCESS;
+	msg_handler = mh;
 }
+EXPORT_SYMBOL_GPL(set_msg_handler);
+
+static int __init swap_driver_init(void)
+{
+	swap_device_init();
+
+	return 0;
+}
+
+static void __exit swap_driver_exit(void)
+{
+	swap_device_exit();
+}
+
+module_init(swap_driver_init);
+module_exit(swap_driver_exit);
+
+MODULE_LICENSE("GPL");
