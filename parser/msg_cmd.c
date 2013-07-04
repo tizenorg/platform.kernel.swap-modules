@@ -1,11 +1,14 @@
 #include <linux/errno.h>
 #include "msg_parser.h"
 #include "msg_buf.h"
+#include "parser_defs.h"
 
 int msg_keep_alive(struct msg_buf *mb)
 {
-	if (!is_end_mb(mb))
+	if (!is_end_mb(mb)) {
+		print_err("to long message, remained=%u", remained_mb(mb));
 		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -34,6 +37,7 @@ int msg_start(struct msg_buf *mb)
 	}
 
 	if (!is_end_mb(mb)) {
+		print_err("to long message, remained=%u", remained_mb(mb));
 		ret = -EINVAL;
 		goto free_us_inst;
 	}
@@ -54,8 +58,10 @@ free_app_info:
 
 int msg_stop(struct msg_buf *mb)
 {
-	if (!is_end_mb(mb))
+	if (!is_end_mb(mb)) {
+		print_err("to long message, remained=%u", remained_mb(mb));
 		return -EINVAL;
+	}
 
 	/* TODO implement the processing */
 
@@ -72,6 +78,7 @@ int msg_config(struct msg_buf *mb)
 		return -EINVAL;
 
 	if (!is_end_mb(mb)) {
+		print_err("to long message, remained=%u", remained_mb(mb));
 		ret = -EINVAL;
 		goto free_conf_data;
 	}
@@ -95,6 +102,7 @@ int msg_swap_inst_add(struct msg_buf *mb)
 	}
 
 	if (!is_end_mb(mb)) {
+		print_err("to long message, remained=%u", remained_mb(mb));
 		ret = -EINVAL;
 		goto free_us_inst;
 	}
@@ -118,6 +126,7 @@ int msg_swap_inst_remove(struct msg_buf *mb)
 	}
 
 	if (!is_end_mb(mb)) {
+		print_err("to long message, remained=%u", remained_mb(mb));
 		ret = -EINVAL;
 		goto free_us_inst;
 	}
