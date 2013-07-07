@@ -338,14 +338,13 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 static void swap_device_pipe_buf_release(struct pipe_inode_info *inode,
                                          struct pipe_buffer *pipe)
 {
-    /* TODO
-     * In generic one it leads to __page_cache_release. Look at it and
-     * understand. */
+	__free_page(pipe->page);
 }
 
 static void swap_device_page_release(struct splice_pipe_desc *spd,
                                      unsigned int i)
 {
+	__free_page(spd->pages[i]);
 }
 
 static const struct pipe_buf_operations swap_device_pipe_buf_ops = {
@@ -366,10 +365,20 @@ static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
      * swap_device_wait queue if there is no data to be read. */
     DECLARE_WAITQUEUE(wait, current);
     int result;
-    struct page **pages;
-    struct partial_page *partial;
     int subbuffers_count;
-    struct splice_pipe_desc spd;
+    struct page *pages[PIPE_DEF_BUFFERS];
+    struct partial_page partial[PIPE_DEF_BUFFERS];
+    struct splice_pipe_desc spd = {
+	    .pages = pages,
+	    .partial = partial,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 5))
+	    .nr_pages_max = PIPE_DEF_BUFFERS,
+#endif
+	    .nr_pages = 0,
+	    .flags = flags,
+	    .ops = &swap_device_pipe_buf_ops,
+	    .spd_release = swap_device_page_release,
+    };
 
     /* Add process to the swap_device_wait queue and set the current task state
      * TASK_INTERRUPTIBLE. If there is any data to be read, then the current 
@@ -402,43 +411,22 @@ static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
         }
     } while (1);
 
-//    /* Check whether there is buffer to read */
-//    if (!driver_to_buffer_buffer_to_read()){
-//        return 0;
-//    }
-
-    /* Fill pages and partial fields */
-    subbuffers_count = driver_to_buffer_fill_pages_arrays(&pages, &partial);
-    if (subbuffers_count < 0) {
-        print_err("Error splicing subbuffer! Err code: %d\n", subbuffers_count);
-        result = 0;
-        goto swap_device_splice_read_out;
-    }
-
-    /* Structure for splice_to_pipe() */
-    spd.pages = pages;
-    spd.partial = partial;
-    spd.nr_pages = subbuffers_count;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 5))
-    spd.nr_pages_max = subbuffers_count;
-#endif
-    spd.flags = flags;
-    spd.ops = &swap_device_pipe_buf_ops;
-    spd.spd_release = swap_device_page_release;
-
-    /* Check if pages array has enough size */
     if (splice_grow_spd_p(pipe, &spd)) {
         result = -ENOMEM;
         goto swap_device_splice_read_out;
     }
 
-    result = splice_to_pipe_p(pipe, &spd);
-    // TODO Read len adjustment ??
+    result = driver_to_buffer_fill_spd(&spd);
+    if (result != 0) {
+	    print_err("Cannot fill spd for splice\n");
+	    goto swap_device_shrink_spd;
+    }
 
+    result = splice_to_pipe_p(pipe, &spd);
+
+swap_device_shrink_spd:
     splice_shrink_spd_p(&spd);
 
-/*    kfree(pages);
-    kfree(partial);*/
 swap_device_splice_read_out:
     __set_current_state(TASK_RUNNING);
     remove_wait_queue(&swap_device_wait, &wait);

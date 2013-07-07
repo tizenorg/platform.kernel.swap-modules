@@ -6,8 +6,7 @@ int driver_to_buffer_uninitialize(void);
 ssize_t driver_to_buffer_write(size_t size, void* data);
 ssize_t driver_to_buffer_read(char __user *buf, size_t count);
 void driver_to_buffer_callback(void);
-int driver_to_buffer_fill_pages_arrays(struct page ***pages,
-                                       struct partial_page **partial);
+int driver_to_buffer_fill_spd(struct splice_pipe_desc *spd);
 int driver_to_buffer_buffer_to_read(void);
 int driver_to_buffer_next_buffer_to_read(void);
 int driver_to_buffer_flush(void);

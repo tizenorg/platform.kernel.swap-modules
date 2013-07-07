@@ -145,43 +145,43 @@ int driver_to_buffer_flush(void)
     return E_SD_SUCCESS;
 }
 
-/* Fills page and partial arrays in splice_pipe_desc struct for splice_read */
-int driver_to_buffer_fill_pages_arrays(struct page ***pages,
-                                       struct partial_page **partial)
+/* Fills spd structure */
+int driver_to_buffer_fill_spd(struct splice_pipe_desc *spd)
 {
-    int page_counter = 0;
-    size_t data_to_splice;
+	size_t data_to_splice = busy_buffer->full_buffer_part;
+	struct page **pages = spd->pages;
+	struct partial_page *partial = spd->partial;
 
-    /* Sanitization */
-    if (!busy_buffer || !busy_buffer->full_buffer_part)
-        return -E_SD_NO_BUSY_SUBBUFFER;
+	while (data_to_splice) {
+		size_t read_from_current_page = min(data_to_splice, PAGE_SIZE);
 
-    data_to_splice = busy_buffer->full_buffer_part;
+		pages[spd->nr_pages] = alloc_page(GFP_KERNEL);
+		if (!pages[spd->nr_pages]) {
+			print_err("Cannot alloc page for splice\n");
+			return -ENOMEM;
+		}
 
-    /* Allocate memory for arrays */
-    *pages = kmalloc(sizeof(struct page*) * pages_per_buffer, GFP_KERNEL);
-    *partial = kmalloc(sizeof(struct partial_page) * pages_per_buffer, GFP_KERNEL);
+		/* FIXME: maybe there is more efficient way */
+		memcpy(page_address(pages[spd->nr_pages]),
+		       page_address(&busy_buffer->data_buffer[spd->nr_pages]),
+		       read_from_current_page);
 
-    while (data_to_splice) {
-        /* Get bytes count that are should be read from current page */
-        size_t read_from_current_page = (data_to_splice > PAGE_SIZE) ? PAGE_SIZE
-                                        : data_to_splice;
+		/* Always beginning of the page */
+		partial[spd->nr_pages].offset = 0;
+		partial[spd->nr_pages].len = read_from_current_page;
 
-        /* Fill pages array */
-        (*pages)[page_counter] = &busy_buffer->data_buffer[page_counter];
+		/* Private is not used */
+		partial[spd->nr_pages].private = 0;
 
-        /* Offset is always 0, cause we write to buffers from the very beginning
-         * of the first page */
-        (*partial)[page_counter].offset = 0;
-        (*partial)[page_counter].len = read_from_current_page;
+		spd->nr_pages++;
+		data_to_splice -= read_from_current_page;
 
-        /* TODO Private not used */
-        (*partial)[page_counter].private = 0;
-
-        page_counter++;
-        data_to_splice -= read_from_current_page;
+		/* TODO: add check for pipe->buffers exceeding */
+		/* if (spd->nr_pages == pipe->buffers) { */
+		/* 	break; */
+		/* } */
     }
-    return page_counter;
+    return 0;
 }
 
 /* Check for subbuffers ready to be read */
