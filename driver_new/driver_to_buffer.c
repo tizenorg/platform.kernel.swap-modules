@@ -256,7 +256,6 @@ int driver_to_buffer_next_buffer_to_read(void)
 
     /* If there is busy_buffer first release it */
     if (busy_buffer) {
-        print_debug(" There are busy subbuffer!\n");
         result = driver_to_buffer_release();
         if (result)
             return result;

@@ -299,7 +299,7 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
             print_debug("SWAP_DRIVER_BUFFER_UNINITIALIZE\n");
             result = driver_to_buffer_uninitialize();
             if (result < 0)
-                print_err("Buffer uninitialization failed %d\n"< result);
+		    print_err("Buffer uninitialization failed %d\n", result);
 
             break;
         }
@@ -365,7 +365,6 @@ static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
      * swap_device_wait queue if there is no data to be read. */
     DECLARE_WAITQUEUE(wait, current);
     int result;
-    int subbuffers_count;
     struct page *pages[PIPE_DEF_BUFFERS];
     struct partial_page partial[PIPE_DEF_BUFFERS];
     struct splice_pipe_desc spd = {

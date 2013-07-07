@@ -150,7 +150,7 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	}
 	allocated_buffers++;
 
-	print_msg(" Buffer allocated = 0x%x\n", (unsigned long)write_queue.end_ptr->data_buffer);
+	print_msg(" Buffer allocated = 0x%p\n", write_queue.end_ptr->data_buffer);
 
 	sync_init(&write_queue.end_ptr->buffer_sync);
 
@@ -180,8 +180,8 @@ int buffer_queue_allocation(size_t subbuffer_size,
 		}
 		allocated_buffers++;
 
-		print_msg(" Buffer allocated = 0x%x, pages_order = %d\n", 
-			  (unsigned long)buffer_address(write_queue.end_ptr->data_buffer), 
+		print_msg(" Buffer allocated = 0x%p, pages_order = %d\n",
+			  write_queue.end_ptr->data_buffer,
 			  pages_order_in_subbuffer);
 
 		sync_init(&write_queue.end_ptr->buffer_sync);
