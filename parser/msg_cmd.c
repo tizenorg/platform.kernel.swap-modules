@@ -1,7 +1,32 @@
 #include <linux/errno.h>
 #include "msg_parser.h"
 #include "msg_buf.h"
+#include "features.h"
 #include "parser_defs.h"
+
+static int set_app_info(struct app_info_data *app_info)
+{
+	return 0;
+}
+
+static int set_config(struct conf_data *conf)
+{
+	int ret;
+
+	ret = set_features(conf->use_features);
+
+	return ret;
+}
+
+static int add_us_inst(struct us_inst_data *us_inst)
+{
+	return 0;
+}
+
+static int remove_us_inst(struct us_inst_data *us_inst)
+{
+	return 0;
+}
 
 int msg_keep_alive(struct msg_buf *mb)
 {
@@ -43,6 +68,8 @@ int msg_start(struct msg_buf *mb)
 	}
 
 	/* TODO implement the processing */
+	set_config(conf);
+
 
 free_us_inst:
 	destroy_us_inst_data(us_inst);
@@ -84,6 +111,7 @@ int msg_config(struct msg_buf *mb)
 	}
 
 	/* TODO implement the processing */
+	set_config(conf);
 
 free_conf_data:
 	destroy_conf_data(conf);
@@ -137,4 +165,18 @@ free_us_inst:
 	destroy_us_inst_data(us_inst);
 
 	return ret;
+}
+
+int init_cmd(void)
+{
+	int ret;
+
+	ret = init_features();
+
+	return ret;
+}
+
+void uninit_cmd(void)
+{
+	uninit_features();
 }

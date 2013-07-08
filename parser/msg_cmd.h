@@ -3,6 +3,9 @@
 
 struct msg_buf;
 
+int init_cmd(void);
+void uninit_cmd(void);
+
 int msg_keep_alive(struct msg_buf *mb);
 int msg_start(struct msg_buf *mb);
 int msg_stop(struct msg_buf *mb);

@@ -91,13 +91,17 @@ static void unregister_msg_handler(void)
 
 static int __init swap_parser_init(void)
 {
+	int ret;
 	register_msg_handler();
 
-	return 0;
+	ret = init_cmd();
+
+	return ret;
 }
 
 static void __exit swap_parser_exit(void)
 {
+	uninit_cmd();
 	unregister_msg_handler();
 }
 
