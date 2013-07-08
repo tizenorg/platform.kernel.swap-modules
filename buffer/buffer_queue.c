@@ -129,7 +129,7 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	/* Memory allocation for swap_subbuffer structures */
 
 	/* Allocation for first structure. */
-	write_queue.start_ptr = memory_allocation(sizeof(&write_queue.start_ptr));
+	write_queue.start_ptr = memory_allocation(sizeof(*write_queue.start_ptr));
 
 	if (!write_queue.start_ptr) {
 		result = -E_SB_NO_MEM_BUFFER_STRUCT;
@@ -160,7 +160,7 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	/* Allocation for other structures. */
 	for (i = 1; i < queue_subbuffer_count; i++) {
 		write_queue.end_ptr->next_in_queue =
-		    memory_allocation(sizeof(write_queue.end_ptr->next_in_queue));
+		    memory_allocation(sizeof(*write_queue.end_ptr->next_in_queue));
 		if (!write_queue.end_ptr->next_in_queue) {
 			result = -E_SB_NO_MEM_BUFFER_STRUCT;
 			goto buffer_allocation_error_free;
