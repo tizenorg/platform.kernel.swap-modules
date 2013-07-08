@@ -119,7 +119,7 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	sync_init(&buffer_busy_sync);
 
 	/* Memory allocation for queue_busy */
-	queue_busy = memory_allocation(sizeof(&queue_busy) * queue_subbuffer_count);
+	queue_busy = memory_allocation(sizeof(**queue_busy) * queue_subbuffer_count);
 
 	if (!queue_busy) {
 		result = -E_SB_NO_MEM_QUEUE_BUSY;
@@ -497,15 +497,10 @@ void set_all_to_read_list(void)
 
 	while (write_queue.start_ptr &&
 	       write_queue.start_ptr->full_buffer_part) {
-		/* Waiting till semaphore should be posted */
 
-// TODO To think: It's not bad as it is, but maybe it would be better locking
-// semaphore while changing its list? (Not bad now, cause buffer should have
-// already been stopped).
-
+		/* Lock buffer sync primitive to prevent writing to buffer if it had
+		 * been selected for writing, but still wasn't wrote. */
 		sync_lock(&buffer->buffer_sync);
-
-		sync_unlock(&buffer->buffer_sync);
 
 		buffer = write_queue.start_ptr;
 
@@ -516,9 +511,13 @@ void set_all_to_read_list(void)
 		write_queue.start_ptr = write_queue.start_ptr->next_in_queue;
 
 		add_to_read_list(buffer);
+
+		/* Unlock buffer sync primitive */
+		sync_unlock(&buffer->buffer_sync);
 	}
 
-	/* Unlocking write primitive */
+
+	/* Unlock write primitive */
 	sync_unlock(&write_queue.queue_sync);
 }
 
