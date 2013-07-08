@@ -3,7 +3,7 @@
 
 enum feature_id {
 	FID_FILE,
-	FID_IRQ,
+	FID_IPC,
 	FID_NET,
 	FID_PROCESS,
 	FID_SIGNAL,

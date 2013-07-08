@@ -81,7 +81,7 @@ static enum syscall_id id_file[] = {
 	id_sys_open_by_handle_at
 };
 
-static enum syscall_id id_irq[] = {
+static enum syscall_id id_ipc[] = {
 	id_sys_msgget,
 	id_sys_msgsnd,
 	id_sys_msgrcv,
@@ -233,7 +233,7 @@ static enum syscall_id id_desc[] = {
 
 static struct feature features[] = {
 	CREATE_FEATURE(id_file),
-	CREATE_FEATURE(id_irq),
+	CREATE_FEATURE(id_ipc),
 	CREATE_FEATURE(id_net),
 	CREATE_FEATURE(id_process),
 	CREATE_FEATURE(id_signal),
