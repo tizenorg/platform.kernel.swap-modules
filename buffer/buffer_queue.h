@@ -31,6 +31,8 @@
 
 int buffer_queue_allocation(size_t subbuffer_size, unsigned int subbuffers_count);
 void buffer_queue_free(void);
+int buffer_queue_reset(void);
+void buffer_queue_flush(void);
 struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write);
 struct swap_subbuffer *get_from_read_list(void);
 void add_to_write_list(struct swap_subbuffer *subbuffer);
@@ -39,7 +41,6 @@ void add_to_busy_list(struct swap_subbuffer *subbuffer);
 int remove_from_busy_list(struct swap_subbuffer *subbuffer);
 int get_full_buffers_count(void);
 
-void set_all_to_read_list(void);
 int get_busy_buffers_count(void);
 int get_pages_count_in_subbuffer(void);
 

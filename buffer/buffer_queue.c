@@ -219,13 +219,55 @@ buffer_allocation_error_ret:
 	return result;
 }
 
+int buffer_queue_reset(void)
+{
+	struct swap_subbuffer *buffer = read_queue.start_ptr;
+
+	/* Check if there are some subbuffers in busy list. If so - return error */
+	if (get_busy_buffers_count())
+		return -E_SB_UNRELEASED_BUFFERS;
+
+	/* Lock read sync primitive */
+	sync_lock(&read_queue.queue_sync);
+
+	/* Set all subbuffers in read list to write list and reinitialize them */
+	while (read_queue.start_ptr) {
+
+		/* Lock buffer sync primitive to prevent writing to buffer if it had
+		 * been selected for writing, but still wasn't wrote. */
+		sync_lock(&buffer->buffer_sync);
+
+		buffer = read_queue.start_ptr;
+
+		/* If we reached end of the list */
+		if (read_queue.start_ptr == read_queue.end_ptr) {
+			read_queue.end_ptr = NULL;
+		}
+		read_queue.start_ptr = read_queue.start_ptr->next_in_queue;
+
+		/* Reinit full buffer part */
+		buffer->full_buffer_part = 0;
+
+		add_to_write_list(buffer);
+
+		/* Unlock buffer sync primitive */
+		sync_unlock(&buffer->buffer_sync);
+	}
+
+	/* Unlock read primitive */
+	sync_unlock(&read_queue.queue_sync);
+
+	return E_SB_SUCCESS;
+}
+
 void buffer_queue_free(void)
 {
 	struct swap_subbuffer *tmp = NULL;
 
-	//TODO Lock read list semaphore to prevent getting subbuffer from read list 
-	/* Set all write buffers to read list */
-	set_all_to_read_list();
+	/* Lock all sync primitives to prevet accessing free memory */
+	sync_lock(&write_queue.queue_sync);
+	sync_lock(&read_queue.queue_sync);
+	sync_lock(&buffer_busy_sync);
 
 	/* Free buffers and structures memory that are in read list */
 	while (read_queue.start_ptr) {
@@ -233,7 +275,17 @@ void buffer_queue_free(void)
 		read_queue.start_ptr = read_queue.start_ptr->next_in_queue;
 		buffer_free(tmp->data_buffer, queue_subbuffer_size);
 		print_msg(" Buffer free = 0x%x\n", (unsigned long)
-			   buffer_address(tmp->data_buffer));
+			   tmp->data_buffer);
+		memory_free(tmp);
+	}
+
+	/* Free buffers and structures memory that are in read list */
+	while (write_queue.start_ptr) {
+		tmp = write_queue.start_ptr;
+		write_queue.start_ptr = write_queue.start_ptr->next_in_queue;
+		buffer_free(tmp->data_buffer, queue_subbuffer_size);
+		print_msg(" Buffer free = 0x%x\n", (unsigned long)
+										   tmp->data_buffer);
 		memory_free(tmp);
 	}
 
@@ -247,6 +299,11 @@ void buffer_queue_free(void)
 	read_queue.end_ptr = NULL;
 	write_queue.start_ptr = NULL;
 	write_queue.end_ptr = NULL;
+
+	/* Unlock all sync primitives */
+	sync_unlock(&buffer_busy_sync);
+	sync_unlock(&read_queue.queue_sync);
+	sync_unlock(&write_queue.queue_sync);
 }
 
 static unsigned int is_buffer_enough(struct swap_subbuffer *subbuffer,
@@ -488,7 +545,7 @@ int get_full_buffers_count(void)
 }
 
 /* Set all subbuffers in write list to read list */
-void set_all_to_read_list(void)
+void buffer_queue_flush(void)
 {
 	struct swap_subbuffer *buffer = write_queue.start_ptr;
 
@@ -516,16 +573,20 @@ void set_all_to_read_list(void)
 		sync_unlock(&buffer->buffer_sync);
 	}
 
-
 	/* Unlock write primitive */
 	sync_unlock(&write_queue.queue_sync);
 }
 
 /* Get subbuffers count in busy list */
-/* XXX Think abount lock */
 int get_busy_buffers_count(void)
 {
-	return queue_busy_last_element;
+	int result;
+
+	sync_lock(&buffer_busy_sync);
+	result = queue_busy_last_element;
+	sync_unlock(&buffer_busy_sync);
+
+	return result;
 }
 
 /* Get memory pages count in subbuffer */

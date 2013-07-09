@@ -42,5 +42,6 @@ enum _swap_buffer_errors {
                                        wasn't allocated */
     E_SB_NO_MEM_DATA_BUFFER = 10,   /* Memort for data buffer itself wasn't
                                        allocated */
-    E_SB_NO_SUBBUFFER_IN_BUSY = 11  /* No such subbuffer in busy_list */
+    E_SB_NO_SUBBUFFER_IN_BUSY = 11, /* No such subbuffer in busy_list */
+    E_SB_NOT_ALLOC = 12             /* Subbuffers aren't allocated */
 };
