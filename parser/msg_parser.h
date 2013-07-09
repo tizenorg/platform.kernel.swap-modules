@@ -18,7 +18,7 @@ enum {
 /* Basic application information */
 struct app_info_data {
 	enum APP_TYPE app_type;
-	void *at_data;
+	pid_t tgid;
 	char *exec_path;
 };
 

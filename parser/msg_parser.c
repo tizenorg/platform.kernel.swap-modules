@@ -64,17 +64,17 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 	switch (app_type) {
 	case AT_TIZEN_NATIVE_APP:
 	case AT_COMMON_EXEC:
-		ai->at_data = ta_id;
+		ai->tgid = 0;
 		break;
 	case AT_PID: {
-		u32 pid;
-		ret = str_to_u32(ta_id, &pid);
+		u32 tgid;
+		ret = str_to_u32(ta_id, &tgid);
 		if (ret) {
 			print_err("converting string to PID, str='%s'\n", ta_id);
 			goto free_ai;
 		}
 
-		ai->at_data = (void *)pid;
+		ai->tgid = tgid;
 		break;
 	}
 	default:
@@ -85,6 +85,8 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 
 	ai->app_type = (enum APP_TYPE)app_type;
 	ai->exec_path = exec_path;
+
+	put_strung(ta_id);
 
 	return ai;
 
@@ -102,20 +104,6 @@ free_ta_id:
 
 void destroy_app_info(struct app_info_data *ai)
 {
-	switch (ai->app_type) {
-	case AT_TIZEN_NATIVE_APP:
-	case AT_COMMON_EXEC:
-		put_strung(ai->at_data);
-		break;
-
-	case AT_PID:
-		break;
-
-	default:
-		print_err("wrong application type(%u)\n", ai->app_type);
-		break;
-	}
-
 	put_strung(ai->exec_path);
 	kfree(ai);
 }
