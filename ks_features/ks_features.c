@@ -76,6 +76,9 @@ static int register_syscall(size_t id)
 	int ret;
 	printk("register_syscall: %s\n", get_sys_name(id));
 
+	if (ksp[id].jp.kp.addr == NULL)
+		return 0;
+
 	ret = dbi_register_jprobe(&ksp[id].jp);
 	if (ret)
 		return ret;
@@ -90,6 +93,9 @@ static int register_syscall(size_t id)
 static int unregister_syscall(size_t id)
 {
 	printk("unregister_syscall: %s\n", get_sys_name(id));
+
+	if (ksp[id].jp.kp.addr == NULL)
+		return 0;
 
 	dbi_unregister_kretprobe(&ksp[id].rp);
 	dbi_unregister_jprobe(&ksp[id].jp);
@@ -177,8 +183,10 @@ EXPORT_SYMBOL_GPL(unset_feature);
 static int __init init_ks_feature(void)
 {
 	int i;
-	unsigned long addr;
+	unsigned long addr, ni_syscall;
 	char *name;
+
+	ni_syscall = swap_ksyms("sys_ni_syscall");
 
 	for (i = 0; i < syscall_name_cnt; ++i) {
 		name = get_sys_name(i);
@@ -186,6 +194,11 @@ static int __init init_ks_feature(void)
 		if (addr == 0) {
 			printk("%s() not found\n", name);
 			return -EFAULT;
+		}
+
+		if (ni_syscall == addr) {
+			printk("INFO: %s is not install\n", get_sys_name(i));
+			addr = 0;
 		}
 
 		ksp[i].jp.kp.addr = ksp[i].rp.kp.addr = addr;
