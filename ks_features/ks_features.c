@@ -8,17 +8,10 @@
 
 
 struct ks_probe {
-	struct jprobe jp;
 	struct kretprobe rp;
 	int counter;
 	char *args;
 };
-
-#define CREATE_JP(name)						\
-{								\
-	.entry = NULL,						\
-	.pre_entry = NULL					\
-}
 
 #define CREATE_RP(name)						\
 {								\
@@ -39,7 +32,6 @@ enum {
 
 #define X(name, args__)						\
 {								\
-	.jp = CREATE_JP(name),					\
 	.rp = CREATE_RP(name),					\
 	.counter = 0,						\
 	.args = #args__						\
@@ -77,25 +69,13 @@ static void dec_counter(size_t id)
 #include <picl.h>
 #include <storage.h>
 
-DEFINE_PER_CPU(void *, gp_priv_arg) = NULL;
-
-static unsigned long pre_handler(void *priv_arg, struct pt_regs *regs)
+static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
 {
-	__get_cpu_var(gp_priv_arg) = priv_arg;
+	struct ks_probe *ksp = (struct ks_probe *)priv_arg;
+
+	pack_event_info(KS_PROBE_ID, RECORD_ENTRY, "ps", ksp->rp.kp.addr, ksp->args);
 
 	return 0;
-}
-
-static void j_handler(unsigned long arg0, unsigned long arg1,
-		      unsigned long arg2, unsigned long arg3,
-		      unsigned long arg4, unsigned long arg5)
-{
-	struct ks_probe *ksp = (struct ks_probe *)__get_cpu_var(gp_priv_arg);
-
-	pack_event_info(KS_PROBE_ID, RECORD_ENTRY, "psxxxxxx", ksp->jp.kp.addr,
-			ksp->args,
-			arg0, arg1, arg2, arg3, arg4, arg5);
-	dbi_jprobe_return();
 }
 
 static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
@@ -117,23 +97,14 @@ static int register_syscall(size_t id)
 	int ret;
 	printk("register_syscall: %s\n", get_sys_name(id));
 
-	if (ksp[id].jp.kp.addr == NULL)
+	if (ksp[id].rp.kp.addr == NULL)
 		return 0;
 
-	ksp[id].jp.pre_entry = pre_handler;
-	ksp[id].jp.entry = j_handler;
-	ksp[id].jp.priv_arg = &ksp[id];
-
+	ksp[id].rp.entry_handler = entry_handler;
 	ksp[id].rp.handler = ret_handler;
 	ksp[id].rp.priv_arg = &ksp[id];
 
-	ret = dbi_register_jprobe(&ksp[id].jp);
-	if (ret)
-		return ret;
-
 	ret = dbi_register_kretprobe(&ksp[id].rp);
-	if (ret)
-		dbi_unregister_jprobe(&ksp[id].jp);
 
 	return ret;
 }
@@ -142,11 +113,10 @@ static int unregister_syscall(size_t id)
 {
 	printk("unregister_syscall: %s\n", get_sys_name(id));
 
-	if (ksp[id].jp.kp.addr == NULL)
+	if (ksp[id].rp.kp.addr == NULL)
 		return 0;
 
 	dbi_unregister_kretprobe(&ksp[id].rp);
-	dbi_unregister_jprobe(&ksp[id].jp);
 
 	return 0;
 }
@@ -249,7 +219,7 @@ static int __init init_ks_feature(void)
 			addr = 0;
 		}
 
-		ksp[i].jp.kp.addr = ksp[i].rp.kp.addr = addr;
+		ksp[i].rp.kp.addr = addr;
 	}
 
 	return 0;
