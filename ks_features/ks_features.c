@@ -227,6 +227,12 @@ static int __init init_ks_feature(void)
 
 static void __exit exit_ks_feature(void)
 {
+	int id;
+
+	for (id = 0; id < syscall_name_cnt; ++id) {
+		if (get_counter(id) > 0)
+			unregister_syscall(id);
+	}
 }
 
 module_init(init_ks_feature);
