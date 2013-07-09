@@ -5,7 +5,7 @@ struct feature {
 	enum syscall_id *feature_list;
 };
 
-#define X(x) id_##x
+#define X(name, args) id_##name
 enum syscall_id {
 	SYSCALL_LIST
 };

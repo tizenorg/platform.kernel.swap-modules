@@ -11,6 +11,7 @@ struct ks_probe {
 	struct jprobe jp;
 	struct kretprobe rp;
 	int counter;
+	char *args;
 };
 
 #define CREATE_JP(name)						\
@@ -25,7 +26,7 @@ struct ks_probe {
 	.handler = NULL						\
 }
 
-#define X(x) #x
+#define X(name, args) #name
 static const char *const syscall_name[] = {
 	SYSCALL_LIST
 };
@@ -36,11 +37,12 @@ enum {
 };
 
 
-#define X(x)							\
+#define X(name, args__)						\
 {								\
-	.jp = CREATE_JP(x),					\
-	.rp = CREATE_RP(x),					\
-	.counter = 0						\
+	.jp = CREATE_JP(name),					\
+	.rp = CREATE_RP(name),					\
+	.counter = 0,						\
+	.args = #args__						\
 }
 
 static struct ks_probe ksp[] = {
