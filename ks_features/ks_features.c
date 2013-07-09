@@ -71,6 +71,47 @@ static void dec_counter(size_t id)
 	--ksp[id].counter;
 }
 
+/* ========================= HEANDLERS ========================= */
+/* FIXME: */
+#include <ec_probe.h>
+#include <picl.h>
+#include <storage.h>
+
+DEFINE_PER_CPU(void *, gp_priv_arg) = NULL;
+
+static unsigned long pre_handler(void *priv_arg, struct pt_regs *regs)
+{
+	__get_cpu_var(gp_priv_arg) = priv_arg;
+
+	return 0;
+}
+
+static void j_handler(unsigned long arg0, unsigned long arg1,
+		      unsigned long arg2, unsigned long arg3,
+		      unsigned long arg4, unsigned long arg5)
+{
+	struct ks_probe *ksp = (struct ks_probe *)__get_cpu_var(gp_priv_arg);
+
+	pack_event_info(KS_PROBE_ID, RECORD_ENTRY, "psxxxxxx", ksp->jp.kp.addr,
+			ksp->args,
+			arg0, arg1, arg2, arg3, arg4, arg5);
+	dbi_jprobe_return();
+}
+
+static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
+{
+	int ret_val;
+	struct ks_probe *ksp = (struct ks_probe *)priv_arg;
+
+	ret_val = regs_return_value(regs);
+	pack_event_info(KS_PROBE_ID, RECORD_RET, "pd", ksp->rp.kp.addr, ret_val);
+
+	return 0;
+}
+/* ========================= HEANDLERS ========================= */
+
+
+
 static int register_syscall(size_t id)
 {
 	int ret;
@@ -78,6 +119,13 @@ static int register_syscall(size_t id)
 
 	if (ksp[id].jp.kp.addr == NULL)
 		return 0;
+
+	ksp[id].jp.pre_entry = pre_handler;
+	ksp[id].jp.entry = j_handler;
+	ksp[id].jp.priv_arg = &ksp[id];
+
+	ksp[id].rp.handler = ret_handler;
+	ksp[id].rp.priv_arg = &ksp[id];
 
 	ret = dbi_register_jprobe(&ksp[id].jp);
 	if (ret)
