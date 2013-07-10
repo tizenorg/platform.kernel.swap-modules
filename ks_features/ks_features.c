@@ -42,8 +42,7 @@ static struct ks_probe ksp[] = {
 };
 #undef X
 
-
-static char *get_sys_name(size_t id)
+static const char *get_sys_name(size_t id)
 {
 	return syscall_name[id];
 }
