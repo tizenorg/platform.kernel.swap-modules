@@ -2,13 +2,14 @@
 #include <linux/fs.h>
 #include <linux/cdev.h>
 #include <linux/err.h>
-#include <linux/module.h>
 #include <linux/device.h>
 #include <linux/ioctl.h>
 #include <linux/slab.h>
 #include <linux/mm.h>
 #include <linux/splice.h>
 #include <linux/sched.h>
+#include <linux/module.h>
+#include <linux/wait.h>
 #include <asm/uaccess.h>
 
 #include "device_driver.h"
@@ -18,7 +19,7 @@
 #include "driver_defs.h"
 #include "device_driver_to_driver_to_buffer.h"
 
-#include <ksyms/ksyms.h>
+#include "../ksyms/ksyms.h"
 
 #define SWAP_DEVICE_NAME "swap_device"
 
@@ -193,51 +194,49 @@ static ssize_t swap_device_read(struct file *filp, char __user *buf,
 {
     /* Wait queue item that consists current task. It is used to be added in
      * swap_device_wait queue if there is no data to be read. */
-    DECLARE_WAITQUEUE(wait, current);
+    DEFINE_WAIT(wait);
     int result;
 
-    /* Add process to the swap_device_wait queue and set the current task state
-     * TASK_INTERRUPTIBLE. If there is any data to be read, then the current 
-     * task is removed from the swap_device_wait queue and its state is changed
-     * to this. */
-    add_wait_queue(&swap_device_wait, &wait);
-    __set_current_state(TASK_INTERRUPTIBLE);
-
     //TODO : Think about spin_locks to prevent reading race condition.
-    do {
-        result = driver_to_buffer_next_buffer_to_read();
+    while((result = driver_to_buffer_next_buffer_to_read()) != E_SD_SUCCESS) {
+
+        /* Add process to the swap_device_wait queue and set the current task
+         * state TASK_INTERRUPTIBLE. If there is any data to be read, then the
+         * current task is removed from the swap_device_wait queue and its state
+         * is changed to this. */
+        prepare_to_wait(&swap_device_wait, &wait, TASK_INTERRUPTIBLE);
+
         if (result < 0) {
             result = 0;
-            goto swap_device_read_out;
-        } else if (result == E_SD_SUCCESS) {
-            break;
+            goto swap_device_read_error;
         } else if (result == E_SD_NO_DATA_TO_READ) {
             /* Yes, E_SD_NO_DATA_TO_READ should be positive, cause it's not
              * really an error */
             if (filp->f_flags & O_NONBLOCK) {
                 result = -EAGAIN;
-                goto swap_device_read_out;
+                goto swap_device_read_error;
             }
             if (signal_pending(current)) {
                 result = -ERESTARTSYS;
-                goto swap_device_read_out;
+                goto swap_device_read_error;
             }
-            // TODO Check for sleep conditions
             schedule();
+            finish_wait(&swap_device_wait, &wait);
         }
-    } while (1);
+    }
 
     result = driver_to_buffer_read(buf, count);
     /* If there is an error - return 0 */
     if (result < 0)
         result = 0;
 
-swap_device_read_out:
-    __set_current_state(TASK_RUNNING);
-    remove_wait_queue(&swap_device_wait, &wait);
 
     return result;
 
+swap_device_read_error:
+    finish_wait(&swap_device_wait, &wait);
+
+    return result;
 }
 
 static ssize_t swap_device_write(struct file *filp, const char __user *buf,
@@ -322,14 +321,13 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
         }
         default:
         {
-            print_debug("SWAP_DRIVER_BUFFER MESSAGE\n");
-            if (msg_handler) {
-                result = msg_handler((void __user *)arg);
-            } else {
-//                print_warn("Unknown command %d\n", cmd);
+//            if (msg_handler) {
+//                result = msg_handler((void __user *)arg);
+//            } else {
+                print_warn("Unknown command %d\n", cmd);
                 result = -EINVAL;
-            }
-            break;
+//            }
+//            break;
         }
     }
     return result;
@@ -363,7 +361,8 @@ static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
 {
     /* Wait queue item that consists current task. It is used to be added in
      * swap_device_wait queue if there is no data to be read. */
-    DECLARE_WAITQUEUE(wait, current);
+    DEFINE_WAIT(wait);
+
     int result;
     struct page *pages[PIPE_DEF_BUFFERS];
     struct partial_page partial[PIPE_DEF_BUFFERS];
@@ -379,36 +378,33 @@ static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
 	    .spd_release = swap_device_page_release,
     };
 
-    /* Add process to the swap_device_wait queue and set the current task state
-     * TASK_INTERRUPTIBLE. If there is any data to be read, then the current 
-     * task is removed from the swap_device_wait queue and its state is changed
-     * to this. */
-    add_wait_queue(&swap_device_wait, &wait);
-    __set_current_state(TASK_INTERRUPTIBLE);
-
     /* Get next buffer to read */
     //TODO : Think about spin_locks to prevent reading race condition.
-    do {
-        result = driver_to_buffer_next_buffer_to_read();
+    while((result = driver_to_buffer_next_buffer_to_read()) != E_SD_SUCCESS) {
+
+        /* Add process to the swap_device_wait queue and set the current task
+         * state TASK_INTERRUPTIBLE. If there is any data to be read, then the
+         * current task is removed from the swap_device_wait queue and its state
+         * is changed. */
+        prepare_to_wait(&swap_device_wait, &wait, TASK_INTERRUPTIBLE);
         if (result < 0) {
             print_err("driver_to_buffer_next_buffer_to_read error %d\n", result);
+            //TODO Error return to OS
             result = 0;
-            goto swap_device_splice_read_out;
-        } else if (result == E_SD_SUCCESS) {
-            break;
+            goto swap_device_splice_read_error;
         } else if (result == E_SD_NO_DATA_TO_READ) {
             if (filp->f_flags & O_NONBLOCK) {
                 result = -EAGAIN;
-                goto swap_device_splice_read_out;
+                goto swap_device_splice_read_error;
             }
             if (signal_pending(current)) {
                 result = -ERESTARTSYS;
-                goto swap_device_splice_read_out;
+                goto swap_device_splice_read_error;
             }
-            // TODO Check for sleep conditions
             schedule();
+            finish_wait(&swap_device_wait, &wait);
         }
-    } while (1);
+    }
 
     if (splice_grow_spd_p(pipe, &spd)) {
         result = -ENOMEM;
@@ -427,8 +423,10 @@ swap_device_shrink_spd:
     splice_shrink_spd_p(&spd);
 
 swap_device_splice_read_out:
-    __set_current_state(TASK_RUNNING);
-    remove_wait_queue(&swap_device_wait, &wait);
+    return result;
+
+swap_device_splice_read_error:
+    finish_wait(&swap_device_wait, &wait);
 
     return result;
 }
@@ -443,20 +441,3 @@ void set_msg_handler(msg_handler_t mh)
 	msg_handler = mh;
 }
 EXPORT_SYMBOL_GPL(set_msg_handler);
-
-static int __init swap_driver_init(void)
-{
-	swap_device_init();
-
-	return 0;
-}
-
-static void __exit swap_driver_exit(void)
-{
-	swap_device_exit();
-}
-
-module_init(swap_driver_init);
-module_exit(swap_driver_exit);
-
-MODULE_LICENSE("GPL");

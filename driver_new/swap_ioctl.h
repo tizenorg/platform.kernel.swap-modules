@@ -1,5 +1,5 @@
-#ifndef _SWAP_IOCTL_H
-#define _SWAP_IOCTL_H
+#ifndef __SWAP_IOCTL_H__
+#define __SWAP_IOCTL_H__
 
 #include <linux/ioctl.h>
 
@@ -22,4 +22,4 @@ struct buffer_initialize {
 #define SWAP_DRIVER_MSG				_IOW(SWAP_DRIVER_IOC_MAGIC, 5, \
 						     void *)
 
-#endif /* _SWAP_IOCTL_H */
+#endif /* __SWAP_IOCTL_H__ */

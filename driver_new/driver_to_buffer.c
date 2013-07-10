@@ -84,6 +84,7 @@ ssize_t driver_to_buffer_write(size_t size, void* data)
         print_err("swap_buffer_write error %d\n", result);
         return -E_SD_WRITE_ERROR;
     }
+    print_debug("swap_buffer writed %d\n", result);
 
     return result;
 }
