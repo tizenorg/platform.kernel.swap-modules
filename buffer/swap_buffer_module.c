@@ -29,14 +29,19 @@
 #include "swap_buffer_errors.h"
 
 /* Bitwise mask for buffer status */
-#define BUFFER_WORK	 1
-#define BUFFER_ALLOC	2
+enum _swap_buffer_status_mask {
+	BUFFER_FREE = 0,
+	BUFFER_ALLOC = 1,
+	BUFFER_STOP = 2,
+	BUFFER_WORK = 4
+};
 
-/* Current buffer status:
- * 00 - memory isn't allocated, buffer doesn't work
- * 10 - memory allocated, buffer doesn't work
- * 11 - memory allocated, buffer is working
- * 01 - memory isn't allocated, buffer is working. Never occurs. */
+/* Buffer status masks:
+ *  0 - memory free
+ *  1 - memory allocated 
+ * 0  - buffer stop
+ * 1  - buffer work
+ * */
 static unsigned char swap_buffer_status = 0;
 
 /* Callback type */
@@ -51,7 +56,6 @@ static size_t subbuffers_size = 0;
 /* Subbuffers count */
 static unsigned int subbuffers_num = 0;
 
-//TODO Swap restart
 
 static inline int areas_overlap(const void *area1,const void *area2, size_t size)
 {
@@ -67,13 +71,18 @@ static inline int areas_overlap(const void *area1,const void *area2, size_t size
 int swap_buffer_init(size_t subbuffer_size, unsigned int nr_subbuffers,
 		     int (*subbuffer_full_callback)(void))
 {
-	int result = 0;
+	int result = -1;
 
-	if (swap_buffer_status & BUFFER_WORK)
-		swap_buffer_flush();
+	swap_buffer_status &= ~BUFFER_WORK;
+	print_debug("status buffer stop = %d\n", swap_buffer_status);
 
-	if (swap_buffer_status & BUFFER_ALLOC)
-		swap_buffer_uninit();
+	if ((swap_buffer_status & BUFFER_ALLOC) &&
+		(subbuffers_size == subbuffer_size) &&
+		(subbuffers_num == nr_subbuffers) &&
+		(subbuffer_full_callback == subbuffer_callback)) {
+		result = buffer_queue_reset();
+		goto swap_buffer_init_work;
+	}
 
 	// TODO Test if wrong function type
 	subbuffer_callback = (subbuffer_callback_type)subbuffer_full_callback;
@@ -84,12 +93,14 @@ int swap_buffer_init(size_t subbuffer_size, unsigned int nr_subbuffers,
 	if (result < 0)
 		return result;
 
-	swap_buffer_status |= BUFFER_WORK;
-	print_debug("status buffer work = %d\n", swap_buffer_status);
 	result = get_pages_count_in_subbuffer();
 
 	swap_buffer_status |= BUFFER_ALLOC;
 	print_debug("status buffer alloc = %d\n", swap_buffer_status);
+
+swap_buffer_init_work:
+	swap_buffer_status |= BUFFER_WORK;
+	print_debug("status buffer work = %d\n", swap_buffer_status);
 
 	return result;
 }
@@ -98,11 +109,15 @@ EXPORT_SYMBOL_GPL(swap_buffer_init);
 
 int swap_buffer_uninit(void)
 {
-	/* Stop swap_buffer */
+	/* Check whether buffer is allocated */
+	if (!(swap_buffer_status & BUFFER_ALLOC))
+		return -E_SB_NOT_ALLOC;
+
+	/* Stop buffer */
 	swap_buffer_status &= ~BUFFER_WORK;
 	print_debug("status buffer stop = %d\n", swap_buffer_status);
 
-	/* Checking whether all buffers are released */
+	/* Check whether all buffers are released */
 	if (get_busy_buffers_count())
 		return -E_SB_UNRELEASED_BUFFERS;
 
@@ -127,13 +142,13 @@ ssize_t swap_buffer_write(size_t size, void *data)
 	struct swap_subbuffer *buffer_to_write = NULL;
 	void *ptr_to_write = NULL;
 
-	/* Check buffer status */
-	if (!(swap_buffer_status & BUFFER_WORK))
-		return -E_SB_IS_STOPPED;
-
 	/* Size sanitization */
 	if ((size > subbuffers_size) || (size == 0))
 		return -E_SB_WRONG_DATA_SIZE;
+
+	/* Check buffer status */
+	if (!(swap_buffer_status & BUFFER_WORK))
+		return -E_SB_IS_STOPPED;
 
 	/* Get next write buffer and occupying semaphore */
 	buffer_to_write = get_from_write_list(size, &ptr_to_write);
@@ -153,7 +168,7 @@ ssize_t swap_buffer_write(size_t size, void *data)
 
 	result = size;
 
-	/* Unlock semaphpore (Locked in get_from_write_list()) */
+	/* Unlock sync (Locked in get_from_write_list()) */
 buf_write_sem_post:
 	sync_unlock(&buffer_to_write->buffer_sync);
 
@@ -166,6 +181,10 @@ int swap_buffer_get(struct swap_subbuffer **subbuffer)
 {
 	int result = 0;
 	struct swap_subbuffer *buffer_to_read = NULL;
+
+	/* Check buffer status */
+	if (!(swap_buffer_status & BUFFER_WORK))
+		return -E_SB_IS_STOPPED;
 
 	/* Get next read buffer */
 	buffer_to_read = get_from_read_list();
@@ -206,8 +225,8 @@ int swap_buffer_flush(void)
 {
 	int result = 0;
 
-	/* Set all write buffers to read list */
-	set_all_to_read_list();
+	/* Set all non-empty write buffers to read list */
+	buffer_queue_flush();
 
 	/* Get count of all full buffers */
 	result = get_full_buffers_count();
@@ -231,7 +250,6 @@ int swap_buffer_callback(void *buffer)
 
 	return result;
 }
-
 
 static int __init swap_buffer_module_init(void)
 {

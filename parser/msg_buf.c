@@ -1,6 +1,7 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include "msg_buf.h"
+#include "parser_defs.h"
 
 int init_mb(struct msg_buf *mb, size_t size)
 {
@@ -55,6 +56,8 @@ int get_u32(struct msg_buf *mb, u32 *val)
 	*val = *((u32 *)mb->ptr);
 	mb->ptr += sizeof(*val);
 
+	print_parse_debug("u32->%d;%08X\n", *val, *val);
+
 	return 0;
 }
 
@@ -65,6 +68,7 @@ int get_u64(struct msg_buf *mb, u64 *val)
 
 	*val = *((u64 *)mb->ptr);
 	mb->ptr += sizeof(*val);
+	print_parse_debug("u64->%d; 0x%016lX\n", *val, *val);
 
 	return 0;
 }
@@ -86,6 +90,7 @@ int get_string(struct msg_buf *mb, char **str)
 	memcpy(*str, mb->ptr, len);
 	mb->ptr += len;
 
+	print_parse_debug("str->'%s'\n", *str);
 	return 0;
 }
 

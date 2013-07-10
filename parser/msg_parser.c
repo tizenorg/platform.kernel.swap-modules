@@ -37,18 +37,23 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 	u32 app_type;
 	char *ta_id, *exec_path;
 
+	print_parse_debug("app_info:\n");
+
+	print_parse_debug("type:");
 	ret = get_u32(mb, &app_type);
 	if (ret) {
 		print_err("failed to read target application type\n");
 		return NULL;
 	}
 
+	print_parse_debug("id:");
 	ret = get_string(mb, &ta_id);
 	if (ret) {
 		print_err("failed to read target application ID\n");
 		return NULL;
 	}
 
+	print_parse_debug("exec path:");
 	ret = get_string(mb, &exec_path);
 	if (ret) {
 		print_err("failed to read executable path\n");
@@ -122,16 +127,21 @@ struct conf_data *create_conf_data(struct msg_buf *mb)
 	u64 uf;
 	u32 stp, dmp;
 
+	print_parse_debug("conf_data:\n");
+
+	print_parse_debug("features:");
 	if (get_u64(mb, &uf)) {
 		print_err("failed to read use_features\n");
 		return NULL;
 	}
 
+	print_parse_debug("sys trace period:");
 	if (get_u32(mb, &stp)) {
 		print_err("failed to read sys trace period\n");
 		return NULL;
 	}
 
+	print_parse_debug("data msg period:");
 	if (get_u32(mb, &dmp)) {
 		print_err("failed to read data message period\n");
 		return NULL;
@@ -169,11 +179,13 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 	u64 addr;
 	char *args;
 
+	print_parse_debug("func addr:");
 	if (get_u64(mb, &addr)) {
 		print_err("failed to read data function address\n");
 		return NULL;
 	}
 
+	print_parse_debug("funct args:");
 	if (get_string(mb, &args)) {
 		print_err("failed to read data function arguments\n");
 		return NULL;
@@ -213,11 +225,13 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 	char *path;
 	u32 cnt, j, i = 0;
 
+	print_parse_debug("bin path:");
 	if (get_string(mb, &path)) {
 		print_err("failed to read path of binary\n");
 		return NULL;
 	}
 
+	print_parse_debug("func count:");
 	if (get_u32(mb, &cnt)) {
 		print_err("failed to read count of functions\n");
 		return NULL;
@@ -243,6 +257,7 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 	}
 
 	for (i = 0; i < cnt; ++i) {
+		print_parse_debug("func #%d:\n", i + 1);
 		fi = create_func_inst_data(mb);
 		if (fi == NULL)
 			goto free_func;
@@ -302,6 +317,7 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 	if (app_info == NULL)
 		return NULL;
 
+	print_parse_debug("func count:");
 	if (get_u32(mb, &cnt_func)) {
 		print_err("failed to read count of functions\n");
 		goto free_app_info;
@@ -326,6 +342,7 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 	}
 
 	for (i_func = 0; i_func < cnt_func; ++i_func) {
+		print_parse_debug("func #%d:\n", i_func + 1);
 		func = create_func_inst_data(mb);
 		if (func == NULL)
 			goto free_func;
@@ -333,6 +350,7 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 		app_inst->func[i_func] = func;
 	}
 
+	print_parse_debug("lib count:");
 	if (get_u32(mb, &cnt_lib)) {
 		print_err("failed to read count of libraries\n");
 		goto free_func;
@@ -351,6 +369,7 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 	}
 
 	for (i_lib = 0; i_lib < cnt_lib; ++i_lib) {
+		print_parse_debug("lib #%d:\n", i_lib + 1);
 		lib = create_lib_inst_data(mb);
 		if (lib == NULL)
 			goto free_lib;
@@ -413,6 +432,9 @@ struct us_inst_data *create_us_inst_data(struct msg_buf *mb)
 	struct app_inst_data *ai;
 	u32 cnt, j, i = 0;
 
+	print_parse_debug("us_inst_data:\n");
+
+	print_parse_debug("app count:");
 	if (get_u32(mb, &cnt)) {
 		print_err("failed to read count of applications\n");
 		return NULL;
@@ -437,6 +459,7 @@ struct us_inst_data *create_us_inst_data(struct msg_buf *mb)
 	}
 
 	for (i = 0; i < cnt; ++i) {
+		print_parse_debug("app #%d:\n",i+1);
 		ai = create_app_inst_data(mb);
 		if (ai == NULL)
 			goto free_app_inst;
