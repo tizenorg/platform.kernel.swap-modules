@@ -173,6 +173,7 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid)
 
 	return pfg;
 }
+EXPORT_SYMBOL_GPL(get_pf_group_by_tgid);
 
 void put_pf_group(struct pf_group *pfg)
 {
@@ -191,6 +192,7 @@ int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 {
 	return img_proc_del_ip(pfg->i_proc, dentry, offset);
 }
+EXPORT_SYMBOL_GPL(pf_unregister_probe);
 
 static void install_page_by_pfg(struct pf_group *pfg, struct task_struct *task,
 				unsigned long page_addr)

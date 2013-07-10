@@ -3,6 +3,7 @@
 #include "msg_buf.h"
 #include "features.h"
 #include "parser_defs.h"
+#include "us_inst.h"
 
 static int set_app_info(struct app_info_data *app_info)
 {
@@ -16,16 +17,6 @@ static int set_config(struct conf_data *conf)
 	ret = set_features(conf->use_features);
 
 	return ret;
-}
-
-static int add_us_inst(struct us_inst_data *us_inst)
-{
-	return 0;
-}
-
-static int remove_us_inst(struct us_inst_data *us_inst)
-{
-	return 0;
 }
 
 int msg_keep_alive(struct msg_buf *mb)
@@ -68,8 +59,11 @@ int msg_start(struct msg_buf *mb)
 	}
 
 	/* TODO implement the processing */
-	set_config(conf);
+	ret = set_config(conf);
+	if (ret)
+		goto free_us_inst;
 
+	ret = mod_us_inst(us_inst, MT_ADD);
 
 free_us_inst:
 	destroy_us_inst_data(us_inst);
@@ -135,7 +129,7 @@ int msg_swap_inst_add(struct msg_buf *mb)
 		goto free_us_inst;
 	}
 
-	/* TODO implement the processing */
+	ret = mod_us_inst(us_inst, MT_ADD);
 
 free_us_inst:
 	destroy_us_inst_data(us_inst);
@@ -159,7 +153,7 @@ int msg_swap_inst_remove(struct msg_buf *mb)
 		goto free_us_inst;
 	}
 
-	/* TODO implement the processing */
+	ret = mod_us_inst(us_inst, MT_DEL);
 
 free_us_inst:
 	destroy_us_inst_data(us_inst);
