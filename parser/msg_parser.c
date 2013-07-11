@@ -91,7 +91,7 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 	ai->app_type = (enum APP_TYPE)app_type;
 	ai->exec_path = exec_path;
 
-	put_strung(ta_id);
+	put_string(ta_id);
 
 	return ai;
 
@@ -99,17 +99,17 @@ free_ai:
 	kfree(ai);
 
 free_exec_path:
-	put_strung(exec_path);
+	put_string(exec_path);
 
 free_ta_id:
-	put_strung(ta_id);
+	put_string(ta_id);
 
 	return NULL;
 }
 
 void destroy_app_info(struct app_info_data *ai)
 {
-	put_strung(ai->exec_path);
+	put_string(ai->exec_path);
 	kfree(ai);
 }
 
@@ -194,7 +194,7 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 	fi = kmalloc(sizeof(*fi), GFP_KERNEL);
 	if (fi == NULL) {
 		print_err("out of memory\n");
-		put_strung(args);
+		put_string(args);
 		return NULL;
 	}
 
@@ -206,7 +206,7 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 
 void destroy_func_inst_data(struct func_inst_data *fi)
 {
-	put_strung(fi->args);
+	put_string(fi->args);
 	kfree(fi);
 }
 
@@ -279,7 +279,7 @@ free_li:
 	kfree(li);
 
 free_path:
-	put_strung(path);
+	put_string(path);
 
 	return NULL;
 }
@@ -288,7 +288,7 @@ void destroy_lib_inst_data(struct lib_inst_data *li)
 {
 	int i;
 
-	put_strung(li->path);
+	put_string(li->path);
 
 	for (i = 0; i < li->cnt_func; ++i)
 		destroy_func_inst_data(li->func[i]);

@@ -20,6 +20,6 @@ int get_u32(struct msg_buf *mb, u32 *val);
 int get_u64(struct msg_buf *mb, u64 *val);
 
 int get_string(struct msg_buf *mb, char **str);
-void put_strung(char *str);
+void put_string(char *str);
 
 #endif /* _MSG_BUF_H */

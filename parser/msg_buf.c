@@ -94,7 +94,7 @@ int get_string(struct msg_buf *mb, char **str)
 	return 0;
 }
 
-void put_strung(char *str)
+void put_string(char *str)
 {
 	kfree(str);
 }
