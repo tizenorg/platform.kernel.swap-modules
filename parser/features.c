@@ -1,7 +1,8 @@
 #include <linux/types.h>
 #include <linux/module.h>
-#include "features.h"
 #include <ks_features/ks_features.h>
+#include "parser_defs.h"
+#include "features.h"
 
 enum features_list {
 	syscall_file	= (1 << 10),	/* File operation syscalls tracing */
