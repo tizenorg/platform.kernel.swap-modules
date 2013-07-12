@@ -1,0 +1,4 @@
+EXTRA_CFLAGS := $(extra_cflags)
+
+obj-m := swap_sampler.o
+swap_sampler-y := swap_sampler_module.o

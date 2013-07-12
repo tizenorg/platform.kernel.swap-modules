@@ -14,7 +14,7 @@ static int set_config(struct conf_data *conf)
 {
 	int ret;
 
-	ret = set_features(conf->use_features);
+	ret = set_features(conf);
 
 	return ret;
 }

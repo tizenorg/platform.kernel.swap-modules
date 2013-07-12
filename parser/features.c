@@ -3,6 +3,9 @@
 #include <ks_features/ks_features.h>
 #include "parser_defs.h"
 #include "features.h"
+#include "msg_parser.h"
+
+#include <sampler/swap_sampler_module.h>
 
 enum features_list {
 	syscall_file	= (1 << 10),	/* File operation syscalls tracing */
@@ -15,7 +18,7 @@ enum features_list {
 	func_sampling	= (1 << 19)	/* Function sampling */
 };
 
-int set_syscall_file(void)
+int set_syscall_file(struct conf_data *conf)
 {
 	int ret;
 
@@ -33,7 +36,7 @@ int unset_syscall_file(void)
 	return ret;
 }
 
-int set_syscall_ipc(void)
+int set_syscall_ipc(struct conf_data *conf)
 {
 	int ret;
 
@@ -51,7 +54,7 @@ int unset_syscall_ipc(void)
 	return ret;
 }
 
-int set_syscall_process(void)
+int set_syscall_process(struct conf_data *conf)
 {
 	int ret;
 
@@ -69,7 +72,7 @@ int unset_syscall_process(void)
 	return ret;
 }
 
-int set_syscall_signal(void)
+int set_syscall_signal(struct conf_data *conf)
 {
 	int ret;
 
@@ -87,7 +90,7 @@ int unset_syscall_signal(void)
 	return ret;
 }
 
-int set_syscall_network(void)
+int set_syscall_network(struct conf_data *conf)
 {
 	int ret;
 
@@ -105,7 +108,7 @@ int unset_syscall_network(void)
 	return ret;
 }
 
-int set_syscall_desc(void)
+int set_syscall_desc(struct conf_data *conf)
 {
 	int ret;
 
@@ -123,7 +126,7 @@ int unset_syscall_desc(void)
 	return ret;
 }
 
-int set_context_switch(void)
+int set_context_switch(struct conf_data *conf)
 {
 	printk("### set_context_switch\n");
 
@@ -137,23 +140,27 @@ int unset_context_switch(void)
 	return -EINVAL;
 }
 
-int set_func_sampling(void)
+int set_func_sampling(struct conf_data *conf)
 {
-	printk("### set_func_sampling\n");
+	int ret;
 
-	return -EINVAL;
+	ret = swap_sampler_start(conf->data_msg_period);
+
+	return ret;
 }
 
 int unset_func_sampling(void)
 {
-	printk("### unset_func_sampling\n");
+	int ret;
 
-	return -EINVAL;
+	ret = swap_sampler_stop();
+
+	return ret;
 }
 
 struct feature_item {
 	char *name;
-	int (*set)(void);
+	int (*set)(struct conf_data *conf);
 	int (*unset)(void);
 };
 
@@ -253,10 +260,11 @@ void uninit_features(void)
 {
 }
 
-int set_features(u64 features)
+int set_features(struct conf_data *conf)
 {
 	int i, ret;
 	u64 feature_XOR;
+	u64 features = conf->use_features;
 
 	features &= feature_mask;
 	feature_XOR = features ^ feature_inst;
@@ -264,7 +272,7 @@ int set_features(u64 features)
 	for (i = 0; feature_XOR && i < SIZE_FEATURE_LIST; ++i) {
 		if ((feature_XOR & 1) && feature_list[i] != NULL) {
 			if (features & 1)
-				ret = feature_list[i]->set();
+				ret = feature_list[i]->set(conf);
 			else
 				ret = feature_list[i]->unset();
 
