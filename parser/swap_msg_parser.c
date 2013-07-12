@@ -6,7 +6,7 @@
 #include "msg_buf.h"
 #include "msg_cmd.h"
 
-#include <driver_new/device_driver.h>
+#include <driver_new/driver_to_msg.h>
 #include <driver_new/swap_ioctl.h>
 
 enum MSG_ID {
