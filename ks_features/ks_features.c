@@ -67,23 +67,23 @@ static void dec_counter(size_t id)
 #include <ec_probe.h>
 #include <picl.h>
 #include <storage.h>
+#include "../driver/msg/swap_msg.h"
 
 static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
 {
 	struct ks_probe *ksp = (struct ks_probe *)priv_arg;
+	const char *fmt = ksp->args;
 
-	pack_event_info(KS_PROBE_ID, RECORD_ENTRY, "ps", ksp->rp.kp.addr, ksp->args);
+	entry_event(fmt, regs, PT_US, PST_NONE);
 
 	return 0;
 }
 
 static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
 {
-	int ret_val;
 	struct ks_probe *ksp = (struct ks_probe *)priv_arg;
 
-	ret_val = regs_return_value(regs);
-	pack_event_info(KS_PROBE_ID, RECORD_RET, "pd", ksp->rp.kp.addr, ret_val);
+	exit_event(regs);
 
 	return 0;
 }

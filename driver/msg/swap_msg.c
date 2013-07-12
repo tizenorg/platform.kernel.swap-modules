@@ -423,6 +423,7 @@ void entry_event(const char *fmt, struct pt_regs *regs,
 
 	set_len_msg(buf, buf_end);
 }
+EXPORT_SYMBOL_GPL(entry_event);
 
 
 
@@ -464,6 +465,7 @@ void exit_event(struct pt_regs *regs)
 	buf_end = pack_msg_func_exit(payload, regs);
 	set_len_msg(buf, buf_end);
 }
+EXPORT_SYMBOL_GPL(exit_event);
 
 
 
