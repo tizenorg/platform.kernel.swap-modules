@@ -5,7 +5,7 @@
 
 enum PROBE_TYPE {
 	PT_US	= 1,
-	PT_KS	= 2
+	PT_KS	= 3
 };
 
 enum PROBE_SUB_TYPE {

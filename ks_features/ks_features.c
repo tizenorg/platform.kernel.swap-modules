@@ -6,11 +6,14 @@
 #include "syscall_list.h"
 #include "features_data.c"
 
+/* FIXME: */
+#include "../driver/msg/swap_msg.h"
 
 struct ks_probe {
 	struct kretprobe rp;
 	int counter;
 	char *args;
+	enum PROBE_SUB_TYPE pst;
 };
 
 #define CREATE_RP(name)						\
@@ -34,7 +37,8 @@ enum {
 {								\
 	.rp = CREATE_RP(name),					\
 	.counter = 0,						\
-	.args = #args__						\
+	.args = #args__,					\
+	.pst = PST_NONE						\
 }
 
 static struct ks_probe ksp[] = {
@@ -73,8 +77,9 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs, vo
 {
 	struct ks_probe *ksp = (struct ks_probe *)priv_arg;
 	const char *fmt = ksp->args;
+	enum PROBE_SUB_TYPE pst = ksp->pst;
 
-	entry_event(fmt, regs, PT_US, PST_NONE);
+	entry_event(fmt, regs, PT_KS, pst);
 
 	return 0;
 }
@@ -120,6 +125,12 @@ static int unregister_syscall(size_t id)
 	return 0;
 }
 
+static void set_spt(struct feature *f, size_t id)
+{
+	int num = f - features;
+	ksp[id].pst = num + 1;
+}
+
 static int install_features(struct feature *f)
 {
 	size_t i, id;
@@ -128,6 +139,7 @@ static int install_features(struct feature *f)
 		id = f->feature_list[i];
 
 		if (get_counter(id) == 0) {
+			set_spt(f, id);
 			int ret = register_syscall(id);
 			if (ret) {
 				/* TODO: error */
