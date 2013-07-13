@@ -348,16 +348,19 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 			result = driver_to_buffer_flush();
 			break;
 		}
-		default:
-		{
-//			if (msg_handler) {
-//				result = msg_handler((void __user *)arg);
-//			} else {
-				print_warn("Unknown command %d\n", cmd);
+		case SWAP_DRIVER_MSG:
+			if (msg_handler) {
+				result = msg_handler((void __user *)arg);
+			} else {
+				print_warn("msg_handler() is not register\n");
 				result = -EINVAL;
-//			}
-//			break;
-		}
+			}
+			break;
+		default:
+			print_warn("Unknown command %d\n", cmd);
+			result = -EINVAL;
+			break;
+
 	}
 	return result;
 }
