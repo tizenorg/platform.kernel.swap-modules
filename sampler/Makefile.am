@@ -5,7 +5,7 @@ module_dir = $(realpath $(top_srcdir)/src/modules/sampler)
 module_name = swap_sampler
 cross_compiler = $(subst gcc,,$(CC))
 
-#inlude_opt = -I$(realpath $(top_srcdir)/src/modules/)
+inlude_opt = -I$(realpath $(top_srcdir)/src/modules/)
 extra_cflags = "$(inlude_opt) $(board_opt)"
 
 all-local:

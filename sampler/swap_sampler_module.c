@@ -1,16 +1,3 @@
-
-/*
- * Sampling implementation for SWAP
- * Two approach: timer-based and event-based on counters callbacks
- *
- * NOTE:
-*   1. timer-based approach uses high resolution timers if its available
- *  2. event-based approach that uses counters overflow callbacks doesn't work
- *     on some hardware; it requires PMU functionality for work
- *
- * Written by Andreev S.V., 2012
- */
-
 #include <linux/timer.h>
 #include <asm/ptrace.h>
 #include <asm/processor.h>
@@ -26,12 +13,14 @@
 #include <linux/cpu.h>
 #include <linux/hash.h>
 #include <linux/list.h>
-
 #include <linux/module.h>
+
+#include <writer/swap_writer_module.h>
 
 #include "swap_sampler_module.h"
 #include "swap_sampler_errors.h"
 #include "kernel_operations.h"
+
 
 unsigned int dbi_timer_quantum = 0;
 
@@ -50,13 +39,8 @@ static BLOCKING_NOTIFIER_HEAD(swap_sampler_notifier_list);
 #ifdef CONFIG_HIGH_RES_TIMERS
 static enum hrtimer_restart dbi_hrtimer_notify(struct hrtimer *hrtimer)
 {
-#ifdef CONFIG_ARM
-    print_debug("lr : 0x%x, pc : 0x%x\n", (task_pt_regs(current))->ARM_lr,
-                                   (task_pt_regs(current))->ARM_pc);
-#elif CONFIG_X86
-    print_debug("lr : 0x%x, pc : 0x%x\n", (task_pt_regs(current))->sp,
-                                   (task_pt_regs(current))->bp);
-#endif /* CONFIG_arch */
+    if (current)
+        sample_msg(task_pt_regs(current));
 
     hrtimer_forward_now(hrtimer, ns_to_ktime(dbi_timer_quantum));
     return HRTIMER_RESTART;
@@ -109,13 +93,8 @@ void dbi_write_sample_data(unsigned long data)
 {
     struct timer_list *timer = (struct timer_list *)data;
 
-#ifdef CONFIG_ARM
-    print_debug("lr : 0x%x, pc : 0x%x\n", (task_pt_regs(current))->ARM_lr,
-                                   (task_pt_regs(current))->ARM_pc);
-#elif CONFIG_X86
-    print_debug("lr : 0x%x, pc : 0x%x\n", (task_pt_regs(current))->sp,
-                                   (task_pt_regs(current))->bp);
-#endif /* CONFIG_arch */
+    if (current)
+        sample_msg(task_pt_regs(current));
 
     // TODO: test pinning
     mod_timer_pinned(timer, jiffies + dbi_timer_quantum);
@@ -213,6 +192,7 @@ int swap_sampler_start(unsigned int timer_quantum)
 
     return E_SS_SUCCESS;
 }
+EXPORT_SYMBOL_GPL(swap_sampler_start);
 
 int swap_sampler_stop(void)
 {
@@ -225,6 +205,7 @@ int swap_sampler_stop(void)
 
     return E_SS_SUCCESS;
 }
+EXPORT_SYMBOL_GPL(swap_sampler_stop);
 
 static int __init sampler_init(void)
 {
