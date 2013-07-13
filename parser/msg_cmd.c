@@ -4,6 +4,7 @@
 #include "features.h"
 #include "parser_defs.h"
 #include "us_inst.h"
+#include "../us_manager/us_manager.h"
 
 static int set_app_info(struct app_info_data *app_info)
 {
@@ -60,10 +61,26 @@ int msg_start(struct msg_buf *mb)
 
 	/* TODO implement the processing */
 	ret = set_config(conf);
-	if (ret)
+	if (ret) {
+		printk("Cannot set config, ret = %d\n", ret);
+		ret = -EINVAL;
 		goto free_us_inst;
+	}
 
 	ret = mod_us_inst(us_inst, MT_ADD);
+	if (ret) {
+		printk("Cannot mod us inst, ret = %d\n", ret);
+		ret = -EINVAL;
+		goto free_us_inst;
+	}
+
+	ret = usm_start();
+	if (ret) {
+		printk("Cannot usm start, ret = %d\n", ret);
+		ret = -EINVAL;
+		goto free_us_inst;
+	}
+	return 0;
 
 free_us_inst:
 	destroy_us_inst_data(us_inst);
@@ -79,14 +96,23 @@ free_app_info:
 
 int msg_stop(struct msg_buf *mb)
 {
+	int ret = 0;
+
 	if (!is_end_mb(mb)) {
 		print_err("to long message, remained=%u", remained_mb(mb));
 		return -EINVAL;
 	}
 
+	ret = usm_stop();
+	if (ret) {
+		printk("Cannot usm stop, ret = %d\n", ret);
+		ret = -EINVAL;
+		return ret;
+	}
+
 	/* TODO implement the processing */
 
-	return 0;
+	return ret;
 }
 
 int msg_config(struct msg_buf *mb)
