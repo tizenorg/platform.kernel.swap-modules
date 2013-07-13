@@ -8,6 +8,7 @@
 #include "storage.h"
 #include "us_proc_inst.h"
 #include <sspt/sspt.h>
+#include "../driver/msg/swap_msg.h"
 
 DEFINE_PER_CPU(struct us_ip *, gpCurIp) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpCurIp);
@@ -28,14 +29,15 @@ void ujprobe_event_handler(unsigned long arg0, unsigned long arg1,
 			   unsigned long arg4, unsigned long arg5)
 {
 	struct us_ip *ip = __get_cpu_var(gpCurIp);
+	struct us_ip *regs = __get_cpu_var(gpUserRegs);
 	unsigned long addr = (unsigned long)ip->jprobe.up.kp.addr;
 
 #if defined(CONFIG_ARM)
 	addr = ip->offset & 0x01 ? addr | 0x01 : addr;
 #endif
 
-	pack_event_info(US_PROBE_ID, RECORD_ENTRY, "pspppppp", addr, ip->jprobe.args, arg0, arg1,
-			arg2, arg3, arg4, arg5);
+	entry_event("xxxx", regs, PT_US, 0);
+
 	swap_ujprobe_return();
 }
 EXPORT_SYMBOL_GPL(ujprobe_event_handler);
@@ -92,7 +94,7 @@ int uretprobe_event_handler(struct uretprobe_instance *probe,
 	addr = ip->offset & 0x01 ? addr | 0x01 : addr;
 #endif
 
-	pack_event_info(US_PROBE_ID, RECORD_RET, "pd", addr, retval);
+	exit_event(regs);
 
 	return 0;
 }
