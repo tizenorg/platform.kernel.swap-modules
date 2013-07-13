@@ -23,16 +23,18 @@ struct pt_regs;
 int init_msg(size_t buf_size);
 void uninit_msg(void);
 
-void proc_info_msg(struct task_struct *task);
-void sample_msg(struct pt_regs *regs);
+int proc_info_msg(struct task_struct *task);
+int sample_msg(struct pt_regs *regs);
 
-void entry_event(const char *fmt, struct pt_regs *regs,
+int entry_event(const char *fmt, struct pt_regs *regs,
 		 enum PROBE_TYPE pt, enum PROBE_SUB_TYPE pst);
-void exit_event(struct pt_regs *regs);
+int exit_event(struct pt_regs *regs);
 
-void switch_entry(struct pt_regs *regs);
-void switch_exit(struct pt_regs *regs);
+int switch_entry(struct pt_regs *regs);
+int switch_exit(struct pt_regs *regs);
 
-void error_msg(const char *fmt, ...);
+int error_msg(const char *fmt, ...);
+
+int us_msg(void *us_message);
 
 #endif /* _SWAP_MSG_H */

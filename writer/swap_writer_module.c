@@ -87,22 +87,23 @@ static void print_hex(char *ptr, int len)
 }
 #endif
 
-static void write_to_buffer(void *data, size_t size)
+static int write_to_buffer(void *data)
 {
 	int result;
+	struct basic_msg_fmt *bmf = (struct basic_msg_fmt *)data;
 
-	result = swap_buffer_write(data, size);
+	result = swap_buffer_write(bmf, bmf->len + sizeof(*bmf));
 	if (result != E_SB_SUCCESS) {
 		discarded++;
 	}
+
+	return result;
 }
 
 static void set_len_msg(char *buf, char *end)
 {
 	struct basic_msg_fmt *bmf = (struct basic_msg_fmt *)buf;
 	bmf->len = end - buf - sizeof(*bmf);
-
-	write_to_buffer(bmf->len + sizeof(*bmf), buf);
 }
 
 static inline void set_seq_num(struct basic_msg_fmt *bmf)
@@ -241,7 +242,7 @@ static char *pack_proc_info(char *payload, struct task_struct *task)
 	return pack_proc_info_part(pi->bin_path, task->mm);
 }
 
-void proc_info_msg(struct task_struct *task)
+int proc_info_msg(struct task_struct *task)
 {
 	char *buf, *payload, *buf_end;
 
@@ -250,6 +251,8 @@ void proc_info_msg(struct task_struct *task)
 	buf_end = pack_proc_info(payload, task);
 
 	set_len_msg(buf, buf_end);
+
+	return write_to_buffer(buf);
 }
 EXPORT_SYMBOL_GPL(proc_info_msg);
 
@@ -281,7 +284,7 @@ static char *pack_sample(char *payload, struct pt_regs *regs)
 	return payload + sizeof(*s);
 }
 
-void sample_msg(struct pt_regs *regs)
+int sample_msg(struct pt_regs *regs)
 {
 	char *buf, *payload, *buf_end;
 
@@ -290,6 +293,8 @@ void sample_msg(struct pt_regs *regs)
 	buf_end = pack_sample(payload, regs);
 
 	set_len_msg(buf, buf_end);
+
+	return write_to_buffer(buf);
 }
 EXPORT_SYMBOL_GPL(sample_msg);
 
@@ -442,7 +447,7 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 	return buf - buf_old;
 }
 
-void entry_event(const char *fmt, struct pt_regs *regs,
+int entry_event(const char *fmt, struct pt_regs *regs,
 		 enum PROBE_TYPE pt, enum PROBE_SUB_TYPE pst)
 {
 	char *buf, *payload, *args, *buf_end;
@@ -462,6 +467,8 @@ void entry_event(const char *fmt, struct pt_regs *regs,
 	buf_end = args + ret;
 
 	set_len_msg(buf, buf_end);
+
+	return write_to_buffer(buf);
 }
 EXPORT_SYMBOL_GPL(entry_event);
 
@@ -497,7 +504,7 @@ static char *pack_msg_func_exit(char *payload, struct pt_regs *regs)
 	return payload + sizeof(*mfe);
 }
 
-void exit_event(struct pt_regs *regs)
+int exit_event(struct pt_regs *regs)
 {
 	char *buf, *payload, *buf_end;
 
@@ -505,6 +512,8 @@ void exit_event(struct pt_regs *regs)
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_EXIT);
 	buf_end = pack_msg_func_exit(payload, regs);
 	set_len_msg(buf, buf_end);
+
+	return write_to_buffer(buf);
 }
 EXPORT_SYMBOL_GPL(exit_event);
 
@@ -537,7 +546,7 @@ static char *pack_msg_context_switch(char *payload, struct pt_regs *regs)
 	return payload + sizeof(*mcs);
 }
 
-static void context_switch(struct pt_regs *regs, enum MSG_ID id)
+static int context_switch(struct pt_regs *regs, enum MSG_ID id)
 {
 	char *buf, *payload, *buf_end;
 
@@ -545,17 +554,19 @@ static void context_switch(struct pt_regs *regs, enum MSG_ID id)
 	payload = pack_basic_msg_fmt(buf, id);
 	buf_end = pack_msg_context_switch(payload, regs);
 	set_len_msg(buf, buf_end);
+
+	return write_to_buffer(buf);
 }
 
-void switch_entry(struct pt_regs *regs)
+int switch_entry(struct pt_regs *regs)
 {
-	context_switch(regs, MSG_CONTEXT_SWITCH_ENTRY);
+	return context_switch(regs, MSG_CONTEXT_SWITCH_ENTRY);
 }
 EXPORT_SYMBOL_GPL(switch_entry);
 
-void switch_exit(struct pt_regs *regs)
+int switch_exit(struct pt_regs *regs)
 {
-	context_switch(regs, MSG_CONTEXT_SWITCH_EXIT);
+	return context_switch(regs, MSG_CONTEXT_SWITCH_EXIT);
 }
 EXPORT_SYMBOL_GPL(switch_exit);
 
@@ -583,7 +594,7 @@ static char *pack_msg_err(char *payload, const char *fmt, va_list args)
 	return payload + sizeof(*me) + ret + 1;
 }
 
-void error_msg(const char *fmt, ...)
+int error_msg(const char *fmt, ...)
 {
 	char *buf, *payload, *buf_end;
 	va_list args;
@@ -596,8 +607,25 @@ void error_msg(const char *fmt, ...)
 	va_end(args);
 
 	set_len_msg(buf, buf_end);
+
+	return write_to_buffer(buf);
 }
 EXPORT_SYMBOL_GPL(error_msg);
+
+/* ============================================================================
+ * =                         MESSAGES FROM USER SPACE                         =
+ * ============================================================================
+ */
+
+int us_msg(void *us_message)
+{
+	struct basic_msg_fmt *bmf = (struct basic_msg_fmt *)us_message;
+
+	set_seq_num(bmf);
+	return write_to_buffer(us_message);
+}
+EXPORT_SYMBOL_GPL(us_msg);
+
 
 static int __init swap_writer_module_init(void)
 {
@@ -608,6 +636,9 @@ static void __exit swap_writer_module_exit(void)
 {
 	print_msg("SWAP Writer uninitialized\n");
 }
+
+
+
 
 module_init(swap_writer_module_init);
 module_exit(swap_writer_module_exit);
