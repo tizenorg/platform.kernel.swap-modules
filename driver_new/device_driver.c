@@ -36,6 +36,8 @@
 #include <linux/wait.h>
 #include <asm/uaccess.h>
 
+#include <ksyms/ksyms.h>
+
 #include "device_driver.h"
 #include "swap_driver_errors.h"
 #include "driver_to_buffer.h"
@@ -44,8 +46,6 @@
 #include "device_driver_to_driver_to_buffer.h"
 #include "driver_to_buffer.h"
 #include "driver_to_msg.h"
-
-#include "../ksyms/ksyms.h"
 
 #define SWAP_DEVICE_NAME "swap_device"
 
