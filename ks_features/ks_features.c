@@ -96,6 +96,46 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void
 
 
 
+
+/* ====================== SWITCH_CONTEXT ======================= */
+static int switch_entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
+{
+	switch_entry(regs);
+
+	return 0;
+}
+
+static int switch_ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
+{
+	switch_exit(regs);
+
+	return 0;
+}
+
+struct kretprobe switch_rp = {
+	.kp.symbol_name = "__switch_to",
+	.kp.addr = NULL,
+	.entry_handler = switch_entry_handler,
+	.handler = switch_ret_handler
+};
+
+static int register_switch_context(void)
+{
+	return dbi_register_kretprobe(&switch_rp);
+}
+
+static int unregister_switch_context(void)
+{
+	dbi_unregister_kretprobe(&switch_rp);
+
+	return 0;
+}
+/* ====================== SWITCH_CONTEXT ======================= */
+
+
+
+
+
 static int register_syscall(size_t id)
 {
 	int ret;
@@ -189,8 +229,13 @@ static struct feature *get_feature(enum feature_id id)
 
 int set_feature(enum feature_id id)
 {
-	struct feature *f = get_feature(id);
+	struct feature *f;
 
+	if (id == FID_SWITCH) {
+		return register_switch_context();
+	}
+
+	f = get_feature(id);
 	if (f == NULL)
 		return -EINVAL;
 
@@ -200,8 +245,13 @@ EXPORT_SYMBOL_GPL(set_feature);
 
 int unset_feature(enum feature_id id)
 {
-	struct feature *f = get_feature(id);
+	struct feature *f;
 
+	if (id == FID_SWITCH) {
+		return unregister_switch_context();
+	}
+
+	f = get_feature(id);
 	if (f == NULL)
 		return -EINVAL;
 

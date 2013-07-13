@@ -7,7 +7,8 @@ enum feature_id {
 	FID_PROCESS = 3,
 	FID_SIGNAL = 4,
 	FID_NET = 5,
-	FID_DESC = 6
+	FID_DESC = 6,
+	FID_SWITCH = 7
 };
 
 int set_feature(enum feature_id id);
