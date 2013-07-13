@@ -2,12 +2,12 @@
 #define _KS_FEATURES_H
 
 enum feature_id {
-	FID_FILE,
-	FID_IPC,
-	FID_NET,
-	FID_PROCESS,
-	FID_SIGNAL,
-	FID_DESC
+	FID_FILE = 1,
+	FID_IPC = 2,
+	FID_PROCESS = 3,
+	FID_SIGNAL = 4,
+	FID_NET = 5,
+	FID_DESC = 6
 };
 
 int set_feature(enum feature_id id);
