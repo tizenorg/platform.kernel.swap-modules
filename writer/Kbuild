@@ -1,0 +1,4 @@
+EXTRA_CFLAGS := $(extra_cflags)
+
+obj-m := swap_writer.o
+swap_writer-y := swap_writer_module.o

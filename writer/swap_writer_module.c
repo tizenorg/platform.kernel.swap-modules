@@ -2,14 +2,16 @@
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/dcache.h>
+#include <linux/mm.h>
 #include <linux/mm_types.h>
 #include <linux/fs.h>
 #include <linux/err.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 #include <asm/uaccess.h>
 
-#include <buffer/swap_buffer_module.h>
-#include <buffer/swap_buffer_errors.h>
+#include "../buffer/swap_buffer_module.h"
+#include "../buffer/swap_buffer_errors.h"
 
 #include "swap_writer_module.h"
 #include "swap_writer_errors.h"
@@ -39,6 +41,7 @@ int init_msg(size_t buf_size)
 
 	return E_SW_SUCCESS;
 }
+EXPORT_SYMBOL_GPL(init_msg);
 
 void uninit_msg(void)
 {
@@ -47,6 +50,7 @@ void uninit_msg(void)
 	for (i = 0; i < NR_CPUS; ++i)
 		kfree(cpu_buf[i]);
 }
+EXPORT_SYMBOL_GPL(uninit_msg);
 
 static char *get_current_buf(void)
 {
@@ -189,7 +193,13 @@ static char *pack_lib_obj(char *lib_obj, struct vm_area_struct *vma)
 }
 
 /* FIXME: check_vma()*/
-#include "../../us_manager/sspt/sspt.h"
+static int check_vma(struct vm_area_struct *vma)
+{
+	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
+			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
+			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
+}
+
 static char *pack_proc_info_part(char *bin_path, struct mm_struct *mm)
 {
 	struct proc_info_part *pip;
@@ -241,7 +251,7 @@ void proc_info_msg(struct task_struct *task)
 
 	set_len_msg(buf, buf_end);
 }
-
+EXPORT_SYMBOL_GPL(proc_info_msg);
 
 
 
@@ -258,14 +268,13 @@ struct sample {
 	u32 cpu_num;
 } __attribute__((packed));
 
-static char *pack_sample(char *payload, struct pt_regs *regs,
-			 struct task_struct *task)
+static char *pack_sample(char *payload, struct pt_regs *regs)
 {
 	struct sample *s = (struct sample *)payload;
 	struct task_struct *task = current;
 
 	s->pid = task->tgid;
-	s->pc_addr = get_current_op(regs);
+	s->pc_addr = get_regs_ip(regs);
 	s->tid = task->pid;
 	s->cpu_num = task_cpu(current);
 
@@ -282,7 +291,7 @@ void sample_msg(struct pt_regs *regs)
 
 	set_len_msg(buf, buf_end);
 }
-
+EXPORT_SYMBOL_GPL(sample_msg);
 
 
 
@@ -313,8 +322,9 @@ static char *pack_msg_func_entry(char *payload, const char *fmt, struct pt_regs 
 	mfe->pid = task->tgid;
 	mfe->tid = task->pid;
 	mfe->cpu_num = task_cpu(task);
-	mfe->pc_addr = regs->ARM_pc;
-	mfe->caller_pc_addr = regs->ARM_lr;
+	mfe->pc_addr = get_regs_ip(regs);
+//TODO ret address for x86!
+	mfe->caller_pc_addr = get_regs_ret_func(regs);
 	mfe->probe_type = pt;
 	mfe->probe_sub_type = pst;
 	mfe->cnt_args = strlen(fmt);
@@ -329,13 +339,17 @@ static int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 	arg_in_regs = cnt < 3 ? cnt : 3;
 	switch (arg_in_regs) {
 	case 3:
-		args[3] = regs->ARM_r3;
+//TODO x86
+		args[3] = get_regs_r3(regs);
 	case 2:
-		args[2] = regs->ARM_r2;
+//TODO x86
+		args[2] = get_regs_r2(regs);
 	case 1:
-		args[1] = regs->ARM_r1;
+//TODO x86
+		args[1] = get_regs_r1(regs);
 	case 0:
-		args[0] = regs->ARM_r0;
+//TODO x86
+		args[0] = get_regs_r0(regs);
 	}
 
 	/* FIXME: cnt > 4 */
@@ -476,8 +490,9 @@ static char *pack_msg_func_exit(char *payload, struct pt_regs *regs)
 	mfe->pid = task->tgid;
 	mfe->tid = task->pid;
 	mfe->cpu_num = task_cpu(task);
-	mfe->pc_addr = regs->ARM_pc;
-	mfe->ret_val = regs->ARM_r0;
+	mfe->pc_addr = get_regs_ip(regs);
+//TODO x86
+	mfe->ret_val = get_regs_r0(regs);
 
 	return payload + sizeof(*mfe);
 }
@@ -514,7 +529,7 @@ static char *pack_msg_context_switch(char *payload, struct pt_regs *regs)
 	struct msg_context_switch *mcs = (struct msg_context_switch *)payload;
 	struct task_struct *task = current;
 
-	mcs->pc_addr = regs->ARM_pc;
+	mcs->pc_addr = get_regs_ip(regs);
 	mcs->pid = task->tgid;
 	mcs->tid = task->pid;
 	mcs->cpu_num = task_cpu(task);
@@ -536,12 +551,13 @@ void switch_entry(struct pt_regs *regs)
 {
 	context_switch(regs, MSG_CONTEXT_SWITCH_ENTRY);
 }
+EXPORT_SYMBOL_GPL(switch_entry);
 
 void switch_exit(struct pt_regs *regs)
 {
 	context_switch(regs, MSG_CONTEXT_SWITCH_EXIT);
 }
-
+EXPORT_SYMBOL_GPL(switch_exit);
 
 
 
@@ -581,6 +597,7 @@ void error_msg(const char *fmt, ...)
 
 	set_len_msg(buf, buf_end);
 }
+EXPORT_SYMBOL_GPL(error_msg);
 
 static int __init swap_writer_module_init(void)
 {
