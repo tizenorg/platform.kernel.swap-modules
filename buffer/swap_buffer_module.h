@@ -27,7 +27,9 @@
 #ifndef __SWAP_BUFFER_MODULE_H__
 #define __SWAP_BUFFER_MODULE_H__
 
-#include "buffer_description.h"
+#include <linux/types.h>
+
+struct swap_subbuffer;
 
 /* SWAP Buffer initialization function. Call it before using buffer.
  * Returns memory pages count (>0) in one subbuffer on success, or error code

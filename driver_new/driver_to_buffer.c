@@ -3,10 +3,12 @@
 #include <linux/splice.h>
 #include <asm/uaccess.h>
 
+#include <buffer/swap_buffer_module.h>
+#include <buffer/swap_buffer_errors.h>
+#include <buffer/buffer_description.h>
+
 #include "driver_defs.h"
 #include "swap_driver_errors.h"
-#include "../buffer/swap_buffer_module.h" //TODO
-#include "../buffer/swap_buffer_errors.h" //TODO
 #include "device_driver_to_driver_to_buffer.h"
 
 /* Current busy buffer */

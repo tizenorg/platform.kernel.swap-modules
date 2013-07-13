@@ -26,6 +26,7 @@
 
 #include "swap_buffer_module.h"
 #include "buffer_queue.h"
+#include "buffer_description.h"
 #include "swap_buffer_errors.h"
 
 /* Bitwise mask for buffer status */
