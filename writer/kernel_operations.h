@@ -59,8 +59,8 @@
 
 #define get_regs_ip(regs)       regs->ip
 //TODO Ret function address for x86!
-#define get_regs_ret_func(regs) regs->ax
-#define get_regs_ret_val(regs)  regs->bp
+#define get_regs_ret_func(regs) regs->bp
+#define get_regs_ret_val(regs)  regs->ax
 #define get_regs_r0(regs)       0
 #define get_regs_r1(regs)       0
 #define get_regs_r2(regs)       0
