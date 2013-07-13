@@ -48,8 +48,10 @@ int img_file_add_ip(struct img_file *file, unsigned long addr,
 	struct img_ip *ip;
 
 	ip = find_img_ip(file, addr);
-	if (ip)
-		return -EINVAL;
+	if (ip) {
+		printk("Warning: ip already exists in img, addr = %p\n", addr);
+		return 0;
+	}
 
 	ip = create_img_ip(addr, args);
 	img_add_ip_by_list(file, ip);
@@ -62,8 +64,10 @@ int img_file_del_ip(struct img_file *file, unsigned long addr)
 	struct img_ip *ip;
 
 	ip = find_img_ip(file, addr);
-	if (ip == NULL)
+	if (ip == NULL) {
+		printk("Warning: no ip found in img, addr = %p\n", addr);
 		return -EINVAL;
+	}
 
 	img_del_ip_by_list(ip);
 

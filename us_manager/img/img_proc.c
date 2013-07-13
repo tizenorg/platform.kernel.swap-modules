@@ -52,8 +52,10 @@ int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 	file = create_img_file(dentry);
 
 	ret = img_file_add_ip(file, addr, args);
-	if (ret)
+	if (ret) {
+		printk("Cannot add ip to img file\n");
 		free_img_file(file);
+	}
 	else
 		img_add_file_by_list(proc, file);
 

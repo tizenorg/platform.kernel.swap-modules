@@ -58,17 +58,21 @@ static int mod_func_inst(struct func_inst_data *func, struct pf_group *pfg,
 static int mod_lib_inst(struct lib_inst_data *lib, struct pf_group *pfg,
 			enum MOD_TYPE mt)
 {
-	int ret, i;
+	int ret = 0, i;
 	struct dentry *dentry;
 
 	dentry = dentry_by_path(lib->path);
-	if (dentry == NULL)
+	if (dentry == NULL) {
+		printk("Cannot get dentry by path %s\n", lib->path);
 		return -EINVAL;
+	}
 
 	for (i = 0; i < lib->cnt_func; ++i) {
 		ret = mod_func_inst(lib->func[i], pfg, dentry, mt);
-		if (ret)
+		if (ret) {
+			printk("Cannot mod func inst, ret = %d\n", ret);
 			return ret;
+		}
 	}
 
 	return ret;
@@ -105,24 +109,33 @@ static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 	struct dentry *dentry;
 
 	ret = get_pfg_by_app_info(app_inst->app_info, &pfg);
-	if (ret)
+	if (ret) {
+		printk("Cannot get pfg by app info, ret = %d\n", ret);
 		return ret;
+	}
 
 	for (i = 0; i < app_inst->cnt_func; ++i) {
 		/* TODO: */
 		dentry = dentry_by_path(app_inst->app_info->exec_path);
-		if (dentry == NULL)
+		if (dentry == NULL) {
+			printk("Cannot find dentry by path %s\n",
+			       app_inst->app_info->exec_path);
 			return -EINVAL;
+		}
 
 		ret = mod_func_inst(app_inst->func[i], pfg, dentry, mt);
-		if (ret)
+		if (ret) {
+			printk("Cannot mod func inst, ret = \n", ret);
 			return ret;
+		}
 	}
 
 	for (i = 0; i < app_inst->cnt_lib; ++i) {
 		ret = mod_lib_inst(app_inst->lib[i], pfg, mt);
-		if (ret)
+		if (ret) {
+			printk("Cannot mod lib inst, ret = %d\n", ret);
 			return ret;
+		}
 	}
 
 	return 0;
@@ -131,7 +144,15 @@ static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 int mod_us_inst(struct us_inst_data *us_inst, enum MOD_TYPE mt)
 {
 	u32 i;
+	int ret;
+
 	for (i = 0; i < us_inst->cnt; ++i) {
-		mod_us_app_inst(us_inst->app_inst[i], mt);
+		ret = mod_us_app_inst(us_inst->app_inst[i], mt);
+		if (ret) {
+			printk("Cannot mod us app inst, ret = %d\n", ret);
+			return ret;
+		}
 	}
+
+	return 0;
 }

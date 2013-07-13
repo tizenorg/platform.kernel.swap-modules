@@ -141,7 +141,8 @@ static int install_features(struct feature *f)
 			set_spt(f, id);
 			int ret = register_syscall(id);
 			if (ret) {
-				/* TODO: error */
+				printk("syscall %d install error, ret = %d\n",
+				       id, ret);
 				return ret;
 			}
 		}
