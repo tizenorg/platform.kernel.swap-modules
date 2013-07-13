@@ -136,7 +136,7 @@ int swap_buffer_uninit(void)
 EXPORT_SYMBOL_GPL(swap_buffer_uninit);
 
 
-ssize_t swap_buffer_write(size_t size, void *data)
+ssize_t swap_buffer_write(void *data, size_t size)
 {
 	int result = E_SB_SUCCESS;
 	struct swap_subbuffer *buffer_to_write = NULL;

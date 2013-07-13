@@ -76,7 +76,7 @@ ssize_t driver_to_buffer_write(size_t size, void* data)
 {
     ssize_t result;
 
-    result = swap_buffer_write(size, data);
+    result = swap_buffer_write(data, size);
     if (result == -E_SB_IS_STOPPED) {
         print_err("Buffer is not run! Initialize it before writing\n");
         return -E_SD_WRITE_ERROR;

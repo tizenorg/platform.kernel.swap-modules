@@ -42,7 +42,7 @@ int swap_buffer_uninit(void);
 
 /* SWAP Buffer write function. Pass it size of the data and pointer to the data.
  * On success returns number of bytes written (>=0) or error code (<0) otherwise */
-ssize_t swap_buffer_write(size_t size, void* data);
+ssize_t swap_buffer_write(void* data, size_t size);
 
 /* SWAP Buffer get. Put subbuffer pointer to the variable *subbuffer. 
  * Return pages count in subbuffer. */
