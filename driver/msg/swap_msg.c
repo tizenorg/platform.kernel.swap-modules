@@ -50,7 +50,7 @@ static char *get_current_buf(void)
 
 static inline u64 timespec2time(struct timespec *ts)
 {
-	return ((u64)ts->tv_sec) << 32 | ts->tv_nsec;
+	return ((u64)ts->tv_nsec) << 32 | ts->tv_sec;
 }
 
 
@@ -390,8 +390,8 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 			if (ret < 0)
 				return -EFAULT;
 
-			buf += ret;
-			len -= ret;
+			buf += ret + 1;
+			len -= ret + 1;
 		}
 			break;
 		default:

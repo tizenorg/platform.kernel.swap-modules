@@ -127,8 +127,7 @@ static int unregister_syscall(size_t id)
 
 static void set_spt(struct feature *f, size_t id)
 {
-	int num = f - features;
-	ksp[id].pst = num + 1;
+	ksp[id].pst = f - features;
 }
 
 static int install_features(struct feature *f)

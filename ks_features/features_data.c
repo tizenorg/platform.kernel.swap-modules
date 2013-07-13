@@ -11,6 +11,8 @@ enum syscall_id {
 };
 #undef X
 
+static enum syscall_id id_none[] = {};
+
 static enum syscall_id id_file[] = {
 	id_sys_acct,
 	id_sys_mount,
@@ -232,11 +234,12 @@ static enum syscall_id id_desc[] = {
 }
 
 static struct feature features[] = {
+	CREATE_FEATURE(id_none),
 	CREATE_FEATURE(id_file),
 	CREATE_FEATURE(id_ipc),
-	CREATE_FEATURE(id_net),
 	CREATE_FEATURE(id_process),
 	CREATE_FEATURE(id_signal),
+	CREATE_FEATURE(id_net),
 	CREATE_FEATURE(id_desc)
 };
 
