@@ -5,7 +5,8 @@ module_dir = $(realpath $(top_srcdir)/src/modules/us_manager)
 module_name = swap_us_manager
 cross_compiler = $(subst gcc,,$(CC))
 
-inlude_opt = -I$(realpath $(top_srcdir)/src/modules/driver) \
+inlude_opt = -I$(realpath $(top_srcdir)/src/modules) \
+             -I$(realpath $(top_srcdir)/src/modules/driver) \
              -I$(realpath $(top_srcdir)/src/modules/uprobe) \
              -I$(realpath $(top_srcdir)/src/modules/ksyms) \
              -I$(realpath $(top_srcdir)/src/modules/kprobe) \

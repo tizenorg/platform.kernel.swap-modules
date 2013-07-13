@@ -5,7 +5,7 @@
 #include <helper.h>
 #include "pf/proc_filters.h"
 
-#include "../driver/msg/swap_msg.h"
+#include <writer/swap_writer_module.h>
 
 struct proc_filter *pf;
 
