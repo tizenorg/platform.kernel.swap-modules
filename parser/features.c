@@ -18,6 +18,24 @@ enum features_list {
 	func_sampling	= (1 << 19)	/* Function sampling */
 };
 
+int set_us_inst(struct conf_data *conf)
+{
+	int ret;
+
+	ret = usm_start();
+
+	return ret;
+}
+
+int unset_us_inst(void)
+{
+	int ret;
+
+	ret = usm_stop();
+
+	return ret;
+}
+
 int set_syscall_file(struct conf_data *conf)
 {
 	int ret;
@@ -164,6 +182,12 @@ struct feature_item {
 	int (*unset)(void);
 };
 
+static struct feature_item feature_us_inst = {
+	.name = "user space instrumentation",
+	.set = set_us_inst,
+	.unset = unset_us_inst
+};
+
 static struct feature_item feature_syscall_file = {
 	.name = "file operation syscalls",
 	.set = set_syscall_file,
@@ -215,7 +239,7 @@ static struct feature_item feature_func_sampling = {
 static struct feature_item *feature_list[] = {
  /*  0 */	NULL,
  /*  1 */	NULL,
- /*  2 */	NULL,
+ /*  2 */	&feature_us_inst,
  /*  3 */	NULL,
  /*  4 */	NULL,
  /*  5 */	NULL,
