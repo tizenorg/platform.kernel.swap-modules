@@ -1,4 +1,5 @@
 #include <linux/errno.h>
+#include <writer/swap_writer_module.h>
 #include "msg_parser.h"
 #include "msg_buf.h"
 #include "features.h"
@@ -36,6 +37,8 @@ int msg_start(struct msg_buf *mb)
 	struct app_info_data *app_info;
 	struct conf_data *conf;
 	struct us_inst_data *us_inst;
+
+	reset_discarded();
 
 	app_info = create_app_info(mb);
 	if (app_info == NULL)
@@ -91,6 +94,7 @@ int msg_stop(struct msg_buf *mb)
 {
 	int ret = 0;
 	struct conf_data conf;
+	unsigned int discarded;
 
 	if (!is_end_mb(mb)) {
 		print_err("to long message, remained=%u", remained_mb(mb));
@@ -101,6 +105,12 @@ int msg_stop(struct msg_buf *mb)
 	ret = set_config(&conf);
 	if (ret)
 		printk("Cannot set config, ret = %d\n", ret);
+
+	discarded = get_discarded_count();
+	if (discarded) {
+		printk("Warning: discarded messages: %d\n", discarded);
+		reset_discarded();
+	}
 
 	return ret;
 }

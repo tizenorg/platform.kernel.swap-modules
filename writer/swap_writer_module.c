@@ -30,7 +30,7 @@ enum MSG_ID {
 
 static char *cpu_buf[NR_CPUS];
 static u32 seq_num = 0;
-static u64 discarded = 0;
+static unsigned int discarded = 0;
 
 int init_msg(size_t buf_size)
 {
@@ -51,6 +51,18 @@ void uninit_msg(void)
 		kfree(cpu_buf[i]);
 }
 EXPORT_SYMBOL_GPL(uninit_msg);
+
+void reset_discarded(void)
+{
+	discarded = 0;
+}
+EXPORT_SYMBOL_GPL(reset_discarded);
+
+unsigned int get_discarded_count(void)
+{
+	return discarded;
+}
+EXPORT_SYMBOL_GPL(get_discarded_count);
 
 static char *get_current_buf(void)
 {
@@ -460,8 +472,8 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 			if (ret < 0)
 				return -EFAULT;
 
-			buf += ret;
-			len -= ret;
+			buf += ret + 1;
+			len -= ret + 1;
 		}
 			break;
 		default:
