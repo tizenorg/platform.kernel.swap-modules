@@ -58,6 +58,12 @@ void reset_discarded(void)
 }
 EXPORT_SYMBOL_GPL(reset_discarded);
 
+void reset_seq_num(void)
+{
+	seq_num = 0;
+}
+EXPORT_SYMBOL_GPL(reset_seq_num);
+
 unsigned int get_discarded_count(void)
 {
 	return discarded;
