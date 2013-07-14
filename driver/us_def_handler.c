@@ -36,7 +36,7 @@ void ujprobe_event_handler(unsigned long arg0, unsigned long arg1,
 	addr = ip->offset & 0x01 ? addr | 0x01 : addr;
 #endif
 
-	entry_event("xxxx", regs, PT_US, 0);
+	entry_event(ip->jprobe.args, regs, PT_US, PST_NONE);
 
 	swap_ujprobe_return();
 }
