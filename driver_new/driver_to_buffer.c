@@ -1,3 +1,27 @@
+/*
+ *  SWAP driver
+ *  modules/driver_new/driver_to_buffer.c
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ * Copyright (C) Samsung Electronics, 2013
+ *
+ * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
+ *
+ */
+
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/splice.h>
@@ -25,129 +49,127 @@ static int pages_per_buffer = 0;
 /* TODO Get subbuffer for reading */
 static size_t driver_to_buffer_get(void)
 {
-    int result;
+	int result;
 
-    /* If there is no readable buffers, return error */
-    result = swap_buffer_get(&busy_buffer);
-    if (result == -E_SB_NO_READABLE_BUFFERS) {
-        busy_buffer = NULL;
-        return -E_SD_NO_DATA_TO_READ;
-    } else if (result < 0) {
-        print_err("swap_buffer_get unhandle error %d\n", result);
-        return -E_SD_BUFFER_ERROR;
-    }
+	/* If there is no readable buffers, return error */
+	result = swap_buffer_get(&busy_buffer);
+	if (result == -E_SB_NO_READABLE_BUFFERS) {
+		busy_buffer = NULL;
+		return -E_SD_NO_DATA_TO_READ;
+	} else if (result < 0) {
+		print_err("swap_buffer_get unhandle error %d\n", result);
+		return -E_SD_BUFFER_ERROR;
+	}
 
-    return busy_buffer->full_buffer_part;
+	return busy_buffer->full_buffer_part;
 }
 
 /* TODO Release subbuffer */
 static int driver_to_buffer_release(void)
 {
-    int result;
+	int result;
 
-    if (!busy_buffer)
-        return -E_SD_NO_BUSY_SUBBUFFER;
+	if (!busy_buffer)
+		return -E_SD_NO_BUSY_SUBBUFFER;
 
-    result = swap_buffer_release(&busy_buffer);
-    if (result == -E_SB_NO_SUBBUFFER_IN_BUSY) {
-        return -E_SD_WRONG_SUBBUFFER_PTR;
-    } else if (result < 0) {
-        print_err("swap_buffer_release unhandle error %d\n", result);
-        return -E_SD_BUFFER_ERROR;
-    }
+	result = swap_buffer_release(&busy_buffer);
+	if (result == -E_SB_NO_SUBBUFFER_IN_BUSY) {
+		return -E_SD_WRONG_SUBBUFFER_PTR;
+	} else if (result < 0) {
+		print_err("swap_buffer_release unhandle error %d\n", result);
+		return -E_SD_BUFFER_ERROR;
+	}
 
-    busy_buffer = NULL;
+	busy_buffer = NULL;
 
-    return E_SD_SUCCESS;
+	return E_SD_SUCCESS;
 }
 
 /* Buffers callback function */
 int driver_to_buffer_callback(void)
 {
 //XXX: Think of sync with get next
-    int result;
+	int result;
 
-    /* Increment buffers_to_read counter */
-    buffers_to_read++;
-    swap_device_wake_up_process();
+	/* Increment buffers_to_read counter */
+	buffers_to_read++;
+	swap_device_wake_up_process();
 
-    return E_SD_SUCCESS;
+	return E_SD_SUCCESS;
 }
 
 /* Write to buffers */
 ssize_t driver_to_buffer_write(size_t size, void* data)
 {
-    ssize_t result;
+	ssize_t result;
 
-    result = us_msg(data);
-//    result = swap_buffer_write(data, size);
-    if (result == -E_SB_IS_STOPPED) {
-        print_err("Buffer is not run! Initialize it before writing\n");
-        return -E_SD_WRITE_ERROR;
-    } else if (result < 0) {
-        print_err("swap_buffer_write error %d\n", result);
-        return -E_SD_WRITE_ERROR;
-    }
-    print_debug("swap_buffer writed %d\n", result);
+	result = us_msg(data);
+	if (result == -E_SB_IS_STOPPED) {
+		print_err("Buffer is not run! Initialize it before writing\n");
+		return -E_SD_WRITE_ERROR;
+	} else if (result < 0) {
+		print_err("swap_buffer_write error %d\n", result);
+		return -E_SD_WRITE_ERROR;
+	}
 
-    return result;
+	return result;
 }
 
 /* Read buffers */
 ssize_t driver_to_buffer_read(char __user *buf, size_t count)
 {
-    size_t bytes_to_copy;
-    size_t bytes_to_read = 0;
-    int page_counter = 0;
+	size_t bytes_to_copy;
+	size_t bytes_to_read = 0;
+	int page_counter = 0;
 
-    /* Reading from swap_device means reading only current busy_buffer. So, if
-     * there is no busy_buffer, we don't get next to read, we just read nothing.
-     * In this case, or if there is nothing to read from busy_buffer - return
-     * -E_SD_NO_DATA_TO_READ. It should be correctly handled in device_driver */
-    if (!busy_buffer || !busy_buffer->full_buffer_part)
-        return -E_SD_NO_DATA_TO_READ;
+	/* Reading from swap_device means reading only current busy_buffer. So, if
+	 * there is no busy_buffer, we don't get next to read, we just read nothing.
+	 * In this case, or if there is nothing to read from busy_buffer - return
+	 * -E_SD_NO_DATA_TO_READ. It should be correctly handled in device_driver */
+	if (!busy_buffer || !busy_buffer->full_buffer_part)
+		return -E_SD_NO_DATA_TO_READ;
 
-    /* Bytes count that we're going to copy to user buffer is equal to user
-     * buffer size or to subbuffer readable size whichever is less */
-    bytes_to_copy = (count > busy_buffer->full_buffer_part) ?
-                    busy_buffer->full_buffer_part : count;
+	/* Bytes count that we're going to copy to user buffer is equal to user
+	 * buffer size or to subbuffer readable size whichever is less */
+	bytes_to_copy = (count > busy_buffer->full_buffer_part) ?
+		    busy_buffer->full_buffer_part : count;
 
-    /* Copy data from each page to buffer */
-    while(bytes_to_copy > 0) {
-        /* Get size that should be copied from current page */
-        size_t read_from_this_page = (bytes_to_copy > PAGE_SIZE) ? PAGE_SIZE
-                                                                 : bytes_to_copy;
+	/* Copy data from each page to buffer */
+	while(bytes_to_copy > 0) {
+		/* Get size that should be copied from current page */
+		size_t read_from_this_page = (bytes_to_copy > PAGE_SIZE) ? PAGE_SIZE
+								 : bytes_to_copy;
 
-        /* Copy and add size to copied bytes count */
+		/* Copy and add size to copied bytes count */
 
-        // TODO Check with more than one page
-        bytes_to_read += read_from_this_page -
-                         copy_to_user(buf, page_address(busy_buffer->data_buffer) +
-                                                        (sizeof(struct page*) *
-                                                         page_counter),
-                                                        read_from_this_page);
-        bytes_to_copy -= read_from_this_page;
-        page_counter++;
-    }
+		// TODO Check with more than one page
+		bytes_to_read += read_from_this_page -
+			 copy_to_user(buf, page_address(busy_buffer->data_buffer) +
+							(sizeof(struct page*) *
+							 page_counter),
+							read_from_this_page);
+		bytes_to_copy -= read_from_this_page;
+		page_counter++;
+	}
 
-    return bytes_to_read;
+	return bytes_to_read;
 }
 
 /* Flush swap_buffer */
 int driver_to_buffer_flush(void)
 {
-    int result;
+	int result;
 
-    result = swap_buffer_flush();
+	result = swap_buffer_flush();
 
-    if (result >= 0)
-        buffers_to_read = result;
-    else if (result < 0)
-        return -E_SD_BUFFER_ERROR;
+	if (result >= 0)
+		buffers_to_read = result;
+	else if (result < 0)
+		return -E_SD_BUFFER_ERROR;
 
-    swap_device_wake_up_process();
+	swap_device_wake_up_process();
 
-    return E_SD_SUCCESS;
+	return E_SD_SUCCESS;
 }
 
 /* Fills spd structure */
@@ -168,8 +190,8 @@ int driver_to_buffer_fill_spd(struct splice_pipe_desc *spd)
 
 		/* FIXME: maybe there is more efficient way */
 		memcpy(page_address(pages[spd->nr_pages]),
-		       page_address(&busy_buffer->data_buffer[spd->nr_pages]),
-		       read_from_current_page);
+	       page_address(&busy_buffer->data_buffer[spd->nr_pages]),
+	       read_from_current_page);
 
 		/* Always beginning of the page */
 		partial[spd->nr_pages].offset = 0;
@@ -185,103 +207,103 @@ int driver_to_buffer_fill_spd(struct splice_pipe_desc *spd)
 		/* if (spd->nr_pages == pipe->buffers) { */
 		/* 	break; */
 		/* } */
-    }
-    return 0;
+	}
+	return 0;
 }
 
 /* Check for subbuffers ready to be read */
 int driver_to_buffer_buffer_to_read(void)
 {
-    return busy_buffer ? 1 : 0;
+	return busy_buffer ? 1 : 0;
 }
 
 /* Set buffers size and count */
 int driver_to_buffer_initialize(size_t size, unsigned int count)
 {
-    int result;
+	int result;
 
-    if (size == 0 && count == 0) {
-        return -E_SD_WRONG_ARGS;
-    }
+	if (size == 0 && count == 0) {
+		return -E_SD_WRONG_ARGS;
+	}
 
-    result = swap_buffer_init(size, count, (void*)&driver_to_buffer_callback);
-    if (result == -E_SB_NO_MEM_QUEUE_BUSY
-        || result == -E_SB_NO_MEM_BUFFER_STRUCT) {
-        return -E_SD_NO_MEMORY;
-    }
+	result = swap_buffer_init(size, count, (void*)&driver_to_buffer_callback);
+	if (result == -E_SB_NO_MEM_QUEUE_BUSY
+		|| result == -E_SB_NO_MEM_BUFFER_STRUCT) {
+		return -E_SD_NO_MEMORY;
+	}
 
-    // TODO Race condition: buffer can be used in other thread till we're in
-    // this func
-    /* Initialize driver_to_buffer variables */
-    pages_per_buffer = result;
-    busy_buffer = NULL;
-    buffers_to_read = 0;
+	// TODO Race condition: buffer can be used in other thread till we're in
+	// this func
+	/* Initialize driver_to_buffer variables */
+	pages_per_buffer = result;
+	busy_buffer = NULL;
+	buffers_to_read = 0;
 
-    return E_SD_SUCCESS;
+	return E_SD_SUCCESS;
 }
 
 /* Uninitialize buffer */
 int driver_to_buffer_uninitialize(void)
 {
-    int result;
+	int result;
 
-    /* Release occupied buffer */
-    if (busy_buffer) {
-        result = driver_to_buffer_release();
-        // TODO Maybe release anyway
-        if (result < 0) {
-            return result;
-        }
-        busy_buffer = NULL;
-    }
+	/* Release occupied buffer */
+	if (busy_buffer) {
+		result = driver_to_buffer_release();
+		// TODO Maybe release anyway
+		if (result < 0) {
+			return result;
+		}
+		busy_buffer = NULL;
+	}
 
-    result = swap_buffer_uninit();
-    if (result == -E_SB_UNRELEASED_BUFFERS) {
-        print_err("Can't uninit buffer! There are busy subbuffers!\n");
-        result = -E_SD_BUFFER_ERROR;
-    } else if (result < 0) {
-        print_err("swap_buffer_uninit error %d\n", result);
-        result = -E_SD_BUFFER_ERROR;
-    } else {
-        result = E_SD_SUCCESS;
-    }
+	result = swap_buffer_uninit();
+	if (result == -E_SB_UNRELEASED_BUFFERS) {
+		print_err("Can't uninit buffer! There are busy subbuffers!\n");
+		result = -E_SD_BUFFER_ERROR;
+	} else if (result < 0) {
+		print_err("swap_buffer_uninit error %d\n", result);
+		result = -E_SD_BUFFER_ERROR;
+	} else {
+		result = E_SD_SUCCESS;
+	}
 
-    /* Reinit driver_to_buffer vars */
-    buffers_to_read = 0;
-    pages_per_buffer = 0;
+	/* Reinit driver_to_buffer vars */
+	buffers_to_read = 0;
+	pages_per_buffer = 0;
 
-    return result;
+	return result;
 }
 
 /* Get next buffer to read */
 int driver_to_buffer_next_buffer_to_read(void)
 {
 //XXX: Think of sync with callback
-    int result;
+	int result;
 
-    /* If there is busy_buffer first release it */
-    if (busy_buffer) {
-        result = driver_to_buffer_release();
-        if (result)
-            return result;
-    }
+	/* If there is busy_buffer first release it */
+	if (busy_buffer) {
+		result = driver_to_buffer_release();
+		if (result)
+			return result;
+	}
 
-    /* If there is no buffers to read, return E_SD_NO_DATA_TO_READ.
-     * SHOULD BE POSITIVE, cause there is no real error. */
-    if (!buffers_to_read) {
-        return E_SD_NO_DATA_TO_READ;
-    }
+	/* If there is no buffers to read, return E_SD_NO_DATA_TO_READ.
+	 * SHOULD BE POSITIVE, cause there is no real error. */
+	if (!buffers_to_read) {
+		return E_SD_NO_DATA_TO_READ;
+	}
 
-    /* Get next buffer to read */
-    result = driver_to_buffer_get();
-    if (result < 0) {
-        print_err("buffer_to_reads > 0, but there are no buffers to read\n");
-        return result;
-    }
+	/* Get next buffer to read */
+	result = driver_to_buffer_get();
+	if (result < 0) {
+		print_err("buffer_to_reads > 0, but there are no buffers to read\n");
+		return result;
+	}
 
-    /* Decrement buffers_to_read counter */
-    buffers_to_read--;
+	/* Decrement buffers_to_read counter */
+	buffers_to_read--;
 
-    return E_SD_SUCCESS;
+	return E_SD_SUCCESS;
 }
 

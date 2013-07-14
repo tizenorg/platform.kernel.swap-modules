@@ -268,3 +268,6 @@ static void __exit swap_buffer_module_exit(void)
 module_init(swap_buffer_module_init);
 module_exit(swap_buffer_module_exit);
 
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("SWAP buffer module");
+MODULE_AUTHOR("Aksenov A.S.");

@@ -124,8 +124,6 @@ int swap_device_init(void)
 		goto init_fail;
 	}
 
-	print_debug("Device with major num %d allocated\n", MAJOR(swap_device_no));
-
 	/* Creating device class. Using IS_ERR, because class_create returns ERR_PTR
 	 * on error. */
 	swap_device_class = class_create(THIS_MODULE, SWAP_DEVICE_NAME);
@@ -203,7 +201,6 @@ void swap_device_exit(void)
 	cdev_del(swap_device_cdev);
 	class_destroy(swap_device_class);
 	unregister_chrdev_region(swap_device_no, 1);
-	print_debug("Device unregistered\n");
 }
 
 static int swap_device_open(struct inode *inode, struct file *filp)
@@ -303,7 +300,6 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 	switch(cmd) {
 		case SWAP_DRIVER_BUFFER_INITIALIZE:
 		{
-			print_debug("SWAP_DRIVER_BUFFER_INITIALIZE\n");
 			struct buffer_initialize initialize_struct;
 
 			result = copy_from_user(&initialize_struct, (void*)arg,
@@ -324,7 +320,6 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 		}
 		case SWAP_DRIVER_BUFFER_UNINITIALIZE:
 		{
-			print_debug("SWAP_DRIVER_BUFFER_UNINITIALIZE\n");
 			result = driver_to_buffer_uninitialize();
 			if (result < 0)
 			print_err("Buffer uninitialization failed %d\n", result);
@@ -333,7 +328,6 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 		}
 		case SWAP_DRIVER_NEXT_BUFFER_TO_READ:
 		{
-			print_debug("SWAP_DRIVER_NEXT_BUFFER_TO_READ\n");
 			/* Use this carefully */
 			result = driver_to_buffer_next_buffer_to_read();
 			if (result == E_SD_NO_DATA_TO_READ) {
@@ -344,7 +338,6 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 		}
 		case SWAP_DRIVER_FLUSH_BUFFER:
 		{
-			print_debug("SWAP_DRIVER_FLUSH_BUFFER\n");
 			result = driver_to_buffer_flush();
 			break;
 		}
