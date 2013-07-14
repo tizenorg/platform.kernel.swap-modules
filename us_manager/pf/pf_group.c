@@ -275,11 +275,8 @@ void install_all(void)
 			continue;
 
 		list_for_each_entry(pfg, &pfg_list, list) {
-			if (check_task_f(pfg->filter, task)) {
-				proc = sspt_proc_get_by_task_or_new(task,
-							pfg->filter->priv);
-				sspt_proc_install(proc);
-			}
+			if (check_task_f(pfg->filter, task))
+				call_page_fault(task, 0xba00baab);
 		}
 	}
 	rcu_read_unlock();
