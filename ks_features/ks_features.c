@@ -90,7 +90,7 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void
 
 
 /* ====================== SWITCH_CONTEXT ======================= */
-static int switch_entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
+static int switch_pre_entry(void *priv_arg, struct pt_regs *regs)
 {
 	switch_entry(regs);
 
@@ -104,21 +104,55 @@ static int switch_ret_handler(struct kretprobe_instance *ri, struct pt_regs *reg
 	return 0;
 }
 
+struct jprobe switch_jp = {
+	.pre_entry = switch_pre_entry,
+};
+
 struct kretprobe switch_rp = {
-	.kp.symbol_name = "__switch_to",
-	.kp.addr = NULL,
-	.entry_handler = switch_entry_handler,
 	.handler = switch_ret_handler
 };
 
+int init_switch_context(void)
+{
+	unsigned long addr;
+
+	addr = swap_ksyms("__switch_to");
+	if (addr == 0) {
+		printk("ERROR: not found '__switch_to'\n");
+		return -EINVAL;
+	}
+
+	switch_jp.kp.addr = (kprobe_opcode_t *)addr;
+	switch_rp.kp.addr = (kprobe_opcode_t *)addr;
+
+	return 0;
+}
+
+void exit_switch_context(void)
+{
+}
+
 static int register_switch_context(void)
 {
-	return dbi_register_kretprobe(&switch_rp);
+	int ret;
+
+	ret = dbi_register_jprobe(&switch_jp);
+	if (ret) {
+		return ret;
+	}
+
+	ret = dbi_register_kretprobe(&switch_rp);
+	if (ret) {
+		dbi_unregister_jprobe(&switch_jp);
+	}
+
+	return ret;
 }
 
 static int unregister_switch_context(void)
 {
 	dbi_unregister_kretprobe(&switch_rp);
+	dbi_unregister_jprobe(&switch_jp);
 
 	return 0;
 }
@@ -253,9 +287,13 @@ EXPORT_SYMBOL_GPL(unset_feature);
 
 static int __init init_ks_feature(void)
 {
-	int i;
+	int i, ret;
 	unsigned long addr, ni_syscall;
 	char *name;
+
+	ret = init_switch_context();
+	if (ret)
+		return ret;
 
 	ni_syscall = swap_ksyms("sys_ni_syscall");
 
@@ -286,6 +324,8 @@ static void __exit exit_ks_feature(void)
 		if (get_counter(id) > 0)
 			unregister_syscall(id);
 	}
+
+	exit_switch_context();
 }
 
 module_init(init_ks_feature);

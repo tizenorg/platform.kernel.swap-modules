@@ -547,7 +547,7 @@ static char *pack_msg_context_switch(char *payload, struct pt_regs *regs)
 	struct msg_context_switch *mcs = (struct msg_context_switch *)payload;
 	struct task_struct *task = current;
 
-	mcs->pc_addr = get_regs_ip(regs);
+	mcs->pc_addr = 0;
 	mcs->pid = task->tgid;
 	mcs->tid = task->pid;
 	mcs->cpu_num = task_cpu(task);
