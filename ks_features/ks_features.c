@@ -2,12 +2,10 @@
 #include <asm/errno.h>
 #include <ksyms.h>
 #include <dbi_kprobes.h>
+#include <writer/swap_writer_module.h>
 #include "ks_features.h"
 #include "syscall_list.h"
 #include "features_data.c"
-
-/* FIXME: */
-#include "../driver/msg/swap_msg.h"
 
 struct ks_probe {
 	struct kretprobe rp;
@@ -66,13 +64,7 @@ static void dec_counter(size_t id)
 	--ksp[id].counter;
 }
 
-/* ========================= HEANDLERS ========================= */
-/* FIXME: */
-#include <ec_probe.h>
-#include <picl.h>
-#include <storage.h>
-#include "../driver/msg/swap_msg.h"
-
+/* ========================= HANDLERS ========================= */
 static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
 {
 	struct ks_probe *ksp = (struct ks_probe *)priv_arg;
@@ -92,7 +84,7 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void
 
 	return 0;
 }
-/* ========================= HEANDLERS ========================= */
+/* ========================= HANDLERS ========================= */
 
 
 

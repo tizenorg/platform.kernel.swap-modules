@@ -8,7 +8,7 @@
 #include "storage.h"
 #include "us_proc_inst.h"
 #include <sspt/sspt.h>
-#include "../driver/msg/swap_msg.h"
+#include <writer/swap_writer_module.h>
 
 DEFINE_PER_CPU(struct us_ip *, gpCurIp) = NULL;
 EXPORT_PER_CPU_SYMBOL_GPL(gpCurIp);
