@@ -82,17 +82,17 @@ static int get_pfg_by_app_info(struct app_info_data *app_info, struct pf_group *
 {
 	struct dentry *dentry;
 
+	dentry = dentry_by_path(app_info->exec_path);
+	if (dentry == NULL)
+		return -EINVAL;
+
 	switch (app_info->app_type) {
 	case AT_PID:
-		*pfg = get_pf_group_by_tgid(app_info->tgid);
+		*pfg = get_pf_group_by_tgid(app_info->tgid, dentry);
 		break;
 	case AT_TIZEN_NATIVE_APP:
 	case AT_COMMON_EXEC:
-		dentry = dentry_by_path(app_info->exec_path);
-		if (dentry == NULL)
-			return -EINVAL;
-
-		*pfg = get_pf_group_by_dentry(dentry);
+		*pfg = get_pf_group_by_dentry(dentry, dentry);
 		break;
 	default:
 		printk("ERROR: app_type=%0x%x\n", app_info->app_type);
