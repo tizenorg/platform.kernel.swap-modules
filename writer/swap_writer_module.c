@@ -349,34 +349,6 @@ static char *pack_msg_func_entry(char *payload, const char *fmt, struct pt_regs 
 	return payload + sizeof(*mfe);
 }
 
-static int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
-{
-	int i, arg_in_regs;
-
-	arg_in_regs = cnt < 3 ? cnt : 3;
-	switch (arg_in_regs) {
-	case 3:
-//TODO x86
-		args[3] = get_regs_r3(regs);
-	case 2:
-//TODO x86
-		args[2] = get_regs_r2(regs);
-	case 1:
-//TODO x86
-		args[1] = get_regs_r1(regs);
-	case 0:
-//TODO x86
-		args[0] = get_regs_r0(regs);
-	}
-
-	/* FIXME: cnt > 4 */
-	for (i = 4; i < cnt; ++i) {
-		args[i] = 0;
-	}
-
-	return 0;
-}
-
 static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 {
 	enum { args_cnt = 16 };
