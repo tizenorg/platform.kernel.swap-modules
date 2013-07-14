@@ -296,6 +296,7 @@ int set_features(struct conf_data *conf)
 
 	for (i = 0; feature_XOR && i < SIZE_FEATURE_LIST; ++i) {
 		if ((feature_XOR & 1) && feature_list[i] != NULL) {
+			u64 f_mask;
 			if (features & 1)
 				ret = feature_list[i]->set(conf);
 			else
@@ -308,6 +309,9 @@ int set_features(struct conf_data *conf)
 
 				return ret;
 			}
+			f_mask = ~(1 << i);
+			feature_inst = (feature_inst & f_mask) |
+				(conf->use_features & ~f_mask);
 		}
 
 		features >>= 1;
