@@ -56,7 +56,7 @@
 
 static LIST_HEAD(proc_probes_list);
 
-struct sspt_proc *sspt_proc_create(struct task_struct *task)
+struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
 {
 	struct sspt_proc *proc = kmalloc(sizeof(*proc), GFP_ATOMIC);
 
@@ -72,7 +72,7 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
 		list_add(&proc->list, &proc_probes_list);
 	}
 
-	proc_info_msg(task);
+	proc_info_msg(task, priv);
 
 	return proc;
 }
@@ -105,11 +105,12 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 	return NULL;
 }
 
-struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
+struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
+					       void *priv)
 {
 	struct sspt_proc *proc = sspt_proc_get_by_task(task);
 	if (proc == NULL) {
-		proc = sspt_proc_create(task);
+		proc = sspt_proc_create(task, priv);
 	}
 
 	return proc;

@@ -46,11 +46,12 @@ struct sspt_proc {
 };
 
 
-struct sspt_proc *sspt_proc_create(struct task_struct *task);
+struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv);
 void sspt_proc_free(struct sspt_proc *proc);
 
 struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task);
-struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task);
+struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
+					       void *priv);
 void sspt_proc_free_all(void);
 
 struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc, struct dentry *dentry);

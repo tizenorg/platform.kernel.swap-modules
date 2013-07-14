@@ -98,7 +98,7 @@ static struct sspt_proc *get_proc_by_pfg_or_new(struct pf_group *pfg,
 	if (proc == NULL) {
 		struct pl_struct *pls;
 
-		proc = sspt_proc_get_by_task_or_new(task);
+		proc = sspt_proc_get_by_task_or_new(task, pfg->filter->priv);
 		copy_proc_form_img_to_sspt(pfg->i_proc, proc);
 
 		pls = create_pl_struct(proc);
@@ -137,7 +137,7 @@ static void del_pfg_by_list(struct pf_group *pfg)
 	list_del(&pfg->list);
 }
 
-struct pf_group *get_pf_group_by_dentry(struct dentry *dentry)
+struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv)
 {
 	struct pf_group *pfg;
 	struct proc_filter *filter;
@@ -147,7 +147,7 @@ struct pf_group *get_pf_group_by_dentry(struct dentry *dentry)
 			return pfg;
 	}
 
-	filter = create_pf_by_dentry(dentry);
+	filter = create_pf_by_dentry(dentry, priv);
 	pfg = create_pfg(filter);
 
 	add_pfg_by_list(pfg);
@@ -156,7 +156,7 @@ struct pf_group *get_pf_group_by_dentry(struct dentry *dentry)
 }
 EXPORT_SYMBOL_GPL(get_pf_group_by_dentry);
 
-struct pf_group *get_pf_group_by_tgid(pid_t tgid)
+struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv)
 {
 	struct pf_group *pfg;
 	struct proc_filter *filter;
@@ -166,7 +166,7 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid)
 			return pfg;
 	}
 
-	filter = create_pf_by_tgid(tgid);
+	filter = create_pf_by_tgid(tgid, priv);
 	pfg = create_pfg(filter);
 
 	add_pfg_by_list(pfg);
@@ -276,7 +276,8 @@ void install_all(void)
 
 		list_for_each_entry(pfg, &pfg_list, list) {
 			if (check_task_f(pfg->filter, task)) {
-				proc = sspt_proc_get_by_task_or_new(task);
+				proc = sspt_proc_get_by_task_or_new(task,
+							pfg->filter->priv);
 				sspt_proc_install(proc);
 			}
 		}

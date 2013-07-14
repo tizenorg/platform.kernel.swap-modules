@@ -201,14 +201,36 @@ static int check_vma(struct vm_area_struct *vma)
 			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
 }
 
+static struct vm_area_struct *find_vma_by_dentry(struct mm_struct *mm,
+					  struct dentry *dentry)
+{
+	struct vm_area_struct *vma;
+
+	down_write(&mm->mmap_sem);
+	for (vma = mm->mmap; vma; vma = vma->vm_next) {
+		if (check_vma(vma) && vma->vm_file &&
+		    (vma->vm_file->f_dentry == dentry))
+			goto out;
+	}
+
+	vma = NULL;
+
+out:
+	up_write(&mm->mmap_sem);
+
+	return vma;
+}
+
 static char *pack_proc_info_part(char *bin_path, struct mm_struct *mm)
 {
 	struct proc_info_part *pip;
 	struct vm_area_struct *vma;
 	char *lib_obj, *end_path = NULL;
 	int lib_cnt = 0;
+	char bin_path_def[] = "";
 
-	end_path = pack_path(bin_path, mm->exe_file);
+	memcpy(bin_path, bin_path_def, sizeof(bin_path_def));
+	end_path = bin_path + sizeof(bin_path_def);
 
 	pip = (struct proc_info_part *)end_path;
 	lib_obj = pip->libs;
@@ -226,29 +248,32 @@ static char *pack_proc_info_part(char *bin_path, struct mm_struct *mm)
 	return lib_obj;
 }
 
-static char *pack_proc_info(char *payload, struct task_struct *task)
+static char *pack_proc_info(char *payload, struct task_struct *task,
+			    void *priv)
 {
 	struct proc_info *pi = (struct proc_info *)payload;
+	struct dentry *dentry_exec = (struct dentry *)priv;
+	struct vm_area_struct *vma = find_vma_by_dentry(task->mm, dentry_exec);
 
 	pi->pid = task->tgid;
 
 	/* FIXME: */
 	pi->start_time = timespec2time(&task->start_time);
-	pi->low_addr = 2;
-	pi->high_addr = 3;
-	pi->app_type = 4;
-	pi->bin_type = 5;
+	pi->low_addr = vma ? vma->vm_start : 0;
+	pi->high_addr = vma ? vma->vm_end : 0;
+	pi->app_type = 1;	/* TODO: hardcode for Tizen*/
+	pi->bin_type = 0;	/* TODO: determined in US */
 
 	return pack_proc_info_part(pi->bin_path, task->mm);
 }
 
-int proc_info_msg(struct task_struct *task)
+int proc_info_msg(struct task_struct *task, void *priv)
 {
 	char *buf, *payload, *buf_end;
 
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_PROC_INFO);
-	buf_end = pack_proc_info(payload, task);
+	buf_end = pack_proc_info(payload, task, priv);
 
 	set_len_msg(buf, buf_end);
 

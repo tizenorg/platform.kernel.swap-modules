@@ -51,7 +51,8 @@ static inline struct sspt_proc *get_file_probes(inst_us_proc_t *task_inst_info)
 	int i, ret;
 	struct pf_group *pfg;
 
-	pfg = get_pf_group_by_dentry(task_inst_info->m_f_dentry);
+	pfg = get_pf_group_by_dentry(task_inst_info->m_f_dentry,
+				     task_inst_info->m_f_dentry);
 
 	for (i = 0; i < task_inst_info->libs_count; ++i) {
 		int k, j;
