@@ -29,6 +29,7 @@
 #include <linux/list.h>
 #include <us_slot_manager.h>
 #include <us_proc_inst.h>
+#include <writer/swap_writer_module.h>
 
 #define mm_read_lock(task, mm, atomic, lock)			\
 	mm = atomic ? task->active_mm : get_task_mm(task); 	\
@@ -70,6 +71,8 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
 		/* add to list */
 		list_add(&proc->list, &proc_probes_list);
 	}
+
+	proc_info_msg(task);
 
 	return proc;
 }
