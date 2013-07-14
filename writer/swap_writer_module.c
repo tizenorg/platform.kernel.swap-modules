@@ -435,8 +435,8 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 			if (ret < 0)
 				return -EFAULT;
 
-			buf += ret;
-			len -= ret;
+			buf += ret + 1;
+			len -= ret + 1;
 		}
 			break;
 		default:
