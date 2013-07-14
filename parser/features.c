@@ -147,16 +147,20 @@ int unset_syscall_desc(void)
 
 int set_context_switch(struct conf_data *conf)
 {
-	printk("### set_context_switch\n");
+	int ret;
 
-	return -EINVAL;
+	ret = set_feature(FID_SWITCH);
+
+	return ret;
 }
 
 int unset_context_switch(void)
 {
-	printk("### unset_context_switch\n");
+	int ret;
 
-	return -EINVAL;
+	ret = unset_feature(FID_SWITCH);
+
+	return ret;
 }
 
 int set_func_sampling(struct conf_data *conf)
