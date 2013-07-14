@@ -72,8 +72,6 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
 		list_add(&proc->list, &proc_probes_list);
 	}
 
-	proc_info_msg(task, priv);
-
 	return proc;
 }
 
