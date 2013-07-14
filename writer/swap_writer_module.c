@@ -59,7 +59,7 @@ static char *get_current_buf(void)
 
 static inline u64 timespec2time(struct timespec *ts)
 {
-	return ((u64)ts->tv_sec) << 32 | ts->tv_nsec;
+	return ((u64)ts->tv_nsec) << 32 | ts->tv_sec;
 }
 
 /* ============================================================================
