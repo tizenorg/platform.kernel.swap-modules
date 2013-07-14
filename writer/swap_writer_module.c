@@ -639,6 +639,8 @@ EXPORT_SYMBOL_GPL(us_msg);
 static int __init swap_writer_module_init(void)
 {
 	print_msg("SWAP Writer initialized\n");
+
+	return 0;
 }
 
 static void __exit swap_writer_module_exit(void)
