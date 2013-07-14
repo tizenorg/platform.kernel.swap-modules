@@ -25,6 +25,7 @@ void uninit_msg(void);
 
 void reset_discarded(void);
 unsigned int get_discarded_count(void);
+void reset_seq_num(void);
 
 int proc_info_msg(struct task_struct *task, void *priv);
 int sample_msg(struct pt_regs *regs);

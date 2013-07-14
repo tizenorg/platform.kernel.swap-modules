@@ -31,7 +31,7 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 
 	arg_in_regs = cnt < 3 ? cnt : 3;
 
-#if define(CONFIG_ARM)
+#if defined(CONFIG_ARM)
 
 	/* All args, except first 4, are passed on the stack */
 	stack_args = 4;
@@ -49,7 +49,7 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 	}
 
 
-#elif define(CONFIG_X86_32)
+#elif defined(CONFIG_X86_32)
 
 	if (user_mode(regs)) {
 		/* If we're in user mode on x86 arch, get arguments from stack */

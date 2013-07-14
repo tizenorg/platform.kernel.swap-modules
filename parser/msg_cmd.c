@@ -38,6 +38,7 @@ int msg_start(struct msg_buf *mb)
 	struct conf_data *conf;
 	struct us_inst_data *us_inst;
 
+	reset_seq_num();
 	reset_discarded();
 
 	app_info = create_app_info(mb);
