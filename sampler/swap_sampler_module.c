@@ -226,8 +226,6 @@ static void __exit sampler_exit(void)
 {
     unregister_hotcpu_notifier(&dbi_cpu_notifier);
 
-    swap_sampler_stop();
-
     print_msg("Sampler uninitialized\n");
 }
 
