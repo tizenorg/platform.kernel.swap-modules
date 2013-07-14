@@ -52,21 +52,23 @@ static struct proc_filter *create_pf(void)
 	return pf;
 }
 
-struct proc_filter *create_pf_by_dentry(struct dentry *dentry)
+struct proc_filter *create_pf_by_dentry(struct dentry *dentry, void *priv)
 {
 	struct proc_filter *pf = create_pf();
 
 	pf->call = &call_by_dentry;
 	pf->data = (void *)dentry;
+	pf->priv = priv;
 
 	return pf;
 }
-struct proc_filter *create_pf_by_tgid(pid_t tgid)
+struct proc_filter *create_pf_by_tgid(pid_t tgid, void *priv)
 {
 	struct proc_filter *pf = create_pf();
 
 	pf->call = &call_by_tgid;
 	pf->data = (void *)tgid;
+	pf->priv = priv;
 
 	return pf;
 }

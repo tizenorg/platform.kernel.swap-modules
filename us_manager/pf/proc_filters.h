@@ -9,12 +9,13 @@ struct proc_filter {
 	struct task_struct *(*call)(struct proc_filter *self,
 				    struct task_struct *task);
 	void *data;
+	void *priv;
 };
 
 #define check_task_f(filter, task) filter->call(filter, task)
 
-struct proc_filter *create_pf_by_dentry(struct dentry *dentry);
-struct proc_filter *create_pf_by_tgid(pid_t tgid);
+struct proc_filter *create_pf_by_dentry(struct dentry *dentry, void *priv);
+struct proc_filter *create_pf_by_tgid(pid_t tgid, void *priv);
 void free_pf(struct proc_filter *pf);
 
 int check_pf_by_dentry(struct proc_filter *filter, struct dentry *dentry);
