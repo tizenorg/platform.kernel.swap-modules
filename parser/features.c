@@ -1,6 +1,7 @@
 #include <linux/types.h>
 #include <linux/module.h>
 #include <ks_features/ks_features.h>
+#include <us_manager/us_manager.h>
 #include "parser_defs.h"
 #include "features.h"
 #include "msg_parser.h"
