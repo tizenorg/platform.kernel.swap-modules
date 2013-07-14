@@ -45,7 +45,7 @@
 
 /* ARCH-DEPENDED OPERATIONS */
 
-#if define(CONFIG_ARM)
+#if defined(CONFIG_ARM)
 
 #define get_regs_ip(regs)           regs->ARM_pc
 #define get_regs_ret_func(regs)     regs->ARM_lr
@@ -56,7 +56,7 @@
 #define get_regs_r2(regs)           regs->ARM_r2
 #define get_regs_r3(regs)           regs->ARM_r3
 
-#elif define(CONFIG_X86_32)
+#elif defined(CONFIG_X86_32)
 
 #define get_regs_ip(regs)           regs->ip
 #define get_regs_ret_func(regs)     regs->bp + 8
