@@ -30,7 +30,7 @@ enum MSG_ID {
 
 static char *cpu_buf[NR_CPUS];
 static u32 seq_num = 0;
-static u64 discarded = 0;
+static unsigned int discarded = 0;
 
 int init_msg(size_t buf_size)
 {
