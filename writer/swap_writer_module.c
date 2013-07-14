@@ -52,6 +52,18 @@ void uninit_msg(void)
 }
 EXPORT_SYMBOL_GPL(uninit_msg);
 
+void reset_discarded(void)
+{
+	discarded = 0;
+}
+EXPORT_SYMBOL_GPL(reset_discarded);
+
+unsigned int get_discarded_count(void)
+{
+	return discarded;
+}
+EXPORT_SYMBOL_GPL(get_discarded_count);
+
 static char *get_current_buf(void)
 {
 	return cpu_buf[task_cpu(current)];
