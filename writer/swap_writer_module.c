@@ -470,7 +470,7 @@ int entry_event(const char *fmt, struct pt_regs *regs,
 	ret = pack_args(args, 1024, fmt, regs);
 	if (ret < 0) {
 		printk("ERROR: !!!!!\n");
-		return;
+		return ret;
 	}
 
 	buf_end = args + ret;
