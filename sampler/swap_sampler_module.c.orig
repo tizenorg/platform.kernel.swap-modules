@@ -179,7 +179,7 @@ int swap_sampler_start(unsigned int timer_quantum)
     if (timer_quantum <= 0)
         return -E_SS_WRONG_QUANTUM;
 
-    dbi_timer_quantum = timer_quantum * 1000 * 1000;
+    dbi_timer_quantum = timer_quantum;
 
     if (!try_module_get(THIS_MODULE))
         print_err("Error of try_module_get() for sampling module\n");
@@ -192,7 +192,11 @@ int swap_sampler_start(unsigned int timer_quantum)
 
     return E_SS_SUCCESS;
 }
+<<<<<<< Updated upstream
 EXPORT_SYMBOL_GPL(swap_sampler_start);
+=======
+EXPORT_SYMBOL_GPL(swap_sampler_start)
+>>>>>>> Stashed changes
 
 int swap_sampler_stop(void)
 {
@@ -205,7 +209,11 @@ int swap_sampler_stop(void)
 
     return E_SS_SUCCESS;
 }
+<<<<<<< Updated upstream
 EXPORT_SYMBOL_GPL(swap_sampler_stop);
+=======
+EXPORT_SYMBOL_GPL(swap_sampler_stop)
+>>>>>>> Stashed changes
 
 static int __init sampler_init(void)
 {
