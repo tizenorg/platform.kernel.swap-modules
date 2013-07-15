@@ -927,7 +927,7 @@ void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	unsigned long *sara = (unsigned long *)&regs->EREG(sp);
 	ri->ret_addr = (kprobe_opcode_t *)*sara;
-	ri->sp = regs->EREG(sp);
+	ri->sp = &regs->EREG(sp);
 
 	/* Replace the return addr with trampoline addr */
 	*sara = (unsigned long)&kretprobe_trampoline;
