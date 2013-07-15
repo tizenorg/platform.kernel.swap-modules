@@ -732,12 +732,16 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 {
 	struct uprobe *up = container_of(p, struct uprobe, kp);
 	struct uretprobe *rp = container_of(up, struct uretprobe, up);
+#ifdef CONFIG_ARM
 	int noret = thumb_mode(regs) ? rp->thumb_noret : rp->arm_noret;
+#endif
 	struct uretprobe_instance *ri;
 	unsigned long flags;
 
+#ifdef CONFIG_ARM
 	if (noret)
 		return 0;
+#endif
 
 	/* TODO: consider to only swap the RA after the last pre_handler fired */
 	spin_lock_irqsave(&uretprobe_lock, flags);
