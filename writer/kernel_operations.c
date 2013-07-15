@@ -50,12 +50,12 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 
 
 #elif defined(CONFIG_X86_32)
-
 	if (user_mode(regs)) {
 		/* If we're in user mode on x86 arch, get arguments from stack */
 		/* ONLY CDECL CALLING CONVENTION IS SUPPORTED RIGHT NOW */
 		stack_args = 0;
 	} else {
+		stack_args = 6;
 		/* If we're in kernel mode on x86, get arguments from bx, cx, dx, si,
 		 * di, bp */
 		switch (arg_in_regs) {
