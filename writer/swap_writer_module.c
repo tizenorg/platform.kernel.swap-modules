@@ -476,7 +476,7 @@ int entry_event(const char *fmt, struct pt_regs *regs,
 	ret = pack_args(args, 1024, fmt, regs);
 	if (ret < 0) {
 		printk("ERROR: !!!!!\n");
-		return;
+		return ret;
 	}
 
 	buf_end = args + ret;
@@ -553,7 +553,7 @@ static char *pack_msg_context_switch(char *payload, struct pt_regs *regs)
 	struct msg_context_switch *mcs = (struct msg_context_switch *)payload;
 	struct task_struct *task = current;
 
-	mcs->pc_addr = get_regs_ip(regs);
+	mcs->pc_addr = 0;
 	mcs->pid = task->tgid;
 	mcs->tid = task->pid;
 	mcs->cpu_num = task_cpu(task);
@@ -645,6 +645,8 @@ EXPORT_SYMBOL_GPL(us_msg);
 static int __init swap_writer_module_init(void)
 {
 	print_msg("SWAP Writer initialized\n");
+
+	return 0;
 }
 
 static void __exit swap_writer_module_exit(void)
