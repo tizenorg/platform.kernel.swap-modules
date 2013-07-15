@@ -805,7 +805,7 @@ int dbi_register_uretprobe(struct uretprobe *rp)
 	if (ret)
 		return ret;
 
-	arch_opcode_analysis_uretprobe(rp);
+	arch_opcode_analysis_uretprobe(rp->up.kp.opcode);
 
 	return 0;
 }

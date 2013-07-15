@@ -674,10 +674,8 @@ int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list)
 	return ret;
 }
 
-void arch_opcode_analysis_uretprobe(struct uretprobe *rp)
+void arch_opcode_analysis_uretprobe(kprobe_opcode_t opcode)
 {
-	kprobe_opcode_t opcode = rp->up.kp.opcode;
-
 	/* Remove retprobe if first insn overwrites lr */
 	rp->thumb_noret = !!(THUMB2_INSN_MATCH(BL, opcode) ||
 			     THUMB2_INSN_MATCH(BLX1, opcode) ||
