@@ -36,9 +36,9 @@ parser_dir=${modules_dir}/parser
 
 install_dir="/opt/swap/sdk"
 
-rm ${kprobe_arch_dir}/asm
+rm -f ${kprobe_arch_dir}/asm
 ln -s asm-${link_name} ${kprobe_arch_dir}/asm
-rm ${uprobe_arch_dir}/asm
+rm -f ${uprobe_arch_dir}/asm
 ln -s asm-${link_name} ${uprobe_arch_dir}/asm
 
 buffer_module_name=swap_buffer.ko
