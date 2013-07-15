@@ -27,7 +27,7 @@
 
 #include <linux/list.h>
 //#include "../../kprobe/dbi_kprobes.h"
-#include <swap_uprobes.h>
+#include <uprobe/swap_uprobes.h>
 
 // TODO: tmp struct ip_data
 struct ip_data {

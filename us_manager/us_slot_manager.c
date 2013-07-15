@@ -28,7 +28,7 @@ static unsigned long alloc_user_pages(struct task_struct *task, unsigned long le
 		}
 		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily
 		current_thread_info()->task = task;
-		ret = do_mmap_pgoff(NULL, 0, len, prot, flags, 0);
+		ret = do_mmap(NULL, 0, len, prot, flags, 0);
 		current_thread_info()->task = otask;
 		if (!atomic) {
 			downgrade_write (&mm->mmap_sem);
@@ -79,7 +79,7 @@ struct slot_manager *create_sm_us(struct task_struct *task)
 	sm->slot_size = UPROBES_TRAMP_LEN;
 	sm->alloc = sm_alloc_us;
 	sm->free = sm_free_us;
-	INIT_HLIST_NODE(&sm->page_list);
+	INIT_HLIST_HEAD(&sm->page_list);
 	sm->data = task;
 
 	return sm;

@@ -1,7 +1,7 @@
 #include <linux/module.h>
-#include <sspt/sspt.h>
-#include <sspt/sspt_proc.h>
-#include <sspt/sspt_page.h>
+#include <us_manager/sspt/sspt.h>
+#include <us_manager/sspt/sspt_proc.h>
+#include <us_manager/sspt/sspt_page.h>
 #include <helper.h>
 #include "pf/proc_filters.h"
 

@@ -27,7 +27,7 @@
  *
  */
 
-#include "dbi_kprobes.h"
+#include <kprobe/dbi_kprobes.h>
 
 struct uprobe {
 	struct kprobe kp;

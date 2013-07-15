@@ -1,9 +1,7 @@
 #include <dbi_kprobes.h>
 #include <dbi_kprobes_deps.h>
 #include <ksyms.h>
-#include "us_proc_inst.h"
 #include "us_slot_manager.h"
-#include "storage.h"
 #include "sspt/sspt.h"
 #include "helper.h"
 

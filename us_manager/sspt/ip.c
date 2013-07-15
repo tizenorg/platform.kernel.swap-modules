@@ -27,8 +27,7 @@
 #include "sspt_page.h"
 #include "sspt_file.h"
 
-/* FIXME: */
-#include "../../driver/us_def_handler.h"
+#include "us_def_handler.h"
 
 struct us_ip *create_ip(unsigned long offset, const char *args)
 {

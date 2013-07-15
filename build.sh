@@ -34,9 +34,6 @@ ks_features_dir=${modules_dir}/ks_features
 sampler_dir=${modules_dir}/sampler
 parser_dir=${modules_dir}/parser
 
-driver_dir=${modules_dir}/driver
-common_dir=${modules_dir}/../common
-
 install_dir="/opt/swap/sdk"
 
 rm ${kprobe_arch_dir}/asm

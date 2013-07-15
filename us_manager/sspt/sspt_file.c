@@ -26,7 +26,6 @@
 #include "sspt_file.h"
 #include "sspt_page.h"
 #include "sspt_proc.h"
-#include <storage.h>
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/hash.h>
@@ -234,7 +233,7 @@ void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma)
 	file->vm_start = vma->vm_start;
 	file->vm_end = vma->vm_end;
 
-	ptr_pack_task_event_info(task, DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
-				 task->tgid, file->dentry->d_iname, vma->vm_start,
-				 vma->vm_end - vma->vm_start, 0);
+//	ptr_pack_task_event_info(task, DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
+//				 task->tgid, file->dentry->d_iname, vma->vm_start,
+//				 vma->vm_end - vma->vm_start, 0);
 }
