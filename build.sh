@@ -1,11 +1,15 @@
 #!/bin/bash
 
 modules_dir=`pwd`
-# kernel_dir="/home/kain/dev/inperfa/kernel/redwood/linux-3.4-exynos"
-kernel_dir="/home/alexander/vanilla_kernels/linux-3.8.6"
-cross_compile=/home/alexander/dev/u1_slp/arm-linux-gnueabi-gcc4.4.1-glibc2.11.1/bin/arm-none-linux-gnueabi-
-arch=arm
-#arch=i386
+
+if [ "$#" -lt 2 ] ; then
+	echo "Usage: $0 <kernel dir> <arch (arm/i386)> [<cross compile>]"
+	exit 1
+fi
+
+kernel_dir=$1
+arch=$2
+cross_compile=$3
 
 if [ ${arch} = "arm" ] ; then
 	link_name="arm"
@@ -97,6 +101,6 @@ ${ks_features_dir}/${ks_features_module_name} \
 ${sampler_dir}/${sampler_module_name} \
 ${parser_dir}/${parser_module_name}"
 
-for m in ${modules} ; do
-	sdb -e push $m ${install_dir}
-done
+# for m in ${modules} ; do
+# 	sdb -e push $m ${install_dir}
+# done
