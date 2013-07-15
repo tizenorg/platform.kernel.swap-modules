@@ -72,6 +72,7 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 			case 0:
 				args[0] = get_regs_bx(regs);
 		}
+	}
 
 #endif /* CONFIG_arch */
 
