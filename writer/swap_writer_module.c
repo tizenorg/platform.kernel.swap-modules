@@ -514,7 +514,7 @@ static char *pack_msg_func_exit(char *payload, struct pt_regs *regs)
 	mfe->cpu_num = task_cpu(task);
 	mfe->pc_addr = get_regs_ip(regs);
 //TODO x86
-	mfe->ret_val = get_regs_r0(regs);
+	mfe->ret_val = get_regs_ret_val(regs);
 
 	return payload + sizeof(*mfe);
 }
