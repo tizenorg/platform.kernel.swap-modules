@@ -1,6 +1,6 @@
 /*
  *  SWAP driver
- *  modules/driver_new/swap_driver_module.c
+ *  modules/driver/driver_to_buffer.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,28 +22,18 @@
  *
  */
 
-#include <linux/module.h>
+#ifndef __SWAP_DRIVER_DRIVER_TO_BUFFER__
+#define __SWAP_DRIVER_DRIVER_TO_BUFFER__
 
-#include "driver_defs.h"
-#include "device_driver.h"
+int driver_to_buffer_initialize(size_t size, unsigned int count);
+int driver_to_buffer_uninitialize(void);
+ssize_t driver_to_buffer_write(size_t size, void* data);
+ssize_t driver_to_buffer_read(char __user *buf, size_t count);
+void driver_to_buffer_callback(void);
+int driver_to_buffer_fill_spd(struct splice_pipe_desc *spd);
+int driver_to_buffer_buffer_to_read(void);
+int driver_to_buffer_next_buffer_to_read(void);
+int driver_to_buffer_flush(void);
 
-static int __init swap_driver_init(void)
-{
-	swap_device_init();
-	print_msg("Driver module initialized\n");
 
-	return 0;
-}
-
-static void __exit swap_driver_exit(void)
-{
-	swap_device_exit();
-	print_msg("Driver module uninitialized\n");
-}
-
-module_init(swap_driver_init);
-module_exit(swap_driver_exit);
-
-MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("SWAP device driver");
-MODULE_AUTHOR("Aksenov A.S.");
+#endif /* __SWAP_DRIVER_DRIVER_TO_BUFFER__ */

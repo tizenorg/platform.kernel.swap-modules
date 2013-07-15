@@ -1,6 +1,6 @@
 /*
- *  SWAP driver
- *  modules/driver_new/device_driver.h
+ *  SWAP device driver
+ *  modules/driver/driver_to_msg.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,17 +18,17 @@
  *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
+ * 2013	 Vyacheslav Cherkashin: SWAP driver to parser implement
  *
  */
 
-#ifndef __SWAP_DRIVER_DEVICE_DRIVER_H__
-#define __SWAP_DRIVER_DEVICE_DRIVER_H__
+#ifndef __SWAP_DRIVER_DRIVER_TO_MSG__
+#define __SWAP_DRIVER_DRIVER_TO_MSG__
 
-/* Create and register device */
-int swap_device_init(void);
 
-/* Delete device */
-void swap_device_exit(void);
+typedef int (*msg_handler_t)(void __user *data);
 
-#endif /* __SWAP_DRIVER_DEVICE_DRIVER_H__ */
+/* Set the message handler */
+void set_msg_handler(msg_handler_t mh);
+
+#endif /* __SWAP_DRIVER_DRIVER_TO_MSG__ */

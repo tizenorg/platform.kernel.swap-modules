@@ -1,6 +1,6 @@
 /*
- *  SWAP device driver
- *  modules/driver_new/driver_defs.h
+ *  SWAP Driver
+ *  modules/driver/swap_driver_module.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,20 +22,28 @@
  *
  */
 
-#ifndef __SWAP_DRIVER_DEVICE_DEFS_H__
-#define __SWAP_DRIVER_DEVICE_DEFS_H__
+#include <linux/module.h>
 
-#include <linux/kernel.h>
+#include "driver_defs.h"
+#include "device_driver.h"
 
-#define print_debug(msg, args...) \
-    printk(KERN_DEBUG "SWAP_DRIVER DEBUG : " msg, ##args)
-#define print_msg(msg, args...)   \
-    printk(KERN_INFO "SWAP_DRIVER : " msg, ##args)
-#define print_warn(msg, args...)  \
-    printk(KERN_WARNING "SWAP_DRIVER WARNING : " msg, ##args)
-#define print_err(msg, args...)   \
-    printk(KERN_ERR "SWAP_DRIVER ERROR : " msg, ##args)
-#define print_crit(msg, args...)  \
-    printk(KERN_CRIT "SWAP_DRIVER CRITICAL : " msg, ##args)
+static int __init swap_driver_init(void)
+{
+	swap_device_init();
+	print_msg("Driver module initialized\n");
 
-#endif /* __SWAP_DRIVER_DEVICE_DEFS_H__ */
+	return 0;
+}
+
+static void __exit swap_driver_exit(void)
+{
+	swap_device_exit();
+	print_msg("Driver module uninitialized\n");
+}
+
+module_init(swap_driver_init);
+module_exit(swap_driver_exit);
+
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("SWAP device driver");
+MODULE_AUTHOR("Aksenov A.S.");

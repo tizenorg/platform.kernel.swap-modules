@@ -1,6 +1,6 @@
 /*
- *  SWAP device driver
- *  modules/driver_new/driver_to_msg.h
+ *  SWAP Driver
+ *  modules/driver/kernel_operations.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,17 +18,27 @@
  *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP driver to parser implement
+ * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP Driver implement
  *
  */
 
-#ifndef __SWAP_DRIVER_DRIVER_TO_MSG__
-#define __SWAP_DRIVER_DRIVER_TO_MSG__
+/* Kernel functions wrap */
 
+#ifndef __KERNEL_OPERATIONS_H__
+#define __KERNEL_OPERATIONS_H__
 
-typedef int (*msg_handler_t)(void __user *data);
+#include <linux/kernel.h>
 
-/* Set the message handler */
-void set_msg_handler(msg_handler_t mh);
+/* MESSAGES */
+#define print_debug(msg, args...) \
+	printk(KERN_DEBUG "SWAP_DRIVER DEBUG : " msg, ##args)
+#define print_msg(msg, args...)   \
+	printk(KERN_INFO "SWAP_DRIVER : " msg, ##args)
+#define print_warn(msg, args...)  \
+	printk(KERN_WARNING "SWAP_DRIVER WARNING : " msg, ##args)
+#define print_err(msg, args...)   \
+	printk(KERN_ERR "SWAP_DRIVER ERROR : " msg, ##args)
+#define print_crit(msg, args...)  \
+	printk(KERN_CRIT "SWAP_DRIVER CRITICAL : " msg, ##args)
 
-#endif /* __SWAP_DRIVER_DRIVER_TO_MSG__ */
+#endif /* __KERNEL_OPERATIONS_H__ */

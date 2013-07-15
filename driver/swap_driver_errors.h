@@ -1,5 +1,5 @@
 /*
- *  SWAP Buffer Module
+ *  SWAP Driver Module
  *  modules/buffer/swap_driver_errors.h
  *
  * This program is free software; you can redistribute it and/or modify
@@ -18,7 +18,7 @@
  *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP Buffer implement
+ * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP Driver implement
  *
  */
 

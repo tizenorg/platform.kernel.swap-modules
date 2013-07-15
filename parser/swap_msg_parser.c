@@ -31,8 +31,8 @@
 #include "msg_buf.h"
 #include "msg_cmd.h"
 
-#include <driver_new/driver_to_msg.h>
-#include <driver_new/swap_ioctl.h>
+#include <driver/driver_to_msg.h>
+#include <driver/swap_ioctl.h>
 
 enum MSG_ID {
 	MSG_KEEP_ALIVE		= 0x0001,

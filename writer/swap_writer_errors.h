@@ -1,6 +1,6 @@
 /*
  *  SWAP Writer
- *  modules/driver_new/swap_writer_errors.h
+ *  modules/writer/swap_writer_errors.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

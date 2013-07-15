@@ -22,7 +22,7 @@ fi
 
 buffer_dir=${modules_dir}/buffer
 writer_dir=${modules_dir}/writer
-driver_new_dir=${modules_dir}/driver_new
+driver_dir=${modules_dir}/driver
 kprobe_dir=${modules_dir}/kprobe
 kprobe_arch_dir=${kprobe_dir}/arch
 ksyms_dir=${modules_dir}/ksyms
@@ -49,8 +49,8 @@ writer_module_name=swap_writer.ko
 writer_inc=${modules_inc}
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${writer_dir} modules || exit 1
 
-driver_new_module_name=swap_driver_new.ko
-make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${driver_new_dir} \
+driver_module_name=swap_driver.ko
+make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${driver_dir} \
 	extra_cflags="-I${modules_dir}" modules || exit 1
 
 kprobe_module_name=swap_kprobe.ko
@@ -70,7 +70,7 @@ make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${uprobe_dir
 
 us_manager_module_name=swap_us_manager.ko
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${us_manager_dir} \
-	extra_cflags="-I${modules_dir} -I${us_manager_dir} -I${kprobe_dir} -I${kprobe_arch_dir} -I${uprobe_dir} -I${uprobe_arch_dir} -I${driver_dir} -I${common_dir} -I${ksyms_dir}" \
+	extra_cflags="-I${modules_dir} -I${us_manager_dir} -I${kprobe_dir} -I${kprobe_arch_dir} -I${uprobe_dir} -I${uprobe_arch_dir} -I${driver_dir} -I${ksyms_dir}" \
 	modules || exit 1
 
 ks_features_module_name=swap_ks_features.ko
@@ -89,7 +89,7 @@ make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${parser_dir
 modules=\
 "${buffer_dir}/${buffer_module_name} \
 ${writer_dir}/${writer_module_name} \
-${driver_new_dir}/${driver_new_module_name} \
+${driver_dir}/${driver_module_name} \
 ${kprobe_dir}/${kprobe_module_name} \
 ${ks_manager_dir}/${ks_manager_module_name} \
 ${uprobe_dir}/${uprobe_module_name} \

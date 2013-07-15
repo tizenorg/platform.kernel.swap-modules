@@ -1,6 +1,6 @@
 /*
- *  SWAP driver
- *  modules/driver_new/swap_ioctl.h
+ *  SWAP device driver
+ *  modules/driver/driver_defs.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,26 +22,20 @@
  *
  */
 
-#ifndef __SWAP_IOCTL_H__
-#define __SWAP_IOCTL_H__
+#ifndef __SWAP_DRIVER_DEVICE_DEFS_H__
+#define __SWAP_DRIVER_DEVICE_DEFS_H__
 
-#include <linux/ioctl.h>
+#include <linux/kernel.h>
 
-#define SWAP_DRIVER_IOC_MAGIC 0xAF
+#define print_debug(msg, args...) \
+    printk(KERN_DEBUG "SWAP_DRIVER DEBUG : " msg, ##args)
+#define print_msg(msg, args...)   \
+    printk(KERN_INFO "SWAP_DRIVER : " msg, ##args)
+#define print_warn(msg, args...)  \
+    printk(KERN_WARNING "SWAP_DRIVER WARNING : " msg, ##args)
+#define print_err(msg, args...)   \
+    printk(KERN_ERR "SWAP_DRIVER ERROR : " msg, ##args)
+#define print_crit(msg, args...)  \
+    printk(KERN_CRIT "SWAP_DRIVER CRITICAL : " msg, ##args)
 
-struct buffer_initialize {
-	size_t size;
-	unsigned int count;
-};
-
-/* SWAP Device ioctl commands */
-
-#define SWAP_DRIVER_BUFFER_INITIALIZE		_IOW(SWAP_DRIVER_IOC_MAGIC, 1, \
-						     struct buffer_initialize *)
-#define SWAP_DRIVER_BUFFER_UNINITIALIZE		_IO(SWAP_DRIVER_IOC_MAGIC, 2)
-#define SWAP_DRIVER_NEXT_BUFFER_TO_READ		_IO(SWAP_DRIVER_IOC_MAGIC, 3)
-#define SWAP_DRIVER_FLUSH_BUFFER		_IO(SWAP_DRIVER_IOC_MAGIC, 4)
-#define SWAP_DRIVER_MSG				_IOW(SWAP_DRIVER_IOC_MAGIC, 5, \
-						     void *)
-
-#endif /* __SWAP_IOCTL_H__ */
+#endif /* __SWAP_DRIVER_DEVICE_DEFS_H__ */

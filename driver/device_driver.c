@@ -1,667 +1,468 @@
-////////////////////////////////////////////////////////////////////////////////////
-//
-//      FILE:           device_driver.c
-//
-//      DESCRIPTION:
-//      This file is C source for SWAP driver.
-//
-//      SEE ALSO:       device_driver.h
-//      AUTHOR:         L.Komkov, S.Dianov, S.Grekhov, A.Gerenkov
-//      COMPANY NAME:   Samsung Research Center in Moscow
-//      DEPT NAME:      Advanced Software Group
-//      CREATED:        2008.02.15
-//      VERSION:        1.0
-//      REVISION DATE:  2008.12.03
-//
-////////////////////////////////////////////////////////////////////////////////////
+/*
+ *  SWAP device driver
+ *  modules/driver/device_driver.c
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ * Copyright (C) Samsung Electronics, 2013
+ *
+ * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
+ *
+ */
 
-#include "module.h"
-#include "device_driver.h"	// device driver
-#include "handlers_core.h"
-#include <linux/notifier.h>
-#include <sspt/sspt_proc.h>
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/err.h>
+#include <linux/device.h>
+#include <linux/ioctl.h>
+#include <linux/slab.h>
+#include <linux/mm.h>
+#include <linux/splice.h>
+#include <linux/sched.h>
+#include <linux/module.h>
+#include <linux/wait.h>
+#include <asm/uaccess.h>
 
+#include <ksyms/ksyms.h>
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
-static BLOCKING_NOTIFIER_HEAD(swap_notifier_list);
-#endif
-pid_t gl_nNotifyTgid;
-EXPORT_SYMBOL_GPL(gl_nNotifyTgid);
+#include "device_driver.h"
+#include "swap_driver_errors.h"
+#include "driver_to_buffer.h"
+#include "swap_ioctl.h"
+#include "driver_defs.h"
+#include "device_driver_to_driver_to_buffer.h"
+#include "driver_to_buffer.h"
+#include "driver_to_msg.h"
 
-static DECLARE_WAIT_QUEUE_HEAD (notification_waiters_queue);
-static volatile unsigned notification_count;
+#define SWAP_DEVICE_NAME "swap_device"
 
-static int device_mmap (struct file *filp, struct vm_area_struct *vma);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-static int device_ioctl (struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg);
-#else
-static long device_ioctl (struct file *file, unsigned int cmd, unsigned long arg);
-#endif
-static int device_open(struct inode *, struct file *);
-static int device_release(struct inode *, struct file *);
-static ssize_t device_read(struct file *, char __user *, size_t, loff_t *);
-static ssize_t device_write(struct file *, const char __user *, size_t, loff_t *);
+/* swap_device driver routines */
+static int swap_device_open(struct inode *inode, struct file *filp);
+static int swap_device_release(struct inode *inode, struct file *file);
+static ssize_t swap_device_read(struct file *filp, char __user *buf,
+								size_t count, loff_t *f_pos);
+static ssize_t swap_device_write(struct file *filp, const char __user *buf,
+								 size_t count, loff_t *f_pos);
+static long swap_device_ioctl(struct file *filp, unsigned int cmd,
+							 unsigned long arg);
+static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
+									   struct pipe_inode_info *pipe, size_t len,
+									   unsigned int flags);
 
-static int gl_nDeviceOpened = 0;
-static struct file_operations device_fops = {
-	.owner = THIS_MODULE,
-	.mmap = device_mmap,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-	.ioctl = device_ioctl,
-#else
-	.unlocked_ioctl = device_ioctl,
-#endif
-	.read = device_read,
-	.write = device_write,
-	.open = device_open,
-	.release = device_release
+/* File operations structure */
+const struct file_operations swap_device_fops = {
+	.read = swap_device_read,
+	.write = swap_device_write,
+	.open = swap_device_open,
+	.release = swap_device_release,
+	.unlocked_ioctl = swap_device_ioctl,
+	.splice_read = swap_device_splice_read,
 };
 
-typedef void (* dbi_module_callback)(void);
+/* Typedefs for splice_* funcs. Prototypes are for linux-3.8.6 */
+typedef ssize_t(*splice_to_pipe_p_t)(struct pipe_inode_info *pipe,
+					 struct splice_pipe_desc *spd);
+typedef int(*splice_grow_spd_p_t)(const struct pipe_inode_info *pipe,
+					struct splice_pipe_desc *spd);
 
-int device_init (void)
+static splice_to_pipe_p_t splice_to_pipe_p = NULL;
+static splice_grow_spd_p_t splice_grow_spd_p = NULL;
+
+static msg_handler_t msg_handler = NULL;
+
+/* Device numbers */
+static dev_t swap_device_no = 0;
+
+/* Device cdev struct */
+static struct cdev *swap_device_cdev = NULL;
+
+/* Device class struct */
+static struct class *swap_device_class = NULL;
+
+/* Device device struct */
+static struct device *swap_device_device = NULL;
+
+/* Reading tasks queue */
+static DECLARE_WAIT_QUEUE_HEAD(swap_device_wait);
+
+/* We need this realization of splice_shrink_spd() because of the its desing
+ * frequent changes that I have encountered in custom kernels */
+void swap_device_splice_shrink_spd(struct pipe_inode_info *pipe,
+                                   struct splice_pipe_desc *spd)
 {
-	int nReserved = 0;
-	nReserved = register_chrdev(0, device_name, &device_fops);
-	if(nReserved < 0)
-	{
-		unregister_chrdev(nReserved, device_name);
-		EPRINTF("Cannot register character device!");
-		return -1;
+	if (pipe->buffers <= PIPE_DEF_BUFFERS)
+		return;
+
+	kfree(spd->pages);
+	kfree(spd->partial);
+}
+
+
+/* Register device TODO Think of permanent major */
+int swap_device_init(void)
+{
+	int result;
+
+	/* Allocating device major and minor nums for swap_device */
+	result = alloc_chrdev_region(&swap_device_no, 0, 1, SWAP_DEVICE_NAME);
+	if (result < 0) {
+		print_crit("Major number allocation has failed\n");
+		result = -E_SD_ALLOC_CHRDEV_FAIL;
+		goto init_fail;
 	}
-	EPRINTF("New device node with major number [%d], was created\n", nReserved);
-	device_major = nReserved;
+
+	/* Creating device class. Using IS_ERR, because class_create returns ERR_PTR
+	 * on error. */
+	swap_device_class = class_create(THIS_MODULE, SWAP_DEVICE_NAME);
+	if (IS_ERR(swap_device_class)) {
+		print_crit("Class creation has failed\n");
+		result = -E_SD_CLASS_CREATE_FAIL;
+		goto init_fail;
+	}
+
+	/* Cdev allocation */
+	swap_device_cdev = cdev_alloc();
+	if (!swap_device_cdev) {
+		print_crit("Cdev structure allocation has failed\n");
+		result = -E_SD_CDEV_ALLOC_FAIL;
+		goto init_fail;
+	}
+
+	/* Cdev intialization and setting file operations */
+	cdev_init(swap_device_cdev, &swap_device_fops);
+
+	/* Adding cdev to system */
+	result = cdev_add(swap_device_cdev, swap_device_no, 1);
+	if (result < 0) {
+		print_crit("Device adding has failed\n");
+		result = -E_SD_CDEV_ADD_FAIL;
+		goto init_fail;
+	}
+
+	/* Create device struct */
+	swap_device_device = device_create(swap_device_class, NULL, swap_device_no,
+									   "%s", SWAP_DEVICE_NAME);
+	if (IS_ERR(swap_device_device)) {
+		print_crit("Device struct creating has failed\n");
+		result = -E_SD_DEVICE_CREATE_FAIL;
+		goto init_fail;
+	}
+
+	/* Find splice_* funcs addresses */
+	splice_to_pipe_p = (splice_to_pipe_p_t)swap_ksyms("splice_to_pipe");
+	if (!splice_to_pipe_p) {
+		print_err("splice_to_pipe() not found!\n");
+		result = -E_SD_NO_SPLICE_FUNCS;
+		goto init_fail;
+	}
+
+	splice_grow_spd_p = (splice_grow_spd_p_t)swap_ksyms("splice_grow_spd");
+	if (!splice_grow_spd_p) {
+		print_err("splice_grow_spd() not found!\n");
+		result = -E_SD_NO_SPLICE_FUNCS;
+		goto init_fail;
+	}
+
+	return 0;
+
+init_fail:
+	if (swap_device_cdev) {
+		cdev_del(swap_device_cdev);
+	}
+	if (swap_device_class) {
+		class_destroy(swap_device_class);
+	}
+	if (swap_device_no) {
+		unregister_chrdev_region(swap_device_no, 1);
+	}
+	return result;
+}
+
+/* Unregister device TODO Check wether driver is registered */
+void swap_device_exit(void)
+{
+	splice_to_pipe_p = NULL;
+	splice_grow_spd_p = NULL;
+
+	device_destroy(swap_device_class, swap_device_no);
+	cdev_del(swap_device_cdev);
+	class_destroy(swap_device_class);
+	unregister_chrdev_region(swap_device_no, 1);
+}
+
+static int swap_device_open(struct inode *inode, struct file *filp)
+{
+	// TODO MOD_INC_USE_COUNT
 	return 0;
 }
 
-void device_down (void)
+static int swap_device_release(struct inode *inode, struct file *filp)
 {
-	unregister_chrdev(device_major, device_name);
-}
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
-void swap_register_notify (struct notifier_block *nb)
-{
-	blocking_notifier_chain_register(&swap_notifier_list, nb);
-}
-EXPORT_SYMBOL_GPL(swap_register_notify);
-
-void swap_unregister_notify (struct notifier_block *nb)
-{
-	blocking_notifier_chain_unregister(&swap_notifier_list, nb);
-}
-EXPORT_SYMBOL_GPL(swap_unregister_notify);
-#endif
-
-void notify_user (event_id_t event_id)
-{
-	ec_info.events_counters[event_id] += 1;
-
-	if (EVENT_EC_PROBE_RECORD == event_id)
-	{
-		// EC_PROBE_RECORD events happen to often. To reduce overhead user
-		// space will be notified only once per each EVENTS_AGGREGATION_USEC
-		static uint64_t timestamp_usec = 0;
-
-		uint64_t current_usec;
-		uint64_t delta_usec;
-
-		struct timeval tv;
-
-		do_gettimeofday (&tv);
-		current_usec = 1000000ULL * (unsigned) tv.tv_sec + (unsigned) tv.tv_usec;
-
-		if (current_usec < timestamp_usec)
-		{
-			// Note: time from do_gettimeofday() may go backward
-			EPRINTF ("current_usec=%llu timestamp_usec=%llu", current_usec, timestamp_usec);
-		}
-		else
-		{
-			delta_usec = current_usec - timestamp_usec;
-			if (EVENTS_AGGREGATION_USEC > delta_usec)
-			{
-				// wait the time left
-#if defined(__DEBUG)
-				unsigned UNUSED left_usec = EVENTS_AGGREGATION_USEC - delta_usec;
-#endif /* defined(__DEBUG) */
-				return;	// supress notification
-			}
-		}
-		timestamp_usec = current_usec;	// remember new time for the future use
-	} else if (EVENT_EC_START_CONDITION_SEEN == event_id) {
-		return;		// supress notification
-	} else if (EVENT_EC_STOP_CONDITION_SEEN == event_id) {
-		return;		// supress notification
-	}
-
-	++notification_count;
-	wake_up_interruptible (&notification_waiters_queue);
-}
-
-static int device_mmap (struct file *filp UNUSED, struct vm_area_struct *vma)
-{
-	if(!p_buffer) {
-		EPRINTF("Null pointer to buffer!");
-		return -1;
-	}
-	return remap_vmalloc_range (vma, p_buffer, 0);
-}
-
-static int device_open(struct inode *inode, struct file *file)
-{
-	/*if (gl_nDeviceOpened)
-		return -EBUSY;*/
-	gl_nDeviceOpened++;
-	// TODO
-	try_module_get(THIS_MODULE);
+	// TODO MOD_DEC_USE_COUNT
 	return 0;
 }
 
-static int device_release(struct inode *inode, struct file *file)
+static ssize_t swap_device_read(struct file *filp, char __user *buf,
+								size_t count, loff_t *f_pos)
 {
-	gl_nDeviceOpened--;
-	module_put(THIS_MODULE);
+	/* Wait queue item that consists current task. It is used to be added in
+	 * swap_device_wait queue if there is no data to be read. */
+	DEFINE_WAIT(wait);
+	int result;
 
-	return 0;
-}
+	//TODO : Think about spin_locks to prevent reading race condition.
+	while((result = driver_to_buffer_next_buffer_to_read()) != E_SD_SUCCESS) {
 
-static ssize_t device_read(struct file *filp, char __user *buffer, size_t length, loff_t * offset)
-{
-	EPRINTF("Operation <<read>> not supported!");
-	return -1;
-}
+		/* Add process to the swap_device_wait queue and set the current task
+		 * state TASK_INTERRUPTIBLE. If there is any data to be read, then the
+		 * current task is removed from the swap_device_wait queue and its state
+		 * is changed to this. */
+		prepare_to_wait(&swap_device_wait, &wait, TASK_INTERRUPTIBLE);
 
-static ssize_t device_write(struct file *filp, const char __user *buff, size_t len, loff_t * off)
-{
-	EPRINTF("Operation <<write>> not supported!");
-	return -1;
-}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-static int device_ioctl (struct inode *inode UNUSED, struct file *file UNUSED, unsigned int cmd, unsigned long arg)
-#else
-static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned long arg)
-#endif
-{
-	unsigned long spinlock_flags = 0L;
-	int result = -1;
-    void __user * arg_pointer = (void __user *) arg;
-//	DPRINTF("Command=%d", cmd);
-	switch (cmd)
-	{
-	case EC_IOCTL_SET_EC_MODE:
-		{
-			ioctl_general_t param;
-			unsigned long nIgnoredBytes = 0;
-			memset(&param, '0', sizeof(ioctl_general_t));
-			nIgnoredBytes = copy_from_user (&param, arg_pointer, sizeof(ioctl_general_t));
-			if (nIgnoredBytes > 0) {
-				result = -1;
-				break;
-			}
-			if(SetECMode(param.m_unsignedLong) == -1) {
-				result = -1;
-				break;
-			}
+		if (result < 0) {
 			result = 0;
-			DPRINTF("Set EC Mode = %lu", param.m_unsignedLong);
-			break;
-		}
-	case EC_IOCTL_GET_EC_MODE:
-		{
-			ioctl_general_t param;
-			unsigned long nIgnoredBytes = 0;
-			memset(&param, '0', sizeof(ioctl_general_t));
-			param.m_unsignedLong = GetECMode();
-			nIgnoredBytes = copy_to_user (arg_pointer, &param, sizeof (ioctl_general_t));
-			if (nIgnoredBytes > 0) {
-				result = -1;
-				break;
+			goto swap_device_read_error;
+		} else if (result == E_SD_NO_DATA_TO_READ) {
+			/* Yes, E_SD_NO_DATA_TO_READ should be positive, cause it's not
+			 * really an error */
+			if (filp->f_flags & O_NONBLOCK) {
+				result = -EAGAIN;
+				goto swap_device_read_error;
 			}
-			result = 0;
-//			DPRINTF("Get EC Mode = %lu", param.m_unsignedLong);  // Frequent call
-			break;
-		}
-	case EC_IOCTL_SET_BUFFER_SIZE:
-		{
-			ioctl_general_t param;
-			unsigned long nIgnoredBytes = 0;
-			memset(&param, '0', sizeof(ioctl_general_t));
-			nIgnoredBytes = copy_from_user (&param, arg_pointer, sizeof(ioctl_general_t));
-			if (nIgnoredBytes > 0) {
-				result = -1;
-				break;
+			if (signal_pending(current)) {
+				result = -ERESTARTSYS;
+				goto swap_device_read_error;
 			}
-			if (SetBufferSize(param.m_unsignedLong) == -1) {
-				result = -1;
-				break;
-			}
-			result = 0;
-			DPRINTF("Set Buffer Size = %lu", param.m_unsignedLong);
-			break;
+			schedule();
+			finish_wait(&swap_device_wait, &wait);
 		}
-	case EC_IOCTL_GET_BUFFER_SIZE:
-		{
-			ioctl_general_t param;
-			unsigned long nIgnoredBytes = 0;
-			memset(&param, '0', sizeof(ioctl_general_t));
-			param.m_unsignedLong = GetBufferSize();
-			nIgnoredBytes = copy_to_user (arg_pointer, &param, sizeof (ioctl_general_t));
-			if (nIgnoredBytes > 0) {
-				result = -1;
-				break;
-			}
-			result = 0;
-			DPRINTF("Get Buffer Size = %lu", param.m_unsignedLong);
-			break;
-		}
-	case EC_IOCTL_RESET_BUFFER:
-		{
-			if (ResetBuffer() == -1) {
-				result = -1;
-				break;
-			}
-			result = 0;
-			DPRINTF("Reset Buffer");
-			break;
-		}
-	case EC_IOCTL_GET_EC_INFO:
-		{
-			if (copy_ec_info_to_user_space ((ec_info_t *) arg) != 0) {
-				result = -1;
-				break;
-			}
-			result = 0;
-//			DPRINTF("Get Buffer Status"); // Frequent call
-			break;
-		}
-	case EC_IOCTL_CONSUME_BUFFER:
-		{
-			static ec_info_t ec_info_copy;
-			int nIgnoredBytes = 0;
-
-			nIgnoredBytes = copy_from_user (&ec_info_copy, (const void __user *) arg, sizeof (ec_info_t));
-			if(nIgnoredBytes > 0)
-			{
-				EPRINTF ("copy_from_user(%08X,%08X)=%d", (unsigned) arg, (unsigned) &ec_info_copy, nIgnoredBytes);
-				result = -1;
-				break;
-			}
-
-			spin_lock_irqsave (&ec_spinlock, spinlock_flags);
-
-			// Original buffer
-			if(ec_info.after_last > ec_info.first) {
-				ec_info.buffer_effect = ec_info.buffer_size;
-			}
-			if (ec_info.after_last == ec_info.buffer_effect) {
-				 ec_info.first = 0;
-			} else {
-				 ec_info.first = ec_info_copy.after_last;
-			}
-			ec_info.trace_size = ec_info.trace_size - ec_info_copy.trace_size;
-
-			spin_unlock_irqrestore (&ec_spinlock, spinlock_flags);
-			result = 0;
-//			DPRINTF("Consume Buffer"); // Frequent call
-			break;
-		}
-	case EC_IOCTL_ADD_PROBE:
-		{
-			unsigned long addr = arg;
-			unsigned long pre_handler = 0, jp_handler = 0, rp_handler = 0;
-
-			dbi_find_and_set_handler_for_probe(addr, &pre_handler, &jp_handler, &rp_handler);
-			result = add_probe(addr, pre_handler, jp_handler, rp_handler);
-
-			break;
-		}
-	//@AGv: remove_probe expects probe address instead of name
-	/*case EC_IOCTL_REMOVE_PROBE:
-		{
-			char *probe_name = (char *) arg;
-			result = remove_probe (probe_name);
-
-			break;
-		}*/
-	case EC_IOCTL_SET_APPDEPS:
-	{
-		size_t size;
-		result = copy_from_user(&size, arg_pointer, sizeof(size_t));
-		if (result) {
-			EPRINTF("Cannot copy deps size!");
-			result = -1;
-			break;
-		}
-		DPRINTF("Deps size has been copied (%d)", size);
-
-		if (size == 0) {
-			DPRINTF("Deps are size of 0");
-			break;
-		}
-
-		deps = vmalloc(size);
-		if (deps == NULL) {
-			EPRINTF("Cannot alloc mem for deps!");
-			result = -1;
-			break;
-		}
-		DPRINTF("Mem for deps has been allocated");
-
-		result = copy_from_user(deps, arg_pointer, size);
-		if (result) {
-			EPRINTF("Cannot copy deps!");
-			result = -1;
-			break;
-		}
-		DPRINTF("Deps has been copied successfully");
-
-		break;
 	}
-	case EC_IOCTL_SET_PID:
-	{
-		unsigned int _pid;
 
-		result = copy_from_user(&_pid, arg_pointer, sizeof(unsigned int));
-		if (result) {
-			EPRINTF("Cannot copy pid!");
-			result = -1;
-			break;
-		}
-
-		inst_pid = _pid;
-
-		DPRINTF("EC_IOCTL_SET_PID pid:%d", inst_pid);
-
-		break;
-	}
-	case EC_IOCTL_SET_PROFILEBUNDLE:
-	{
-		size_t size;
-
-		result = copy_from_user(&size, arg_pointer, sizeof(size_t));
-		if (result) {
-			EPRINTF("Cannot copy bundle size!");
-			result = -1;
-			break;
-		}
-		DPRINTF("Bundle size has been copied");
-
-		bundle = vmalloc(size);
-		if (bundle == NULL) {
-			EPRINTF("Cannot alloc mem for bundle!");
-			result = -1;
-			break;
-		}
-		DPRINTF("Mem for bundle has been alloced");
-
-		result = copy_from_user(bundle, arg_pointer, size);
-		if (result) {
-			EPRINTF("Cannot copy bundle!");
-			result = -1;
-			break;
-		}
-		DPRINTF("Bundle has been copied successfully");
-
-		if (link_bundle() == -1 || has_last_error() == -1) {
-			EPRINTF("Cannot link profile bundle!");
-			result = -1;
-			break;
-		}
-
-		break;
-	}
-	case EC_IOCTL_RESET_PROBES:
-		{
-			result = reset_probes();
-
-			break;
-		}
-	case EC_IOCTL_UPDATE_CONDS:
-		{
-			int args_cnt, i;
-			struct cond *c, *c_tmp, *p_cond;
-			unsigned char *p_data;
-			int err;
-			result = 0;
-			err = copy_from_user(&args_cnt, arg_pointer, sizeof(int));
-			if (err) {
-				result = -1;
-				break;
-			}
-			/* first, delete all the conds */
-			list_for_each_entry_safe(c, c_tmp, &cond_list.list, list) {
-				list_del(&c->list);
-				kfree(c);
-			}
-			/* second, add new conds */
-			p_data = (unsigned char *)(arg + sizeof(int));
-			for (i = 0; i < args_cnt; i++) {
-				p_cond = kmalloc(sizeof(struct cond), GFP_KERNEL);
-				if (!p_cond) {
-					DPRINTF("Cannot alloc cond!");
-					result = -1;
-					break;
-				}
-				err = copy_from_user(&p_cond->tmpl, (const void __user *)p_data,
-						sizeof(struct event_tmpl));
-				if (err) {
-					DPRINTF("Cannot copy cond from user!");
-					result = -1;
-					break;
-				}
-				p_cond->applied = 0;
-				list_add(&(p_cond->list), &(cond_list.list));
-				p_data += sizeof(struct event_tmpl);
-			}
-			break;
-		}
-	case EC_IOCTL_ATTACH:
-		{
-			unsigned long dbi_flags;
-			struct dbi_modules_handlers *local_mh;
-			struct dbi_modules_handlers_info *local_mhi;
-			int j;
-			dbi_module_callback dmc_start;
-
-			// call "start"-callback for all modules according module priority
-			local_mh = get_dbi_modules_handlers();
-			spin_lock_irqsave(&local_mh->lock, dbi_flags);
-			for (j = 0; j <= MAX_PRIORITY; j++) {
-				list_for_each_entry_rcu(local_mhi, &local_mh->modules_handlers, dbi_list_head) {
-					if (local_mhi->dbi_module_priority_start == j) {
-						if (local_mhi->dbi_module_callback_start != NULL) {
-							printk("Started module callback (start) %s\n", local_mhi->dbi_module->name);
-							dmc_start = (dbi_module_callback )local_mhi->dbi_module_callback_start;
-							dmc_start();
-						}
-					}
-				}
-			}
-			spin_unlock_irqrestore(&local_mh->lock, dbi_flags);
-
-			result = ec_user_attach ();
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
-			DPRINTF("EC_IOCTL_ATTACH calling notification chain");
-			blocking_notifier_call_chain(&swap_notifier_list, EC_IOCTL_ATTACH, (void*)NULL);
-#endif
-			DPRINTF("Attach Probes");
-			break;
-		}
-	case EC_IOCTL_ACTIVATE:
-		result = ec_user_activate ();
-		DPRINTF("Activate Probes");
-		break;
-	case EC_IOCTL_STOP_AND_DETACH:
-	{
-		unsigned long nIgnoredBytes = 0;
-		unsigned long dbi_flags;
-		struct dbi_modules_handlers *local_mh;
-		struct dbi_modules_handlers_info *local_mhi;
-		unsigned int local_module_refcount = 0;
-		int j;
-		dbi_module_callback dmc_stop;
-
-		local_mh = get_dbi_modules_handlers();
-		if(ec_user_stop() != 0) {
-			result = -1;
-			goto sad_cleanup;
-		}
-		nIgnoredBytes = copy_ec_info_to_user_space ((ec_info_t*)arg);
-		if(nIgnoredBytes > 0) {
-			result = -1;
-			goto sad_cleanup;
-		}
-
-		vfree(bundle);
+	result = driver_to_buffer_read(buf, count);
+	/* If there is an error - return 0 */
+	if (result < 0)
 		result = 0;
-		DPRINTF("Stop and Detach Probes");
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 17)
-		DPRINTF("EC_IOCTL_STOP_AND_DETACH calling notification chain");
-		blocking_notifier_call_chain(&swap_notifier_list, EC_IOCTL_STOP_AND_DETACH, (void*)&gl_nNotifyTgid);
-#endif
-		// call "stop"-callback for all modules according module priority
-		spin_lock_irqsave(&local_mh->lock, dbi_flags);
-		for (j = 0; j <= MAX_PRIORITY; j++) {
-			list_for_each_entry_rcu(local_mhi, &local_mh->modules_handlers, dbi_list_head) {
-				if (local_mhi->dbi_module_priority_stop == j) {
-					if (local_mhi->dbi_module_callback_stop != NULL) {
-						printk("Started module callback (stop) %s\n", local_mhi->dbi_module->name);
-						dmc_stop = (dbi_module_callback )local_mhi->dbi_module_callback_stop;
-						dmc_stop();
-					}
-				}
-			}
-		}
-		spin_unlock_irqrestore(&local_mh->lock, dbi_flags);
-sad_cleanup:
-		spin_lock_irqsave(&local_mh->lock, dbi_flags);
-		list_for_each_entry_rcu(local_mhi, &local_mh->modules_handlers, dbi_list_head) {
-			local_module_refcount = module_refcount(local_mhi->dbi_module);
-			if (local_module_refcount == 1) {
-				module_put(local_mhi->dbi_module);
-			}
-			else if (local_module_refcount > 1) {
-				printk("local_module_refcount too much - force set refcount to zero\n");
-				while (local_module_refcount--)
-					module_put(local_mhi->dbi_module);
-			}
-		}
-		spin_unlock_irqrestore(&local_mh->lock, dbi_flags);
-		break;
-	}
-	case EC_IOCTL_US_EVENT:
-		{
-			ioctl_us_event_t ioctl_args;
-			result = copy_from_user (&ioctl_args, (const void __user *) arg, sizeof (ioctl_args));
-			if (result)
-			{
-				result = -1;
-				EPRINTF ("copy_from_user() failure");
-			}
-			else
-			{
-				if(ioctl_args.len == 0){
-					result = -EINVAL;
-					EPRINTF ("invalid event length!");
-				}
-				else {
-					char *buf = kmalloc(ioctl_args.len, GFP_KERNEL);
-					if(!buf){
-						result = -ENOMEM;
-						EPRINTF ("failed to alloc mem for event!");
-					}
-					else {
-						result = copy_from_user (buf, (const void __user *) ioctl_args.data, ioctl_args.len);
-						if (result){
-							result = -1;
-							EPRINTF ("failed to copy event from user space!");
-						}
-						else
-							result = put_us_event(buf, ioctl_args.len);
-						kfree(buf);
-					}
-				}
-			}
-//			DPRINTF("User Space Event"); // Frequent call
-			break;
-		}
 
-	case EC_IOCTL_SET_EVENT_MASK:
-		{
-			int mask;
-			result = copy_from_user (&mask, arg_pointer, sizeof (mask));
-			if (result)
-			{
-				result = -EFAULT;
-				break;
-			}
 
-			result = set_event_mask (mask);
-			if (result)
-			{
-				break;
-			}
-			DPRINTF("Set Event Mask = %d", mask);
-			break;
-		}
+	return result;
 
-	case EC_IOCTL_GET_EVENT_MASK:
-		{
-			int mask = 0;
-			result = get_event_mask(&mask);
-			if (result)
-			{
-				result = -EFAULT;
-			}
-			result = copy_to_user (arg_pointer, &mask, sizeof (mask));
-			if (result)
-			{
-				result = -EFAULT;
-			}
-			DPRINTF("Get Event Mask = %d", mask);
-			break;
-		}
-
-	case EC_IOCTL_GET_PREDEF_UPROBES:
-		{
-			result = get_predef_uprobes((ioctl_predef_uprobes_info_t *)arg);
-			if (result)
-			{
-				result = -EFAULT;
-			}
-			DPRINTF("Get Predefined User Space Probes");
-			break;
-		}
-
-	case EC_IOCTL_GET_PREDEF_UPROBES_SIZE:
-		{
-			int size = 0;
-			result = get_predef_uprobes_size(&size);
-			if (result)
-			{
-				result = -EFAULT;
-			}
-			result = copy_to_user (arg_pointer, &size, sizeof (size));
-			if (result)
-			{
-				result = -EFAULT;
-			}
-			DPRINTF("Get Size of Predefined User Space Probes");
-			break;
-		}
-	case EC_IOCTL_GET_LAST_ERROR:
-		{
-			result = get_last_error((void*)arg);
-			DPRINTF("Get last error buffer");
-			break;
-		}
-	default:
-		EPRINTF ("Unknown driver command = %u", cmd);
-		result = -EINVAL;
-		break;
-	}
+swap_device_read_error:
+	finish_wait(&swap_device_wait, &wait);
 
 	return result;
 }
+
+static ssize_t swap_device_write(struct file *filp, const char __user *buf,
+								 size_t count, loff_t *f_pos)
+{
+	char *kern_buffer = NULL;
+	ssize_t result = 0;
+
+	kern_buffer = kmalloc(count, GFP_KERNEL);
+	if (!kern_buffer) {
+		print_err("Error allocating memory for buffer\n");
+		goto swap_device_write_out;
+	}
+
+	result = copy_from_user(kern_buffer, buf, count);
+
+	result = count - result;
+
+	/* Return 0 if there was an error while writing */
+	result = driver_to_buffer_write(result, kern_buffer);
+	if (result < 0)
+		result = 0;
+
+	kfree(kern_buffer);
+
+swap_device_write_out:
+	return result;
+}
+
+static long swap_device_ioctl(struct file *filp, unsigned int cmd,
+							 unsigned long arg)
+{
+	int result;
+
+	switch(cmd) {
+		case SWAP_DRIVER_BUFFER_INITIALIZE:
+		{
+			struct buffer_initialize initialize_struct;
+
+			result = copy_from_user(&initialize_struct, (void*)arg,
+									sizeof(struct buffer_initialize));
+			if (result) {
+				break;
+			}
+
+			result = driver_to_buffer_initialize(initialize_struct.size,
+												 initialize_struct.count);
+			if (result < 0) {
+				print_err("Buffer initialization failed %d\n", result);
+				break;
+			}
+			result = E_SD_SUCCESS;
+
+			break;
+		}
+		case SWAP_DRIVER_BUFFER_UNINITIALIZE:
+		{
+			result = driver_to_buffer_uninitialize();
+			if (result < 0)
+			print_err("Buffer uninitialization failed %d\n", result);
+
+			break;
+		}
+		case SWAP_DRIVER_NEXT_BUFFER_TO_READ:
+		{
+			/* Use this carefully */
+			result = driver_to_buffer_next_buffer_to_read();
+			if (result == E_SD_NO_DATA_TO_READ) {
+				/* TODO Do what we usually do when there are no subbuffers to
+				 * read (make daemon sleep ?) */
+			}
+			break;
+		}
+		case SWAP_DRIVER_FLUSH_BUFFER:
+		{
+			result = driver_to_buffer_flush();
+			break;
+		}
+		case SWAP_DRIVER_MSG:
+			if (msg_handler) {
+				result = msg_handler((void __user *)arg);
+			} else {
+				print_warn("msg_handler() is not register\n");
+				result = -EINVAL;
+			}
+			break;
+		default:
+			print_warn("Unknown command %d\n", cmd);
+			result = -EINVAL;
+			break;
+
+	}
+	return result;
+}
+
+static void swap_device_pipe_buf_release(struct pipe_inode_info *inode,
+										 struct pipe_buffer *pipe)
+{
+	__free_page(pipe->page);
+}
+
+static void swap_device_page_release(struct splice_pipe_desc *spd,
+									 unsigned int i)
+{
+	__free_page(spd->pages[i]);
+}
+
+static const struct pipe_buf_operations swap_device_pipe_buf_ops = {
+	.can_merge = 0,
+	.map = generic_pipe_buf_map,
+	.unmap = generic_pipe_buf_unmap,
+	.confirm = generic_pipe_buf_confirm,
+	.release = swap_device_pipe_buf_release,
+	.steal = generic_pipe_buf_steal,
+	.get = generic_pipe_buf_get
+};
+
+static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
+									   struct pipe_inode_info *pipe,
+									   size_t len, unsigned int flags)
+{
+	/* Wait queue item that consists current task. It is used to be added in
+	 * swap_device_wait queue if there is no data to be read. */
+	DEFINE_WAIT(wait);
+
+	int result;
+	struct page *pages[PIPE_DEF_BUFFERS];
+	struct partial_page partial[PIPE_DEF_BUFFERS];
+	struct splice_pipe_desc spd = {
+		.pages = pages,
+		.partial = partial,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 5))
+		.nr_pages_max = PIPE_DEF_BUFFERS,
+#endif
+		.nr_pages = 0,
+		.flags = flags,
+		.ops = &swap_device_pipe_buf_ops,
+		.spd_release = swap_device_page_release,
+	};
+
+	/* Get next buffer to read */
+	//TODO : Think about spin_locks to prevent reading race condition.
+	while((result = driver_to_buffer_next_buffer_to_read()) != E_SD_SUCCESS) {
+
+		/* Add process to the swap_device_wait queue and set the current task
+		 * state TASK_INTERRUPTIBLE. If there is any data to be read, then the
+		 * current task is removed from the swap_device_wait queue and its state
+		 * is changed. */
+		prepare_to_wait(&swap_device_wait, &wait, TASK_INTERRUPTIBLE);
+		if (result < 0) {
+			print_err("driver_to_buffer_next_buffer_to_read error %d\n", result);
+			//TODO Error return to OS
+			result = 0;
+			goto swap_device_splice_read_error;
+		} else if (result == E_SD_NO_DATA_TO_READ) {
+			if (filp->f_flags & O_NONBLOCK) {
+				result = -EAGAIN;
+				goto swap_device_splice_read_error;
+			}
+			if (signal_pending(current)) {
+				result = -ERESTARTSYS;
+				goto swap_device_splice_read_error;
+			}
+			schedule();
+			finish_wait(&swap_device_wait, &wait);
+		}
+	}
+
+	if (splice_grow_spd_p(pipe, &spd)) {
+		result = -ENOMEM;
+		goto swap_device_splice_read_out;
+	}
+
+	result = driver_to_buffer_fill_spd(&spd);
+	if (result != 0) {
+		print_err("Cannot fill spd for splice\n");
+		goto swap_device_shrink_spd;
+	}
+
+	result = splice_to_pipe_p(pipe, &spd);
+
+swap_device_shrink_spd:
+	swap_device_splice_shrink_spd(pipe, &spd);
+
+swap_device_splice_read_out:
+	return result;
+
+swap_device_splice_read_error:
+	finish_wait(&swap_device_wait, &wait);
+
+	return result;
+}
+
+void swap_device_wake_up_process(void)
+{
+	wake_up_interruptible(&swap_device_wait);
+}
+
+void set_msg_handler(msg_handler_t mh)
+{
+	msg_handler = mh;
+}
+EXPORT_SYMBOL_GPL(set_msg_handler);

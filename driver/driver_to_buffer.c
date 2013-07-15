@@ -1,6 +1,6 @@
 /*
  *  SWAP driver
- *  modules/driver_new/driver_to_buffer.c
+ *  modules/driver/driver_to_buffer.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
