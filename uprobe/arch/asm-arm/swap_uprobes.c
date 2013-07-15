@@ -674,16 +674,16 @@ int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list)
 	return ret;
 }
 
-void arch_opcode_analysis_uretprobe(kprobe_opcode_t opcode)
+void arch_opcode_analysis_uretprobe(struct uretprobe *rp)
 {
 	/* Remove retprobe if first insn overwrites lr */
-	rp->thumb_noret = !!(THUMB2_INSN_MATCH(BL, opcode) ||
-			     THUMB2_INSN_MATCH(BLX1, opcode) ||
-			     THUMB_INSN_MATCH(BLX2, opcode));
+	rp->thumb_noret = !!(THUMB2_INSN_MATCH(BL, rp->up.kp.opcode) ||
+			     THUMB2_INSN_MATCH(BLX1, rp->up.kp.opcode) ||
+			     THUMB_INSN_MATCH(BLX2, rp->up.kp.opcode));
 
-	rp->arm_noret = !!(ARM_INSN_MATCH(BL, opcode) ||
-			   ARM_INSN_MATCH(BLX1, opcode) ||
-			   ARM_INSN_MATCH(BLX2, opcode));
+	rp->arm_noret = !!(ARM_INSN_MATCH(BL, rp->up.kp.opcode) ||
+			   ARM_INSN_MATCH(BLX1, rp->up.kp.opcode) ||
+			   ARM_INSN_MATCH(BLX2, rp->up.kp.opcode));
 }
 
 void arch_prepare_uretprobe(struct uretprobe_instance *ri,

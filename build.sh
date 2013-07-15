@@ -2,10 +2,10 @@
 
 modules_dir=`pwd`
 # kernel_dir="/home/kain/dev/inperfa/kernel/redwood/linux-3.4-exynos"
-kernel_dir="/home/kain/dev/inperfa/tizen/da/emulator-kernel"
-# cross_compile=arm-none-linux-gnueabi-
-# arch=arm
-arch=i386
+kernel_dir="/home/alexander/vanilla_kernels/linux-3.8.6"
+cross_compile=/home/alexander/dev/u1_slp/arm-linux-gnueabi-gcc4.4.1-glibc2.11.1/bin/arm-none-linux-gnueabi-
+arch=arm
+#arch=i386
 
 if [ ${arch} = "arm" ] ; then
 	link_name="arm"
@@ -64,7 +64,7 @@ make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${ks_manager
 
 uprobe_module_name=swap_uprobe.ko
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${uprobe_dir} \
-	extra_cflags="-I${kprobe_dir} -I${kprobe_arch_dir} -I${uprobe_dir} -I${uprobe_arch_dir}" \
+	extra_cflags="-I${modules_dir} -I${kprobe_dir} -I${kprobe_arch_dir} -I${uprobe_dir} -I${uprobe_arch_dir}" \
 	modules || exit 1
 
 us_manager_module_name=swap_us_manager.ko
