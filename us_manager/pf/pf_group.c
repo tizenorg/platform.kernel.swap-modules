@@ -299,10 +299,7 @@ void install_all(void)
 		if (is_kthread(task))
 			continue;
 
-		list_for_each_entry(pfg, &pfg_list, list) {
-			if (check_task_f(pfg->filter, task))
-				call_page_fault(task, 0xba00baab);
-		}
+		call_page_fault(task, 0xba00baab);
 	}
 	rcu_read_unlock();
 	oops_in_progress = tmp_oops_in_progress;
