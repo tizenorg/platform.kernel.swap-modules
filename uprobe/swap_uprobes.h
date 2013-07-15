@@ -3,7 +3,7 @@
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/dbi_uprobes.h
+ *  modules/uprobe/swap_uprobes.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
