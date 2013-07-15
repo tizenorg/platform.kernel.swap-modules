@@ -1,12 +1,32 @@
+/*
+ *  SWAP uprobe manager
+ *  modules/us_manager/us_def_handler.c
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ * Copyright (C) Samsung Electronics, 2013
+ *
+ * 2013	 Vyacheslav Cherkashin: SWAP us_manager implement
+ *
+ */
+
 #include <linux/module.h>
 #include <asm/percpu.h>
-#include <ec_probe.h>
-#include <picl.h>
 #include <swap_uprobes.h>
 #include <sspt/ip.h>
 #include <dbi_kprobes_deps.h>
-#include "storage.h"
-#include "us_proc_inst.h"
 #include <sspt/sspt.h>
 #include <writer/swap_writer_module.h>
 
@@ -67,14 +87,14 @@ static void send_plt(struct us_ip *ip)
 			return;
 		}
 
-		if (name)
-			pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp",
-					addr, real_addr, name,
-					real_addr - vma->vm_start);
-		else
-			pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppp",
-					addr, real_addr,
-					real_addr - vma->vm_start);
+//		if (name)
+//			pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppsp",
+//					addr, real_addr, name,
+//					real_addr - vma->vm_start);
+//		else
+//			pack_event_info(PLT_ADDR_PROBE_ID, RECORD_RET, "ppp",
+//					addr, real_addr,
+//					real_addr - vma->vm_start);
 	}
 }
 

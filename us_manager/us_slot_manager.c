@@ -1,3 +1,28 @@
+/*
+ *  SWAP uprobe manager
+ *  modules/us_manager/us_slot_manager.c
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ * Copyright (C) Samsung Electronics, 2013
+ *
+ * 2013	 Vyacheslav Cherkashin: SWAP us_manager implement
+ *
+ */
+
+
 #include <linux/slab.h>
 #include <linux/hardirq.h>
 #include <linux/sched.h>
@@ -28,7 +53,7 @@ static unsigned long alloc_user_pages(struct task_struct *task, unsigned long le
 		}
 		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily
 		current_thread_info()->task = task;
-		ret = do_mmap_pgoff(NULL, 0, len, prot, flags, 0);
+		ret = do_mmap(NULL, 0, len, prot, flags, 0);
 		current_thread_info()->task = otask;
 		if (!atomic) {
 			downgrade_write (&mm->mmap_sem);
@@ -79,7 +104,7 @@ struct slot_manager *create_sm_us(struct task_struct *task)
 	sm->slot_size = UPROBES_TRAMP_LEN;
 	sm->alloc = sm_alloc_us;
 	sm->free = sm_free_us;
-	INIT_HLIST_NODE(&sm->page_list);
+	INIT_HLIST_HEAD(&sm->page_list);
 	sm->data = task;
 
 	return sm;

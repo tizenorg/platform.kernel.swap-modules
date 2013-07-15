@@ -1,6 +1,6 @@
 /*
- *  SWAP uprobe manager
- *  modules/us_manager/img/img_ip.c
+ *  SWAP Driver
+ *  modules/driver/swap_driver_module.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,40 +18,32 @@
  *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP us_manager implement
+ * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
  *
  */
 
+#include <linux/module.h>
 
-#include "img_ip.h"
-#include <linux/slab.h>
+#include "driver_defs.h"
+#include "device_driver.h"
 
-struct img_ip *create_img_ip(unsigned long addr, const char *args)
+static int __init swap_driver_init(void)
 {
-	struct img_ip *ip;
-	size_t len;
+	swap_device_init();
+	print_msg("Driver module initialized\n");
 
-	ip = kmalloc(sizeof(*ip), GFP_KERNEL);
-	INIT_LIST_HEAD(&ip->list);
-	ip->addr = addr;
-
-	/* copy args */
-	len = strlen(args) + 1;
-	ip->args = kmalloc(len, GFP_KERNEL);
-	memcpy(ip->args, args, len);
-
-	return ip;
+	return 0;
 }
 
-void free_img_ip(struct img_ip *ip)
+static void __exit swap_driver_exit(void)
 {
-	kfree(ip->args);
-	kfree(ip);
+	swap_device_exit();
+	print_msg("Driver module uninitialized\n");
 }
 
-/* debug */
-void img_ip_print(struct img_ip *ip)
-{
-	printk("###            addr=8%x, args=%s\n", ip->addr, ip->args);
-}
-/* debug */
+module_init(swap_driver_init);
+module_exit(swap_driver_exit);
+
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("SWAP device driver");
+MODULE_AUTHOR("Aksenov A.S.");

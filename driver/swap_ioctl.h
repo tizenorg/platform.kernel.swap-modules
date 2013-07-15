@@ -1,6 +1,6 @@
 /*
- *  SWAP uprobe manager
- *  modules/us_manager/img/img_ip.c
+ *  SWAP driver
+ *  modules/driver/swap_ioctl.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,40 +18,30 @@
  *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP us_manager implement
+ * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
  *
  */
 
+#ifndef __SWAP_IOCTL_H__
+#define __SWAP_IOCTL_H__
 
-#include "img_ip.h"
-#include <linux/slab.h>
+#include <linux/ioctl.h>
 
-struct img_ip *create_img_ip(unsigned long addr, const char *args)
-{
-	struct img_ip *ip;
-	size_t len;
+#define SWAP_DRIVER_IOC_MAGIC 0xAF
 
-	ip = kmalloc(sizeof(*ip), GFP_KERNEL);
-	INIT_LIST_HEAD(&ip->list);
-	ip->addr = addr;
+struct buffer_initialize {
+	size_t size;
+	unsigned int count;
+};
 
-	/* copy args */
-	len = strlen(args) + 1;
-	ip->args = kmalloc(len, GFP_KERNEL);
-	memcpy(ip->args, args, len);
+/* SWAP Device ioctl commands */
 
-	return ip;
-}
+#define SWAP_DRIVER_BUFFER_INITIALIZE		_IOW(SWAP_DRIVER_IOC_MAGIC, 1, \
+						     struct buffer_initialize *)
+#define SWAP_DRIVER_BUFFER_UNINITIALIZE		_IO(SWAP_DRIVER_IOC_MAGIC, 2)
+#define SWAP_DRIVER_NEXT_BUFFER_TO_READ		_IO(SWAP_DRIVER_IOC_MAGIC, 3)
+#define SWAP_DRIVER_FLUSH_BUFFER		_IO(SWAP_DRIVER_IOC_MAGIC, 4)
+#define SWAP_DRIVER_MSG				_IOW(SWAP_DRIVER_IOC_MAGIC, 5, \
+						     void *)
 
-void free_img_ip(struct img_ip *ip)
-{
-	kfree(ip->args);
-	kfree(ip);
-}
-
-/* debug */
-void img_ip_print(struct img_ip *ip)
-{
-	printk("###            addr=8%x, args=%s\n", ip->addr, ip->args);
-}
-/* debug */
+#endif /* __SWAP_IOCTL_H__ */

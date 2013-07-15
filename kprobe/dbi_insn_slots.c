@@ -50,7 +50,7 @@
 #include <linux/rculist.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
-#include <dbi_kprobes_deps.h>
+#include <kprobe/dbi_kprobes_deps.h>
 
 struct chunk {
 	unsigned long *data;

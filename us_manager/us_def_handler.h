@@ -1,6 +1,6 @@
 /*
- *  SWAP driver
- *  modules/driver_new/driver_to_buffer.h
+ *  SWAP uprobe manager
+ *  modules/us_manager/us_def_handler.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,22 +18,28 @@
  *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
+ * 2013	 Vyacheslav Cherkashin: SWAP us_manager implement
  *
  */
 
-#ifndef __SWAP_DRIVER_DRIVER_TO_BUFFER__
-#define __SWAP_DRIVER_DRIVER_TO_BUFFER__
+#ifndef _US_DEF_HANDLER_H
+#define _US_DEF_HANDLER_H
 
-int driver_to_buffer_initialize(size_t size, unsigned int count);
-int driver_to_buffer_uninitialize(void);
-ssize_t driver_to_buffer_write(size_t size, void* data);
-ssize_t driver_to_buffer_read(char __user *buf, size_t count);
-void driver_to_buffer_callback(void);
-int driver_to_buffer_fill_spd(struct splice_pipe_desc *spd);
-int driver_to_buffer_buffer_to_read(void);
-int driver_to_buffer_next_buffer_to_read(void);
-int driver_to_buffer_flush(void);
+#include <asm/percpu.h>
 
+struct us_ip;
+struct pt_regs;
+struct uretprobe_instance;
 
-#endif /* __SWAP_DRIVER_DRIVER_TO_BUFFER__ */
+DECLARE_PER_CPU(struct us_ip *, gpCurIp);
+DECLARE_PER_CPU(struct pt_regs *, gpUserRegs);
+
+unsigned long ujprobe_event_pre_handler(struct us_ip *ip,
+					struct pt_regs *regs);
+void ujprobe_event_handler(unsigned long arg0, unsigned long arg1,
+			   unsigned long arg2, unsigned long arg3,
+			   unsigned long arg4, unsigned long arg5);
+int uretprobe_event_handler(struct uretprobe_instance *p,
+			    struct pt_regs *regs, struct us_ip *ip);
+
+#endif /* _US_DEF_HANDLER_H */

@@ -2,7 +2,7 @@
 
 insmod swap_buffer.ko || exit 1  # buffer is loaded
 insmod swap_writer.ko || exit 1
-insmod swap_driver_new.ko || exit 1  # driver_new is loaded
+insmod swap_driver.ko || exit 1  # driver is loaded
 insmod swap_kprobe.ko || exit 1  # kprobe is loaded
 insmod swap_ks_manager.ko || exit 1  # ks_manager is loaded
 insmod swap_uprobe.ko || exit 1  # uprobe is loaded

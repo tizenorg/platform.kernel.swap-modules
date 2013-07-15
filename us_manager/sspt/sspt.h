@@ -30,14 +30,10 @@
 #include "sspt_file.h"
 #include "sspt_proc.h"
 #include "sspt_debug.h"
+#include "us_proc_types.h"
 #include <swap_uprobes.h>
 #include "us_def_handler.h"
 
-
-#include "../../driver/storage.h"
-
-#include "picl.h"
-#include "../../common/ec_probe.h"
 
 #include <us_manager.h>
 #include <pf/pf_group.h>
@@ -109,10 +105,6 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 
 	ret = dbi_register_ujprobe(&ip->jprobe);
 	if (ret) {
-		if (ret == -ENOEXEC) {
-			pack_event_info(ERR_MSG_ID, RECORD_ENTRY, "dp",
-					0x1, ip->jprobe.up.kp.addr);
-		}
 		printk("dbi_register_ujprobe() failure %d\n", ret);
 		return ret;
 	}

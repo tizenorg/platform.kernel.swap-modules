@@ -28,7 +28,6 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <us_slot_manager.h>
-#include <us_proc_inst.h>
 #include <writer/swap_writer_module.h>
 
 #define mm_read_lock(task, mm, atomic, lock)			\

@@ -1,6 +1,6 @@
 /*
- *  SWAP uprobe manager
- *  modules/us_manager/img/img_ip.c
+ *  SWAP driver
+ *  modules/driver_new/device_driver_to_driver_to_buffer.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,40 +18,15 @@
  *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP us_manager implement
+ * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
  *
  */
 
+/* SWAP device interface for driver_to_buffer */
 
-#include "img_ip.h"
-#include <linux/slab.h>
+#ifndef __DEVICE_DRIVER_TO_DRIVER_TO_BUFFER_H__
+#define __DEVICE_DRIVER_TO_DRIVER_TO_BUFFER_H__
 
-struct img_ip *create_img_ip(unsigned long addr, const char *args)
-{
-	struct img_ip *ip;
-	size_t len;
+void swap_device_wake_up_process(void);
 
-	ip = kmalloc(sizeof(*ip), GFP_KERNEL);
-	INIT_LIST_HEAD(&ip->list);
-	ip->addr = addr;
-
-	/* copy args */
-	len = strlen(args) + 1;
-	ip->args = kmalloc(len, GFP_KERNEL);
-	memcpy(ip->args, args, len);
-
-	return ip;
-}
-
-void free_img_ip(struct img_ip *ip)
-{
-	kfree(ip->args);
-	kfree(ip);
-}
-
-/* debug */
-void img_ip_print(struct img_ip *ip)
-{
-	printk("###            addr=8%x, args=%s\n", ip->addr, ip->args);
-}
-/* debug */
+#endif /* __DEVICE_DRIVER_TO_DRIVER_TO_BUFFER_H__ */

@@ -1,6 +1,0 @@
-EXTRA_CFLAGS := $(extra_cflags)
-
-obj-m := swap_driver_new.o
-swap_driver_new-y := swap_driver_module.o \
-                     device_driver.o \
-                     driver_to_buffer.o
