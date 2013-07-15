@@ -60,6 +60,14 @@
 
 #include <asm/dbi_kprobes.h>
 
+
+#ifdef CONFIG_ARM
+
+#define regs_return_value(regs)     ((regs)->ARM_r0)
+
+#endif
+
+
 /* kprobe_status settings */
 #define KPROBE_HIT_ACTIVE	0x00000001
 #define KPROBE_HIT_SS		0x00000002
