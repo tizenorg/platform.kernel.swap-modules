@@ -74,7 +74,7 @@ int img_file_add_ip(struct img_file *file, unsigned long addr,
 
 	ip = find_img_ip(file, addr);
 	if (ip) {
-		printk("Warning: ip already exists in img, addr = %p\n", addr);
+		/* ip already exists in img */
 		return 0;
 	}
 
