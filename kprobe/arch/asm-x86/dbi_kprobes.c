@@ -527,6 +527,7 @@ int kprobe_handler (struct pt_regs *regs)
 		oops_in_progress = swap_oops_in_progress;
 #endif
 		/* handler has already set things up, so skip ss setup */
+		prepare_singlestep(p, regs);
 		return 1;
 	}
 	DBPRINTF ("p->pre_handler[] 0");
