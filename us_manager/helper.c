@@ -44,14 +44,14 @@ struct pf_data {
 	unsigned long addr;
 };
 
-static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int entry_handler_mf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct pf_data *data = (struct pf_data *)ri->data;
 
 #if defined(CONFIG_X86)
-	data->addr = read_cr2();
+	data->addr = regs->EREG(cx);
 #elif defined(CONFIG_ARM)
-	data->addr = regs->ARM_r0;
+	data->addr = regs->ARM_r2;
 #else
 #error this architecture is not supported
 #endif
@@ -60,7 +60,7 @@ static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 }
 
 /* Detects when IPs are really loaded into phy mem and installs probes. */
-static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int ret_handler_mf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct task_struct *task;
 	unsigned long page_addr;
@@ -69,15 +69,16 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 	if (is_kthread(task))
 		return 0;
 
+	/* TODO: check return value */
 	page_addr = ((struct pf_data *)ri->data)->addr & PAGE_MASK;
 	call_page_fault(task, page_addr);
 
 	return 0;
 }
 
-static struct kretprobe pf_kretprobe = {
-	.entry_handler = entry_handler_pf,
-	.handler = ret_handler_pf,
+static struct kretprobe mf_kretprobe = {
+	.entry_handler = entry_handler_mf,
+	.handler = ret_handler_mf,
 	.data_size = sizeof(struct pf_data)
 };
 
@@ -291,8 +292,8 @@ int register_helper(void)
 		goto unregister_mr;
 	}
 
-	/* install kretprobe on 'do_page_fault' to detect when they will be loaded */
-	ret = dbi_register_kretprobe(&pf_kretprobe);
+	/* install kretprobe on 'handle_mm_fault' to detect when they will be loaded */
+	ret = dbi_register_kretprobe(&mf_kretprobe);
 	if (ret) {
 		printk("dbi_register_kretprobe(do_page_fault) result=%d!\n", ret);
 		goto unregister_cp;
@@ -314,8 +315,8 @@ unregister_unmap:
 
 void unregister_helper(void)
 {
-	/* uninstall kretprobe with 'do_page_fault' */
-	dbi_unregister_kretprobe(&pf_kretprobe);
+	/* uninstall kretprobe with 'handle_mm_fault' */
+	dbi_unregister_kretprobe(&mf_kretprobe);
 
 	/* uninstall kretprobe with 'copy_process' */
 	dbi_unregister_kretprobe(&cp_kretprobe);
@@ -330,12 +331,12 @@ void unregister_helper(void)
 int init_helper(void)
 {
 	unsigned long addr;
-	addr = swap_ksyms("do_page_fault");
+	addr = swap_ksyms("handle_mm_fault");
 	if (addr == 0) {
-		printk("Cannot find address for page fault function!\n");
+		printk("Cannot find address for handle_mm_fault function!\n");
 		return -EINVAL;
 	}
-	pf_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
+	mf_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
 
 	addr = swap_ksyms("copy_process");
 	if (addr == 0) {
