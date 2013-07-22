@@ -34,13 +34,13 @@ enum PROBE_TYPE {
 };
 
 enum PROBE_SUB_TYPE {
-	PST_NONE	= 0,
-	PST_KS_FILE	= 1,
-	PST_KS_IPC	= 2,
-	PST_KS_PROCESS	= 3,
-	PST_KS_SIGNAL	= 4,
-	PST_KS_NETWORK	= 5,
-	PST_KS_DESK	= 6
+	PST_NONE	= 0x00,
+	PST_KS_FILE	= 0x01,
+	PST_KS_IPC	= 0x02,
+	PST_KS_PROCESS	= 0x04,
+	PST_KS_SIGNAL	= 0x08,
+	PST_KS_NETWORK	= 0x10,
+	PST_KS_DESK	= 0x20
 };
 
 struct pt_regs;
@@ -56,7 +56,7 @@ int proc_info_msg(struct task_struct *task, void *priv);
 int sample_msg(struct pt_regs *regs);
 
 int entry_event(const char *fmt, struct pt_regs *regs,
-		 enum PROBE_TYPE pt, enum PROBE_SUB_TYPE pst);
+		 enum PROBE_TYPE pt, int sub_type);
 int exit_event(struct pt_regs *regs);
 
 int switch_entry(struct pt_regs *regs);

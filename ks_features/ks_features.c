@@ -36,7 +36,7 @@ struct ks_probe {
 	struct kretprobe rp;
 	int counter;
 	char *args;
-	enum PROBE_SUB_TYPE pst;
+	int sub_type;
 };
 
 #define CREATE_RP(name)						\
@@ -61,7 +61,7 @@ enum {
 	.rp = CREATE_RP(name),					\
 	.counter = 0,						\
 	.args = #args__,					\
-	.pst = PST_NONE						\
+	.sub_type = PST_NONE					\
 }
 
 static struct ks_probe ksp[] = {
@@ -94,9 +94,9 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs, vo
 {
 	struct ks_probe *ksp = (struct ks_probe *)priv_arg;
 	const char *fmt = ksp->args;
-	enum PROBE_SUB_TYPE pst = ksp->pst;
+	int sub_type = ksp->sub_type;
 
-	entry_event(fmt, regs, PT_KS, pst);
+	entry_event(fmt, regs, PT_KS, sub_type);
 
 	return 0;
 }
@@ -216,9 +216,14 @@ static int unregister_syscall(size_t id)
 	return 0;
 }
 
-static void set_spt(struct feature *f, size_t id)
+static void set_pst(struct feature *f, size_t id)
 {
-	ksp[id].pst = f - features;
+	ksp[id].sub_type |= f->sub_type;
+}
+
+static void unset_pst(struct feature *f, size_t id)
+{
+	ksp[id].sub_type &= !f->sub_type;
 }
 
 static int install_features(struct feature *f)
@@ -227,9 +232,9 @@ static int install_features(struct feature *f)
 
 	for (i = 0; i < f->cnt; ++i) {
 		id = f->feature_list[i];
+		set_pst(f, id);
 
 		if (get_counter(id) == 0) {
-			set_spt(f, id);
 			int ret = register_syscall(id);
 			if (ret) {
 				printk("syscall %d install error, ret = %d\n",
@@ -265,6 +270,8 @@ static int uninstall_features(struct feature *f)
 				return ret;
 			}
 		}
+
+		unset_pst(f, id);
 	}
 
 	return 0;

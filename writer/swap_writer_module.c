@@ -387,7 +387,7 @@ struct msg_func_entry {
 } __attribute__((packed));
 
 static char *pack_msg_func_entry(char *payload, const char *fmt, struct pt_regs *regs,
-				 enum PROBE_TYPE pt, enum PROBE_SUB_TYPE pst)
+				 enum PROBE_TYPE pt, int sub_type)
 {
 	struct msg_func_entry *mfe = (struct msg_func_entry *)payload;
 	struct task_struct *task = current;
@@ -399,7 +399,7 @@ static char *pack_msg_func_entry(char *payload, const char *fmt, struct pt_regs 
 //TODO ret address for x86!
 	mfe->caller_pc_addr = get_regs_ret_func(regs);
 	mfe->probe_type = pt;
-	mfe->probe_sub_type = pst;
+	mfe->probe_sub_type = sub_type;
 	mfe->cnt_args = strlen(fmt);
 
 	return payload + sizeof(*mfe);
@@ -488,14 +488,14 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 }
 
 int entry_event(const char *fmt, struct pt_regs *regs,
-		 enum PROBE_TYPE pt, enum PROBE_SUB_TYPE pst)
+		 enum PROBE_TYPE pt, int sub_type)
 {
 	char *buf, *payload, *args, *buf_end;
 	int ret;
 
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_ENTRY);
-	args = pack_msg_func_entry(payload, fmt, regs, pt, pst);
+	args = pack_msg_func_entry(payload, fmt, regs, pt, sub_type);
 
 	/* FIXME: len = 1024 */
 	ret = pack_args(args, 1024, fmt, regs);

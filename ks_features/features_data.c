@@ -28,6 +28,7 @@
 struct feature {
 	size_t cnt;
 	enum syscall_id *feature_list;
+	int sub_type;
 };
 
 #define X(name, args) id_##name
@@ -252,20 +253,21 @@ static enum syscall_id id_desc[] = {
 	id_sys_setns
 };
 
-#define CREATE_FEATURE(x)	 				\
+#define CREATE_FEATURE(x, subtype) 				\
 { 								\
 	.cnt = sizeof(x) / sizeof(enum syscall_id),		\
-	.feature_list = x					\
+	.feature_list = x,					\
+	.sub_type = subtype					\
 }
 
 static struct feature features[] = {
-	CREATE_FEATURE(id_none),
-	CREATE_FEATURE(id_file),
-	CREATE_FEATURE(id_ipc),
-	CREATE_FEATURE(id_process),
-	CREATE_FEATURE(id_signal),
-	CREATE_FEATURE(id_net),
-	CREATE_FEATURE(id_desc)
+	CREATE_FEATURE(id_none, PST_NONE),
+	CREATE_FEATURE(id_file, PST_KS_FILE),
+	CREATE_FEATURE(id_ipc, PST_KS_IPC),
+	CREATE_FEATURE(id_process, PST_KS_PROCESS),
+	CREATE_FEATURE(id_signal, PST_KS_SIGNAL),
+	CREATE_FEATURE(id_net, PST_KS_NETWORK),
+	CREATE_FEATURE(id_desc, PST_KS_DESK)
 };
 
 enum {
