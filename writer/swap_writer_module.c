@@ -136,7 +136,7 @@ static int write_to_buffer(void *data)
 	struct basic_msg_fmt *bmf = (struct basic_msg_fmt *)data;
 
 	result = swap_buffer_write(bmf, bmf->len + sizeof(*bmf));
-	if (result != E_SB_SUCCESS) {
+	if (result < 0) {
 		discarded++;
 	}
 
