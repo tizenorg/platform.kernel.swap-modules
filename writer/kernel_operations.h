@@ -58,7 +58,7 @@
 
 #elif defined(CONFIG_X86_32)
 
-#define get_regs_ip(regs)           regs->ip
+#define get_regs_ip(regs)           regs->ip - 1
 #define get_regs_ret_func(regs)     regs->bp + 8
 #define get_regs_ret_val(regs)      regs->ax
 #define get_regs_stack_ptr(regs)    regs->sp
