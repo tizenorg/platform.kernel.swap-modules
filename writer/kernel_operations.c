@@ -23,64 +23,76 @@
  *
  */
 
-#include "kernel_operations.h"
-
-int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
-{
-	int i, arg_in_regs, stack_args;
-
-	arg_in_regs = cnt < 3 ? cnt : 3;
+#include <asm/ptrace.h>
 
 #if defined(CONFIG_ARM)
 
+int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
+{
 	/* All args, except first 4, are passed on the stack */
-	stack_args = 4;
+	enum { stack_args = 4 };
+	int i, args_in_regs;
+
+	args_in_regs = cnt < 3 ? cnt : 3;
 
 	/* Get first 4 args from registers */
-	switch (arg_in_regs) {
+	switch (args_in_regs) {
 		case 3:
-			args[3] = get_regs_r3(regs);
+			args[3] = regs->ARM_r3;
 		case 2:
-			args[2] = get_regs_r2(regs);
+			args[2] = regs->ARM_r2;
 		case 1:
-			args[1] = get_regs_r1(regs);
+			args[1] = regs->ARM_r1;
 		case 0:
-			args[0] = get_regs_r0(regs);
+			args[0] = regs->ARM_r0;
 	}
-
-
-#elif defined(CONFIG_X86_32)
-	if (user_mode(regs)) {
-		/* If we're in user mode on x86 arch, get arguments from stack */
-		/* ONLY CDECL CALLING CONVENTION IS SUPPORTED RIGHT NOW */
-		stack_args = 0;
-	} else {
-		stack_args = 6;
-		/* If we're in kernel mode on x86, get arguments from bx, cx, dx, si,
-		 * di, bp */
-		switch (arg_in_regs) {
-			case 5:
-				args[5] = get_regs_bp(regs);
-			case 4:
-				args[4] = get_regs_di(regs);
-			case 3:
-				args[3] = get_regs_si(regs);
-			case 2:
-				args[2] = get_regs_dx(regs);
-			case 1:
-				args[1] = get_regs_cx(regs);
-			case 0:
-				args[0] = get_regs_bx(regs);
-		}
-	}
-
-#endif /* CONFIG_arch */
 
 	/* Get other args from stack */
 	for (i = stack_args; i < cnt; ++i) {
-		args[i] = *(unsigned long *)(get_regs_stack_ptr(regs) + 
-				     ((i- stack_args) * sizeof(unsigned long)));
+		unsigned long *args_in_sp = (unsigned long *)regs->ARM_sp;
+		args[i] = args_in_sp[i - stack_args];
 	}
 
 	return 0;
 }
+
+#elif defined(CONFIG_X86_32)
+
+int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
+{
+	int i, stack_args = 0;
+
+	/* If we're in kernel mode on x86, get arguments from bx, cx, dx, si,
+	 * di, bp
+	 */
+	if (!user_mode(regs)) {
+		int args_in_regs;
+		args_in_regs = cnt < 5 ? cnt : 5;
+		stack_args = 6;
+
+		switch (args_in_regs) {
+			case 5:
+				args[5] = regs->bp;
+			case 4:
+				args[4] = regs->di;
+			case 3:
+				args[3] = regs->si;
+			case 2:
+				args[2] = regs->dx;
+			case 1:
+				args[1] = regs->cx;
+			case 0:
+				args[0] = regs->bx;
+		}
+	}
+
+	/* Get other args from stack */
+	for (i = stack_args; i < cnt; ++i) {
+		unsigned long *args_in_sp = (unsigned long *)regs->sp + 1;
+		args[i] = args_in_sp[i - stack_args];
+	}
+
+	return 0;
+}
+
+#endif /* CONFIG_arch */

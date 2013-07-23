@@ -49,12 +49,8 @@
 
 #define get_regs_ip(regs)           regs->ARM_pc
 #define get_regs_ret_func(regs)     regs->ARM_lr
-#define get_regs_ret_val(regs)      get_regs_r0(regs)
+#define get_regs_ret_val(regs)      regs->ARM_r0
 #define get_regs_stack_ptr(regs)    regs->ARM_sp
-#define get_regs_r0(regs)           regs->ARM_r0
-#define get_regs_r1(regs)           regs->ARM_r1
-#define get_regs_r2(regs)           regs->ARM_r2
-#define get_regs_r3(regs)           regs->ARM_r3
 
 #elif defined(CONFIG_X86_32)
 
@@ -62,12 +58,6 @@
 #define get_regs_ret_func(regs)     regs->bp + 8
 #define get_regs_ret_val(regs)      regs->ax
 #define get_regs_stack_ptr(regs)    regs->sp
-#define get_regs_bx(regs)           regs->bx
-#define get_regs_cx(regs)           regs->cx
-#define get_regs_dx(regs)           regs->dx
-#define get_regs_si(regs)           regs->si
-#define get_regs_di(regs)           regs->di
-#define get_regs_bp(regs)           regs->bp
 
 #endif /* CONFIG_arch */
 
