@@ -47,7 +47,7 @@
 	X(sys_epoll_wait, dpdd), \
 	X(sys_eventfd2, dd), \
 	X(sys_eventfd, d), \
-	X(sys_execve, sss), \
+	X(sys_execve, spp), \
 	X(sys_exit, d), \
 	X(sys_exit_group, d), \
 	X(sys_faccessat, dsd), \
