@@ -88,7 +88,6 @@ static void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
 	unsigned long jp_handler_addr, rp_handler_addr;
 	struct dbi_modules_handlers_info *local_mhi;
 	unsigned long dbi_flags;
-	unsigned int local_module_refcount = 0;
 
 	spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
 	list_for_each_entry_rcu(local_mhi, &dbi_mh.modules_handlers, dbi_list_head) {
@@ -101,14 +100,15 @@ static void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
 						(local_mhi->dbi_module)->name, p->addr);
 			}
 			else {
-				local_module_refcount = module_refcount(local_mhi->dbi_module);
-				if (local_module_refcount == 0) {
-					if (!try_module_get(local_mhi->dbi_module))
+				if (local_mhi->refcount == 0) {
+					if (!try_module_get(local_mhi->dbi_module)) {
 						printk("Error of try_module_get() for module %s\n",
 								(local_mhi->dbi_module)->name);
-					else
+					} else {
+						local_mhi->refcount++;
 						printk("Module %s in use now\n",
 								(local_mhi->dbi_module)->name);
+					}
 				}
 				p->jprobe.entry = (kprobe_opcode_t *)jp_handler_addr;
 				printk("Set jp_handler for %s module (address %0lX)\n",
@@ -121,14 +121,15 @@ static void dbi_find_and_set_handler_for_probe(kernel_probe_t *p)
 						(local_mhi->dbi_module)->name, p->addr);
 			}
 			else {
-				local_module_refcount = module_refcount(local_mhi->dbi_module);
-				if (local_module_refcount == 0) {
-					if (!try_module_get(local_mhi->dbi_module))
+				if (local_mhi->refcount == 0) {
+					if (!try_module_get(local_mhi->dbi_module)) {
 						printk("Error of try_module_get() for module %s\n",
 								(local_mhi->dbi_module)->name);
-					else
+					} else {
+						local_mhi->refcount++;
 						printk("Module %s in use now\n",
 								(local_mhi->dbi_module)->name);
+					}
 				}
 				p->retprobe.handler = (kretprobe_handler_t)rp_handler_addr;
 				printk("Set rp_handler for %s module (address %0lX)\n",
@@ -171,6 +172,7 @@ int dbi_register_handlers_module(struct dbi_modules_handlers_info *dbi_mhi)
 	spin_lock_irqsave(&dbi_mh.lock, dbi_flags);
 //	local_mhi = container_of(&dbi_mhi->dbi_list_head, struct dbi_modules_handlers_info, dbi_list_head);
 	list_add_rcu(&dbi_mhi->dbi_list_head, &dbi_mh.modules_handlers);
+	dbi_mhi->refcount = 0;
 	printk("Added module %s (head is %p)\n", (dbi_mhi->dbi_module)->name, &dbi_mhi->dbi_list_head);
 	spin_unlock_irqrestore(&dbi_mh.lock, dbi_flags);
 	return 0;

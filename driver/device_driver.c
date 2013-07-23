@@ -505,7 +505,6 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 		unsigned long dbi_flags;
 		struct dbi_modules_handlers *local_mh;
 		struct dbi_modules_handlers_info *local_mhi;
-		unsigned int local_module_refcount = 0;
 		int j;
 		dbi_module_callback dmc_stop;
 
@@ -563,14 +562,9 @@ static long device_ioctl (struct file *file UNUSED, unsigned int cmd, unsigned l
 sad_cleanup:
 		spin_lock_irqsave(&local_mh->lock, dbi_flags);
 		list_for_each_entry_rcu(local_mhi, &local_mh->modules_handlers, dbi_list_head) {
-			local_module_refcount = module_refcount(local_mhi->dbi_module);
-			if (local_module_refcount == 1) {
+			while (local_mhi->refcount > 0) {
 				module_put(local_mhi->dbi_module);
-			}
-			else if (local_module_refcount > 1) {
-				printk("local_module_refcount too much - force set refcount to zero\n");
-				while (local_module_refcount--)
-					module_put(local_mhi->dbi_module);
+				local_mhi->refcount--;
 			}
 		}
 		spin_unlock_irqrestore(&local_mh->lock, dbi_flags);

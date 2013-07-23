@@ -38,6 +38,7 @@ struct dbi_modules_handlers_info {
 	int			dbi_module_priority_start;
 	int			dbi_module_priority_stop;
 	void *			(*get_uprobes)(void);
+	int refcount;
 };
 
 extern int dbi_register_handlers_module(struct dbi_modules_handlers_info *dbi_mhi);
