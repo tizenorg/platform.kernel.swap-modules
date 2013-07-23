@@ -49,7 +49,8 @@ struct app_info_data {
 
 /* Configuration struct */
 struct conf_data {
-	u64 use_features;
+	u64 use_features0;
+	u64 use_features1;
 	u32 sys_trace_period;
 	u32 data_msg_period;
 };

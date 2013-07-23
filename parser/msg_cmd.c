@@ -127,7 +127,8 @@ int msg_stop(struct msg_buf *mb)
 		return -EINVAL;
 	}
 
-	conf.use_features = 0;
+	conf.use_features0 = 0;
+	conf.use_features1 = 0;
 	ret = set_config(&conf);
 	if (ret)
 		printk("Cannot set config, ret = %d\n", ret);

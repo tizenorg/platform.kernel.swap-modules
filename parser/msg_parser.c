@@ -149,13 +149,18 @@ void destroy_app_info(struct app_info_data *ai)
 struct conf_data *create_conf_data(struct msg_buf *mb)
 {
 	struct conf_data *conf;
-	u64 uf;
+	u64 use_features0, use_features1;
 	u32 stp, dmp;
 
 	print_parse_debug("conf_data:\n");
 
 	print_parse_debug("features:");
-	if (get_u64(mb, &uf)) {
+	if (get_u64(mb, &use_features0)) {
+		print_err("failed to read use_features\n");
+		return NULL;
+	}
+
+	if (get_u64(mb, &use_features1)) {
 		print_err("failed to read use_features\n");
 		return NULL;
 	}
@@ -178,7 +183,8 @@ struct conf_data *create_conf_data(struct msg_buf *mb)
 		return NULL;
 	}
 
-	conf->use_features = uf;
+	conf->use_features0 = use_features0;
+	conf->use_features1 = use_features1;
 	conf->sys_trace_period = stp;
 	conf->data_msg_period = dmp;
 

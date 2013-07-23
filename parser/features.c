@@ -318,7 +318,10 @@ int set_features(struct conf_data *conf)
 {
 	int i, ret;
 	u64 feature_XOR;
-	u64 features = conf->use_features;
+	u64 features, features_backup;
+
+	/* TODO: field use_features1 is not used*/
+	features_backup = features = conf->use_features0;
 
 	features &= feature_mask;
 	feature_XOR = features ^ feature_inst;
@@ -340,7 +343,7 @@ int set_features(struct conf_data *conf)
 			}
 			f_mask = ~(1 << i);
 			feature_inst = (feature_inst & f_mask) |
-				(conf->use_features & ~f_mask);
+				       (features_backup & ~f_mask);
 		}
 
 		features >>= 1;
