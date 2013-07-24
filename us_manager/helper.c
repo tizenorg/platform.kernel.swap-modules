@@ -305,10 +305,10 @@ unregister_cp:
 	dbi_unregister_kretprobe(&cp_kretprobe);
 
 unregister_mr:
-	dbi_unregister_kprobe(&mr_kprobe, NULL);
+	dbi_unregister_kprobe(&mr_kprobe);
 
 unregister_unmap:
-	dbi_unregister_kprobe(&unmap_kprobe, NULL);
+	dbi_unregister_kprobe(&unmap_kprobe);
 
 	return ret;
 }
@@ -322,10 +322,10 @@ void unregister_helper(void)
 	dbi_unregister_kretprobe(&cp_kretprobe);
 
 	/* uninstall kprobe with 'mm_release' */
-	dbi_unregister_kprobe(&mr_kprobe, NULL);
+	dbi_unregister_kprobe(&mr_kprobe);
 
 	/* uninstall kprobe with 'do_munmap' */
-	dbi_unregister_kprobe(&unmap_kprobe, NULL);
+	dbi_unregister_kprobe(&unmap_kprobe);
 }
 
 int init_helper(void)

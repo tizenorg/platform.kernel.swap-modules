@@ -241,7 +241,7 @@ struct hlist_head *kretprobe_inst_table_head (void *hash_key);
 
 
 int dbi_register_kprobe (struct kprobe *p);
-void dbi_unregister_kprobe (struct kprobe *p, struct task_struct *task);
+void dbi_unregister_kprobe(struct kprobe *p);
 
 int register_aggr_kprobe (struct kprobe *old_p, struct kprobe *p);
 

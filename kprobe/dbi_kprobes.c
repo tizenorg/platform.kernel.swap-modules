@@ -531,7 +531,7 @@ out:
 	return ret;
 }
 
-void dbi_unregister_kprobe(struct kprobe *p, struct task_struct *task)
+void dbi_unregister_kprobe(struct kprobe *p)
 {
 	struct kprobe *old_p, *list_p;
 	int cleanup_p;
@@ -602,7 +602,7 @@ int dbi_register_jprobe(struct jprobe *jp)
 
 void dbi_unregister_jprobe(struct jprobe *jp)
 {
-	dbi_unregister_kprobe(&jp->kp, NULL);
+	dbi_unregister_kprobe(&jp->kp);
 }
 
 /*
@@ -830,7 +830,7 @@ void dbi_unregister_kretprobe(struct kretprobe *rp)
 	unsigned long flags;
 	struct kretprobe_instance *ri;
 
-	dbi_unregister_kprobe(&rp->kp, NULL);
+	dbi_unregister_kprobe(&rp->kp);
 
 	/* No race here */
 	spin_lock_irqsave(&kretprobe_lock, flags);
