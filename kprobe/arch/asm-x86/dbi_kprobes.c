@@ -146,11 +146,11 @@ static __used void kretprobe_trampoline_holder(void)
 	asm volatile(".global kretprobe_trampoline\n"
 			"kretprobe_trampoline:\n"
 			"	pushf\n"
-			/* skip cs, eip, orig_eax */
-			"	subl $12, %esp\n"
+			/* skip cs, ip, orig_ax and gs. */
+			"	subl $16, %esp\n"
 			"	pushl %fs\n"
-			"	pushl %ds\n"
 			"	pushl %es\n"
+			"	pushl %ds\n"
 			"	pushl %eax\n"
 			"	pushl %ebp\n"
 			"	pushl %edi\n"
@@ -161,10 +161,10 @@ static __used void kretprobe_trampoline_holder(void)
 			"	movl %esp, %eax\n"
 			"	call trampoline_probe_handler_x86\n"
 			/* move eflags to cs */
-			"	movl 52(%esp), %edx\n"
-			"	movl %edx, 48(%esp)\n"
-			/* save true return address on eflags */
-			"	movl %eax, 52(%esp)\n"
+			"	movl 56(%esp), %edx\n"
+			"	movl %edx, 52(%esp)\n"
+			/* replace saved flags with true return address. */
+			"	movl %eax, 56(%esp)\n"
 			"	popl %ebx\n" ""
 			"	popl %ecx\n"
 			"	popl %edx\n"
