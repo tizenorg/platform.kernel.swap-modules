@@ -58,47 +58,8 @@
 #define SUPRESS_BUG_MESSAGES
 
 extern struct kprobe * per_cpu__current_kprobe;
-
 extern struct kprobe * per_cpu__current_kprobe;
-
 extern struct kprobe * current_kprobe;
-
-#define SAVE_REGS_STRING		\
-	/* Skip cs, ip, orig_ax. */	\
-	"	subq $24, %rsp\n"	\
-	"	pushq %rdi\n"		\
-	"	pushq %rsi\n"		\
-	"	pushq %rdx\n"		\
-	"	pushq %rcx\n"		\
-	"	pushq %rax\n"		\
-	"	pushq %r8\n"		\
-	"	pushq %r9\n"		\
-	"	pushq %r10\n"		\
-	"	pushq %r11\n"		\
-	"	pushq %rbx\n"		\
-	"	pushq %rbp\n"		\
-	"	pushq %r12\n"		\
-	"	pushq %r13\n"		\
-	"	pushq %r14\n"		\
-	"	pushq %r15\n"
-#define RESTORE_REGS_STRING		\
-	"	popq %r15\n"		\
-	"	popq %r14\n"		\
-	"	popq %r13\n"		\
-	"	popq %r12\n"		\
-	"	popq %rbp\n"		\
-	"	popq %rbx\n"		\
-	"	popq %r11\n"		\
-	"	popq %r10\n"		\
-	"	popq %r9\n"		\
-	"	popq %r8\n"		\
-	"	popq %rax\n"		\
-	"	popq %rcx\n"		\
-	"	popq %rdx\n"		\
-	"	popq %rsi\n"		\
-	"	popq %rdi\n"		\
-	/* Skip orig_ax, ip, cs */	\
-	"	addq $24, %rsp\n"
 
 DECLARE_MOD_FUNC_DEP(module_alloc, void *, unsigned long size);
 DECLARE_MOD_FUNC_DEP(module_free, void, struct module *mod, void *module_region);
@@ -180,12 +141,6 @@ static __used void kretprobe_trampoline_holder(void)
 
 void kretprobe_trampoline(void);
 
-struct kprobe trampoline_p =
-{
-	.addr = (kprobe_opcode_t *) & kretprobe_trampoline,
-	.pre_handler = trampoline_probe_handler
-};
-
 /* insert a jmp code */
 static __always_inline void set_jmp_op (void *from, void *to)
 {
@@ -197,20 +152,6 @@ static __always_inline void set_jmp_op (void *from, void *to)
 	jop = (struct __arch_jmp_op *) from;
 	jop->raddr = (long) (to) - ((long) (from) + 5);
 	jop->op = RELATIVEJUMP_INSTRUCTION;
-}
-
-static void set_user_jmp_op (void *from, void *to)
-{
-	struct __arch_jmp_op
-	{
-		char op;
-		long raddr;
-	} __attribute__ ((packed)) jop;
-	//jop = (struct __arch_jmp_op *) from;
-	jop.raddr = (long) (to) - ((long) (from) + 5);
-	jop.op = RELATIVEJUMP_INSTRUCTION;
-	if (!write_proc_vm_atomic (current, (unsigned long)from, &jop, sizeof(jop)))
-		panic ("failed to write jump opcode to user space %p!\n", from);
 }
 
 /*
