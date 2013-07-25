@@ -172,8 +172,8 @@ static __used void kretprobe_trampoline_holder(void)
 			"	popl %edi\n"
 			"	popl %ebp\n"
 			"	popl %eax\n"
-			/* skip eip, orig_eax, es, ds, fs */
-			"	addl $20, %esp\n"
+			/* skip ds, es, fs, gs, orig_ax, and ip. Note: don't pop cs here*/
+			"	addl $24, %esp\n"
 			"	popf\n"
 			"	ret\n");
 }
