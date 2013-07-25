@@ -130,43 +130,6 @@ static inline void *buf_get_chunk(int i)
 	return (((struct chunk *)bdevice.buf) + i); //TODO FIXME!!!!
 }
 
-static int buf_init(unsigned long size, unsigned long chunk_size)
-{
-	int retval = 0;
-
-	INIT_LIST_HEAD(&bdevice.free_chunks);
-	INIT_LIST_HEAD(&bdevice.used_chunks);
-	bdevice.size = 0;
-	bdevice.chunk_size = 0;
-
-	bdevice.buf = vmalloc(size);
-	if (!bdevice.buf) {
-		retval = -ENOMEM;
-		goto out;
-	}
-
-	/*for (;;) { //TODO
-		struct chunk *chunk = buf_get_chunk(i); //TODO
-		list_add_tail(&chunk->list, &bdevice.free_chunks);
-	}*/
-
-out:
-	return retval;
-}
-
-static int buf_free(void)
-{
-	INIT_LIST_HEAD(&bdevice.free_chunks);
-	INIT_LIST_HEAD(&bdevice.used_chunks);
-	bdevice.size = 0;
-	bdevice.chunk_size = 0;
-
-	if (bdevice.buf)
-		vfree(bdevice.buf);
-	bdevice.buf = NULL;
-
-	return 0;
-}
 
 /* --- char dev file operations --- */
 static int buf_open(struct inode *inode, struct file *filp)

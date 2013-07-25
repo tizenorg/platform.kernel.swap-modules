@@ -69,7 +69,7 @@ typedef unsigned long kprobe_opcode_t;
 static inline unsigned long *arch_get_patch_addr(struct task_struct *p,
 						 struct pt_regs *regs)
 {
-	return &task_thread_info(p)->cpu_context.pc;
+	return (unsigned long *)(&task_thread_info(p)->cpu_context.pc);
 }
 
 static inline unsigned long arch_get_task_pc(struct task_struct *p)

@@ -1545,7 +1545,7 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs)
 	{
 		regs->uregs[15] = orig_ret_address;
 	}else{
-		ret = (void *)orig_ret_address;
+		ret = (unsigned long)orig_ret_address;
 	}
 
 	DBPRINTF ("regs->uregs[15] = 0x%lx\n", regs->uregs[15]);

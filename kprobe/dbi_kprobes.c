@@ -849,7 +849,7 @@ static void inline rm_task_trampoline(struct task_struct *p, struct kretprobe_in
 
 static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
 {
-	unsigned long *tramp = &kretprobe_trampoline;
+	unsigned long *tramp = (unsigned long *)&kretprobe_trampoline;
 	unsigned long *sp = ri->sp;
 	unsigned long *found = NULL;
 	int retval = -ENOENT;
@@ -858,13 +858,14 @@ static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
 		unsigned long pc = arch_get_task_pc(ri->task);
 
 		printk("---> [%d] %s (%d/%d): pc = %08lx, ra = %08lx, tramp= %08lx (%08lx)\n",
-				task_cpu(ri->task),
-				ri->task->comm, ri->task->tgid, ri->task->pid,
-				pc, ri->ret_addr, tramp,
-				ri->rp ? ri->rp->kp.addr: NULL);
+		       task_cpu(ri->task),
+		       ri->task->comm, ri->task->tgid, ri->task->pid,
+		       pc, (long unsigned int)ri->ret_addr,
+		       (long unsigned int)tramp,
+		       (long unsigned int)(ri->rp ? ri->rp->kp.addr: NULL));
 
 		/* __switch_to retprobe handling */
-		if (pc == tramp) {
+		if (pc == (unsigned long) tramp) {
 			rm_task_trampoline(ri->task, ri);
 			return 0;
 		}
@@ -873,7 +874,7 @@ static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
 	}
 
 	while (sp > ri->sp - RETPROBE_STACK_DEPTH) {
-		if (*sp == tramp) {
+		if (*sp == (unsigned long)tramp) {
 			found = sp;
 			break;
 		}
@@ -882,18 +883,19 @@ static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
 
 	if (found) {
 		printk("---> [%d] %s (%d/%d): tramp (%08lx) found at %08lx (%08lx /%+d) - %p\n",
-				task_cpu(ri->task),
-				ri->task->comm, ri->task->tgid, ri->task->pid,
-				tramp, found, ri->sp, found - ri->sp,
-				ri->rp ? ri->rp->kp.addr: NULL);
-		*found = ri->ret_addr;
+		       task_cpu(ri->task),
+		       ri->task->comm, ri->task->tgid, ri->task->pid,
+		       (long unsigned int)tramp,
+		       (long unsigned int)found, (long unsigned int)ri->sp,
+		       found - ri->sp, ri->rp ? ri->rp->kp.addr: NULL);
+		*found = (unsigned long)ri->ret_addr;
 		retval = 0;
 	} else {
 		printk("---> [%d] %s (%d/%d): tramp (%08lx) NOT found at sp = %08lx - %p\n",
 				task_cpu(ri->task),
 				ri->task->comm, ri->task->tgid, ri->task->pid,
-				tramp,
-				ri->sp, ri->rp ? ri->rp->kp.addr: NULL);
+				(long unsigned int)tramp,
+				(long unsigned int)ri->sp, ri->rp ? ri->rp->kp.addr: NULL);
 	}
 
 	return retval;
