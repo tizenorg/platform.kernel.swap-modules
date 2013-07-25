@@ -376,9 +376,15 @@ static int uninstall_kernel_probe (unsigned long addr, int uflag, int kflag, ker
 	if (us_proc_probes & uflag) {
 		if (!(probes_flags & uflag)) {
 			if (probe) {
-				iRet = unregister_kernel_probe(probe);
+				iRet = unregister_kernel_probe_top(probe);
 				if (iRet) {
-					EPRINTF ("unregister_kernel_probe(0x%lx) result=%d!",
+					EPRINTF ("unregister_kernel_probe_top(0x%lx) result=%d!",
+							addr, iRet);
+					return iRet;
+				}
+				iRet = unregister_kernel_probe_bottom(probe);
+				if (iRet) {
+					EPRINTF ("unregister_kernel_probe_bottom(0x%lx) result=%d!",
 							addr, iRet);
 					return iRet;
 				}

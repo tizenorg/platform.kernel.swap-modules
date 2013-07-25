@@ -39,7 +39,8 @@ extern int attach_selected_probes (void);
 extern int detach_selected_probes (void);
 
 extern int register_kernel_probe (kernel_probe_t * probe);
-extern int unregister_kernel_probe (kernel_probe_t * probe);
+extern int unregister_kernel_probe_top(kernel_probe_t * probe);
+extern int unregister_kernel_probe_bottom(kernel_probe_t * probe);
 
 extern unsigned long def_jprobe_event_pre_handler (kernel_probe_t * probe, struct pt_regs *regs);
 extern void def_jprobe_event_handler (unsigned long arg1, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6);

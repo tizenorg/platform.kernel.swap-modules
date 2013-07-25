@@ -153,7 +153,7 @@ register_kernel_retprobe (kernel_probe_t * probe)
 }
 
 static int
-unregister_kernel_retprobe (kernel_probe_t * probe)
+unregister_kernel_retprobe_top (kernel_probe_t * probe)
 {
 	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
 	    ((probe == cp_probe) && (us_proc_probes & US_PROC_CP_INSTLD)) ||
@@ -162,7 +162,21 @@ unregister_kernel_retprobe (kernel_probe_t * probe)
 	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ) {
 		return 0;	// probe is necessary for user space instrumentation
 	}
-	dbi_unregister_kretprobe (&probe->retprobe);
+	dbi_unregister_kretprobe_top(&probe->retprobe);
+	return 0;
+}
+
+static int
+unregister_kernel_retprobe_bottom(kernel_probe_t * probe)
+{
+	if( ((probe == pf_probe) && (us_proc_probes & US_PROC_PF_INSTLD)) ||
+	    ((probe == cp_probe) && (us_proc_probes & US_PROC_CP_INSTLD)) ||
+	    ((probe == mr_probe) && (us_proc_probes & US_PROC_MR_INSTLD)) ||
+	    ((probe == unmap_probe) && (us_proc_probes & US_PROC_UNMAP_INSTLD)) ||
+	    ((probe == exit_probe) && (us_proc_probes & US_PROC_EXIT_INSTLD)) ) {
+		return 0;	// probe is necessary for user space instrumentation
+	}
+	dbi_unregister_kretprobe_bottom(&probe->retprobe);
 	return 0;
 }
 
@@ -175,10 +189,17 @@ register_kernel_probe (kernel_probe_t * probe)
 }
 
 int
-unregister_kernel_probe (kernel_probe_t * probe)
+unregister_kernel_probe_top(kernel_probe_t * probe)
 {
-	unregister_kernel_retprobe(probe);
+	unregister_kernel_retprobe_top(probe);
 	unregister_kernel_jprobe(probe);
+	return 0;
+}
+
+int
+unregister_kernel_probe_bottom(kernel_probe_t * probe)
+{
+	unregister_kernel_retprobe_bottom(probe);
 	return 0;
 }
 
@@ -211,9 +232,20 @@ detach_selected_probes (void)
 	struct hlist_node *node;
 
 	swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
-		unregister_kernel_probe (p);
+		unregister_kernel_probe_top(p);
 	swap_hlist_for_each_entry_rcu (p, node, &otg_kernel_probes, hlist) {
-		unregister_kernel_probe(p);
+		unregister_kernel_probe_top(p);
+	}
+
+	/* /\* Let's give a chance to retprobe handlers *\/ */
+	/* printk("RDBG[%s:%d]\n", __FILE__, __LINE__); */
+	/* msleep(1000); */
+	/* printk("RDBG[%s:%d]\n", __FILE__, __LINE__); */
+
+	swap_hlist_for_each_entry_rcu (p, node, &kernel_probes, hlist)
+		unregister_kernel_probe_bottom(p);
+	swap_hlist_for_each_entry_rcu (p, node, &otg_kernel_probes, hlist) {
+		unregister_kernel_probe_bottom(p);
 	}
 
 	return 0;
