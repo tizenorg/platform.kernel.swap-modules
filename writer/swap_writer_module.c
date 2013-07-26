@@ -430,6 +430,13 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 		len -= 1;
 
 		switch (fmt[i]) {
+		case 'b': /* 1 byte(bool) */
+			if (len < 1)
+				return -ENOMEM;
+			*buf = (char)!!arg;
+			buf += 1;
+			len -= 1;
+			break;
 		case 'c': /* 1 byte(char) */
 			if (len < 1)
 				return -ENOMEM;
