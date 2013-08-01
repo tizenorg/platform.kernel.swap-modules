@@ -1281,14 +1281,16 @@ int kprobe_handler(struct pt_regs *regs)
 			p = get_kprobe_by_insn_slot(addr, tgid, regs);
 			if (!p) {
 				/* Not one of ours: let kernel handle it */
-				DBPRINTF ("no_kprobe");
+				printk("no_kprobe: Not one of ours: let "
+				       "kernel handle it (userspace event) %p\n", addr);
 				goto no_kprobe;
 			}
 			retprobe = 1;
 			DBPRINTF ("uretprobe %p\n", addr);
 		} else {
 			/* Not one of ours: let kernel handle it */
-			DBPRINTF ("no_kprobe");
+			printk("no_kprobe: Not one of ours: "
+				  "let kernel handle it (kernel event)\n");
 			goto no_kprobe;
 		}
 	}

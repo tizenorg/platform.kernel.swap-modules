@@ -411,6 +411,58 @@ int deinst_usr_space_proc (void)
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_page_fault) result=%d!", iRet);
 
+	if (is_libonly()) {
+		struct sspt_proc *proc;
+
+		for_each_process(task)	{
+			proc = get_proc_probes_by_task(task);
+			if (proc) {
+				int ret = uninstall_us_proc_probes(task, proc, US_UNREGS_PROBE);
+				if (ret) {
+					EPRINTF ("failed to uninstall IPs (%d)!", ret);
+				}
+
+				dbi_unregister_all_uprobes(task, 1);
+			}
+		}
+	}
+	else
+	{
+		if (us_proc_info.tgid != 0) {
+			rcu_read_lock ();
+			for_each_process (task)
+			{
+				if (task->tgid == us_proc_info.tgid)
+				{
+					found = 1;
+					get_task_struct (task);
+					break;
+				}
+			}
+			rcu_read_unlock ();
+			if (found)
+			{
+				int i, ret;
+				// uninstall IPs
+				ret = uninstall_us_proc_probes(task,
+							       us_proc_info.pp,
+							       US_UNREGS_PROBE);
+				if (ret != 0) {
+					EPRINTF ("failed to uninstall IPs %d!",
+						 ret);
+				}
+
+				put_task_struct (task);
+
+				printk("###1### dbi_unregister_all_uprobes:\n");
+				dbi_unregister_all_uprobes(task, 1);
+				us_proc_info.tgid = 0;
+				for(i = 0; i < us_proc_info.libs_count; i++)
+					us_proc_info.p_libs[i].loaded = 0;
+			}
+		}
+	}
+
 	iRet = uninstall_kernel_probe (cp_addr, US_PROC_CP_INSTLD,
 			0, &cp_probe);
 	if (iRet)
@@ -430,55 +482,6 @@ int deinst_usr_space_proc (void)
 			0, &unmap_probe);
 	if (iRet)
 		EPRINTF ("uninstall_kernel_probe(do_munmap) result=%d!", iRet);
-
-	if (is_libonly()) {
-		struct sspt_proc *proc;
-
-		for_each_process(task)	{
-			proc = get_proc_probes_by_task(task);
-			if (proc) {
-				int ret = uninstall_us_proc_probes(task, proc, US_UNREGS_PROBE);
-				if (ret) {
-					EPRINTF ("failed to uninstall IPs (%d)!", ret);
-				}
-
-				dbi_unregister_all_uprobes(task, 1);
-			}
-		}
-	}
-	else
-	{
-		if (us_proc_info.tgid == 0)
-			return 0;
-			rcu_read_lock ();
-		for_each_process (task)
-		{
-			if (task->tgid == us_proc_info.tgid)
-			{
-				found = 1;
-				get_task_struct (task);
-				break;
-			}
-		}
-		rcu_read_unlock ();
-		if (found)
-		{
-			int i, ret;
-			// uninstall IPs
-			ret = uninstall_us_proc_probes(task, us_proc_info.pp, US_UNREGS_PROBE);
-			if (ret != 0) {
-				EPRINTF ("failed to uninstall IPs %d!", ret);
-			}
-
-			put_task_struct (task);
-
-			printk("### 1 ### dbi_unregister_all_uprobes:\n");
-			dbi_unregister_all_uprobes(task, 1);
-			us_proc_info.tgid = 0;
-			for(i = 0; i < us_proc_info.libs_count; i++)
-				us_proc_info.p_libs[i].loaded = 0;
-		}
-	}
 
 	return iRet;
 }
@@ -528,6 +531,46 @@ int inst_usr_space_proc (void)
 	}
 
 	DPRINTF("User space instr");
+
+	// enable 'do_exit' probe to detect for remove task_struct
+	ret = install_kernel_probe (exit_addr, US_PROC_EXIT_INSTLD, 0, &exit_probe);
+	if (ret != 0)
+	{
+		EPRINTF ("install_kernel_probe(do_exit) result=%d!", ret);
+		return ret;
+	}
+
+	// enable 'mm_release' probe to detect when for remove user space probes
+	ret = install_kernel_probe (mr_addr, US_PROC_MR_INSTLD, 0, &mr_probe);
+	if (ret != 0)
+	{
+		EPRINTF ("install_kernel_probe(mm_release) result=%d!", ret);
+		return ret;
+	}
+
+	// enable 'do_munmap' probe to detect when for remove user space probes
+	ret = install_kernel_probe (unmap_addr, US_PROC_UNMAP_INSTLD, 0, &unmap_probe);
+	if (ret != 0)
+	{
+		EPRINTF ("install_kernel_probe(do_munmap) result=%d!", ret);
+		return ret;
+	}
+
+	/* enable 'copy_process' */
+	ret = install_kernel_probe (cp_addr, US_PROC_CP_INSTLD, 0, &cp_probe);
+	if (ret != 0)
+	{
+		EPRINTF ("instpall_kernel_probe(copy_process) result=%d!", ret);
+		return ret;
+	}
+
+	// enable 'do_page_fault' probe to detect when they will be loaded
+	ret = install_kernel_probe (pf_addr, US_PROC_PF_INSTLD, 0, &pf_probe);
+	if (ret != 0)
+	{
+		EPRINTF ("install_kernel_probe(do_page_fault) result=%d!", ret);
+		return ret;
+	}
 
 #ifdef SLP_APP
 	launchpad_daemon_dentry = dentry_by_path("/usr/bin/launchpad_preloading_preinitializing_daemon");
@@ -588,43 +631,6 @@ int inst_usr_space_proc (void)
 		}
 	}
 
-	// enable 'do_page_fault' probe to detect when they will be loaded
-	ret = install_kernel_probe (pf_addr, US_PROC_PF_INSTLD, 0, &pf_probe);
-	if (ret != 0)
-	{
-		EPRINTF ("install_kernel_probe(do_page_fault) result=%d!", ret);
-		return ret;
-	}
-	// enable 'do_exit' probe to detect for remove task_struct
-	ret = install_kernel_probe (exit_addr, US_PROC_EXIT_INSTLD, 0, &exit_probe);
-	if (ret != 0)
-	{
-		EPRINTF ("install_kernel_probe(do_exit) result=%d!", ret);
-		return ret;
-	}
-	/* enable 'copy_process' */
-	ret = install_kernel_probe (cp_addr, US_PROC_CP_INSTLD, 0, &cp_probe);
-	if (ret != 0)
-	{
-		EPRINTF ("instpall_kernel_probe(copy_process) result=%d!", ret);
-		return ret;
-	}
-
-	// enable 'mm_release' probe to detect when for remove user space probes
-	ret = install_kernel_probe (mr_addr, US_PROC_MR_INSTLD, 0, &mr_probe);
-	if (ret != 0)
-	{
-		EPRINTF ("install_kernel_probe(mm_release) result=%d!", ret);
-		return ret;
-	}
-
-	// enable 'do_munmap' probe to detect when for remove user space probes
-	ret = install_kernel_probe (unmap_addr, US_PROC_UNMAP_INSTLD, 0, &unmap_probe);
-	if (ret != 0)
-	{
-		EPRINTF ("install_kernel_probe(do_munmap) result=%d!", ret);
-		return ret;
-	}
 	return 0;
 }
 

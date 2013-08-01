@@ -602,11 +602,9 @@ void unlink_bundle(void)
 		kfree ((void *) us_proc_info.p_libs);
 		us_proc_info.p_libs = NULL;
 	}
-	/* if (path) */
-	/* { */
-	/* 	kfree ((void *) path); */
-	/* 	//putname(path); */
-	/* } */
+	if (path) {
+		kfree ((void *) path);
+	}
 
 	us_proc_info.tgid = 0;
 }
@@ -692,9 +690,14 @@ int link_bundle(void)
 	{
 		int lib_path_len;
 		char *lib_path;
-
-		us_proc_info.path = (char *)p;
+		us_proc_info.path = kmalloc(len, GFP_KERNEL);
+		if (!us_proc_info.path) {
+			DPRINTF("Can't allocate memory for us_proc_info.path");
+			return -1;
+		}
+		us_proc_info.path = strcpy(us_proc_info.path, (char *)p);
 		DPRINTF("app path = %s", us_proc_info.path);
+		printk("app path = %s\n", us_proc_info.path);
 		p += len;
 
 		if (strcmp(us_proc_info.path, "*")) {

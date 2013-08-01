@@ -291,7 +291,7 @@ int dbi_disarm_urp_inst(struct kretprobe_instance *ri, struct task_struct *rm_ta
 
 	retval = read_proc_vm_atomic(task, (unsigned long)stack, buf, sizeof(buf));
 	if (retval != sizeof(buf)) {
-		printk("---> %s (%d/%d): failed to read stack from %08lx",
+		printk("---> %s (%d/%d): failed to read stack from %08lx\n",
 			task->comm, task->tgid, task->pid, (unsigned long)stack);
 		retval = -EFAULT;
 		goto out;
@@ -306,10 +306,10 @@ int dbi_disarm_urp_inst(struct kretprobe_instance *ri, struct task_struct *rm_ta
 	}
 
 	if (found) {
-		printk("---> %s (%d/%d): trampoline found at %08lx (%08lx /%+d) - %p\n",
-				task->comm, task->tgid, task->pid,
-				(unsigned long)found, (unsigned long)sp,
-				found - sp, ri->rp->kp.addr);
+		/* printk("---> %s (%d/%d): trampoline found at %08lx (%08lx /%+d) - %p\n", */
+				/* task->comm, task->tgid, task->pid, */
+				/* (unsigned long)found, (unsigned long)sp, */
+				/* found - sp, ri->rp->kp.addr); */
 		retval = write_proc_vm_atomic(task, (unsigned long)found, &ri->ret_addr,
 				sizeof(ri->ret_addr));
 		if (retval != sizeof(ri->ret_addr)) {
@@ -323,9 +323,9 @@ int dbi_disarm_urp_inst(struct kretprobe_instance *ri, struct task_struct *rm_ta
 		struct pt_regs *uregs = task_pt_regs(ri->task);
 		unsigned long ra = dbi_get_ret_addr(uregs);
 		if (ra == (unsigned long)tramp) {
-			printk("---> %s (%d/%d): trampoline found at lr = %08lx - %p\n",
-					task->comm, task->tgid, task->pid, ra, ri->rp->kp.addr);
-			dbi_set_ret_addr(uregs, (unsigned long)tramp);
+			/* printk("---> %s (%d/%d): trampoline found at lr = %08lx - %p\n", */
+					/* task->comm, task->tgid, task->pid, ra, ri->rp->kp.addr); */
+			dbi_set_ret_addr(uregs, (unsigned long)ri->ret_addr);
 			retval = 0;
 		} else {
 			printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx, lr = %08lx - %p\n",
@@ -345,11 +345,12 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 	struct kretprobe_instance *ri;
 	struct kretprobe *rp2 = NULL;
 
+	unregister_uprobe(&rp->kp, task, atomic);
 	spin_lock_irqsave (&kretprobe_lock, flags);
 
 	while ((ri = get_used_rp_inst(rp)) != NULL) {
 		if (dbi_disarm_urp_inst(ri, NULL) != 0)
-			/*panic*/printk("%s (%d/%d): cannot disarm urp instance (%08lx)\n",
+			printk("%s (%d/%d): cannot disarm urp instance (%08lx)\n",
 					ri->task->comm, ri->task->tgid, ri->task->pid,
 					(unsigned long)rp->kp.addr);
 		recycle_rp_inst(ri);
@@ -413,7 +414,6 @@ void dbi_unregister_uretprobe(struct task_struct *task, struct kretprobe *rp, in
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 	free_rp_inst(rp);
 
-	unregister_uprobe(&rp->kp, task, atomic);
 }
 
 void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
@@ -427,8 +427,8 @@ void dbi_unregister_all_uprobes(struct task_struct *task, int atomic)
 		head = &kprobe_table[i];
 		swap_hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
 			if (p->tgid == task->tgid) {
-				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%lx] for %s/%d\n",
-						p->addr, (unsigned long)p->opcode, task->comm, task->pid);
+				/* printk("dbi_unregister_all_uprobes: delete uprobe at %p[%lx] for %s/%d\n", */
+				/* 		p->addr, (unsigned long)p->opcode, task->comm, task->pid); */
 				unregister_uprobe(p, task, atomic);
 			}
 		}
