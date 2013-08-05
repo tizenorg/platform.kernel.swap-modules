@@ -40,7 +40,7 @@ enum PROBE_SUB_TYPE {
 	PST_KS_PROCESS	= 0x04,
 	PST_KS_SIGNAL	= 0x08,
 	PST_KS_NETWORK	= 0x10,
-	PST_KS_DESK	= 0x20
+	PST_KS_DESC	= 0x20
 };
 
 struct pt_regs;

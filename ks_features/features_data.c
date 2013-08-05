@@ -267,7 +267,7 @@ static struct feature features[] = {
 	CREATE_FEATURE(id_process, PST_KS_PROCESS),
 	CREATE_FEATURE(id_signal, PST_KS_SIGNAL),
 	CREATE_FEATURE(id_net, PST_KS_NETWORK),
-	CREATE_FEATURE(id_desc, PST_KS_DESK)
+	CREATE_FEATURE(id_desc, PST_KS_DESC)
 };
 
 enum {
