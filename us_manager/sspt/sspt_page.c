@@ -120,7 +120,7 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 
 	spin_lock(&page->lock);
 
-	if (sspt_page_is_install(page)) {
+	if (sspt_page_is_installed(page)) {
 		struct task_struct *task = page->file->proc->task;
 
 		printk("page %lx in %s task[tgid=%u, pid=%u] already installed\n",
@@ -142,7 +142,7 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 		}
 	}
 unlock:
-	sspt_page_installed(page);
+	sspt_page_install(page);
 	spin_unlock(&page->lock);
 
 	return 0;
@@ -156,7 +156,7 @@ int sspt_unregister_page(struct sspt_page *page,
 	struct us_ip *ip;
 
 	spin_lock(&page->lock);
-	if (!sspt_page_is_install(page)) {
+	if (!sspt_page_is_installed(page)) {
 		spin_unlock(&page->lock);
 		return 0;
 	}
@@ -170,7 +170,7 @@ int sspt_unregister_page(struct sspt_page *page,
 	}
 
 	if (flag != US_DISARM) {
-		sspt_page_uninstalled(page);
+		sspt_page_uninstall(page);
 	}
 	spin_unlock(&page->lock);
 

@@ -57,17 +57,17 @@ static inline void sspt_page_assert_install(const struct sspt_page *page)
 	}
 }
 
-static inline int sspt_page_is_install(struct sspt_page *page)
+static inline int sspt_page_is_installed(struct sspt_page *page)
 {
 	return page->install;
 }
 
-static inline void sspt_page_installed(struct sspt_page *page)
+static inline void sspt_page_install(struct sspt_page *page)
 {
 	page->install = 1;
 }
 
-static inline void sspt_page_uninstalled(struct sspt_page *page)
+static inline void sspt_page_uninstall(struct sspt_page *page)
 {
 	page->install = 0;
 }

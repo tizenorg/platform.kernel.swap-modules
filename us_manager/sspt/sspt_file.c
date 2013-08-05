@@ -173,7 +173,7 @@ int sspt_file_check_install_pages(struct sspt_file *file)
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
 		swap_hlist_for_each_entry_safe(page, node, tmp, head, hlist) {
-			if (sspt_page_is_install(page)) {
+			if (sspt_page_is_installed(page)) {
 				return 1;
 			}
 		}
