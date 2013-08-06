@@ -291,5 +291,8 @@ struct kprobe *kprobe_running (void);
 void reset_current_kprobe (void);
 struct kprobe_ctlblk *get_kprobe_ctlblk (void);
 
+void *__wrapper_module_alloc(unsigned long size);
+void *__wrapper_module_free(void *module_region);
+
 #endif /* _DBI_KPROBES_H */
 

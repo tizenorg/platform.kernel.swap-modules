@@ -49,6 +49,8 @@
 #include "dbi_uprobes.h"
 #include "dbi_kdebug.h"
 
+#include <linux/moduleloader.h>
+
 #include <linux/hash.h>
 #include <linux/mman.h>
 #include <linux/hugetlb.h>
@@ -199,7 +201,7 @@ static void *page_new(struct task_struct *task, int atomic)
 				PROT_EXEC|PROT_READ|PROT_WRITE,
 				MAP_ANONYMOUS|MAP_PRIVATE/*MAP_SHARED*/, atomic);
 	} else {
-		return kmalloc(PAGE_SIZE, GFP_ATOMIC);
+		return __wrapper_module_alloc(PAGE_SIZE);
 	}
 }
 
@@ -222,7 +224,7 @@ static void page_free(void *data, struct task_struct *task)
 #endif
 		// FIXME: implement the removal of memory for task
 	} else {
-		kfree(data);
+		__wrapper_module_free(data);
 	}
 }
 
