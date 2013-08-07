@@ -37,6 +37,17 @@ struct uprobe_ctlblk {
 
 static DEFINE_PER_CPU(struct uprobe_ctlblk, ucb) = { 0, NULL };
 
+static void save_current_flags(struct pt_regs *regs)
+{
+	__get_cpu_var(ucb).flags = regs->EREG(flags);
+}
+
+static void restore_current_flags(struct pt_regs *regs)
+{
+	regs->EREG(flags) &= ~IF_MASK;
+	regs->EREG(flags) |= __get_cpu_var(ucb).flags & IF_MASK;
+}
+
 int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list)
 {
 	int ret = 0;
@@ -163,7 +174,7 @@ static void resume_execution(struct kprobe *p, struct pt_regs *regs, unsigned lo
 	switch (insns[0]) {
 		case 0x9c:		/* pushfl */
 			*tos &= ~(TF_MASK | IF_MASK);
-			*tos |= flags;
+			*tos |= flags & (TF_MASK | IF_MASK);
 			break;
 		case 0xc2:		/* iret/ret/lret */
 		case 0xc3:
@@ -237,6 +248,8 @@ static int uprobe_handler(struct pt_regs *regs)
 	struct task_struct *task = current;
 	pid_t tgid = task->tgid;
 
+	save_current_flags(regs);
+
 	addr = (kprobe_opcode_t *)(regs->EREG(ip) - sizeof(kprobe_opcode_t));
 	p = get_ukprobe(addr, tgid);
 
@@ -255,7 +268,6 @@ static int uprobe_handler(struct pt_regs *regs)
 	}
 
 	__get_cpu_var(ucb).p = p;
-	__get_cpu_var(ucb).flags = (regs->EREG(flags) & (TF_MASK | IF_MASK));
 
 	return 1;
 }
@@ -266,6 +278,7 @@ static int post_uprobe_handler(struct pt_regs *regs)
 	unsigned long flags = __get_cpu_var(ucb).flags;
 
 	resume_execution(p, regs, flags);
+	restore_current_flags(regs);
 
 	return 1;
 }
