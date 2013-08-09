@@ -26,6 +26,7 @@
 #include <linux/slab.h>
 #include <linux/splice.h>
 #include <asm/uaccess.h>
+#include <linux/spinlock.h>
 
 #include <buffer/swap_buffer_module.h>
 #include <buffer/swap_buffer_errors.h>
@@ -45,6 +46,54 @@ static int buffers_to_read = 0;
 /* Pages count in one subbuffer */
 static int pages_per_buffer = 0;
 
+/* Used to sync changes of the buffers_to_read var */
+static spinlock_t buf_to_read;
+
+
+static inline void init_buffers_to_read(void)
+{
+	spin_lock_init(&buf_to_read);
+	buffers_to_read = 0;
+}
+
+static inline void inc_buffers_to_read(void)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&buf_to_read, flags);
+	buffers_to_read++;
+	spin_unlock_irqrestore(&buf_to_read, flags);
+}
+
+static inline void dec_buffers_to_read(void)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&buf_to_read, flags);
+	buffers_to_read--;
+	spin_unlock_irqrestore(&buf_to_read, flags);
+}
+
+static inline void set_buffers_to_read(int count)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&buf_to_read, flags);
+	buffers_to_read = count;
+	spin_unlock_irqrestore(&buf_to_read, flags);
+}
+
+static inline int something_to_read(void)
+{
+	unsigned long flags;
+	int result;
+
+	spin_lock_irqsave(&buf_to_read, flags);
+	result = buffers_to_read;
+	spin_unlock_irqrestore(&buf_to_read, flags);
+
+	return result;
+}
 
 /* TODO Get subbuffer for reading */
 static size_t driver_to_buffer_get(void)
@@ -88,11 +137,10 @@ static int driver_to_buffer_release(void)
 /* Buffers callback function */
 int driver_to_buffer_callback(void)
 {
-//XXX: Think of sync with get next
 	int result;
 
 	/* Increment buffers_to_read counter */
-	buffers_to_read++;
+	inc_buffers_to_read();
 	swap_device_wake_up_process();
 
 	return E_SD_SUCCESS;
@@ -163,7 +211,7 @@ int driver_to_buffer_flush(void)
 	result = swap_buffer_flush();
 
 	if (result >= 0)
-		buffers_to_read = result;
+		set_buffers_to_read(result);
 	else if (result < 0)
 		return -E_SD_BUFFER_ERROR;
 
@@ -237,7 +285,7 @@ int driver_to_buffer_initialize(size_t size, unsigned int count)
 	/* Initialize driver_to_buffer variables */
 	pages_per_buffer = result;
 	busy_buffer = NULL;
-	buffers_to_read = 0;
+	init_buffers_to_read();
 
 	return E_SD_SUCCESS;
 }
@@ -269,7 +317,7 @@ int driver_to_buffer_uninitialize(void)
 	}
 
 	/* Reinit driver_to_buffer vars */
-	buffers_to_read = 0;
+	init_buffers_to_read();
 	pages_per_buffer = 0;
 
 	return result;
@@ -278,7 +326,6 @@ int driver_to_buffer_uninitialize(void)
 /* Get next buffer to read */
 int driver_to_buffer_next_buffer_to_read(void)
 {
-//XXX: Think of sync with callback
 	int result;
 
 	/* If there is busy_buffer first release it */
@@ -290,7 +337,7 @@ int driver_to_buffer_next_buffer_to_read(void)
 
 	/* If there is no buffers to read, return E_SD_NO_DATA_TO_READ.
 	 * SHOULD BE POSITIVE, cause there is no real error. */
-	if (!buffers_to_read) {
+	if (!something_to_read()) {
 		return E_SD_NO_DATA_TO_READ;
 	}
 
@@ -302,7 +349,7 @@ int driver_to_buffer_next_buffer_to_read(void)
 	}
 
 	/* Decrement buffers_to_read counter */
-	buffers_to_read--;
+	dec_buffers_to_read();
 
 	return E_SD_SUCCESS;
 }
