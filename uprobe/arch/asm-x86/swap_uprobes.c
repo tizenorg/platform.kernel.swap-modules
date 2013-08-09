@@ -37,6 +37,21 @@ struct uprobe_ctlblk {
 
 static DEFINE_PER_CPU(struct uprobe_ctlblk, ucb) = { 0, NULL };
 
+static struct kprobe *get_current_probe(void)
+{
+	return __get_cpu_var(ucb).p;
+}
+
+static void set_current_probe(struct kprobe *p)
+{
+	__get_cpu_var(ucb).p = p;
+}
+
+static void reset_current_probe(void)
+{
+	set_current_probe(NULL);
+}
+
 static void save_current_flags(struct pt_regs *regs)
 {
 	__get_cpu_var(ucb).flags = regs->EREG(flags);
@@ -263,22 +278,30 @@ static int uprobe_handler(struct pt_regs *regs)
 
 		trampoline_uprobe_handler(p, regs);
 	} else {
-		if (!p->pre_handler || !p->pre_handler(p, regs))
+		if (!p->pre_handler || !p->pre_handler(p, regs)) {
+			if (p->ainsn.boostable == 1 && !p->post_handler) {
+				regs->EREG(ip) = (unsigned long)p->ainsn.insn;
+				return 1;
+			}
+
 			prepare_singlestep(p, regs);
+		}
 	}
 
-	__get_cpu_var(ucb).p = p;
+	set_current_probe(p);
 
 	return 1;
 }
 
 static int post_uprobe_handler(struct pt_regs *regs)
 {
-	struct kprobe *p = __get_cpu_var(ucb).p;
+	struct kprobe *p = get_current_probe();
 	unsigned long flags = __get_cpu_var(ucb).flags;
 
 	resume_execution(p, regs, flags);
 	restore_current_flags(regs);
+
+	reset_current_probe();
 
 	return 1;
 }
