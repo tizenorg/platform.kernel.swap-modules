@@ -33,6 +33,9 @@
 
 struct proc_filter *pf;
 
+static DEFINE_MUTEX(mutex_inst);
+static int flag_inst = 0;
+
 void (*ptr_pack_task_event_info)(struct task_struct *task,
 				 int probe_id,
 				 int record_type,
@@ -102,7 +105,7 @@ int usm_unregister_probe(struct dentry *dentry, unsigned long offset)
 }
 EXPORT_SYMBOL_GPL(usm_unregister_probe);
 
-int usm_stop(void)
+static void do_usm_stop(void)
 {
 	int iRet = 0, found = 0;
 	struct task_struct *task = NULL;
@@ -140,12 +143,9 @@ int usm_stop(void)
 */
 
 	sspt_proc_free_all();
-
-	return iRet;
 }
-EXPORT_SYMBOL_GPL(usm_stop);
 
-int usm_start(void)
+static int do_usm_start(void)
 {
 	int ret, i;
 	struct task_struct *task = NULL, *ts;
@@ -179,6 +179,40 @@ int usm_start(void)
 */
 	return 0;
 }
+
+int usm_stop(void)
+{
+	down(&mutex_inst);
+	if (flag_inst == 0)
+		goto unlock;
+
+	do_usm_stop();
+
+	flag_inst = 0;
+unlock:
+	up(&mutex_inst);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(usm_stop);
+
+int usm_start(void)
+{
+	int ret;
+
+	down(&mutex_inst);
+	if (flag_inst)
+		goto unlock;
+
+	ret = do_usm_start();
+	if (ret == 0)
+		flag_inst = 1;
+
+unlock:
+	up(&mutex_inst);
+
+	return ret;
+}
 EXPORT_SYMBOL_GPL(usm_start);
 
 static int __init init_us_manager(void)
@@ -196,6 +230,11 @@ static int __init init_us_manager(void)
 
 static void __exit exit_us_manager(void)
 {
+	down(&mutex_inst);
+	if (flag_inst)
+		do_usm_stop();
+	up(&mutex_inst);
+
 	uninit_msg();
 	uninit_helper();
 }
