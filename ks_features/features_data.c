@@ -209,7 +209,8 @@ static enum syscall_id id_desc[] = {
 	id_sys_pwritev,
 	id_sys_epoll_create1,
 	id_sys_epoll_ctl,
-	id_sys_epoll_wait,
+	/* FIXME: for now epoll_wait tracing leads to a bug */
+	/* id_sys_epoll_wait, */
 	id_sys_epoll_pwait,
 	id_sys_inotify_init,
 	id_sys_inotify_init1,
