@@ -254,27 +254,45 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	}
 }
 
-void call_mm_release(struct task_struct *task)
+void uninstall_proc(struct sspt_proc *proc)
 {
-	struct sspt_struct *proc;
+	struct task_struct *task = proc->task;
 	struct pf_group *pfg;
 	struct pls_struct *pls;
-
-	proc = sspt_proc_get_by_task(task);
-	if (proc == NULL)
-		return;
+	int i;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
 		pls = find_pl_struct(pfg, task);
 		if (pls == NULL)
 			continue;
 
+		task_lock(task);
+
+		for (i = 0; task->mm == NULL; ++i) {
+			task_unlock(task);
+			if (i >= 10)
+				BUG();
+
+			schedule();
+			task_lock(task);
+		}
+
 		sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
+		task_unlock(task);
 
 		/* FIXME: for many filters */
 		sspt_proc_free(proc);
 		free_pl_struct(pls);
 	}
+}
+
+void call_mm_release(struct task_struct *task)
+{
+	struct sspt_struct *proc;
+
+	proc = sspt_proc_get_by_task(task);
+	if (proc)
+		uninstall_proc(proc);
 }
 
 void uninstall_page(unsigned long addr)
@@ -319,18 +337,12 @@ static void clean_pfg(void)
 void uninstall_all(void)
 {
 	int tmp_oops_in_progress;
-	struct task_struct *task;
 
 	tmp_oops_in_progress = oops_in_progress;
 	oops_in_progress = 1;
-	rcu_read_lock();
-	for_each_process(task) {
-		if (is_kthread(task))
-			continue;
 
-		call_mm_release(task);
-	}
-	rcu_read_unlock();
+	on_each_proc(uninstall_proc);
+
 	oops_in_progress = tmp_oops_in_progress;
 
 	clean_pfg();

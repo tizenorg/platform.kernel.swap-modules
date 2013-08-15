@@ -45,6 +45,7 @@ void uninstall_all(void);
 
 void call_page_fault(struct task_struct *task, unsigned long page_addr);
 void call_mm_release(struct task_struct *task);
+void uninstall_proc(struct sspt_proc *proc);
 
 void uninstall_page(unsigned long addr);
 

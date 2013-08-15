@@ -102,6 +102,15 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 	return NULL;
 }
 
+void on_each_proc(void (*func)(struct sspt_proc *proc))
+{
+	struct sspt_proc *proc, *tmp;
+
+	list_for_each_entry_safe(proc, tmp, &proc_probes_list, list) {
+		func(proc);
+	}
+}
+
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
 					       void *priv)
 {
