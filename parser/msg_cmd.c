@@ -134,10 +134,8 @@ int msg_stop(struct msg_buf *mb)
 		printk("Cannot set config, ret = %d\n", ret);
 
 	discarded = get_discarded_count();
-	if (discarded) {
-		printk("Warning: discarded messages: %d\n", discarded);
-		reset_discarded();
-	}
+	printk("discarded messages: %d\n", discarded);
+	reset_discarded();
 
 	return ret;
 }
