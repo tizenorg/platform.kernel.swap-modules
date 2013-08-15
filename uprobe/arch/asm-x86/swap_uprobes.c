@@ -277,6 +277,7 @@ static int uprobe_handler(struct pt_regs *regs)
 		}
 
 		trampoline_uprobe_handler(p, regs);
+		return 1;
 	} else {
 		if (!p->pre_handler || !p->pre_handler(p, regs)) {
 			if (p->ainsn.boostable == 1 && !p->post_handler) {
@@ -297,6 +298,9 @@ static int post_uprobe_handler(struct pt_regs *regs)
 {
 	struct kprobe *p = get_current_probe();
 	unsigned long flags = __get_cpu_var(ucb).flags;
+
+	if (p == NULL)
+		return 0;
 
 	resume_execution(p, regs, flags);
 	restore_current_flags(regs);
