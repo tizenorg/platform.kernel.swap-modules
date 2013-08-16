@@ -723,8 +723,6 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	return (int)orig_ret_address;
 }
 
-struct kretprobe *sched_rp;
-
 #define SCHED_RP_NR 200
 #define COMMON_RP_NR 10
 
@@ -775,10 +773,7 @@ int dbi_register_kretprobe(struct kretprobe *rp)
 	rp->kp.break_handler = NULL;
 
 	/* Pre-allocate memory for max kretprobe instances */
-	if ((unsigned long)rp->kp.addr == sched_addr) {
-		rp->maxactive = SCHED_RP_NR;//max (100, 2 * NR_CPUS);
-		rp->kp.pre_handler = NULL; //not needed for __switch_to
-	} else if ((unsigned long)rp->kp.addr == exit_addr) {
+	if ((unsigned long)rp->kp.addr == exit_addr) {
 		rp->kp.pre_handler = NULL; //not needed for do_exit
 		rp->maxactive = 0;
 	} else if ((unsigned long)rp->kp.addr == do_group_exit_addr) {
@@ -816,9 +811,6 @@ int dbi_register_kretprobe(struct kretprobe *rp)
 		free_rp_inst(rp);
 
 	DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
-	if ((unsigned long)rp->kp.addr == sched_addr) {
-		sched_rp = rp;
-	}
 
 	return ret;
 }
@@ -834,9 +826,6 @@ void dbi_unregister_kretprobe(struct kretprobe *rp)
 
 	/* No race here */
 	spin_lock_irqsave(&kretprobe_lock, flags);
-
-	if ((unsigned long)rp->kp.addr == sched_addr)
-		sched_rp = NULL;
 
 	while ((ri = get_used_rp_inst (rp)) != NULL) {
 		if (!dbi_disarm_krp_inst(ri)) {
@@ -880,20 +869,6 @@ struct kretprobe *clone_kretprobe(struct kretprobe *rp)
 	return clone;
 }
 EXPORT_SYMBOL_GPL(clone_kretprobe);
-
-static void inline set_task_trampoline(unsigned long *patch_addr,
-				       struct kretprobe_instance *ri,
-				       unsigned long tramp_addr)
-{
-	unsigned long pc = *patch_addr;
-	if (pc == tramp_addr)
-		panic("[%d] %s (%d/%d): pc = %08lx --- [%d] %s (%d/%d)\n",
-		      task_cpu(ri->task), ri->task->comm, ri->task->tgid,
-		      ri->task->pid, pc, task_cpu(current), current->comm,
-		      current->tgid, current->pid);
-	ri->ret_addr = (kprobe_opcode_t *)pc;
-	*patch_addr = tramp_addr;
-}
 
 static void inline rm_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri)
 {
@@ -950,32 +925,6 @@ static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
 	}
 
 	return retval;
-}
-
-int patch_suspended_task(struct kretprobe *rp,
-			 struct task_struct *task,
-			 struct pt_regs *regs)
-{
-	struct kretprobe_instance *ri;
-	unsigned long flags;
-	kprobe_opcode_t *tramp = (kprobe_opcode_t *)&kretprobe_trampoline;
-	unsigned long *patch_addr;
-
-	spin_lock_irqsave(&kretprobe_lock, flags);
-
-	ri = get_free_rp_inst(rp);
-	if (!ri)
-		return -ENOMEM;
-
-	ri->rp = rp;
-	ri->task = task;
-	ri->sp = NULL;
-	patch_addr = arch_get_patch_addr(task, regs);
-	set_task_trampoline(patch_addr, ri, (unsigned long)tramp);
-	add_rp_inst(ri);
-
-	spin_unlock_irqrestore(&kretprobe_lock, flags);
-	return 0;
 }
 
 static int init_module_deps(void)

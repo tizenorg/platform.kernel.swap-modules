@@ -521,12 +521,6 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	pre_entry = (kprobe_pre_entry_handler_t) jp->pre_entry;
 	entry = (entry_point_t) jp->entry;
 
-	/* handle __switch_to probe */
-	if ((p->addr == sched_addr) && sched_rp) {
-		/* FIXME: Actually 2nd parameter is not used for x86 */
-		patch_suspended_task(sched_rp, (struct task_struct *)regs->dx, regs);
-	}
-
 	kcb->jprobe_saved_regs = *regs;
 	kcb->jprobe_saved_esp = &regs->EREG(sp);
 	addr = (unsigned long)(kcb->jprobe_saved_esp);
@@ -867,12 +861,23 @@ static __used void *trampoline_probe_handler_x86(struct pt_regs *regs)
 
 void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	unsigned long *sara = (unsigned long *)&regs->EREG(sp);
-	ri->ret_addr = (kprobe_opcode_t *)*sara;
-	ri->sp = &regs->EREG(sp);
+	unsigned long *ptr_ret_addr;
+
+	/* for __switch_to probe */
+	if ((unsigned long)ri->rp->kp.addr == sched_addr) {
+		ptr_ret_addr = (unsigned long *)kernel_stack_pointer(regs);
+		ri->sp = NULL;
+		ri->task = (struct task_struct *)regs->dx;
+	} else {
+		ptr_ret_addr = (unsigned long *)&regs->sp;
+		ri->sp = &regs->sp;
+	}
+
+	/* Save the return address */
+	ri->ret_addr = (unsigned long *)*ptr_ret_addr;
 
 	/* Replace the return addr with trampoline addr */
-	*sara = (unsigned long)&kretprobe_trampoline;
+	*ptr_ret_addr = (unsigned long)&kretprobe_trampoline;
 }
 
 int arch_init_module_deps()

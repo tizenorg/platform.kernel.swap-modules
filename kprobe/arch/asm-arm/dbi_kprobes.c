@@ -357,11 +357,6 @@ int setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	entry_point_t entry = (entry_point_t)jp->entry;
 	pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
 
-	if (((unsigned long)p->addr == sched_addr) && sched_rp) {
-		struct thread_info *tinfo = (struct thread_info *)regs->ARM_r2;
-		patch_suspended_task(sched_rp, tinfo->task, regs);
-	}
-
 	if (pre_entry) {
 		p->ss_addr = (void *)pre_entry (jp->priv_arg, regs);
 	}
@@ -413,11 +408,25 @@ void __naked kretprobe_trampoline(void)
 
 void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
-	ri->sp = (kprobe_opcode_t *)regs->ARM_sp;
+	unsigned long *ptr_ret_addr;
+
+	/* for __switch_to probe */
+	if ((unsigned long)ri->rp->kp.addr == sched_addr) {
+		struct thread_info *tinfo = (struct thread_info *)regs->ARM_r2;
+
+		ptr_ret_addr = (unsigned long *)&tinfo->cpu_context.pc;
+		ri->sp = NULL;
+		ri->task = tinfo->task;
+	} else {
+		ptr_ret_addr = (unsigned long *)&regs->ARM_lr;
+		ri->sp = (unsigned long *)regs->ARM_sp;
+	}
+
+	/* Save the return address */
+	ri->ret_addr = (unsigned long *)*ptr_ret_addr;
 
 	/* Replace the return addr with trampoline addr */
-	regs->ARM_lr = (unsigned long)&kretprobe_trampoline;
+	*ptr_ret_addr = (unsigned long)&kretprobe_trampoline;
 }
 
 void swap_register_undef_hook(struct undef_hook *hook)

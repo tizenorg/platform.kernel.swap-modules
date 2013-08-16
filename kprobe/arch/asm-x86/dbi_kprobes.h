@@ -91,12 +91,6 @@ typedef u8 kprobe_opcode_t;
 #define KPROBES_TRAMP_LEN		MAX_INSN_SIZE
 #define KPROBES_TRAMP_INSN_IDX          0
 
-static inline unsigned long *arch_get_patch_addr(struct task_struct *p,
-						 struct pt_regs *regs)
-{
-	return (unsigned long *)kernel_stack_pointer(regs);
-}
-
 static inline unsigned long arch_get_task_pc(struct task_struct *p)
 {
 	/* FIXME: Not implemented yet */
