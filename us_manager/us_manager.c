@@ -182,7 +182,7 @@ static int do_usm_start(void)
 
 int usm_stop(void)
 {
-	down(&mutex_inst);
+	mutex_lock(&mutex_inst);
 	if (flag_inst == 0)
 		goto unlock;
 
@@ -190,7 +190,7 @@ int usm_stop(void)
 
 	flag_inst = 0;
 unlock:
-	up(&mutex_inst);
+	mutex_unlock(&mutex_inst);
 
 	return 0;
 }
@@ -200,7 +200,7 @@ int usm_start(void)
 {
 	int ret;
 
-	down(&mutex_inst);
+	mutex_lock(&mutex_inst);
 	if (flag_inst)
 		goto unlock;
 
@@ -209,7 +209,7 @@ int usm_start(void)
 		flag_inst = 1;
 
 unlock:
-	up(&mutex_inst);
+	mutex_unlock(&mutex_inst);
 
 	return ret;
 }
@@ -230,10 +230,10 @@ static int __init init_us_manager(void)
 
 static void __exit exit_us_manager(void)
 {
-	down(&mutex_inst);
+	mutex_lock(&mutex_inst);
 	if (flag_inst)
 		do_usm_stop();
-	up(&mutex_inst);
+	mutex_unlock(&mutex_inst);
 
 	uninit_msg();
 	uninit_helper();
