@@ -32,6 +32,7 @@
 #include "msg_parser.h"
 
 #include <sampler/swap_sampler_module.h>
+#include <energy/swap_energy.h>
 
 enum features_list {
 	syscall_file	= (1 << 10),	/* File operation syscalls tracing */
@@ -206,6 +207,17 @@ int unset_func_sampling(void)
 	return ret;
 }
 
+static int set_func_energy(struct conf_data *conf)
+{
+	return set_energy();
+}
+
+static int unset_func_energy(void)
+{
+	unset_energy();
+	return 0;
+}
+
 struct feature_item {
 	char *name;
 	int (*set)(struct conf_data *conf);
@@ -266,6 +278,12 @@ static struct feature_item feature_func_sampling = {
 	.unset = unset_func_sampling
 };
 
+static struct feature_item feature_func_energy = {
+	.name = "energy",
+	.set = set_func_energy,
+	.unset = unset_func_energy
+};
+
 static struct feature_item *feature_list[] = {
  /*  0 */	NULL,
  /*  1 */	NULL,
@@ -286,7 +304,14 @@ static struct feature_item *feature_list[] = {
  /* 16 */	&feature_context_switch,
  /* 17 */	NULL,
  /* 18 */	NULL,
- /* 19 */	&feature_func_sampling
+ /* 19 */	&feature_func_sampling,
+ /* 20 */	NULL,
+ /* 21 */	NULL,
+ /* 22 */	NULL,
+ /* 23 */	NULL,
+ /* 24 */	NULL,
+ /* 25 */	NULL,
+ /* 26 */	&feature_func_energy
 };
 
 enum {

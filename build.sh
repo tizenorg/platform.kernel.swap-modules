@@ -33,6 +33,7 @@ us_manager_dir=${modules_dir}/us_manager
 ks_features_dir=${modules_dir}/ks_features
 sampler_dir=${modules_dir}/sampler
 parser_dir=${modules_dir}/parser
+energy_dir=${modules_dir}/energy
 
 install_dir="/opt/swap/sdk"
 
@@ -86,6 +87,10 @@ parser_module_name=swap_message_parser.ko
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${parser_dir} \
 	extra_cflags="-I${modules_dir}" modules || exit 1
 
+energy_module_name=swap_energy.ko
+make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${energy_dir} \
+	extra_cflags="-I${modules_dir} -I${kprobe_dir} -I${kprobe_arch_dir}" modules || exit 1
+
 modules=\
 "${buffer_dir}/${buffer_module_name} \
 ${writer_dir}/${writer_module_name} \
@@ -96,7 +101,8 @@ ${uprobe_dir}/${uprobe_module_name} \
 ${us_manager_dir}/${us_manager_module_name} \
 ${ks_features_dir}/${ks_features_module_name} \
 ${sampler_dir}/${sampler_module_name} \
-${parser_dir}/${parser_module_name}"
+${parser_dir}/${parser_module_name} \
+${energy_dir}/${energy_module_name}"
 
 # for m in ${modules} ; do
 # 	sdb -e push $m ${install_dir}

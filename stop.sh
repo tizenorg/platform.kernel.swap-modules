@@ -1,6 +1,7 @@
 #!/bin/sh
 
 rmmod swap_message_parser
+rmmod swap_energy
 rmmod swap_sampler
 rmmod swap_ks_features
 rmmod swap_us_manager
