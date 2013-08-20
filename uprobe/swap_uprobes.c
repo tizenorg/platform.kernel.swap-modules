@@ -831,7 +831,7 @@ int dbi_disarm_urp_inst(struct uretprobe_instance *ri, struct task_struct *rm_ta
 
 	retval = read_proc_vm_atomic(task, (unsigned long)stack, buf, sizeof(buf));
 	if (retval != sizeof(buf)) {
-		printk("---> %s (%d/%d): failed to read stack from %08lx",
+		printk("---> %s (%d/%d): failed to read stack from %08lx\n",
 			task->comm, task->tgid, task->pid, (unsigned long)stack);
 		retval = -EFAULT;
 		goto out;
@@ -865,7 +865,7 @@ int dbi_disarm_urp_inst(struct uretprobe_instance *ri, struct task_struct *rm_ta
 		if (ra == (unsigned long)tramp) {
 			printk("---> %s (%d/%d): trampoline found at lr = %08lx - %p\n",
 					task->comm, task->tgid, task->pid, ra, ri->rp->up.kp.addr);
-			dbi_set_ret_addr(uregs, (unsigned long)tramp);
+			dbi_set_ret_addr(uregs, (unsigned long)ri->ret_addr);
 			retval = 0;
 		} else {
 			printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx, lr = %08lx - %p\n",
@@ -901,11 +901,12 @@ void dbi_unregister_uretprobe(struct uretprobe *rp)
 	unsigned long flags;
 	struct uretprobe_instance *ri;
 
+	dbi_unregister_uprobe(&rp->up);
 	spin_lock_irqsave (&uretprobe_lock, flags);
 
 	while ((ri = get_used_urp_inst(rp)) != NULL) {
 		if (dbi_disarm_urp_inst(ri, NULL) != 0)
-			/*panic*/printk("%s (%d/%d): cannot disarm urp instance (%08lx)\n",
+			printk("%s (%d/%d): cannot disarm urp instance (%08lx)\n",
 					ri->task->comm, ri->task->tgid, ri->task->pid,
 					(unsigned long)rp->up.kp.addr);
 		recycle_urp_inst(ri);
@@ -935,8 +936,6 @@ void dbi_unregister_uretprobe(struct uretprobe *rp)
 
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
 	free_urp_inst(rp);
-
-	dbi_unregister_uprobe(&rp->up);
 }
 
 void dbi_unregister_all_uprobes(struct task_struct *task)

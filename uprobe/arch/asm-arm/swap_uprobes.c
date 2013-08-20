@@ -849,7 +849,8 @@ static int uprobe_handler(struct pt_regs *regs)
 	if (p == NULL) {
 		p = get_ukprobe_by_insn_slot(addr, tgid, regs);
 		if (p == NULL) {
-			printk("no_uprobe\n");
+			printk("no_kprobe: Not one of ours: let "
+			       "kernel handle it %p\n", addr);
 			return 1;
 		}
 

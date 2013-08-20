@@ -316,7 +316,8 @@ static int kprobe_handler(struct pt_regs *regs)
 	return 0;
 
 no_kprobe:
-	printk("no_kprobe\n");
+	printk("no_kprobe: Not one of ours: let kernel handle it %p\n",
+			(unsigned long *)regs->ARM_pc);
 	return 1;
 }
 
