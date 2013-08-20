@@ -124,10 +124,6 @@ int arch_check_insn_arm(struct arch_specific_insn *ainsn)
 	    ARM_INSN_MATCH(AUNDEF, ainsn->insn_arm[0]) ||
 	    ARM_INSN_MATCH(SWI, ainsn->insn_arm[0]) ||
 	    ARM_INSN_MATCH(BREAK, ainsn->insn_arm[0]) ||
-	    ARM_INSN_MATCH(BL, ainsn->insn_arm[0]) ||
-	    ARM_INSN_MATCH(BLX1, ainsn->insn_arm[0]) ||
-	    ARM_INSN_MATCH(BLX2, ainsn->insn_arm[0]) ||
-	    ARM_INSN_MATCH(BX, ainsn->insn_arm[0]) ||
 	    ARM_INSN_MATCH(BXJ, ainsn->insn_arm[0])) 	{
 		DBPRINTF ("Bad insn arch_check_insn_arm: %lx\n", ainsn->insn_arm[0]);
 		ret = -EFAULT;

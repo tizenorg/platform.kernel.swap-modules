@@ -181,12 +181,35 @@ static int arch_copy_trampoline_arm_uprobe(struct kprobe *p, struct task_struct 
 	insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
 	insns[7] = (kprobe_opcode_t) (p->addr + 1);
 
-	// B
-	if(ARM_INSN_MATCH(B, ainsn.insn_arm[0])) {
-		memcpy(insns, pc_dep_insn_execbuf, sizeof(insns));
+	if (ARM_INSN_MATCH(B, ainsn.insn_arm[0]) &&    /* B */
+	    !ARM_INSN_MATCH(BLX1, ainsn.insn_arm[0])) {
+		/* B check can be false positive on BLX1 instruction */
+		memcpy(insns, b_cond_insn_execbuf, sizeof(insns));
 		insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-		insns[6] = (kprobe_opcode_t)(p->addr + 2);
-		insns[7] = get_addr_b(p->opcode, p->addr);
+		insns[0] |= insn[0] & 0xf0000000;
+		insns[6] = get_addr_b(p->opcode, p->addr);
+		insns[7] = (kprobe_opcode_t) (p->addr + 1);
+	} else if (ARM_INSN_MATCH(BX, ainsn.insn_arm[0]) ||     // BX, BLX (Rm)
+		   ARM_INSN_MATCH(BLX2, ainsn.insn_arm[0])) {
+		memcpy(insns, b_r_insn_execbuf, sizeof (insns));
+		insns[0] = insn[0];
+		insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		insns[7] = (kprobe_opcode_t) (p->addr + 1);
+	} else if (ARM_INSN_MATCH(BLX1, ainsn.insn_arm[0])) {   // BL, BLX (Off)
+		memcpy(insns, blx_off_insn_execbuf, sizeof(insns));
+		insns[0] |= 0xe0000000;
+		insns[1] |= 0xe0000000;
+		insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		insns[6] = get_addr_b(p->opcode, p->addr) +
+			   2 * (p->opcode & 01000000) + 1; /* jump to thumb */
+		insns[7] = (kprobe_opcode_t) (p->addr + 1);
+	} else if (ARM_INSN_MATCH(BL, ainsn.insn_arm[0])){      // BL
+		memcpy(insns, blx_off_insn_execbuf, sizeof(insns));
+		insns[0] |= insn[0] & 0xf0000000;
+		insns[1] |= insn[0] & 0xf0000000;
+		insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		insns[6] = get_addr_b(p->opcode, p->addr);
+		insns[7] = (kprobe_opcode_t) (p->addr + 1);
 	}
 
 	DBPRINTF("arch_prepare_uprobe: to %p - %lx %lx %lx %lx %lx %lx %lx %lx %lx",
