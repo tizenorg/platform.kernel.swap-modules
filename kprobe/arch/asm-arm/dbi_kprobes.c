@@ -378,16 +378,28 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 }
 EXPORT_SYMBOL_GPL(longjmp_break_handler);
 
+#ifdef CONFIG_STRICT_MEMORY_RWX
+extern void mem_text_write_kernel_word(unsigned long *addr, unsigned long word);
+#endif
+
 void arch_arm_kprobe(struct kprobe *p)
 {
+#ifdef CONFIG_STRICT_MEMORY_RWX
+	mem_text_write_kernel_word(p->addr, BREAKPOINT_INSTRUCTION);
+#else
 	*p->addr = BREAKPOINT_INSTRUCTION;
 	flush_icache_range((unsigned long)p->addr, (unsigned long)p->addr + sizeof(kprobe_opcode_t));
+#endif
 }
 
 void arch_disarm_kprobe(struct kprobe *p)
 {
+#ifdef CONFIG_STRICT_MEMORY_RWX
+	mem_text_write_kernel_word(p->addr, p->opcode);
+#else
 	*p->addr = p->opcode;
 	flush_icache_range((unsigned long)p->addr, (unsigned long)p->addr + sizeof(kprobe_opcode_t));
+#endif
 }
 
 void __naked kretprobe_trampoline(void)

@@ -85,14 +85,28 @@ static struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 atomic_t kprobe_count;
 EXPORT_SYMBOL_GPL(kprobe_count);
 
+
+static void *(*module_alloc)(unsigned long size) = NULL;
+static void *(*module_free)(struct module *mod, void *module_region) = NULL;
+
+static void *__wrapper_module_alloc(unsigned long size)
+{
+	return module_alloc(size);
+}
+
+static void *__wrapper_module_free(void *module_region)
+{
+	return module_free(NULL, module_region);
+}
+
 static void *sm_alloc(struct slot_manager *sm)
 {
-	return kmalloc(PAGE_SIZE, GFP_ATOMIC);
+	return __wrapper_module_alloc(PAGE_SIZE);
 }
 
 static void sm_free(struct slot_manager *sm, void *ptr)
 {
-	kfree(ptr);
+	__wrapper_module_free(ptr);
 }
 
 static void init_sm()
@@ -842,7 +856,6 @@ static void dbi_unregister_kretprobe_bottom(struct kretprobe *rp)
 {
 	unsigned long flags;
 	struct kretprobe_instance *ri;
-	struct hlist_node *node;
 
 	spin_lock_irqsave(&kretprobe_lock, flags);
 	while ((ri = get_used_rp_inst(rp)) != NULL) {
@@ -976,6 +989,17 @@ static int init_module_deps(void)
 static int __init init_kprobes(void)
 {
 	int i, err = 0;
+
+	module_alloc = (void *)swap_ksyms("module_alloc");
+	if (!module_alloc) {
+		printk("module_alloc is not found! Oops.\n");
+		return -1;
+	}
+	module_free = (void *)swap_ksyms("module_free");
+	if (!module_alloc) {
+		printk("module_free is not found! Oops.\n");
+		return -1;
+	}
 
 	init_sm();
 
