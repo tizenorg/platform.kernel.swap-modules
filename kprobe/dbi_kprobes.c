@@ -817,27 +817,45 @@ int dbi_register_kretprobe(struct kretprobe *rp)
 
 static int dbi_disarm_krp_inst(struct kretprobe_instance *ri);
 
-void dbi_unregister_kretprobe(struct kretprobe *rp)
+static void dbi_unregister_kretprobe_top(struct kretprobe *rp)
 {
 	unsigned long flags;
 	struct kretprobe_instance *ri;
+	struct hlist_node *node;
 
 	dbi_unregister_kprobe(&rp->kp);
 
 	/* No race here */
 	spin_lock_irqsave(&kretprobe_lock, flags);
 
-	while ((ri = get_used_rp_inst (rp)) != NULL) {
+	swap_hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
 		if (!dbi_disarm_krp_inst(ri)) {
 			printk("%s (%d/%d): cannot disarm krp instance (%08lx)\n",
 					ri->task->comm, ri->task->tgid, ri->task->pid,
 					(unsigned long)rp->kp.addr);
 		}
+	}
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+}
+
+static void dbi_unregister_kretprobe_bottom(struct kretprobe *rp)
+{
+	unsigned long flags;
+	struct kretprobe_instance *ri;
+	struct hlist_node *node;
+
+	spin_lock_irqsave(&kretprobe_lock, flags);
+	while ((ri = get_used_rp_inst(rp)) != NULL) {
 		recycle_rp_inst(ri);
 	}
-
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 	free_rp_inst(rp);
+}
+
+void dbi_unregister_kretprobe(struct kretprobe *rp)
+{
+	dbi_unregister_kretprobe_top(rp);
+	dbi_unregister_kretprobe_bottom(rp);
 }
 
 struct kretprobe *clone_kretprobe(struct kretprobe *rp)
