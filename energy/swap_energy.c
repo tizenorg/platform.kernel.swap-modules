@@ -1,6 +1,7 @@
 #include <linux/module.h>
 #include <linux/time.h>
 #include <kprobe/dbi_kprobes.h>
+#include <ksyms/ksyms.h>
 
 static u64 get_ntime(void)
 {
