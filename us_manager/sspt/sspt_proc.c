@@ -25,6 +25,8 @@
 #include "sspt.h"
 #include "sspt_proc.h"
 #include "sspt_page.h"
+#include "sspt_feature.h"
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <us_slot_manager.h>
@@ -60,6 +62,12 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
 	struct sspt_proc *proc = kmalloc(sizeof(*proc), GFP_ATOMIC);
 
 	if (proc) {
+		proc->feature = sspt_create_feature();
+		if (proc->feature == NULL) {
+			kfree(proc);
+			return NULL;
+		}
+
 		INIT_LIST_HEAD(&proc->list);
 		proc->tgid = task ? task->tgid : 0;
 		proc->task = task;
@@ -86,6 +94,7 @@ void sspt_proc_free(struct sspt_proc *proc)
 		sspt_file_free(file);
 	}
 
+	sspt_destroy_feature(proc->feature);
 	kfree(proc);
 }
 
@@ -101,6 +110,7 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(sspt_proc_get_by_task);
 
 void on_each_proc(void (*func)(struct sspt_proc *proc))
 {

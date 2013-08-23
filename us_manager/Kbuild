@@ -3,6 +3,7 @@ EXTRA_CFLAGS := $(extra_cflags)
 obj-m := swap_us_manager.o
 swap_us_manager-y := us_manager.o us_slot_manager.o helper.o \
                      sspt/ip.o sspt/sspt_page.o sspt/sspt_file.o sspt/sspt_proc.o \
+                     sspt/sspt_feature.o \
                      pf/proc_filters.o pf/pf_group.o \
                      img/img_proc.o img/img_file.o img/img_ip.o \
                      us_def_handler.o

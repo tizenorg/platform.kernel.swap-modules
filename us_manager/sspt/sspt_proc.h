@@ -43,6 +43,7 @@ struct sspt_proc {
 	struct slot_manager *sm;
 	struct list_head file_list;
 	unsigned first_install:1;
+	struct sspt_feature *feature;
 };
 
 

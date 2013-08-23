@@ -1,0 +1,165 @@
+/*
+ *  Dynamic Binary Instrumentation Module based on KProbes
+ *  modules/us_manager/sspt/sspt_feature.c
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ * Copyright (C) Samsung Electronics, 2013
+ *
+ * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *
+ */
+
+#include "sspt_feature.h"
+#include <linux/module.h>
+#include <linux/slab.h>
+#include <linux/list.h>
+
+
+struct sspt_feature {
+	struct list_head feature_list;
+};
+
+struct sspt_feature_img {
+	struct list_head list;
+
+	void *(*alloc)(void);
+	void (*free)(void *data);
+};
+
+struct sspt_feature_data {
+	struct list_head list;
+
+	struct sspt_feature_img *img;
+	void *data;
+};
+
+static LIST_HEAD(feature_list);
+
+static struct sspt_feature_data *create_feature_data(struct sspt_feature_img *img)
+{
+	struct sspt_feature_data *fd;
+
+	fd = kmalloc(sizeof(*fd), GFP_ATOMIC);
+	if (fd) {
+		INIT_LIST_HEAD(&fd->list);
+		fd->img = img;
+		fd->data = img->alloc();
+	}
+
+	return fd;
+}
+
+static void destroy_feature_data(struct sspt_feature_data *fd)
+{
+	fd->img->free(fd->data);
+	kfree(fd);
+}
+
+struct sspt_feature *sspt_create_feature(void)
+{
+	struct sspt_feature *f;
+
+	f = kmalloc(sizeof(*f), GFP_ATOMIC);
+	if (f) {
+		INIT_LIST_HEAD(&f->feature_list);
+
+		struct sspt_feature_data *fd;
+		struct sspt_feature_img *fi;
+
+		list_for_each_entry(fi, &feature_list, list) {
+			fd = create_feature_data(fi);
+
+			/* add to list */
+			list_add(&fd->list, &f->feature_list);
+		}
+	}
+
+	return f;
+}
+
+void sspt_destroy_feature(struct sspt_feature *f)
+{
+	struct sspt_feature_data *fd, *n;
+
+	list_for_each_entry_safe(fd, n, &f->feature_list, list) {
+		/* delete from list */
+		list_del(&fd->list);
+		destroy_feature_data(fd);
+	}
+
+	kfree(f);
+}
+
+static struct sspt_feature_img *create_feature_img(void *(*alloc)(void),
+						   void (*free)(void *data))
+{
+	struct sspt_feature_img *fi;
+
+	fi = kmalloc(sizeof(*fi), GFP_ATOMIC);
+	if(fi) {
+		INIT_LIST_HEAD(&fi->list);
+		fi->alloc = alloc;
+		fi->free = free;
+
+		/* add to list */
+		list_add(&fi->list, &feature_list);
+	}
+
+	return fi;
+}
+
+static void destroy_feature_img(struct sspt_feature_img *fi)
+{
+	/* delete from list */
+	list_del(&fi->list);
+
+	kfree(fi);
+}
+
+void *sspt_get_feature_data(struct sspt_feature *f, sspt_feature_id_t id)
+{
+	struct sspt_feature_img *img = (struct sspt_feature_img *)id;
+	struct sspt_feature_data *fd;
+
+	list_for_each_entry(fd, &f->feature_list, list) {
+		if (img == fd->img)
+			return fd->data;
+	}
+
+	return NULL;
+}
+EXPORT_SYMBOL_GPL(sspt_get_feature_data);
+
+sspt_feature_id_t sspt_register_feature(void *(*alloc)(void), void (*free)(void *data))
+{
+	struct sspt_feature_img *fi;
+
+	fi = create_feature_img(alloc, free);
+
+	/* TODO: add to already instrumentation process */
+
+	return (sspt_feature_id_t)fi;
+}
+EXPORT_SYMBOL_GPL(sspt_register_feature);
+
+void sspt_unregister_feature(sspt_feature_id_t id)
+{
+	struct sspt_feature_img *fi = (struct sspt_feature_img *)id;
+
+	/* TODO: remove from instrumentation process */
+	destroy_feature_img(fi);
+}
+EXPORT_SYMBOL_GPL(sspt_unregister_feature);
