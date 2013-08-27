@@ -761,7 +761,7 @@ int alloc_nodes_kretprobe(struct kretprobe *rp)
 	}
 
 	for (i = 0; i < alloc_nodes; i++) {
-		inst = kmalloc(sizeof(inst) + rp->data_size, GFP_ATOMIC);
+		inst = kmalloc(sizeof(*inst) + rp->data_size, GFP_ATOMIC);
 		if (inst == NULL) {
 			free_rp_inst(rp);
 			return -ENOMEM;
