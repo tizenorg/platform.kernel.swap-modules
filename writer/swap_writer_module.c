@@ -538,7 +538,7 @@ struct msg_func_exit {
 	u64 ret_val;
 } __attribute__((packed));
 
-static char *pack_msg_func_exit(char *payload, struct pt_regs *regs)
+static char *pack_msg_func_exit(char *payload, struct pt_regs *regs, unsigned long func_addr)
 {
 	struct msg_func_exit *mfe = (struct msg_func_exit *)payload;
 	struct task_struct *task = current;
@@ -546,20 +546,19 @@ static char *pack_msg_func_exit(char *payload, struct pt_regs *regs)
 	mfe->pid = task->tgid;
 	mfe->tid = task->pid;
 	mfe->cpu_num = task_cpu(task);
-	mfe->pc_addr = get_regs_ip(regs);
-//TODO x86
+	mfe->pc_addr = func_addr;
 	mfe->ret_val = get_regs_ret_val(regs);
 
 	return payload + sizeof(*mfe);
 }
 
-int exit_event(struct pt_regs *regs)
+int exit_event(struct pt_regs *regs, unsigned long func_addr)
 {
 	char *buf, *payload, *buf_end;
 
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_EXIT);
-	buf_end = pack_msg_func_exit(payload, regs);
+	buf_end = pack_msg_func_exit(payload, regs, func_addr);
 	set_len_msg(buf, buf_end);
 
 	return write_to_buffer(buf);

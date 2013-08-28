@@ -104,8 +104,9 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs, vo
 static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
 {
 	struct ks_probe *ksp = (struct ks_probe *)priv_arg;
+	unsigned long func_addr = ri->rp ? ri->rp->kp.addr : 0;
 
-	exit_event(regs);
+	exit_event(regs, func_addr);
 
 	return 0;
 }

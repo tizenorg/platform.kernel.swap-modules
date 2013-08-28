@@ -114,7 +114,7 @@ int uretprobe_event_handler(struct uretprobe_instance *probe,
 	addr = ip->offset & 0x01 ? addr | 0x01 : addr;
 #endif
 
-	exit_event(regs);
+	exit_event(regs, addr);
 
 	return 0;
 }
