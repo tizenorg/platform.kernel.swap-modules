@@ -488,3 +488,6 @@ void arch_exit_kprobes(void)
 /* export symbol for trampoline_arm.h */
 EXPORT_SYMBOL_GPL(gen_insn_execbuf);
 EXPORT_SYMBOL_GPL(pc_dep_insn_execbuf);
+EXPORT_SYMBOL_GPL(b_r_insn_execbuf);
+EXPORT_SYMBOL_GPL(b_cond_insn_execbuf);
+EXPORT_SYMBOL_GPL(blx_off_insn_execbuf);
