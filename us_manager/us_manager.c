@@ -182,9 +182,14 @@ static int do_usm_start(void)
 
 int usm_stop(void)
 {
+	int ret = 0;
+
 	mutex_lock(&mutex_inst);
-	if (flag_inst == 0)
+	if (flag_inst == 0) {
+		printk("US instrumentation is not running!\n");
+		ret = -EINVAL;
 		goto unlock;
+	}
 
 	do_usm_stop();
 
@@ -192,17 +197,19 @@ int usm_stop(void)
 unlock:
 	mutex_unlock(&mutex_inst);
 
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(usm_stop);
 
 int usm_start(void)
 {
-	int ret;
+	int ret = -EINVAL;
 
 	mutex_lock(&mutex_inst);
-	if (flag_inst)
+	if (flag_inst) {
+		printk("US instrumentation is already run!\n");
 		goto unlock;
+	}
 
 	ret = do_usm_start();
 	if (ret == 0)
