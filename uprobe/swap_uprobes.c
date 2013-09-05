@@ -751,6 +751,9 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 		ri->rp = rp;
 		ri->task = current;
 
+		if (rp->entry_handler)
+			rp->entry_handler(ri, regs);
+
 		arch_prepare_uretprobe(ri, regs);
 
 		add_urp_inst(ri);

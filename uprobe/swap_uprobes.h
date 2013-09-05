@@ -64,6 +64,7 @@ typedef int (*uretprobe_handler_t)(struct uretprobe_instance *, struct pt_regs *
 struct uretprobe {
 	struct uprobe up;
 	uretprobe_handler_t handler;
+	uretprobe_handler_t entry_handler;
 	int maxactive;
 	int nmissed;
 	struct hlist_head free_instances;
