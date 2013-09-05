@@ -99,7 +99,6 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	ip->jprobe.up.sm = ip->page->file->proc->sm;
 
 	/* for retuprobe */
-	ip->retprobe.priv_arg = ip;
 	ip->retprobe.up.task = ip->page->file->proc->task;
 	ip->retprobe.up.sm = ip->page->file->proc->sm;
 

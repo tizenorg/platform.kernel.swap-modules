@@ -706,7 +706,7 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 		}
 
 		if (ri->rp && ri->rp->handler) {
-			ri->rp->handler(ri, regs, ri->rp->priv_arg);
+			ri->rp->handler(ri, regs);
 		}
 
 		orig_ret_addr = (unsigned long)ri->ret_addr;

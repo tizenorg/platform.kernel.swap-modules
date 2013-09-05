@@ -49,7 +49,7 @@ struct ujprobe {
 
 struct uretprobe_instance;
 
-typedef int (*uretprobe_handler_t)(struct uretprobe_instance *, struct pt_regs *, void *);
+typedef int (*uretprobe_handler_t)(struct uretprobe_instance *, struct pt_regs *);
 
 /*
  * Function-return probe -
@@ -64,7 +64,6 @@ typedef int (*uretprobe_handler_t)(struct uretprobe_instance *, struct pt_regs *
 struct uretprobe {
 	struct uprobe up;
 	uretprobe_handler_t handler;
-	void *priv_arg;
 	int maxactive;
 	int nmissed;
 	struct hlist_head free_instances;

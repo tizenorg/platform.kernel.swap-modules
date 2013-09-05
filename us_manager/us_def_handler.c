@@ -99,10 +99,10 @@ static void send_plt(struct us_ip *ip)
 }
 
 int uretprobe_event_handler(struct uretprobe_instance *probe,
-			    struct pt_regs *regs,
-			    struct us_ip *ip)
+			    struct pt_regs *regs)
 {
 	int retval = regs_return_value(regs);
+	struct us_ip *ip = container_of(probe->rp, struct us_ip, retprobe);
 	unsigned long addr = (unsigned long)ip->jprobe.up.kp.addr;
 
 	if (ip->got_addr && ip->flag_got == 0) {

@@ -40,6 +40,6 @@ void ujprobe_event_handler(unsigned long arg0, unsigned long arg1,
 			   unsigned long arg2, unsigned long arg3,
 			   unsigned long arg4, unsigned long arg5);
 int uretprobe_event_handler(struct uretprobe_instance *p,
-			    struct pt_regs *regs, struct us_ip *ip);
+			    struct pt_regs *regs);
 
 #endif /* _US_DEF_HANDLER_H */
