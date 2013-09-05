@@ -32,7 +32,6 @@
 #include "sspt_debug.h"
 #include "us_proc_types.h"
 #include <swap_uprobes.h>
-#include "us_def_handler.h"
 
 
 #include <us_manager.h>
@@ -93,20 +92,9 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 {
 	int ret = 0;
 
-	/* for juprobe */
-	ip->jprobe.priv_arg = ip;
-	ip->jprobe.up.task = ip->page->file->proc->task;
-	ip->jprobe.up.sm = ip->page->file->proc->sm;
-
 	/* for retuprobe */
 	ip->retprobe.up.task = ip->page->file->proc->task;
 	ip->retprobe.up.sm = ip->page->file->proc->sm;
-
-	ret = dbi_register_ujprobe(&ip->jprobe);
-	if (ret) {
-		printk("dbi_register_ujprobe() failure %d\n", ret);
-		return ret;
-	}
 
 	if (ip->flag_retprobe) {
 		ret = dbi_register_uretprobe(&ip->retprobe);
@@ -128,8 +116,6 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 
 static inline int do_unregister_usprobe(struct us_ip *ip)
 {
-	dbi_unregister_ujprobe(&ip->jprobe);
-
 	if (ip->flag_retprobe) {
 		dbi_unregister_uretprobe(&ip->retprobe);
 	}
@@ -146,7 +132,7 @@ static inline int sspt_unregister_usprobe(struct task_struct *task, struct us_ip
 		err = do_unregister_usprobe(ip);
 		break;
 	case US_DISARM:
-		disarm_uprobe(&ip->jprobe.up.kp, task);
+		disarm_uprobe(&ip->retprobe.up.kp, task);
 		break;
 	default:
 		panic("incorrect value flag=%d", flag);

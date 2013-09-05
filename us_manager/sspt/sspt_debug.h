@@ -47,10 +47,9 @@ static inline void print_page_probes(const struct sspt_page *page)
 	printk("###     offset=%lx\n", page->offset);
 	list_for_each_entry(ip, &page->ip_list, list) {
 
-		printk("###       addr[%2d]=%lx, J_addr=%lx, R_addr=%lx\n",
-				i, (unsigned long)ip->offset, (unsigned long)ip->jprobe.up.kp.addr,
+		printk("###       addr[%2d]=%lx, R_addr=%lx\n",
+				i, (unsigned long)ip->offset,
 				(unsigned long)ip->retprobe.up.kp.addr);
-		print_jprobe(&ip->jprobe);
 		print_retprobe(&ip->retprobe);
 		++i;
 	}

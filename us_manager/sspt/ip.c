@@ -26,8 +26,31 @@
 #include "ip.h"
 #include "sspt_page.h"
 #include "sspt_file.h"
+#include <writer/swap_writer_module.h>
 
-#include "us_def_handler.h"
+
+static int entry_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
+
+	entry_event(ip->args, regs, PT_US, PST_NONE);
+
+	return 0;
+}
+
+static int ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
+	unsigned long addr = (unsigned long)ip->retprobe.up.kp.addr;
+
+#if defined(CONFIG_ARM)
+	addr = ip->offset & 0x01 ? addr | 0x01 : addr;
+#endif
+
+	exit_event(regs, addr);
+
+	return 0;
+}
 
 struct us_ip *create_ip(unsigned long offset, const char *args)
 {
@@ -40,16 +63,13 @@ struct us_ip *create_ip(unsigned long offset, const char *args)
 	ip->got_addr = 0;
 	ip->flag_got = 1;
 
-	/* jprobe */
-	ip->jprobe.pre_entry = ujprobe_event_pre_handler;
-	ip->jprobe.entry = ujprobe_event_handler;
-
 	/* TODO: or copy args?! */
-	ip->jprobe.args = args;
+	ip->args = args;
 
 	/* retprobe */
 	ip->flag_retprobe = 1;
-	ip->retprobe.handler = uretprobe_event_handler;
+	ip->retprobe.handler = ret_handler;
+	ip->retprobe.entry_handler = entry_handler;
 
 	return ip;
 }

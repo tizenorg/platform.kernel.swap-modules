@@ -48,8 +48,8 @@ struct us_ip {
 	struct list_head list;
 	struct sspt_page *page;
 
-	struct ujprobe jprobe;
 	struct uretprobe retprobe;
+	char *args;
 
 	unsigned long offset;
 	unsigned long got_addr;
