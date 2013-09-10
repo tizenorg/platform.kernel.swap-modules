@@ -33,9 +33,9 @@ struct sspt_page *sspt_page_create(unsigned long offset)
 {
 	struct sspt_page *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 	if (obj) {
-		INIT_LIST_HEAD(&obj->ip_list);
+		INIT_LIST_HEAD(&obj->ip_list_inst);
+		INIT_LIST_HEAD(&obj->ip_list_no_inst);
 		obj->offset = offset;
-		obj->install = 0;
 		spin_lock_init(&obj->lock);
 		obj->file = NULL;
 		INIT_HLIST_NODE(&obj->hlist);
@@ -48,7 +48,12 @@ void sspt_page_free(struct sspt_page *page)
 {
 	struct us_ip *ip, *n;
 
-	list_for_each_entry_safe(ip, n, &page->ip_list, list) {
+	list_for_each_entry_safe(ip, n, &page->ip_list_inst, list) {
+		list_del(&ip->list);
+		free_ip(ip);
+	}
+
+	list_for_each_entry_safe(ip, n, &page->ip_list_no_inst, list) {
 		list_del(&ip->list);
 		free_ip(ip);
 	}
@@ -58,7 +63,7 @@ void sspt_page_free(struct sspt_page *page)
 
 static void sspt_list_add_ip(struct sspt_page *page, struct us_ip *ip)
 {
-	list_add(&ip->list, &page->ip_list);
+	list_add(&ip->list, &page->ip_list_no_inst);
 	ip->page = page;
 }
 
@@ -80,38 +85,26 @@ void sspt_del_ip(struct us_ip *ip)
 	free_ip(ip);
 }
 
-struct us_ip *sspt_find_ip(struct sspt_page *page, unsigned long offset)
+int sspt_page_is_installed(struct sspt_page *page)
 {
-	struct us_ip *ip;
+	int empty;
 
-	list_for_each_entry(ip, &page->ip_list, list) {
-		if (ip->offset == offset) {
-			return ip;
-		}
-	}
+	spin_lock(&page->lock);
+	empty = list_empty(&page->ip_list_inst);
+	spin_unlock(&page->lock);
 
-	return NULL;
-}
-
-void sspt_set_all_ip_addr(struct sspt_page *page, const struct sspt_file *file)
-{
-	struct us_ip *ip;
-	unsigned long addr;
-
-	list_for_each_entry(ip, &page->ip_list, list) {
-		addr = file->vm_start + page->offset + ip->offset;
-		ip->retprobe.up.kp.addr = (kprobe_opcode_t *)addr;
-	}
+	return !empty;
 }
 
 int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 {
 	int err = 0;
 	struct us_ip *ip, *n;
+	struct list_head ip_list_tmp;
+	unsigned long addr;
 
 	spin_lock(&page->lock);
-
-	if (sspt_page_is_installed(page)) {
+	if (list_empty(&page->ip_list_no_inst)) {
 		struct task_struct *task = page->file->proc->task;
 
 		printk("page %lx in %s task[tgid=%u, pid=%u] already installed\n",
@@ -119,12 +112,18 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 		goto unlock;
 	}
 
-	sspt_page_assert_install(page);
-	sspt_set_all_ip_addr(page, file);
+	INIT_LIST_HEAD(&ip_list_tmp);
+	list_replace_init(&page->ip_list_no_inst, &ip_list_tmp);
+	spin_unlock(&page->lock);
 
-	list_for_each_entry_safe(ip, n, &page->ip_list, list) {
+	list_for_each_entry_safe(ip, n, &ip_list_tmp, list) {
+		/* set uprobe address */
+		addr = file->vm_start + page->offset + ip->offset;
+		ip->retprobe.up.kp.addr = (kprobe_opcode_t *)addr;
+
 		err = sspt_register_usprobe(ip);
 		if (err == -ENOEXEC) {
+			/* TODO: delete?! */
 			list_del(&ip->list);
 			free_ip(ip);
 			continue;
@@ -132,8 +131,11 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 			printk("Failed to install probe\n");
 		}
 	}
+
+	spin_lock(&page->lock);
+	list_splice(&ip_list_tmp, &page->ip_list_inst);
+
 unlock:
-	sspt_page_install(page);
 	spin_unlock(&page->lock);
 
 	return 0;
@@ -145,14 +147,19 @@ int sspt_unregister_page(struct sspt_page *page,
 {
 	int err = 0;
 	struct us_ip *ip;
+	struct list_head ip_list_tmp, *head;
 
 	spin_lock(&page->lock);
-	if (!sspt_page_is_installed(page)) {
+	if (list_empty(&page->ip_list_inst)) {
 		spin_unlock(&page->lock);
 		return 0;
 	}
 
-	list_for_each_entry(ip, &page->ip_list, list) {
+	INIT_LIST_HEAD(&ip_list_tmp);
+	list_replace_init(&page->ip_list_inst, &ip_list_tmp);
+	spin_unlock(&page->lock);
+
+	list_for_each_entry(ip, &ip_list_tmp, list) {
 		err = sspt_unregister_usprobe(task, ip, flag);
 		if (err != 0) {
 			//TODO: ERROR
@@ -160,9 +167,10 @@ int sspt_unregister_page(struct sspt_page *page,
 		}
 	}
 
-	if (flag != US_DISARM) {
-		sspt_page_uninstall(page);
-	}
+	head = (flag == US_DISARM) ? &page->ip_list_inst : &page->ip_list_no_inst;
+
+	spin_lock(&page->lock);
+	list_splice(&ip_list_tmp, head);
 	spin_unlock(&page->lock);
 
 	return err;

@@ -39,18 +39,29 @@ static inline void print_retprobe(struct uretprobe *rp)
 			(unsigned long)rp->handler);
 }
 
+static inline print_ip(struct us_ip *ip, int i)
+{
+	printk("###       addr[%2d]=%lx, R_addr=%lx\n",
+				i, (unsigned long)ip->offset,
+				(unsigned long)ip->retprobe.up.kp.addr);
+	print_retprobe(&ip->retprobe);
+}
+
 static inline void print_page_probes(const struct sspt_page *page)
 {
 	int i = 0;
 	struct us_ip *ip;
 
 	printk("###     offset=%lx\n", page->offset);
-	list_for_each_entry(ip, &page->ip_list, list) {
+	printk("###     no install:\n");
+	list_for_each_entry(ip, &page->ip_list_no_inst, list) {
+		print_ip(ip, i);
+		++i;
+	}
 
-		printk("###       addr[%2d]=%lx, R_addr=%lx\n",
-				i, (unsigned long)ip->offset,
-				(unsigned long)ip->retprobe.up.kp.addr);
-		print_retprobe(&ip->retprobe);
+	printk("###     install:\n");
+	list_for_each_entry(ip, &page->ip_list_inst, list) {
+		print_ip(ip, i);
 		++i;
 	}
 }

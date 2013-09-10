@@ -34,9 +34,9 @@ struct task_struct;
 enum US_FLAGS;
 
 struct sspt_page {
-	struct list_head ip_list;
+	struct list_head ip_list_inst;
+	struct list_head ip_list_no_inst;
 	unsigned long offset;
-	int install;
 	spinlock_t lock;
 
 	struct sspt_file *file;
@@ -48,31 +48,8 @@ void sspt_page_free(struct sspt_page *page);
 
 void sspt_add_ip(struct sspt_page *page, struct us_ip *ip);
 void sspt_del_ip(struct us_ip *ip);
-struct us_ip *sspt_find_ip(struct sspt_page *page, unsigned long offset);
 
-static inline void sspt_page_assert_install(const struct sspt_page *page)
-{
-	if (page->install != 0) {
-		panic("already installed page %lx\n", page->offset);
-	}
-}
-
-static inline int sspt_page_is_installed(struct sspt_page *page)
-{
-	return page->install;
-}
-
-static inline void sspt_page_install(struct sspt_page *page)
-{
-	page->install = 1;
-}
-
-static inline void sspt_page_uninstall(struct sspt_page *page)
-{
-	page->install = 0;
-}
-
-void sspt_set_all_ip_addr(struct sspt_page *page, const struct sspt_file *file);
+int sspt_page_is_installed(struct sspt_page *page);
 
 int sspt_register_page(struct sspt_page *page, struct sspt_file *file);
 
