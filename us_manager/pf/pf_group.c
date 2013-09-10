@@ -62,7 +62,7 @@ static struct pl_struct *create_pl_struct(struct sspt_proc *proc)
 
 static void free_pl_struct(struct pl_struct *pls)
 {
-	/* FIXME: free */
+	kfree(pls);
 }
 
 static void add_pl_struct(struct pf_group *pfg, struct pl_struct *pls)
@@ -114,21 +114,17 @@ static struct sspt_proc *get_proc_by_pfg(struct pf_group *pfg,
 	return NULL;
 }
 
-static struct sspt_proc *get_proc_by_pfg_or_new(struct pf_group *pfg,
-						struct task_struct *task)
+static struct sspt_proc *new_proc_by_pfg(struct pf_group *pfg,
+					 struct task_struct *task)
 {
+	struct pl_struct *pls;
 	struct sspt_proc *proc;
 
-	proc = get_proc_by_pfg(pfg, task);
-	if (proc == NULL) {
-		struct pl_struct *pls;
+	proc = sspt_proc_get_by_task_or_new(task, pfg->filter->priv);
+	copy_proc_form_img_to_sspt(pfg->i_proc, proc);
 
-		proc = sspt_proc_get_by_task_or_new(task, pfg->filter->priv);
-		copy_proc_form_img_to_sspt(pfg->i_proc, proc);
-
-		pls = create_pl_struct(proc);
-		add_pl_struct(pfg, pls);
-	}
+	pls = create_pl_struct(proc);
+	add_pl_struct(pfg, pls);
 
 	return proc;
 }
@@ -219,38 +215,28 @@ int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 }
 EXPORT_SYMBOL_GPL(pf_unregister_probe);
 
-static void install_page_by_pfg(struct pf_group *pfg, struct task_struct *task,
-				unsigned long page_addr)
-{
-	struct sspt_proc *proc;
-
-	proc = get_proc_by_pfg(pfg, task);
-	if (proc)
-		goto install_proc;
-
-	task = check_task_f(pfg->filter, task);
-	if (task) {
-		/* TODO: two call get_proc_by_pfg() */
-		proc = get_proc_by_pfg_or_new(pfg, task);
-		goto install_proc;
-	}
-
-	return;
-
-install_proc:
-	if (proc->first_install)
-		sspt_proc_install_page(proc, page_addr);
-	else
-		sspt_proc_install(proc);
-}
-
 void call_page_fault(struct task_struct *task, unsigned long page_addr)
 {
 	struct pf_group *pfg;
+	struct sspt_proc *proc = NULL;
+	int install_all = 0;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
-		/* FIXME: install page more then once */
-		install_page_by_pfg(pfg, task, page_addr);
+		if (check_task_f(pfg->filter, task) == NULL)
+			continue;
+
+		proc = get_proc_by_pfg(pfg, task);
+		if (proc == NULL) {
+			proc = new_proc_by_pfg(pfg, task);
+			install_all = 1;
+		}
+	}
+
+	if (proc) {
+		if (install_all)
+			sspt_proc_install(proc);
+		else
+			sspt_proc_install_page(proc, page_addr);
 	}
 }
 
@@ -263,27 +249,26 @@ void uninstall_proc(struct sspt_proc *proc)
 
 	list_for_each_entry(pfg, &pfg_list, list) {
 		pls = find_pl_struct(pfg, task);
-		if (pls == NULL)
-			continue;
-
-		task_lock(task);
-
-		for (i = 0; task->mm == NULL; ++i) {
-			task_unlock(task);
-			if (i >= 10)
-				BUG();
-
-			schedule();
-			task_lock(task);
+		if (pls) {
+			del_pl_struct(pls);
+			free_pl_struct(pls);
 		}
-
-		sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
-		task_unlock(task);
-
-		/* FIXME: for many filters */
-		sspt_proc_free(proc);
-		free_pl_struct(pls);
 	}
+
+	task_lock(task);
+	for (i = 0; task->mm == NULL; ++i) {
+		task_unlock(task);
+		if (i >= 10)
+			BUG();
+
+		schedule();
+		task_lock(task);
+	}
+
+	sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
+	task_unlock(task);
+
+	sspt_proc_free(proc);
 }
 
 void call_mm_release(struct task_struct *task)
