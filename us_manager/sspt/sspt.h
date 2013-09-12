@@ -30,56 +30,12 @@
 #include "sspt_file.h"
 #include "sspt_proc.h"
 #include "sspt_debug.h"
-#include "us_proc_types.h"
 #include <swap_uprobes.h>
 
 
 #include <us_manager.h>
 #include <pf/pf_group.h>
 
-static void print_proc_probes(const struct sspt_proc *proc);
-
-struct sspt_proc;
-
-static inline struct sspt_proc *get_file_probes(inst_us_proc_t *task_inst_info)
-{
-	int i, ret;
-	struct pf_group *pfg;
-
-	pfg = get_pf_group_by_dentry(task_inst_info->m_f_dentry,
-				     task_inst_info->m_f_dentry);
-
-	for (i = 0; i < task_inst_info->libs_count; ++i) {
-		int k, j;
-		us_proc_lib_t *p_libs = &task_inst_info->p_libs[i];
-		struct dentry *dentry = p_libs->m_f_dentry;
-		char *path = p_libs->path;
-		char *name = strrchr(path, '/');
-		name = name ? name + 1 : path;
-
-		for (k = 0; k < p_libs->ips_count; ++k) {
-			us_proc_ip_t *ip = &p_libs->p_ips[k];
-			unsigned long got_addr = 0;
-
-			for (j = 0; j < p_libs->plt_count; ++j) {
-				if (ip->offset == p_libs->p_plt[j].func_addr) {
-					got_addr = p_libs->p_plt[j].got_addr;
-					break;
-				}
-			}
-
-			ret = pf_register_probe(pfg, dentry, ip->offset, "dddd");
-			if (ret)
-				printk("### ERROR: pf_register_probe ret=%d\n", ret);
-		}
-	}
-
-	printk("####### get  END  #######\n");
-
-	pfg_print(pfg);
-
-	return NULL;
-}
 
 static int check_vma(struct vm_area_struct *vma)
 {
@@ -90,35 +46,29 @@ static int check_vma(struct vm_area_struct *vma)
 
 static inline int sspt_register_usprobe(struct us_ip *ip)
 {
-	int ret = 0;
+	int ret;
 
 	/* for retuprobe */
 	ip->retprobe.up.task = ip->page->file->proc->task;
 	ip->retprobe.up.sm = ip->page->file->proc->sm;
 
-	if (ip->flag_retprobe) {
-		ret = dbi_register_uretprobe(&ip->retprobe);
-		if (ret) {
-			struct sspt_file *file = ip->page->file;
-			char *name = file->dentry->d_iname;
-			unsigned long addr =ip->retprobe.up.kp.addr;
-			unsigned long offset = addr - file->vm_start;
+	ret = dbi_register_uretprobe(&ip->retprobe);
+	if (ret) {
+		struct sspt_file *file = ip->page->file;
+		char *name = file->dentry->d_iname;
+		unsigned long addr =ip->retprobe.up.kp.addr;
+		unsigned long offset = addr - file->vm_start;
 
-			printk("dbi_register_uretprobe() failure %d (%s:%x|%x)\n",
-			       ret, name, offset, ip->retprobe.up.kp.opcode);
-
-			return ret;
-		}
+		printk("dbi_register_uretprobe() failure %d (%s:%x|%x)\n",
+		       ret, name, offset, ip->retprobe.up.kp.opcode);
 	}
 
-	return 0;
+	return ret;
 }
 
 static inline int do_unregister_usprobe(struct us_ip *ip)
 {
-	if (ip->flag_retprobe) {
-		dbi_unregister_uretprobe(&ip->retprobe);
-	}
+	dbi_unregister_uretprobe(&ip->retprobe);
 
 	return 0;
 }

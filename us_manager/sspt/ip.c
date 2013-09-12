@@ -60,14 +60,10 @@ struct us_ip *create_ip(unsigned long offset, const char *args)
 	INIT_LIST_HEAD(&ip->list);
 	ip->offset = offset;
 
-	ip->got_addr = 0;
-	ip->flag_got = 1;
-
 	/* TODO: or copy args?! */
 	ip->args = args;
 
 	/* retprobe */
-	ip->flag_retprobe = 1;
 	ip->retprobe.handler = ret_handler;
 	ip->retprobe.entry_handler = entry_handler;
 
