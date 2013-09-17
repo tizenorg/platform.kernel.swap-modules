@@ -1,9 +1,9 @@
-#ifndef _SWAP_ENERGY_H
-#define _SWAP_ENERGY_H
+#ifndef _ENERGY_H
+#define _ENERGY_H
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/energy/swap_energy.h
+ *  energy/energy.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,4 +28,4 @@
 int set_energy(void);
 void unset_energy(void);
 
-#endif /* _SWAP_ENERGY_H */
+#endif /* _ENERGY_H */

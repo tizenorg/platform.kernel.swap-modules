@@ -32,7 +32,7 @@
 #include "msg_parser.h"
 
 #include <sampler/swap_sampler_module.h>
-#include <energy/swap_energy.h>
+#include <energy/energy.h>
 
 enum features_list {
 	syscall_file	= (1 << 10),	/* File operation syscalls tracing */

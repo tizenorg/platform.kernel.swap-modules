@@ -1,4 +1,4 @@
 EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_energy.o
-swap_writer-y := swap_writer_module.o kernel_operations.o
+swap_energy-y := energy.o
