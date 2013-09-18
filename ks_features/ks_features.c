@@ -90,23 +90,30 @@ static void dec_counter(size_t id)
 }
 
 /* ========================= HANDLERS ========================= */
-static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
+static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct ks_probe *ksp = (struct ks_probe *)priv_arg;
-	const char *fmt = ksp->args;
-	int sub_type = ksp->sub_type;
+	struct kretprobe *rp = ri->rp;
 
-	entry_event(fmt, regs, PT_KS, sub_type);
+	if (rp) {
+		struct ks_probe *ksp = container_of(rp, struct ks_probe, rp);
+		const char *fmt = ksp->args;
+		int sub_type = ksp->sub_type;
+
+		entry_event(fmt, regs, PT_KS, sub_type);
+	}
 
 	return 0;
 }
 
-static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
+static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct ks_probe *ksp = (struct ks_probe *)priv_arg;
-	unsigned long func_addr = ri->rp ? ri->rp->kp.addr : 0;
+	struct kretprobe *rp = ri->rp;
 
-	exit_event(regs, func_addr);
+	if (rp) {
+		unsigned long func_addr = rp->kp.addr;
+
+		exit_event(regs, func_addr);
+	}
 
 	return 0;
 }
@@ -198,7 +205,6 @@ static int register_syscall(size_t id)
 
 	ksp[id].rp.entry_handler = entry_handler;
 	ksp[id].rp.handler = ret_handler;
-	ksp[id].rp.priv_arg = &ksp[id];
 
 	ret = dbi_register_kretprobe(&ksp[id].rp);
 

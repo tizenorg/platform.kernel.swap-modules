@@ -638,7 +638,7 @@ static int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
 		ri->task = current;
 
 		if (rp->entry_handler) {
-			rp->entry_handler(ri, regs, ri->rp->priv_arg);
+			rp->entry_handler(ri, regs);
 		}
 
 		arch_prepare_kretprobe(ri, regs);
@@ -703,7 +703,7 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 		if (ri->rp && ri->rp->handler) {
 			__get_cpu_var(current_kprobe) = &ri->rp->kp;
 			get_kprobe_ctlblk()->kprobe_status = KPROBE_HIT_ACTIVE;
-			ri->rp->handler(ri, regs, ri->rp->priv_arg);
+			ri->rp->handler(ri, regs);
 			__get_cpu_var(current_kprobe) = NULL;
 		}
 

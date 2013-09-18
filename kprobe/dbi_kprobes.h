@@ -92,7 +92,7 @@ typedef int (*kprobe_pre_handler_t) (struct kprobe *, struct pt_regs *);
 typedef int (*kprobe_break_handler_t) (struct kprobe *, struct pt_regs *);
 typedef void (*kprobe_post_handler_t) (struct kprobe *, struct pt_regs *, unsigned long flags);
 typedef int (*kprobe_fault_handler_t) (struct kprobe *, struct pt_regs *, int trapnr);
-typedef int (*kretprobe_handler_t) (struct kretprobe_instance *, struct pt_regs *, void *);
+typedef int (*kretprobe_handler_t) (struct kretprobe_instance *, struct pt_regs *);
 
 struct kprobe
 {
@@ -195,7 +195,6 @@ struct kretprobe
 	struct kprobe kp;
 	kretprobe_handler_t handler;
 	kretprobe_handler_t entry_handler;
-	void *priv_arg;
 	int maxactive;
 	int nmissed;
 	size_t data_size;

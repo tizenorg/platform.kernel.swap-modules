@@ -44,7 +44,6 @@ static struct probe *create_probe(unsigned long addr, void *pre_handler,
 	p->p.jp.pre_entry = pre_handler;
 	p->p.jp.entry = jp_handler;
 	p->p.rp.handler = rp_handler;
-	p->p.jp.priv_arg = p->p.rp.priv_arg = (void *)&p->p;
 	INIT_HLIST_NODE(&p->hlist);
 
 	return p;
