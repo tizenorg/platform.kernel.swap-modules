@@ -2,3 +2,4 @@ EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_energy.o
 swap_energy-y := energy.o lcd/lcd_base.o
+swap_energy-$(CONFIG_LCD_S6E8AA0) += lcd/s6e8aa0.o
