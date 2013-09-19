@@ -1,6 +1,9 @@
+#ifndef _SWAP_DEBUG_FS_H
+#define _SWAP_DEBUG_FS_H
+
 /*
- *  SWAP Driver
- *  modules/driver/swap_driver_module.c
+ *  SWAP kernel features
+ *  driver/swap_debugfs.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,40 +21,16 @@
  *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
+ * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
  */
 
-#include <linux/module.h>
 
-#include "driver_defs.h"
-#include "device_driver.h"
-#include "swap_debugfs.h"
+struct dentry;
 
-static int __init swap_driver_init(void)
-{
-	int ret;
 
-	ret = swap_debugfs_init();
-	if (ret)
-		return ret;
+struct dentry *get_swap_debugfs_dir(void);
+int swap_debugfs_init(void);
+void swap_debugfs_exit(void);
 
-	swap_device_init();
-	print_msg("Driver module initialized\n");
-
-	return 0;
-}
-
-static void __exit swap_driver_exit(void)
-{
-	swap_device_exit();
-	swap_debugfs_exit();
-	print_msg("Driver module uninitialized\n");
-}
-
-module_init(swap_driver_init);
-module_exit(swap_driver_exit);
-
-MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("SWAP device driver");
-MODULE_AUTHOR("Aksenov A.S.");
+#endif /* _SWAP_DEBUG_FS_H */

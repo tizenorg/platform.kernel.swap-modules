@@ -1,6 +1,6 @@
 /*
- *  SWAP Driver
- *  modules/driver/swap_driver_module.c
+ *  SWAP kernel features
+ *  driver/swap_debugfs.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,40 +18,37 @@
  *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
+ * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
  */
 
+
 #include <linux/module.h>
+#include <linux/debugfs.h>
 
-#include "driver_defs.h"
-#include "device_driver.h"
-#include "swap_debugfs.h"
 
-static int __init swap_driver_init(void)
+static struct dentry *swap_dir = NULL;
+
+
+struct dentry *get_swap_debugfs_dir(void)
 {
-	int ret;
+	return swap_dir;
+}
+EXPORT_SYMBOL_GPL(get_swap_debugfs_dir);
 
-	ret = swap_debugfs_init();
-	if (ret)
-		return ret;
-
-	swap_device_init();
-	print_msg("Driver module initialized\n");
+int swap_debugfs_init(void)
+{
+	swap_dir = debugfs_create_dir("swap", NULL);
+	if (swap_dir == NULL)
+		return -ENOMEM;
 
 	return 0;
 }
 
-static void __exit swap_driver_exit(void)
+void swap_debugfs_exit(void)
 {
-	swap_device_exit();
-	swap_debugfs_exit();
-	print_msg("Driver module uninitialized\n");
+	struct dentry *dir = swap_dir;
+
+	swap_dir = NULL;
+	debugfs_remove_recursive(dir);
 }
-
-module_init(swap_driver_init);
-module_exit(swap_driver_exit);
-
-MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("SWAP device driver");
-MODULE_AUTHOR("Aksenov A.S.");

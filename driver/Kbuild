@@ -3,4 +3,5 @@ EXTRA_CFLAGS := $(extra_cflags)
 obj-m := swap_driver.o
 swap_driver-y := swap_driver_module.o \
                      device_driver.o \
-                     driver_to_buffer.o
+                     driver_to_buffer.o \
+                     swap_debugfs.o
