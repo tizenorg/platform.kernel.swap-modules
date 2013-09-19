@@ -34,6 +34,7 @@
 #include <ksyms/ksyms.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include <us_manager/sspt/sspt_feature.h>
+#include "debugfs_energy.h"
 
 
 struct energy_data {
@@ -354,6 +355,11 @@ static int __init swap_energy_init(void)
 {
 	int ret;
 	unsigned long addr;
+
+	ret = init_debugfs_energy();
+	if (ret)
+		return ret;
+
 	addr = swap_ksyms("__switch_to");
 	if (addr == 0) {
 		printk("Cannot find address for __switch_to function!\n");
@@ -383,6 +389,7 @@ static int __init swap_energy_init(void)
 static void __exit swap_energy_exit(void)
 {
 	uninit_feature();
+	exit_debugfs_energy();
 }
 
 module_init(swap_energy_init);
