@@ -1,9 +1,6 @@
-#ifndef _ENERGY_H
-#define _ENERGY_H
-
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  energy/energy.h
+ *  energy/energy_mod.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,10 +23,33 @@
  */
 
 
-int energy_init(void);
-void energy_uninit(void);
+#include <linux/module.h>
+#include "energy.h"
+#include "debugfs_energy.h"
 
-int set_energy(void);
-void unset_energy(void);
 
-#endif /* _ENERGY_H */
+static int __init swap_energy_init(void)
+{
+	int ret;
+
+	ret = energy_init();
+	if (ret)
+		return ret;
+
+	ret = init_debugfs_energy();
+	if (ret)
+		energy_uninit();
+
+	return ret;
+}
+
+static void __exit swap_energy_exit(void)
+{
+	exit_debugfs_energy();
+	energy_uninit();
+}
+
+module_init(swap_energy_init);
+module_exit(swap_energy_exit);
+
+MODULE_LICENSE("GPL");
