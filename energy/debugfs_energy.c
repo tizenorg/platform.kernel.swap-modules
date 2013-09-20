@@ -29,7 +29,7 @@
 #include <driver/swap_debugfs.h>
 
 
-/* CPU */
+/* CPU running */
 static u64 cpu_numerator = 1;
 static u64 cpu_denominator = 1;
 
@@ -40,6 +40,17 @@ static u64 cpu_system(void)
 }
 
 static u64 cpu_apps(void)
+{
+	/* TODO: implement */
+	return 0;
+}
+
+
+/* CPU idle */
+static u64 cpu_idle_numerator = 1;
+static u64 cpu_idle_denominator = 1;
+
+static u64 cpu_idle_system(void)
 {
 	/* TODO: implement */
 	return 0;
@@ -148,10 +159,12 @@ static struct dentry *create_parameter(struct dentry *parent,
 	if (system == NULL)
 		goto rm_denominator;
 
-	apps = debugfs_create_file("apps", 0600, name, param->apps,
-				   &fops_get_u64);
-	if (apps == NULL)
-		goto rm_system;
+	if (param->apps) {
+		apps = debugfs_create_file("apps", 0600, name, param->apps,
+					   &fops_get_u64);
+		if (apps == NULL)
+			goto rm_system;
+	}
 
 	return name;
 
@@ -169,11 +182,18 @@ rm_name:
 
 struct param_data parameters[] = {
 	{
-		.name = "CPU",
+		.name = "cpu_running",
 		.numerator = &cpu_numerator,
 		.denominator = &cpu_denominator,
 		.system = cpu_system,
 		.apps = cpu_apps
+	},
+	{
+		.name = "cpu_idle",
+		.numerator = &cpu_idle_numerator,
+		.denominator = &cpu_idle_denominator,
+		.system = cpu_idle_system,
+		.apps = NULL
 	},
 	{
 		.name = "flash_read",
