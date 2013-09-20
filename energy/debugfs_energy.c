@@ -33,13 +33,51 @@
 static u64 cpu_numerator = 1;
 static u64 cpu_denominator = 1;
 
+static u64 cpu_system(void)
+{
+	/* TODO: implement */
+	return 0;
+}
+
+static u64 cpu_apps(void)
+{
+	/* TODO: implement */
+	return 0;
+}
+
+
 /* flash read */
 static u64 fr_numerator = 1;
 static u64 fr_denominator = 1;
 
+static u64 fr_system(void)
+{
+	/* TODO: implement */
+	return 0;
+}
+
+static u64 fr_apps(void)
+{
+	/* TODO: implement */
+	return 0;
+}
+
+
 /* flash write */
 static u64 fw_numerator = 1;
 static u64 fw_denominator = 1;
+
+static u64 fw_system(void)
+{
+	/* TODO: implement */
+	return 0;
+}
+
+static u64 fw_apps(void)
+{
+	/* TODO: implement */
+	return 0;
+}
 
 
 
@@ -67,67 +105,89 @@ static int denominator_get(void *data, u64 *val)
 DEFINE_SIMPLE_ATTRIBUTE(fops_denominator, denominator_get, \
 			denominator_set, "%llu\n");
 
-static int create_fraction(struct dentry *parent,
-			   u64 *numerator, u64 *denominator)
+
+static int get_func_u64(void *data, u64 *val)
 {
-	struct dentry *num, *den;
-
-	num = debugfs_create_u64("numerator", 0600, parent, numerator);
-	if (num == NULL)
-		return -ENOMEM;
-
-	den = debugfs_create_file("denominator", 0600, parent, denominator,
-				  &fops_denominator);
-	if (den == NULL) {
-		debugfs_remove(num);
-		return -ENOMEM;
-	}
-
+	u64 (*func)(void) = data;
+	*val = func();
 	return 0;
 }
 
-static struct dentry *create_parameter(struct dentry *parent, const char *name,
-				       u64 *numerator, u64 *denominator)
-{
-	struct dentry *dentry;
+DEFINE_SIMPLE_ATTRIBUTE(fops_get_u64, get_func_u64, NULL, "%llu\n");
 
-	dentry = debugfs_create_dir(name, parent);
-	if (dentry) {
-		int err;
-
-		err = create_fraction(dentry, &cpu_numerator,
-				      &cpu_denominator);
-
-		if (err) {
-			debugfs_remove(dentry);
-			dentry = NULL;
-		}
-	}
-
-	return dentry;
-}
 
 struct param_data {
 	char *name;
 	u64 *numerator;
 	u64 *denominator;
+	u64 (*system)(void);
+	u64 (*apps)(void);
 };
+
+static struct dentry *create_parameter(struct dentry *parent,
+				       struct param_data *param)
+{
+	struct dentry *name, *num, *den, *system, *apps;
+
+	name = debugfs_create_dir(param->name, parent);
+	if (name == NULL)
+		return NULL;
+
+	num = debugfs_create_u64("numerator", 0600, name, param->numerator);
+	if (num == NULL)
+		goto rm_name;
+
+	den = debugfs_create_file("denominator", 0600, name,
+				  param->denominator,
+				  &fops_denominator);
+	if (den == NULL)
+		goto rm_numerator;
+
+	system = debugfs_create_file("system", 0600, name, param->system,
+				     &fops_get_u64);
+	if (system == NULL)
+		goto rm_denominator;
+
+	apps = debugfs_create_file("apps", 0600, name, param->apps,
+				   &fops_get_u64);
+	if (apps == NULL)
+		goto rm_system;
+
+	return name;
+
+rm_system:
+	debugfs_remove(system);
+rm_denominator:
+	debugfs_remove(den);
+rm_numerator:
+	debugfs_remove(num);
+rm_name:
+	debugfs_remove(name);
+
+	return NULL;
+}
 
 struct param_data parameters[] = {
 	{
 		.name = "CPU",
 		.numerator = &cpu_numerator,
-		.denominator = &cpu_denominator
+		.denominator = &cpu_denominator,
+		.system = cpu_system,
+		.apps = cpu_apps
 	},
 	{
 		.name = "flash_read",
 		.numerator = &fr_numerator,
-		.denominator = &fr_denominator
+		.denominator = &fr_denominator,
+		.system = fr_system,
+		.apps = fr_apps
 	},
 	{
 		.name = "flash_write",
 		.numerator = &fw_numerator,
-		.denominator = &fw_denominator
+		.denominator = &fw_denominator,
+		.system = fw_system,
+		.apps = fw_apps
 	}
 };
 
@@ -167,9 +227,7 @@ int init_debugfs_energy(void)
 		return -ENOMEM;
 
 	for (i = 0; i < parameters_cnt; ++i) {
-		dentry = create_parameter(energy_dir, parameters[i].name,
-					  parameters[i].numerator,
-					  parameters[i].denominator);
+		dentry = create_parameter(energy_dir, &parameters[i]);
 		if (dentry == NULL)
 			goto fail;
 	}
