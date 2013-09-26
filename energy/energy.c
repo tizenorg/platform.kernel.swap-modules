@@ -34,6 +34,7 @@
 #include <ksyms/ksyms.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include <us_manager/sspt/sspt_feature.h>
+#include <linux/atomic.h>
 
 
 struct energy_data {
@@ -42,12 +43,11 @@ struct energy_data {
 	u64 time_tmp[NR_CPUS];
 
 	/* for sys_read */
-	u64 sys_read_byte;
-	spinlock_t sys_read_lock;
+	atomic64_t sys_read_byte;
 
 	/*for sys_write */
-	u64 sys_write_byte;
-	spinlock_t sys_write_lock;
+	atomic64_t sys_write_byte;
+
 };
 
 static sspt_feature_id_t feature_id = SSPT_FEATURE_ID_BAD;
@@ -59,8 +59,8 @@ static void *create_ed(void)
 	ed = kmalloc(sizeof(*ed), GFP_ATOMIC);
 	if (ed) {
 		memset(ed, 0, sizeof(*ed));
-		spin_lock_init(&ed->sys_read_lock);
-		spin_lock_init(&ed->sys_write_lock);
+		atomic64_set(&ed->sys_read_byte, 0);
+		atomic64_set(&ed->sys_write_byte, 0);
 	}
 
 	return (void *)ed;
@@ -245,11 +245,8 @@ static int ret_handler_sys_read(struct kretprobe_instance *ri,
 		srd = (struct sys_read_data *)ri->data;
 		ed = get_and_check_energy_data(srd->fd);
 
-		if (ed) {
-			spin_lock(&ed->sys_read_lock);
-			ed->sys_read_byte += ret;
-			spin_unlock(&ed->sys_read_lock);
-		}
+		if (ed)
+			atomic64_add(ret, &ed->sys_read_byte);
 	}
 
 	return 0;
@@ -288,11 +285,8 @@ static int ret_handler_sys_write(struct kretprobe_instance *ri, struct pt_regs *
 
 		srd = (struct sys_read_data *)ri->data;
 		ed = get_and_check_energy_data(srd->fd);
-		if (ed) {
-			spin_lock(&ed->sys_write_lock);
-			ed->sys_write_byte += ret;
-			spin_unlock(&ed->sys_write_lock);
-		}
+		if (ed)
+			atomic64_add(ret, &ed->sys_write_byte);
 	}
 
 	return 0;
