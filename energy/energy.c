@@ -37,10 +37,70 @@
 #include <linux/atomic.h>
 
 
+static u64 get_ntime(void)
+{
+	struct timespec ts;
+	getnstimeofday(&ts);
+	return timespec_to_ns(&ts);
+}
+
+
+
+
+
+/* ============================================================================
+ * =                              CPUS_TIME                                   =
+ * ============================================================================
+ */
+struct cpus_time {
+	u64 time_running[NR_CPUS];
+	u64 time_entry[NR_CPUS];
+};
+
+static void cpus_time_init(struct cpus_time *ct, u64 time)
+{
+	int cpu;
+
+	for (cpu = 0; cpu < NR_CPUS; ++cpu) {
+		ct->time_running[cpu] = 0;
+		ct->time_entry[cpu] = time;
+	}
+}
+
+static u64 cpus_time_get_running(struct cpus_time *ct, int cpu)
+{
+	return ct->time_running[cpu];
+}
+
+static void cpus_time_save_entry(struct cpus_time *ct, int cpu, u64 time)
+{
+	ct->time_entry[cpu] = time;
+}
+
+static void cpus_time_update_running(struct cpus_time *ct, int cpu, u64 time)
+{
+	ct->time_running[cpu] += time - ct->time_entry[cpu];
+}
+
+
+static struct cpus_time ct_idle;
+static struct cpus_time ct_system;
+
+static void init_data_energy(void)
+{
+	u64 time = get_ntime();
+
+	cpus_time_init(&ct_idle, time);
+	cpus_time_init(&ct_system, time);
+}
+
+
+
+
+
 struct energy_data {
 	/* for __switch_to */
-	u64 time[NR_CPUS];
-	u64 time_tmp[NR_CPUS];
+	struct cpus_time ct;
 
 	/* for sys_read */
 	atomic64_t sys_read_byte;
@@ -58,7 +118,7 @@ static void *create_ed(void)
 
 	ed = kmalloc(sizeof(*ed), GFP_ATOMIC);
 	if (ed) {
-		memset(ed, 0, sizeof(*ed));
+		cpus_time_init(&ed->ct, get_ntime());
 		atomic64_set(&ed->sys_read_byte, 0);
 		atomic64_set(&ed->sys_write_byte, 0);
 	}
@@ -87,15 +147,6 @@ static void uninit_feature(void)
 {
 	sspt_unregister_feature(feature_id);
 	feature_id = SSPT_FEATURE_ID_BAD;
-}
-
-static u64 get_ntime(void)
-{
-	struct timespec ts;
-
-	getnstimeofday(&ts);
-
-	return (u64)ts.tv_sec * 1000*1000*1000 + ts.tv_nsec;
 }
 
 static struct energy_data *get_energy_data(struct task_struct *task)
@@ -154,32 +205,38 @@ static unsigned long get_arg0(struct pt_regs *regs)
  */
 static int entry_handler_switch(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
+	int cpu;
+	u64 time;
+	struct cpus_time* ct;
 	struct energy_data *ed;
 
-	ed = get_energy_data(current);
-	if (ed) {
-		int cpu = task_cpu(current);
+	cpu = task_cpu(current);
+	time = get_ntime();
+	ct = current->tgid ? &ct_system : &ct_idle;
+	cpus_time_update_running(ct, cpu, time);
 
-		if (ed->time_tmp[cpu]) {
-			ed->time[cpu] += get_ntime() - ed->time_tmp[cpu];
-			ed->time_tmp[cpu] = 0;
-		}
-	}
+	ed = get_energy_data(current);
+	if (ed)
+		cpus_time_update_running(&ed->ct, cpu, time);
 
 	return 0;
 }
 
 static int ret_handler_switch(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
+	int cpu;
+	u64 time;
+	struct cpus_time* ct;
 	struct energy_data *ed;
 
-	ed = get_energy_data(current);
-	if (ed) {
-		int cpu;
+	cpu = task_cpu(current);
+	time = get_ntime();
+	ct = current->tgid ? &ct_system : &ct_idle;
+	cpus_time_save_entry(ct, cpu, time);
 
-		cpu = task_cpu(current);
-		ed->time_tmp[cpu] = get_ntime();
-	}
+	ed = get_energy_data(current);
+	if (ed)
+		cpus_time_save_entry(&ed->ct, cpu, time);
 
 	return 0;
 }
@@ -305,6 +362,8 @@ static struct kretprobe sys_write_krp = {
 int set_energy(void)
 {
 	int ret = 0;
+
+	init_data_energy();
 
 	ret = dbi_register_kretprobe(&sys_read_krp);
 	if (ret) {
