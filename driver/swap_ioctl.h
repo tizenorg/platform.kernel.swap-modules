@@ -43,5 +43,6 @@ struct buffer_initialize {
 #define SWAP_DRIVER_FLUSH_BUFFER		_IO(SWAP_DRIVER_IOC_MAGIC, 4)
 #define SWAP_DRIVER_MSG				_IOW(SWAP_DRIVER_IOC_MAGIC, 5, \
 						     void *)
+#define SWAP_DRIVER_WAKE_UP			_IO(SWAP_DRIVER_IOC_MAGIC, 6)
 
 #endif /* __SWAP_IOCTL_H__ */

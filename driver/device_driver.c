@@ -322,8 +322,7 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 		{
 			result = driver_to_buffer_uninitialize();
 			if (result < 0)
-			print_err("Buffer uninitialization failed %d\n", result);
-
+				print_err("Buffer uninitialization failed %d\n", result);
 			break;
 		}
 		case SWAP_DRIVER_NEXT_BUFFER_TO_READ:
@@ -342,6 +341,7 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 			break;
 		}
 		case SWAP_DRIVER_MSG:
+		{
 			if (msg_handler) {
 				result = msg_handler((void __user *)arg);
 			} else {
@@ -349,6 +349,13 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 				result = -EINVAL;
 			}
 			break;
+		}
+		case SWAP_DRIVER_WAKE_UP:
+		{
+			swap_device_wake_up_process();
+			result = E_SD_SUCCESS;
+			break;
+		}
 		default:
 			print_warn("Unknown command %d\n", cmd);
 			result = -EINVAL;
