@@ -35,6 +35,7 @@
 #include <us_manager/sspt/sspt_proc.h>
 #include <us_manager/sspt/sspt_feature.h>
 #include <linux/atomic.h>
+#include "energy.h"
 
 
 static u64 get_ntime(void)
@@ -67,9 +68,15 @@ static void cpus_time_init(struct cpus_time *ct, u64 time)
 	}
 }
 
-static u64 cpus_time_get_running(struct cpus_time *ct, int cpu)
+static u64 cpus_time_get_running_all(struct cpus_time *ct)
 {
-	return ct->time_running[cpu];
+	u64 time = 0;
+	int cpu;
+
+	for (cpu = 0; cpu < NR_CPUS; ++cpu)
+		time += ct->time_running[cpu];
+
+	return time;
 }
 
 static void cpus_time_save_entry(struct cpus_time *ct, int cpu, u64 time)
@@ -98,6 +105,15 @@ static void init_data_energy(void)
 	time = get_ntime();
 	cpus_time_init(&ct_idle, time);
 	cpus_time_init(&ct_system, time);
+}
+
+static void uninit_data_energy(void)
+{
+	atomic64_set(&sys_read_byte, 0);
+	atomic64_set(&sys_write_byte, 0);
+
+	cpus_time_init(&ct_idle, 0);
+	cpus_time_init(&ct_system, 0);
 }
 
 
@@ -370,6 +386,57 @@ static struct kretprobe sys_write_krp = {
 
 
 
+static u64 current_time_apps(void)
+{
+	/* TODO: implement */
+	return 0;
+}
+
+static u64 current_read_apps(void)
+{
+	/* TODO: implement */
+	return 0;
+}
+
+static u64 current_write_apps(void)
+{
+	/* TODO: implement */
+	return 0;
+}
+
+u64 get_parameter_energy(enum parameter_energy pe)
+{
+	u64 val = 0;
+
+	switch (pe) {
+	case PE_TIME_IDLE:
+		val = cpus_time_get_running_all(&ct_idle);
+		break;
+	case PE_TIME_SYSTEM:
+		val = cpus_time_get_running_all(&ct_system);
+		break;
+	case PE_TIME_APPS:
+		val = current_time_apps();
+		break;
+	case PE_READ_SYSTEM:
+		val = atomic64_read(&sys_read_byte);
+		break;
+	case PE_WRITE_SYSTEM:
+		val = atomic64_read(&sys_write_byte);
+		break;
+	case PE_READ_APPS:
+		val = current_read_apps();
+		break;
+	case PE_WRITE_APPS:
+		val = current_write_apps();
+		break;
+	default:
+		break;
+	}
+
+	return val;
+}
+
 int set_energy(void)
 {
 	int ret = 0;
@@ -411,6 +478,8 @@ void unset_energy(void)
 	dbi_unregister_kretprobe(&switch_to_krp);
 	dbi_unregister_kretprobe(&sys_write_krp);
 	dbi_unregister_kretprobe(&sys_read_krp);
+
+	uninit_data_energy();
 }
 EXPORT_SYMBOL_GPL(unset_energy);
 

@@ -26,7 +26,9 @@
 #include <linux/fs.h>
 #include <linux/module.h>
 #include <linux/debugfs.h>
+#include <linux/math64.h>
 #include <driver/swap_debugfs.h>
+#include "energy.h"
 
 
 /* CPU running */
@@ -35,14 +37,16 @@ static u64 cpu_denominator = 1;
 
 static u64 cpu_system(void)
 {
-	/* TODO: implement */
-	return 0;
+	u64 time = get_parameter_energy(PE_TIME_SYSTEM);
+
+	return div_u64(time * cpu_numerator, cpu_denominator);
 }
 
 static u64 cpu_apps(void)
 {
-	/* TODO: implement */
-	return 0;
+	u64 time = get_parameter_energy(PE_TIME_APPS);
+
+	return div_u64(time * cpu_numerator, cpu_denominator);
 }
 
 
@@ -52,8 +56,9 @@ static u64 cpu_idle_denominator = 1;
 
 static u64 cpu_idle_system(void)
 {
-	/* TODO: implement */
-	return 0;
+	u64 time = get_parameter_energy(PE_TIME_IDLE);
+
+	return div_u64(time * cpu_idle_numerator, cpu_idle_denominator);
 }
 
 
@@ -63,14 +68,16 @@ static u64 fr_denominator = 1;
 
 static u64 fr_system(void)
 {
-	/* TODO: implement */
-	return 0;
+	u64 byte = get_parameter_energy(PE_READ_SYSTEM);
+
+	return div_u64(byte * fr_numerator, fr_denominator);
 }
 
 static u64 fr_apps(void)
 {
-	/* TODO: implement */
-	return 0;
+	u64 byte = get_parameter_energy(PE_READ_APPS);
+
+	return div_u64(byte * fr_numerator, fr_denominator);
 }
 
 
@@ -80,14 +87,16 @@ static u64 fw_denominator = 1;
 
 static u64 fw_system(void)
 {
-	/* TODO: implement */
-	return 0;
+	u64 byte = get_parameter_energy(PE_WRITE_SYSTEM);
+
+	return div_u64(byte * fw_numerator, fw_denominator);
 }
 
 static u64 fw_apps(void)
 {
-	/* TODO: implement */
-	return 0;
+	u64 byte = get_parameter_energy(PE_WRITE_APPS);
+
+	return div_u64(byte * fw_numerator, fw_denominator);
 }
 
 

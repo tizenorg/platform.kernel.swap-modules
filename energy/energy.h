@@ -26,10 +26,26 @@
  */
 
 
+#include <linux/types.h>
+
+
+enum parameter_energy {
+	PE_TIME_IDLE,
+	PE_TIME_SYSTEM,
+	PE_TIME_APPS,
+	PE_READ_SYSTEM,
+	PE_WRITE_SYSTEM,
+	PE_READ_APPS,
+	PE_WRITE_APPS
+};
+
+
 int energy_init(void);
 void energy_uninit(void);
 
 int set_energy(void);
 void unset_energy(void);
+
+u64 get_parameter_energy(enum parameter_energy pe);
 
 #endif /* _ENERGY_H */
