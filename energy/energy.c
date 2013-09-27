@@ -90,8 +90,8 @@ static void cpus_time_update_running(struct cpus_time *ct, int cpu, u64 time)
 }
 
 
-static atomic64_t sys_read_byte;
-static atomic64_t sys_write_byte;
+static atomic64_t bytes_read;
+static atomic64_t bytes_written;
 static struct cpus_time ct_idle;
 static struct cpus_time ct_system;
 
@@ -99,8 +99,8 @@ static void init_data_energy(void)
 {
 	u64 time;
 
-	atomic64_set(&sys_read_byte, 0);
-	atomic64_set(&sys_write_byte, 0);
+	atomic64_set(&bytes_read, 0);
+	atomic64_set(&bytes_written, 0);
 
 	time = get_ntime();
 	cpus_time_init(&ct_idle, time);
@@ -109,8 +109,8 @@ static void init_data_energy(void)
 
 static void uninit_data_energy(void)
 {
-	atomic64_set(&sys_read_byte, 0);
-	atomic64_set(&sys_write_byte, 0);
+	atomic64_set(&bytes_read, 0);
+	atomic64_set(&bytes_written, 0);
 
 	cpus_time_init(&ct_idle, 0);
 	cpus_time_init(&ct_system, 0);
@@ -125,10 +125,10 @@ struct energy_data {
 	struct cpus_time ct;
 
 	/* for sys_read */
-	atomic64_t sys_read_byte;
+	atomic64_t bytes_read;
 
 	/*for sys_write */
-	atomic64_t sys_write_byte;
+	atomic64_t bytes_written;
 
 };
 
@@ -141,8 +141,8 @@ static void *create_ed(void)
 	ed = kmalloc(sizeof(*ed), GFP_ATOMIC);
 	if (ed) {
 		cpus_time_init(&ed->ct, get_ntime());
-		atomic64_set(&ed->sys_read_byte, 0);
-		atomic64_set(&ed->sys_write_byte, 0);
+		atomic64_set(&ed->bytes_read, 0);
+		atomic64_set(&ed->bytes_written, 0);
 	}
 
 	return (void *)ed;
@@ -322,9 +322,9 @@ static int ret_handler_sys_read(struct kretprobe_instance *ri,
 
 			ed = get_energy_data(current);
 			if (ed)
-				atomic64_add(ret, &ed->sys_read_byte);
+				atomic64_add(ret, &ed->bytes_read);
 
-			atomic64_add(ret, &sys_read_byte);
+			atomic64_add(ret, &bytes_read);
 		}
 	}
 
@@ -367,9 +367,9 @@ static int ret_handler_sys_write(struct kretprobe_instance *ri, struct pt_regs *
 
 			ed = get_energy_data(current);
 			if (ed)
-				atomic64_add(ret, &ed->sys_write_byte);
+				atomic64_add(ret, &ed->bytes_written);
 
-			atomic64_add(ret, &sys_write_byte);
+			atomic64_add(ret, &bytes_written);
 		}
 	}
 
@@ -419,10 +419,10 @@ u64 get_parameter_energy(enum parameter_energy pe)
 		val = current_time_apps();
 		break;
 	case PE_READ_SYSTEM:
-		val = atomic64_read(&sys_read_byte);
+		val = atomic64_read(&bytes_read);
 		break;
 	case PE_WRITE_SYSTEM:
-		val = atomic64_read(&sys_write_byte);
+		val = atomic64_read(&bytes_written);
 		break;
 	case PE_READ_APPS:
 		val = current_read_apps();
