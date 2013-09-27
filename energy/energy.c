@@ -83,13 +83,19 @@ static void cpus_time_update_running(struct cpus_time *ct, int cpu, u64 time)
 }
 
 
+static atomic64_t sys_read_byte;
+static atomic64_t sys_write_byte;
 static struct cpus_time ct_idle;
 static struct cpus_time ct_system;
 
 static void init_data_energy(void)
 {
-	u64 time = get_ntime();
+	u64 time;
 
+	atomic64_set(&sys_read_byte, 0);
+	atomic64_set(&sys_write_byte, 0);
+
+	time = get_ntime();
 	cpus_time_init(&ct_idle, time);
 	cpus_time_init(&ct_system, time);
 }
@@ -184,6 +190,25 @@ static int check_ftype(int fd)
 	return ret;
 }
 
+static int check_file(int fd)
+{
+	struct file *file;
+
+	file = fget(fd);
+	if (file) {
+		int magic = 0;
+		if (file->f_dentry && file->f_dentry->d_sb)
+			magic = file->f_dentry->d_sb->s_magic;
+
+		fput(file);
+
+		if (check_fs(magic) && check_ftype(fd))
+			return 1;
+	}
+
+	return 0;
+}
+
 static unsigned long get_arg0(struct pt_regs *regs)
 {
 #if defined(CONFIG_ARM)
@@ -267,43 +292,24 @@ static int entry_handler_sys_read(struct kretprobe_instance *ri, struct pt_regs 
 	return 0;
 }
 
-static struct energy_data *get_and_check_energy_data(int fd)
-{
-	struct energy_data *ed;
-	ed = get_energy_data(current);
-	if (ed) {
-		struct file *file;
-
-		file = fget(fd);
-		if (file) {
-			int magic = 0;
-			if (file->f_dentry && file->f_dentry->d_sb)
-				magic = file->f_dentry->d_sb->s_magic;
-
-			fput(file);
-
-			if (check_fs(magic) && check_ftype(fd))
-				return ed;
-		}
-	}
-
-	return NULL;
-}
-
 static int ret_handler_sys_read(struct kretprobe_instance *ri,
 				struct pt_regs *regs)
 {
 	int ret = regs_return_value(regs);
 
 	if (ret > 0) {
-		struct energy_data *ed;
 		struct sys_read_data *srd;
 
 		srd = (struct sys_read_data *)ri->data;
-		ed = get_and_check_energy_data(srd->fd);
+		if (check_file(srd->fd)) {
+			struct energy_data *ed;
 
-		if (ed)
-			atomic64_add(ret, &ed->sys_read_byte);
+			ed = get_energy_data(current);
+			if (ed)
+				atomic64_add(ret, &ed->sys_read_byte);
+
+			atomic64_add(ret, &sys_read_byte);
+		}
 	}
 
 	return 0;
@@ -337,13 +343,18 @@ static int ret_handler_sys_write(struct kretprobe_instance *ri, struct pt_regs *
 	int ret = regs_return_value(regs);
 
 	if (ret > 0) {
-		struct energy_data *ed;
 		struct sys_read_data *srd;
 
 		srd = (struct sys_read_data *)ri->data;
-		ed = get_and_check_energy_data(srd->fd);
-		if (ed)
-			atomic64_add(ret, &ed->sys_write_byte);
+		if (check_file(srd->fd)) {
+			struct energy_data *ed;
+
+			ed = get_energy_data(current);
+			if (ed)
+				atomic64_add(ret, &ed->sys_write_byte);
+
+			atomic64_add(ret, &sys_write_byte);
+		}
 	}
 
 	return 0;
