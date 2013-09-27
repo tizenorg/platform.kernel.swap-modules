@@ -90,33 +90,6 @@ static void cpus_time_update_running(struct cpus_time *ct, int cpu, u64 time)
 }
 
 
-static atomic64_t bytes_read;
-static atomic64_t bytes_written;
-static struct cpus_time ct_idle;
-static struct cpus_time ct_system;
-
-static void init_data_energy(void)
-{
-	u64 time;
-
-	atomic64_set(&bytes_read, 0);
-	atomic64_set(&bytes_written, 0);
-
-	time = get_ntime();
-	cpus_time_init(&ct_idle, time);
-	cpus_time_init(&ct_system, time);
-}
-
-static void uninit_data_energy(void)
-{
-	atomic64_set(&bytes_read, 0);
-	atomic64_set(&bytes_written, 0);
-
-	cpus_time_init(&ct_idle, 0);
-	cpus_time_init(&ct_system, 0);
-}
-
-
 
 
 
@@ -134,16 +107,27 @@ struct energy_data {
 
 static sspt_feature_id_t feature_id = SSPT_FEATURE_ID_BAD;
 
+static void init_ed(struct energy_data *ed)
+{
+	cpus_time_init(&ed->ct, get_ntime());
+	atomic64_set(&ed->bytes_read, 0);
+	atomic64_set(&ed->bytes_written, 0);
+}
+
+static void uninit_ed(struct energy_data *ed)
+{
+	cpus_time_init(&ed->ct, 0);
+	atomic64_set(&ed->bytes_read, 0);
+	atomic64_set(&ed->bytes_written, 0);
+}
+
 static void *create_ed(void)
 {
 	struct energy_data *ed;
 
 	ed = kmalloc(sizeof(*ed), GFP_ATOMIC);
-	if (ed) {
-		cpus_time_init(&ed->ct, get_ntime());
-		atomic64_set(&ed->bytes_read, 0);
-		atomic64_set(&ed->bytes_written, 0);
-	}
+	if (ed)
+		init_ed(ed);
 
 	return (void *)ed;
 }
@@ -240,6 +224,25 @@ static unsigned long get_arg0(struct pt_regs *regs)
 
 
 
+static struct cpus_time ct_idle;
+static struct energy_data ed_system;
+
+static void init_data_energy(void)
+{
+	init_ed(&ed_system);
+	cpus_time_init(&ct_idle, get_ntime());
+}
+
+static void uninit_data_energy(void)
+{
+	uninit_ed(&ed_system);
+	cpus_time_init(&ct_idle, 0);
+}
+
+
+
+
+
 /* ============================================================================
  * =                             __switch_to                                  =
  * ============================================================================
@@ -253,7 +256,7 @@ static int entry_handler_switch(struct kretprobe_instance *ri, struct pt_regs *r
 
 	cpu = task_cpu(current);
 	time = get_ntime();
-	ct = current->tgid ? &ct_system : &ct_idle;
+	ct = current->tgid ? &ed_system.ct : &ct_idle;
 	cpus_time_update_running(ct, cpu, time);
 
 	ed = get_energy_data(current);
@@ -272,7 +275,7 @@ static int ret_handler_switch(struct kretprobe_instance *ri, struct pt_regs *reg
 
 	cpu = task_cpu(current);
 	time = get_ntime();
-	ct = current->tgid ? &ct_system : &ct_idle;
+	ct = current->tgid ? &ed_system.ct : &ct_idle;
 	cpus_time_save_entry(ct, cpu, time);
 
 	ed = get_energy_data(current);
@@ -324,7 +327,7 @@ static int ret_handler_sys_read(struct kretprobe_instance *ri,
 			if (ed)
 				atomic64_add(ret, &ed->bytes_read);
 
-			atomic64_add(ret, &bytes_read);
+			atomic64_add(ret, &ed_system.bytes_read);
 		}
 	}
 
@@ -369,7 +372,7 @@ static int ret_handler_sys_write(struct kretprobe_instance *ri, struct pt_regs *
 			if (ed)
 				atomic64_add(ret, &ed->bytes_written);
 
-			atomic64_add(ret, &bytes_written);
+			atomic64_add(ret, &ed_system.bytes_written);
 		}
 	}
 
@@ -413,16 +416,16 @@ u64 get_parameter_energy(enum parameter_energy pe)
 		val = cpus_time_get_running_all(&ct_idle);
 		break;
 	case PE_TIME_SYSTEM:
-		val = cpus_time_get_running_all(&ct_system);
+		val = cpus_time_get_running_all(&ed_system.ct);
 		break;
 	case PE_TIME_APPS:
 		val = current_time_apps();
 		break;
 	case PE_READ_SYSTEM:
-		val = atomic64_read(&bytes_read);
+		val = atomic64_read(&ed_system.bytes_read);
 		break;
 	case PE_WRITE_SYSTEM:
-		val = atomic64_read(&bytes_written);
+		val = atomic64_read(&ed_system.bytes_written);
 		break;
 	case PE_READ_APPS:
 		val = current_read_apps();
