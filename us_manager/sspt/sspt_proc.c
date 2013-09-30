@@ -56,6 +56,7 @@
 	}
 
 static LIST_HEAD(proc_probes_list);
+static DEFINE_SPINLOCK(proc_lock);
 
 struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
 {
@@ -87,7 +88,9 @@ void sspt_proc_free(struct sspt_proc *proc)
 	struct sspt_file *file, *n;
 
 	/* delete from list */
+	spin_lock(&proc_lock);
 	list_del(&proc->list);
+	spin_unlock(&proc_lock);
 
 	list_for_each_entry_safe(file, n, &proc->file_list, list) {
 		list_del(&file->list);
@@ -116,9 +119,11 @@ void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data)
 {
 	struct sspt_proc *proc, *tmp;
 
+	spin_lock(&proc_lock);
 	list_for_each_entry_safe(proc, tmp, &proc_probes_list, list) {
 		func(proc, data);
 	}
+	spin_unlock(&proc_lock);
 }
 
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
