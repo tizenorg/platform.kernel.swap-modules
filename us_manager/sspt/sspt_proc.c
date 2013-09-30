@@ -125,6 +125,7 @@ void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data)
 	}
 	spin_unlock(&proc_lock);
 }
+EXPORT_SYMBOL_GPL(on_each_proc);
 
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
 					       void *priv)

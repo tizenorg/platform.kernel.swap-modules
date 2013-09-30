@@ -389,22 +389,51 @@ static struct kretprobe sys_write_krp = {
 
 
 
-static u64 current_time_apps(void)
+enum parameter_type {
+	PT_CPU,
+	PT_READ,
+	PT_WRITE
+};
+
+struct cmd_pt {
+	enum parameter_type pt;
+	u64 val;
+};
+
+static void callback_for_proc(struct sspt_proc *proc, void *data)
 {
-	/* TODO: implement */
-	return 0;
+	void *f_data = sspt_get_feature_data(proc->feature, feature_id);
+	struct energy_data *ed = (struct energy_data *)f_data;
+
+	if (ed) {
+		struct cmd_pt *cmdp = (struct cmd_pt *)data;
+
+		switch (cmdp->pt) {
+		case PT_CPU:
+			cmdp->val += cpus_time_get_running_all(&ed->ct);
+			break;
+		case PT_READ:
+			cmdp->val += atomic64_read(&ed->bytes_read);
+			break;
+		case PT_WRITE:
+			cmdp->val += atomic64_read(&ed->bytes_written);
+			break;
+		default:
+			break;
+		}
+	}
 }
 
-static u64 current_read_apps(void)
+static u64 current_parameter_apps(enum parameter_type pt)
 {
-	/* TODO: implement */
-	return 0;
-}
+	struct cmd_pt cmdp;
 
-static u64 current_write_apps(void)
-{
-	/* TODO: implement */
-	return 0;
+	cmdp.pt = pt;
+	cmdp.val = 0;
+
+	on_each_proc(callback_for_proc, (void *)&cmdp);
+
+	return cmdp.val;
 }
 
 u64 get_parameter_energy(enum parameter_energy pe)
@@ -419,7 +448,7 @@ u64 get_parameter_energy(enum parameter_energy pe)
 		val = cpus_time_get_running_all(&ed_system.ct);
 		break;
 	case PE_TIME_APPS:
-		val = current_time_apps();
+		val = current_parameter_apps(PT_CPU);
 		break;
 	case PE_READ_SYSTEM:
 		val = atomic64_read(&ed_system.bytes_read);
@@ -428,10 +457,10 @@ u64 get_parameter_energy(enum parameter_energy pe)
 		val = atomic64_read(&ed_system.bytes_written);
 		break;
 	case PE_READ_APPS:
-		val = current_read_apps();
+		val = current_parameter_apps(PT_READ);
 		break;
 	case PE_WRITE_APPS:
-		val = current_write_apps();
+		val = current_parameter_apps(PT_WRITE);
 		break;
 	default:
 		break;
