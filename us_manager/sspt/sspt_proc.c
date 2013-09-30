@@ -112,12 +112,12 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 }
 EXPORT_SYMBOL_GPL(sspt_proc_get_by_task);
 
-void on_each_proc(void (*func)(struct sspt_proc *proc))
+void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data)
 {
 	struct sspt_proc *proc, *tmp;
 
 	list_for_each_entry_safe(proc, tmp, &proc_probes_list, list) {
-		func(proc);
+		func(proc, data);
 	}
 }
 

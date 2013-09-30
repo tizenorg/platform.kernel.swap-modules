@@ -319,6 +319,11 @@ static void clean_pfg(void)
 	}
 }
 
+static void on_each_uninstall_proc(struct sspt_proc *proc, void *data)
+{
+	uninstall_proc(proc);
+}
+
 void uninstall_all(void)
 {
 	int tmp_oops_in_progress;
@@ -326,7 +331,7 @@ void uninstall_all(void)
 	tmp_oops_in_progress = oops_in_progress;
 	oops_in_progress = 1;
 
-	on_each_proc(uninstall_proc);
+	on_each_proc(on_each_uninstall_proc, NULL);
 
 	oops_in_progress = tmp_oops_in_progress;
 
