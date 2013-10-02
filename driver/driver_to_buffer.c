@@ -146,23 +146,6 @@ int driver_to_buffer_callback(void)
 	return E_SD_SUCCESS;
 }
 
-/* Write to buffers */
-ssize_t driver_to_buffer_write(size_t size, void* data)
-{
-	ssize_t result;
-
-	result = us_msg(data);
-	if (result == -E_SB_IS_STOPPED) {
-		print_err("Buffer is not run! Initialize it before writing\n");
-		return -E_SD_WRITE_ERROR;
-	} else if (result < 0) {
-		/* print_err("swap_buffer_write error %d\n", result); */
-		return -E_SD_WRITE_ERROR;
-	}
-
-	return result;
-}
-
 /* Read buffers */
 ssize_t driver_to_buffer_read(char __user *buf, size_t count)
 {

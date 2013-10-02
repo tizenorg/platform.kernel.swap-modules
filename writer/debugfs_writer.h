@@ -1,6 +1,9 @@
+#ifndef _DEBUGFS_WRITER_H
+#define _DEBUGFS_WRITER_H
+
 /*
- *  SWAP driver
- *  modules/driver/driver_to_buffer.h
+ *  Dynamic Binary Instrumentation Module based on KProbes
+ *  writer/debugfs_writer.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,21 +21,11 @@
  *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
+ * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
  */
 
-#ifndef __SWAP_DRIVER_DRIVER_TO_BUFFER__
-#define __SWAP_DRIVER_DRIVER_TO_BUFFER__
+int init_debugfs_writer(void);
+void exit_debugfs_writer(void);
 
-int driver_to_buffer_initialize(size_t size, unsigned int count);
-int driver_to_buffer_uninitialize(void);
-ssize_t driver_to_buffer_read(char __user *buf, size_t count);
-void driver_to_buffer_callback(void);
-int driver_to_buffer_fill_spd(struct splice_pipe_desc *spd);
-int driver_to_buffer_buffer_to_read(void);
-int driver_to_buffer_next_buffer_to_read(void);
-int driver_to_buffer_flush(void);
-
-
-#endif /* __SWAP_DRIVER_DRIVER_TO_BUFFER__ */
+#endif /* _DEBUGFS_WRITER_H */

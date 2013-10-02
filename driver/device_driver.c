@@ -54,8 +54,6 @@ static int swap_device_open(struct inode *inode, struct file *filp);
 static int swap_device_release(struct inode *inode, struct file *file);
 static ssize_t swap_device_read(struct file *filp, char __user *buf,
 								size_t count, loff_t *f_pos);
-static ssize_t swap_device_write(struct file *filp, const char __user *buf,
-								 size_t count, loff_t *f_pos);
 static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 							 unsigned long arg);
 static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
@@ -65,7 +63,6 @@ static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
 /* File operations structure */
 const struct file_operations swap_device_fops = {
 	.read = swap_device_read,
-	.write = swap_device_write,
 	.open = swap_device_open,
 	.release = swap_device_release,
 	.unlocked_ioctl = swap_device_ioctl,
@@ -262,33 +259,6 @@ static ssize_t swap_device_read(struct file *filp, char __user *buf,
 swap_device_read_error:
 	finish_wait(&swap_device_wait, &wait);
 
-	return result;
-}
-
-static ssize_t swap_device_write(struct file *filp, const char __user *buf,
-								 size_t count, loff_t *f_pos)
-{
-	char *kern_buffer = NULL;
-	ssize_t result = 0;
-
-	kern_buffer = kmalloc(count, GFP_KERNEL);
-	if (!kern_buffer) {
-		print_err("Error allocating memory for buffer\n");
-		goto swap_device_write_out;
-	}
-
-	result = copy_from_user(kern_buffer, buf, count);
-
-	result = count - result;
-
-	/* Return 0 if there was an error while writing */
-	result = driver_to_buffer_write(result, kern_buffer);
-	if (result < 0)
-		result = 0;
-
-	kfree(kern_buffer);
-
-swap_device_write_out:
 	return result;
 }
 

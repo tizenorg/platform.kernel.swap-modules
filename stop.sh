@@ -8,8 +8,8 @@ rmmod swap_us_manager
 rmmod swap_uprobe
 rmmod swap_ks_manager
 rmmod swap_kprobe
-rmmod swap_driver
 rmmod swap_writer
+rmmod swap_driver
 rmmod swap_buffer
 
 

@@ -64,6 +64,6 @@ int switch_exit(struct pt_regs *regs);
 
 int error_msg(const char *fmt, ...);
 
-int us_msg(void *us_message);
+int raw_msg(char *buf, size_t len);
 
 #endif /* _SWAP_MSG_H */

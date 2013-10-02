@@ -41,6 +41,7 @@
 #include "swap_writer_module.h"
 #include "swap_writer_errors.h"
 #include "kernel_operations.h"
+#include "debugfs_writer.h"
 
 
 enum MSG_ID {
@@ -660,31 +661,39 @@ int error_msg(const char *fmt, ...)
 }
 EXPORT_SYMBOL_GPL(error_msg);
 
+
+
+
+
 /* ============================================================================
  * =                         MESSAGES FROM USER SPACE                         =
  * ============================================================================
  */
 
-int us_msg(void *us_message)
+int raw_msg(char *buf, size_t len)
 {
-	struct basic_msg_fmt *bmf = (struct basic_msg_fmt *)us_message;
+	struct basic_msg_fmt *bmf = (struct basic_msg_fmt *)buf;
+
+	if (sizeof(*bmf) > len)
+		return -EINVAL;
+
+	if (bmf->len + sizeof(*bmf) != len)
+		return -EINVAL;
 
 	set_seq_num(bmf);
-	return write_to_buffer(us_message);
-}
-EXPORT_SYMBOL_GPL(us_msg);
+	write_to_buffer(buf);
 
+	return len;
+}
 
 static int __init swap_writer_module_init(void)
 {
-	print_msg("SWAP Writer initialized\n");
-
-	return 0;
+	return init_debugfs_writer();
 }
 
 static void __exit swap_writer_module_exit(void)
 {
-	print_msg("SWAP Writer uninitialized\n");
+	exit_debugfs_writer();
 }
 
 
