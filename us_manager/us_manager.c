@@ -27,9 +27,11 @@
 #include "pf/pf_group.h"
 #include "sspt/sspt_proc.h"
 #include "helper.h"
+#include <writer/event_filter.h>
 
 /* FIXME: move /un/init_msg() elsewhere and remove this include  */
 #include <writer/swap_writer_module.h>		/* for /un/init_msg() */
+
 
 
 static DEFINE_MUTEX(mutex_inst);
@@ -98,9 +100,51 @@ unlock:
 }
 EXPORT_SYMBOL_GPL(usm_start);
 
+
+
+
+
+/* ============================================================================
+ * ===                              US_FILTER                               ===
+ * ============================================================================
+ */
+static int us_filter(struct task_struct *task)
+{
+	return !!sspt_proc_get_by_task(task);
+}
+
+static struct ev_filter ev_us_filter = {
+	.name = "traced_process_only",
+	.filter = us_filter
+};
+
+static int init_us_filter(void)
+{
+	int ret;
+
+	ret = event_filter_register(&ev_us_filter);
+	if (ret)
+		return ret;
+
+	return event_filter_set(ev_us_filter.name);
+}
+
+static void exit_us_filter(void)
+{
+	event_filter_unregister(&ev_us_filter);
+}
+
+
+
+
+
 static int __init init_us_manager(void)
 {
 	int ret;
+
+	ret = init_us_filter();
+	if (ret)
+		return ret;
 
 	init_msg(32*1024);
 
@@ -120,6 +164,7 @@ static void __exit exit_us_manager(void)
 
 	uninit_msg();
 	uninit_helper();
+	exit_us_filter();
 }
 
 module_init(init_us_manager);
