@@ -42,6 +42,7 @@
 #include "swap_writer_errors.h"
 #include "kernel_operations.h"
 #include "debugfs_writer.h"
+#include "event_filter.h"
 
 
 enum MSG_ID {
@@ -357,6 +358,9 @@ int sample_msg(struct pt_regs *regs)
 {
 	char *buf, *payload, *buf_end;
 
+	if (!check_event(current))
+		return 0;
+
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_SAMPLE);
 	buf_end = pack_sample(payload, regs);
@@ -503,6 +507,9 @@ int entry_event(const char *fmt, struct pt_regs *regs,
 	char *buf, *payload, *args, *buf_end;
 	int ret;
 
+	if (pt == PT_KS && !check_event(current))
+		return 0;
+
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_ENTRY);
 	args = pack_msg_func_entry(payload, fmt, regs, pt, sub_type);
@@ -557,6 +564,9 @@ int exit_event(struct pt_regs *regs, unsigned long func_addr)
 {
 	char *buf, *payload, *buf_end;
 
+	if (!check_event(current))
+		return 0;
+
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_EXIT);
 	buf_end = pack_msg_func_exit(payload, regs, func_addr);
@@ -609,12 +619,18 @@ static int context_switch(struct pt_regs *regs, enum MSG_ID id)
 
 int switch_entry(struct pt_regs *regs)
 {
+	if (!check_event(current))
+		return 0;
+
 	return context_switch(regs, MSG_CONTEXT_SWITCH_ENTRY);
 }
 EXPORT_SYMBOL_GPL(switch_entry);
 
 int switch_exit(struct pt_regs *regs)
 {
+	if (!check_event(current))
+		return 0;
+
 	return context_switch(regs, MSG_CONTEXT_SWITCH_EXIT);
 }
 EXPORT_SYMBOL_GPL(switch_exit);
@@ -688,16 +704,24 @@ int raw_msg(char *buf, size_t len)
 
 static int __init swap_writer_module_init(void)
 {
-	return init_debugfs_writer();
+	int ret;
+
+	ret = event_filter_init();
+	if (ret)
+		return ret;
+
+	ret = init_debugfs_writer();
+	if (ret)
+		event_filter_exit();
+
+	return ret;
 }
 
 static void __exit swap_writer_module_exit(void)
 {
 	exit_debugfs_writer();
+	event_filter_exit();
 }
-
-
-
 
 module_init(swap_writer_module_init);
 module_exit(swap_writer_module_exit);

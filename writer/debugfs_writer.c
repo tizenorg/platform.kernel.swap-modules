@@ -26,9 +26,11 @@
 #include <linux/module.h>
 #include <linux/debugfs.h>
 #include <linux/vmalloc.h>
+#include <linux/slab.h>
 #include <asm/uaccess.h>
 #include <driver/swap_debugfs.h>
 #include "swap_writer_module.h"
+#include "event_filter.h"
 
 
 /* ============================================================================
@@ -81,6 +83,119 @@ static const struct file_operations fops_raw = {
 
 
 /* ============================================================================
+ * ===                        FOPS_AVAILABLE_FILTERS                        ===
+ * ============================================================================
+ */
+struct read_buf {
+	char *begin;
+	char *ptr;
+	char *end;
+};
+
+static void func_for_read(struct ev_filter *f, void *data)
+{
+	struct read_buf *rbuf = (struct read_buf *)data;
+	int len = strlen(f->name);
+
+	if (rbuf->end - rbuf->ptr < len + 2)
+		return;
+
+	if (rbuf->ptr != rbuf->begin) {
+		*rbuf->ptr = ' ';
+		++rbuf->ptr;
+	}
+
+	memcpy(rbuf->ptr, f->name, len);
+	rbuf->ptr += len;
+}
+
+static ssize_t read_af(struct file *file, char __user *user_buf,
+		       size_t count, loff_t *ppos)
+{
+	char buf[512];
+	struct read_buf rbuf = {
+		.begin = buf,
+		.ptr = buf,
+		.end = buf + sizeof(buf)
+	};
+
+	event_filter_on_each(func_for_read, (void *)&rbuf);
+
+	*rbuf.ptr = '\n';
+	++rbuf.ptr;
+
+	return simple_read_from_buffer(user_buf, count, ppos,
+				       rbuf.begin, rbuf.ptr - rbuf.begin);
+}
+
+static const struct file_operations fops_available_filters = {
+	.read =		read_af,
+	.llseek =	default_llseek
+};
+
+
+
+
+
+/* ============================================================================
+ * ===                              FOPS_FILTER                             ===
+ * ============================================================================
+ */
+static ssize_t read_filter(struct file *file, char __user *user_buf,
+			   size_t count, loff_t *ppos)
+{
+	const char *name = event_filter_get();
+	int len = strlen(name);
+	char *buf;
+	ssize_t ret;
+
+	buf = kmalloc(len + 2, GFP_KERNEL);
+	memcpy(buf, name, len);
+
+	buf[len] = '\0';
+	buf[len + 1] = '\n';
+
+	ret = simple_read_from_buffer(user_buf, count, ppos, buf, len + 2);
+	kfree(buf);
+
+	return ret;
+}
+
+static ssize_t write_filter(struct file *file, const char __user *user_buf,
+			size_t count, loff_t *ppos)
+{
+	enum { len = 32 };
+	char buf[len], name[len];
+	size_t buf_size;
+	ssize_t ret;
+
+	buf_size = min(count, (size_t)(len - 1));
+	if (copy_from_user(buf, user_buf, buf_size))
+		return -EFAULT;
+
+	buf[len - 1] = '\0';
+	ret = sscanf(buf, "%31s", name);
+	if (ret != 1)
+		return -EINVAL;
+
+	ret = event_filter_set(name);
+	if (ret)
+		return -EINVAL;
+
+	return count;
+}
+
+static const struct file_operations fops_filter = {
+	.read =		read_filter,
+	.write =	write_filter,
+	.llseek =	default_llseek
+};
+
+
+
+
+
+/* ============================================================================
  * ===                              INIT/EXIT                               ===
  * ============================================================================
  */
@@ -114,10 +229,20 @@ int init_debugfs_writer(void)
 		return -ENOMEM;
 
 	dentry = debugfs_create_file("raw", 0600, writer_dir, NULL, &fops_raw);
-	if (dentry == NULL) {
-		exit_debugfs_writer();
-		return -ENOMEM;
-	}
+	if (dentry == NULL)
+		goto fail;
+
+	dentry = debugfs_create_file("available_filters", 0600, writer_dir, NULL, &fops_available_filters);
+	if (dentry == NULL)
+		goto fail;
+
+	dentry = debugfs_create_file("filter", 0600, writer_dir, NULL, &fops_filter);
+	if (dentry == NULL)
+		goto fail;
 
 	return 0;
+
+fail:
+	exit_debugfs_writer();
+	return -ENOMEM;
 }

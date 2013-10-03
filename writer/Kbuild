@@ -3,4 +3,5 @@ EXTRA_CFLAGS := $(extra_cflags)
 obj-m := swap_writer.o
 swap_writer-y := swap_writer_module.o \
                  kernel_operations.o \
-                 debugfs_writer.o
+                 debugfs_writer.o \
+                 event_filter.o
