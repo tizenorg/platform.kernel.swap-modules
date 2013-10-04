@@ -42,12 +42,13 @@ static int ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 	unsigned long addr = (unsigned long)ip->retprobe.up.kp.addr;
+	unsigned long ret_addr = ri->ret_addr;
 
 #if defined(CONFIG_ARM)
 	addr = ip->offset & 0x01 ? addr | 0x01 : addr;
 #endif
 
-	exit_event(regs, addr);
+	exit_event(regs, addr, ret_addr);
 
 	return 0;
 }

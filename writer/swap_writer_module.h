@@ -57,7 +57,8 @@ int sample_msg(struct pt_regs *regs);
 
 int entry_event(const char *fmt, struct pt_regs *regs,
 		 enum PROBE_TYPE pt, int sub_type);
-int exit_event(struct pt_regs *regs, unsigned long func_addr);
+int exit_event(struct pt_regs *regs, unsigned long func_addr,
+	       unsigned long ret_addr);
 
 int switch_entry(struct pt_regs *regs);
 int switch_exit(struct pt_regs *regs);
