@@ -99,7 +99,7 @@ EXPORT_SYMBOL_GPL(get_discarded_count);
 
 static char *get_current_buf(void)
 {
-	return cpu_buf[task_cpu(current)];
+	return cpu_buf[smp_processor_id()];
 }
 
 static inline u64 timespec2time(struct timespec *ts)
@@ -349,7 +349,7 @@ static char *pack_sample(char *payload, struct pt_regs *regs)
 	s->pid = task->tgid;
 	s->pc_addr = get_regs_ip(regs);
 	s->tid = task->pid;
-	s->cpu_num = task_cpu(current);
+	s->cpu_num = smp_processor_id();
 
 	return payload + sizeof(*s);
 }
@@ -399,7 +399,7 @@ static char *pack_msg_func_entry(char *payload, const char *fmt, struct pt_regs 
 
 	mfe->pid = task->tgid;
 	mfe->tid = task->pid;
-	mfe->cpu_num = task_cpu(task);
+	mfe->cpu_num = smp_processor_id();
 	mfe->pc_addr = get_regs_ip(regs);
 //TODO ret address for x86!
 	mfe->caller_pc_addr = get_regs_ret_func(regs);
@@ -556,7 +556,7 @@ static char *pack_msg_func_exit(char *payload, struct pt_regs *regs,
 
 	mfe->pid = task->tgid;
 	mfe->tid = task->pid;
-	mfe->cpu_num = task_cpu(task);
+	mfe->cpu_num = smp_processor_id();
 	mfe->pc_addr = func_addr;
 	mfe->caller_pc_addr = ret_addr;
 	mfe->ret_val = get_regs_ret_val(regs);
@@ -605,7 +605,7 @@ static char *pack_msg_context_switch(char *payload, struct pt_regs *regs)
 	mcs->pc_addr = 0;
 	mcs->pid = task->tgid;
 	mcs->tid = task->pid;
-	mcs->cpu_num = task_cpu(task);
+	mcs->cpu_num = smp_processor_id();
 
 	return payload + sizeof(*mcs);
 }

@@ -254,7 +254,7 @@ static int entry_handler_switch(struct kretprobe_instance *ri, struct pt_regs *r
 	struct cpus_time* ct;
 	struct energy_data *ed;
 
-	cpu = task_cpu(current);
+	cpu = smp_processor_id();
 	time = get_ntime();
 	ct = current->tgid ? &ed_system.ct : &ct_idle;
 	cpus_time_update_running(ct, cpu, time);
@@ -273,7 +273,7 @@ static int ret_handler_switch(struct kretprobe_instance *ri, struct pt_regs *reg
 	struct cpus_time* ct;
 	struct energy_data *ed;
 
-	cpu = task_cpu(current);
+	cpu = smp_processor_id();
 	time = get_ntime();
 	ct = current->tgid ? &ed_system.ct : &ct_idle;
 	cpus_time_save_entry(ct, cpu, time);
