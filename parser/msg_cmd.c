@@ -59,27 +59,14 @@ int msg_keep_alive(struct msg_buf *mb)
 int msg_start(struct msg_buf *mb)
 {
 	int ret = 0;
-	struct app_info_data *app_info;
-	struct conf_data *conf;
 	struct us_inst_data *us_inst;
 
 	reset_seq_num();
 	reset_discarded();
 
-	app_info = create_app_info(mb);
-	if (app_info == NULL)
-		return -EINVAL;
-
-	conf = create_conf_data(mb);
-	if (conf == NULL) {
-		ret = -EINVAL;
-		goto free_app_info;
-	}
-
 	us_inst = create_us_inst_data(mb);
 	if (us_inst == NULL) {
-		ret = -EINVAL;
-		goto free_conf;
+		return -EINVAL;
 	}
 
 	if (!is_end_mb(mb)) {
@@ -95,23 +82,10 @@ int msg_start(struct msg_buf *mb)
 		goto free_us_inst;
 	}
 
-	ret = set_config(conf);
-	if (ret) {
-		printk("Cannot set config, ret = %d\n", ret);
-		ret = -EINVAL;
-		goto free_us_inst;
-	}
-
 	return 0;
 
 free_us_inst:
 	destroy_us_inst_data(us_inst);
-
-free_conf:
-	destroy_conf_data(conf);
-
-free_app_info:
-	destroy_app_info(app_info);
 
 	return ret;
 }
