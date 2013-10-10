@@ -113,3 +113,11 @@ int check_pf_by_tgid(struct proc_filter *filter, pid_t tgid)
 {
 	return filter->data == (void *)tgid && filter->call == &call_by_tgid;
 }
+
+struct dentry *get_dentry_by_pf(struct proc_filter *filter)
+{
+	if (filter->call == &call_by_dentry)
+		return (struct dentry *)filter->data;
+
+	return NULL;
+}

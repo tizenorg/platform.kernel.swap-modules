@@ -52,7 +52,7 @@ void reset_discarded(void);
 unsigned int get_discarded_count(void);
 void reset_seq_num(void);
 
-int proc_info_msg(struct task_struct *task, void *priv);
+int proc_info_msg(struct task_struct *task, struct dentry *dentry);
 int sample_msg(struct pt_regs *regs);
 
 int entry_event(const char *fmt, struct pt_regs *regs,

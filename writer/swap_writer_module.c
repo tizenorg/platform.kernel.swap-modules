@@ -187,11 +187,11 @@ static char* pack_basic_msg_fmt(char *buf, enum MSG_ID id)
 
 struct proc_info {
 	u32 pid;
-	u64 start_time;
+	u32 ppid;
+	u32 start_sec;
+	u32 start_nsec;
 	u64 low_addr;
 	u64 high_addr;
-	u32 app_type;
-	u32 bin_type;
 	char bin_path[0];
 } __attribute__((packed));
 
@@ -230,7 +230,6 @@ static char *pack_path(char *buf, struct file *file)
 static char *pack_lib_obj(char *lib_obj, struct vm_area_struct *vma)
 {
 	struct lib_obj *lo = (struct lib_obj *)lib_obj;
-	struct file *file;
 
 	lo->low_addr = vma->vm_start;
 	lo->high_addr = vma->vm_end;
@@ -242,83 +241,85 @@ static char *pack_lib_obj(char *lib_obj, struct vm_area_struct *vma)
 static int check_vma(struct vm_area_struct *vma)
 {
 	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
-			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
 			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
 }
 
-static struct vm_area_struct *find_vma_by_dentry(struct mm_struct *mm,
-					  struct dentry *dentry)
+static struct vm_area_struct *find_vma_exe_by_dentry(struct mm_struct *mm, struct dentry *dentry)
 {
 	struct vm_area_struct *vma;
 
-	down_write(&mm->mmap_sem);
+	down_read(&mm->mmap_sem);
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if (check_vma(vma) && vma->vm_file &&
-		    (vma->vm_file->f_dentry == dentry))
+		if (vma->vm_file && (vma->vm_flags & VM_EXEC) &&
+		   (vma->vm_file->f_dentry == dentry))
 			goto out;
 	}
 
 	vma = NULL;
-
 out:
-	up_write(&mm->mmap_sem);
+	up_read(&mm->mmap_sem);
 
 	return vma;
 }
 
-static char *pack_proc_info_part(char *bin_path, struct mm_struct *mm)
+static char *pack_proc_info_part(char *end_path, struct mm_struct *mm)
 {
 	struct proc_info_part *pip;
 	struct vm_area_struct *vma;
-	char *lib_obj, *end_path = NULL;
+	char *lib_obj;
 	int lib_cnt = 0;
-	char bin_path_def[] = "";
-
-	memcpy(bin_path, bin_path_def, sizeof(bin_path_def));
-	end_path = bin_path + sizeof(bin_path_def);
 
 	pip = (struct proc_info_part *)end_path;
 	lib_obj = pip->libs;
 
-	down_write(&mm->mmap_sem);
+	down_read(&mm->mmap_sem);
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (check_vma(vma)) {
 			lib_obj = pack_lib_obj(lib_obj, vma);
 			++lib_cnt;
 		}
 	}
-	up_write(&mm->mmap_sem);
+	up_read(&mm->mmap_sem);
 
 	pip->lib_cnt = lib_cnt;
 	return lib_obj;
 }
 
 static char *pack_proc_info(char *payload, struct task_struct *task,
-			    void *priv)
+			    struct dentry *dentry)
 {
 	struct proc_info *pi = (struct proc_info *)payload;
-	struct dentry *dentry_exec = (struct dentry *)priv;
-	struct vm_area_struct *vma = find_vma_by_dentry(task->mm, dentry_exec);
+	struct vm_area_struct *vma = find_vma_exe_by_dentry(task->mm, dentry);
+	struct timespec current_time;
+	char *end_path = NULL;
 
 	pi->pid = task->tgid;
+	pi->ppid = task->real_parent->tgid;
 
-	/* FIXME: */
-	pi->start_time = timespec2time(&task->start_time);
-	pi->low_addr = vma ? vma->vm_start : 0;
-	pi->high_addr = vma ? vma->vm_end : 0;
-	pi->app_type = 1;	/* TODO: hardcode for Tizen*/
-	pi->bin_type = 0;	/* TODO: determined in US */
+	/* FIXME: pi->start_time: take into account task->start_time, system uptime */
+	getnstimeofday(&current_time);
+	pi->start_sec = (u32)current_time.tv_sec;
+	pi->start_nsec = (u32)current_time.tv_nsec;
 
-	return pack_proc_info_part(pi->bin_path, task->mm);
+	if (vma) {
+		pi->low_addr = vma->vm_start;
+		pi->high_addr = vma->vm_end;
+		end_path = pack_path(pi->bin_path, vma->vm_file);
+	} else {
+		pi->low_addr = 0;
+		pi->high_addr = 0;
+		end_path = pack_path(pi->bin_path, NULL);
+	}
+	return pack_proc_info_part(end_path, task->mm);
 }
 
-int proc_info_msg(struct task_struct *task, void *priv)
+int proc_info_msg(struct task_struct *task, struct dentry *dentry)
 {
 	char *buf, *payload, *buf_end;
 
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_PROC_INFO);
-	buf_end = pack_proc_info(payload, task, priv);
+	buf_end = pack_proc_info(payload, task, dentry);
 
 	set_len_msg(buf, buf_end);
 

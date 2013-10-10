@@ -45,5 +45,6 @@ void free_pf(struct proc_filter *pf);
 
 int check_pf_by_dentry(struct proc_filter *filter, struct dentry *dentry);
 int check_pf_by_tgid(struct proc_filter *filter, pid_t tgid);
+struct dentry *get_dentry_by_pf(struct proc_filter *filter);
 
 #endif /* _PROC_FILTERS_H */

@@ -32,6 +32,7 @@
 #include <img/img_ip.h>
 #include <sspt/sspt_proc.h>
 #include <helper.h>
+#include <writer/swap_writer_module.h>
 
 struct pf_group {
 	struct list_head list;
@@ -217,9 +218,8 @@ EXPORT_SYMBOL_GPL(pf_unregister_probe);
 
 void call_page_fault(struct task_struct *task, unsigned long page_addr)
 {
-	struct pf_group *pfg;
+	struct pf_group *pfg, *pfg_first = NULL;
 	struct sspt_proc *proc = NULL;
-	int install_all = 0;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_task_f(pfg->filter, task) == NULL)
@@ -228,15 +228,26 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 		proc = get_proc_by_pfg(pfg, task);
 		if (proc == NULL) {
 			proc = new_proc_by_pfg(pfg, task);
-			install_all = 1;
+			pfg_first = pfg;
 		}
 	}
 
 	if (proc) {
-		if (install_all)
+		if (pfg_first) {
+			struct dentry *dentry;
+
+			dentry = get_dentry_by_pf(pfg_first->filter);
+			if (dentry == NULL) {
+				dentry = task->mm->exe_file ?
+					 task->mm->exe_file->f_dentry :
+					 NULL;
+			}
+
+			proc_info_msg(task, dentry);
 			sspt_proc_install(proc);
-		else
+		} else {
 			sspt_proc_install_page(proc, page_addr);
+		}
 	}
 }
 
