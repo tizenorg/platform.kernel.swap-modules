@@ -39,9 +39,10 @@
 
 static int check_vma(struct vm_area_struct *vma)
 {
-	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
-			!(vma->vm_flags & (VM_WRITE | VM_MAYWRITE)) ||
-			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
+	return vma->vm_file &&
+	       !(vma->vm_pgoff != 0 ||
+		 !(vma->vm_flags & VM_EXEC) ||
+		 !(vma->vm_flags & (VM_READ | VM_MAYREAD)));
 }
 
 static inline int sspt_register_usprobe(struct us_ip *ip)

@@ -240,8 +240,10 @@ static char *pack_lib_obj(char *lib_obj, struct vm_area_struct *vma)
 /* FIXME: check_vma()*/
 static int check_vma(struct vm_area_struct *vma)
 {
-	return vma->vm_file && !(vma->vm_pgoff != 0 || !(vma->vm_flags & VM_EXEC) || (vma->vm_flags & VM_ACCOUNT) ||
-			!(vma->vm_flags & (VM_READ | VM_MAYREAD)));
+	return vma->vm_file &&
+	       !(vma->vm_pgoff != 0 ||
+		 !(vma->vm_flags & VM_EXEC) ||
+		 !(vma->vm_flags & (VM_READ | VM_MAYREAD)));
 }
 
 static struct vm_area_struct *find_vma_exe_by_dentry(struct mm_struct *mm, struct dentry *dentry)
