@@ -195,8 +195,11 @@ void sspt_file_install(struct sspt_file *file)
 		head = &file->page_probes_table[i];
 		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
 			page_addr = file->vm_start + page->offset;
-			mm = page->file->proc->task->mm;
+			if (page_addr < file->vm_start ||
+			    page_addr >= file->vm_end)
+				continue;
 
+			mm = page->file->proc->task->mm;
 			if (page_present(mm, page_addr))
 				sspt_register_page(page, file);
 		}
