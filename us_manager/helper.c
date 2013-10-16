@@ -26,6 +26,7 @@
 #include <dbi_kprobes.h>
 #include <dbi_kprobes_deps.h>
 #include <ksyms.h>
+#include <writer/kernel_operations.h>
 #include "us_slot_manager.h"
 #include "sspt/sspt.h"
 #include "helper.h"
@@ -174,94 +175,78 @@ static struct kprobe mr_kprobe = {
  *                                 do_munmap()                                *
  ******************************************************************************
  */
-
-static int remove_unmap_probes(struct task_struct *task, struct sspt_proc *proc, unsigned long start, size_t len)
-{
-	struct mm_struct *mm = task->mm;
-	struct vm_area_struct *vma;
-
-	/* FIXME: not implemented */
-	return 0;
-
-	if ((start & ~PAGE_MASK) || start > TASK_SIZE || len > TASK_SIZE - start) {
-		return -EINVAL;
-	}
-
-	if ((len = PAGE_ALIGN(len)) == 0) {
-		return -EINVAL;
-	}
-
-	vma = find_vma(mm, start);
-	if (vma && check_vma(vma)) {
-		struct sspt_file *file;
-		unsigned long end = start + len;
-		struct dentry *dentry = vma->vm_file->f_dentry;
-
-		file = sspt_proc_find_file(proc, dentry);
-		if (file) {
-			if (vma->vm_start == start || vma->vm_end == end) {
-				sspt_file_uninstall(file, task, US_UNREGS_PROBE);
-				file->loaded = 0;
-			} else {
-				unsigned long page_addr;
-				struct sspt_page *page;
-
-				for (page_addr = vma->vm_start; page_addr < vma->vm_end; page_addr += PAGE_SIZE) {
-					page = sspt_find_page_mapped(file, page_addr);
-					if (page) {
-						sspt_unregister_page(page, US_UNREGS_PROBE, task);
-					}
-				}
-
-				if (sspt_file_check_install_pages(file)) {
-					file->loaded = 0;
-				}
-			}
-		}
-	}
-
-	return 0;
-}
-
-/* Detects when target removes IPs. */
-static int unmap_pre_handler(struct kprobe *p, struct pt_regs *regs)
-{
-	/* for ARM */
-	struct mm_struct *mm;
+struct unmap_data {
 	unsigned long start;
 	size_t len;
+};
+
+static void remove_unmap_probes(struct sspt_proc *proc, struct unmap_data *umd)
+{
+	struct task_struct *task = proc->task;
+	unsigned long start = umd->start;
+	size_t len = umd->len;
+	LIST_HEAD(head);
+
+	if (sspt_proc_get_files_by_region(proc, &head, start, len)) {
+		struct sspt_file *file, *n;
+		unsigned long end = start + len;
+
+		list_for_each_entry_safe(file, n, &head, list) {
+			if (file->vm_start >= end)
+				continue;
+
+			if (file->vm_start >= start)
+				sspt_file_uninstall(file, task, US_UNINSTALL);
+			else {
+				/* TODO: uninstall pages: start..file->vm_end */
+			}
+		}
+
+		sspt_proc_insert_files(proc, &head);
+	}
+}
+
+
+static int entry_handler_unmap(struct kretprobe_instance *ri,
+			       struct pt_regs *regs)
+{
+	struct unmap_data *data = (struct unmap_data *)ri->data;
 
 #if defined(CONFIG_X86)
-	mm = (struct mm_struct *)regs->EREG(ax);
-	start = regs->EREG(dx);
-	len = (size_t)regs->EREG(cx);
+	data->start = regs->dx;
+	data->len = (size_t)regs->cx;
 #elif defined(CONFIG_ARM)
-	mm = (struct mm_struct *)regs->ARM_r0;
-	start = regs->ARM_r1;
-	len = (size_t)regs->ARM_r2;
+	data->start = regs->ARM_r1;
+	data->len = (size_t)regs->ARM_r2;
 #else
 #error this architecture is not supported
 #endif
 
-	struct sspt_proc *proc = NULL;
-	struct task_struct *task = current;
-
-	if (is_kthread(task))
-		goto out;
-
-	proc = sspt_proc_get_by_task(task);
-	if (proc) {
-		if (remove_unmap_probes(task, proc, start, len)) {
-			printk("ERROR do_munmap: start=%lx, len=%x\n", start, len);
-		}
-	}
-
-out:
 	return 0;
 }
 
-static struct kprobe unmap_kprobe = {
-	.pre_handler = unmap_pre_handler
+static int ret_handler_unmap(struct kretprobe_instance *ri,
+			     struct pt_regs *regs)
+{
+	struct task_struct *task;
+	struct sspt_proc *proc;
+
+	task = current->group_leader;
+	if (is_kthread(task) ||
+	    get_regs_ret_val(regs))
+		return 0;
+
+	proc = sspt_proc_get_by_task(task);
+	if (proc)
+		remove_unmap_probes(proc, (struct unmap_data *)ri->data);
+
+	return 0;
+}
+
+static struct kretprobe unmap_kretprobe = {
+	.entry_handler = entry_handler_unmap,
+	.handler = ret_handler_unmap,
+	.data_size = sizeof(struct unmap_data)
 };
 
 
@@ -271,7 +256,7 @@ int register_helper(void)
 	int ret = 0;
 
 	/* install kprobe on 'do_munmap' to detect when for remove user space probes */
-	ret = dbi_register_kprobe(&unmap_kprobe);
+	ret = dbi_register_kretprobe(&unmap_kretprobe);
 	if (ret) {
 		printk("dbi_register_kprobe(do_munmap) result=%d!\n", ret);
 		return ret;
@@ -308,7 +293,7 @@ unregister_mr:
 	dbi_unregister_kprobe(&mr_kprobe);
 
 unregister_unmap:
-	dbi_unregister_kprobe(&unmap_kprobe);
+	dbi_unregister_kretprobe(&unmap_kretprobe);
 
 	return ret;
 }
@@ -324,8 +309,8 @@ void unregister_helper(void)
 	/* uninstall kprobe with 'mm_release' */
 	dbi_unregister_kprobe(&mr_kprobe);
 
-	/* uninstall kprobe with 'do_munmap' */
-	dbi_unregister_kprobe(&unmap_kprobe);
+	/* uninstall kretprobe with 'do_munmap' */
+	dbi_unregister_kretprobe(&unmap_kretprobe);
 }
 
 int init_helper(void)
@@ -357,7 +342,7 @@ int init_helper(void)
 		printk("Cannot find address for do_munmap function!\n");
 		return -EINVAL;
 	}
-	unmap_kprobe.addr = (kprobe_opcode_t *)addr;
+	unmap_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
 
 	return 0;
 }

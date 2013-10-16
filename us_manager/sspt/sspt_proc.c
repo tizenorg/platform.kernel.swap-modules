@@ -255,3 +255,34 @@ int sspt_proc_uninstall(struct sspt_proc *proc, struct task_struct *task, enum U
 
 	return err;
 }
+
+static int intersection(unsigned long start_a, unsigned long end_a,
+			unsigned long start_b, unsigned long end_b)
+{
+	return start_a < start_b ?
+			end_a > start_b :
+			start_a < end_b;
+}
+
+int sspt_proc_get_files_by_region(struct sspt_proc *proc,
+				  struct list_head *head,
+				  unsigned long start, size_t len)
+{
+	int ret = 0;
+	struct sspt_file *file, *n;
+	unsigned long end = start + len;
+
+	list_for_each_entry_safe(file, n, &proc->file_list, list) {
+		if (intersection(file->vm_start, file->vm_end, start, end)) {
+			ret = 1;
+			list_move(&file->list, head);
+		}
+	}
+
+	return ret;
+}
+
+void sspt_proc_insert_files(struct sspt_proc *proc, struct list_head *head)
+{
+	list_splice(head, &proc->file_list);
+}

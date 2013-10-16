@@ -32,8 +32,9 @@ struct slot_manager;
 struct task_struct;
 
 enum US_FLAGS {
-	US_UNREGS_PROBE,
-	US_DISARM
+	US_UNREGS_PROBE,	/* probes remove and disarm */
+	US_DISARM,		/* probes disarm */
+	US_UNINSTALL		/* probes remove from list install */
 };
 
 struct sspt_proc {
@@ -64,5 +65,10 @@ struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
 void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr);
 void sspt_proc_install(struct sspt_proc *proc);
 int sspt_proc_uninstall(struct sspt_proc *proc, struct task_struct *task, enum US_FLAGS flag);
+
+int sspt_proc_get_files_by_region(struct sspt_proc *proc,
+				  struct list_head *head,
+				  unsigned long start, size_t len);
+void sspt_proc_insert_files(struct sspt_proc *proc, struct list_head *head);
 
 #endif /* __SSPT_PROC__ */
