@@ -26,6 +26,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/list.h>
+#include <linux/spinlock.h>
 
 
 struct sspt_feature {
@@ -46,7 +47,8 @@ struct sspt_feature_data {
 	void *data;
 };
 
-static LIST_HEAD(feature_list);
+static DEFINE_SPINLOCK(feature_img_lock);
+static LIST_HEAD(feature_img_list);
 
 static struct sspt_feature_data *create_feature_data(struct sspt_feature_img *img)
 {
@@ -74,17 +76,20 @@ struct sspt_feature *sspt_create_feature(void)
 
 	f = kmalloc(sizeof(*f), GFP_ATOMIC);
 	if (f) {
-		INIT_LIST_HEAD(&f->feature_list);
-
 		struct sspt_feature_data *fd;
 		struct sspt_feature_img *fi;
+		unsigned long flags;
 
-		list_for_each_entry(fi, &feature_list, list) {
+		INIT_LIST_HEAD(&f->feature_list);
+
+		spin_lock_irqsave(&feature_img_lock, flags);
+		list_for_each_entry(fi, &feature_img_list, list) {
 			fd = create_feature_data(fi);
 
 			/* add to list */
 			list_add(&fd->list, &f->feature_list);
 		}
+		spin_unlock_irqrestore(&feature_img_lock, flags);
 	}
 
 	return f;
@@ -103,6 +108,24 @@ void sspt_destroy_feature(struct sspt_feature *f)
 	kfree(f);
 }
 
+static void add_feature_img_to_list(struct sspt_feature_img *fi)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&feature_img_lock, flags);
+	list_add(&fi->list, &feature_img_list);
+	spin_unlock_irqrestore(&feature_img_lock, flags);
+}
+
+static void del_feature_img_from_list(struct sspt_feature_img *fi)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&feature_img_lock, flags);
+	list_del(&fi->list);
+	spin_unlock_irqrestore(&feature_img_lock, flags);
+}
+
 static struct sspt_feature_img *create_feature_img(void *(*alloc)(void),
 						   void (*free)(void *data))
 {
@@ -114,8 +137,7 @@ static struct sspt_feature_img *create_feature_img(void *(*alloc)(void),
 		fi->alloc = alloc;
 		fi->free = free;
 
-		/* add to list */
-		list_add(&fi->list, &feature_list);
+		add_feature_img_to_list(fi);
 	}
 
 	return fi;
@@ -123,8 +145,7 @@ static struct sspt_feature_img *create_feature_img(void *(*alloc)(void),
 
 static void destroy_feature_img(struct sspt_feature_img *fi)
 {
-	/* delete from list */
-	list_del(&fi->list);
+	del_feature_img_from_list(fi);
 
 	kfree(fi);
 }
