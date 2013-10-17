@@ -52,6 +52,7 @@ void lcd_mach_exit(void)
 }
 #endif /* CONFIG_ENEGRGY_LCD */
 
+int read_val(const char *path);
 int lcd_init(void);
 void lcd_exit(void);
 

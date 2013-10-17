@@ -4,32 +4,6 @@
 static struct lcd_ops_set *ops_s = NULL;
 
 
-static int read_val(const char *path)
-{
-	int ret;
-	struct file *f;
-	unsigned long val;
-	char buf[32];
-
-	f = filp_open(path, O_RDONLY, 0);
-	if (IS_ERR(f)) {
-		printk("cannot open file \'%s\'", path);
-		return PTR_ERR(f);
-	}
-
-	ret = kernel_read(f, 0, buf, sizeof(buf));
-	filp_close(f, NULL);
-	if (ret < 0)
-		return ret;
-
-	ret = strict_strtoul(buf, 0, &val);
-	if (ret)
-		return ret;
-
-	return (int)val;
-}
-
-
 
 
 
