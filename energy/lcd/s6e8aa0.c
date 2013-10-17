@@ -113,7 +113,7 @@ static struct kretprobe set_backlight_krp = {
 	.kp.symbol_name = "s6e8aa0_gamma_ctrl",
 	.entry_handler = entry_handler_set_backlight,
 	.handler = ret_handler_set_backlight,
-	.data_size = sizeof(struct backlight_device *)
+	.data_size = sizeof(int)
 };
 
 
