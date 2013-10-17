@@ -39,19 +39,6 @@ struct lcd_ops_set {
 };
 
 
-#ifdef CONFIG_ENEGRGY_LCD
-int lcd_mach_init(struct lcd_ops_set *ops_set, struct lcd_ops_get *ops_get);
-void lcd_mach_exit(void);
-#else /* CONFIG_ENEGRGY_LCD */
-static int lcd_mach_init(struct lcd_ops_set *ops_set, struct lcd_ops_get *ops_get)
-{
-	return -EPERM;
-}
-void lcd_mach_exit(void)
-{
-}
-#endif /* CONFIG_ENEGRGY_LCD */
-
 int read_val(const char *path);
 int lcd_init(void);
 void lcd_exit(void);
