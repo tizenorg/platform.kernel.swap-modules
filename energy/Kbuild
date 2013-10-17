@@ -6,7 +6,16 @@ swap_energy-y := energy_module.o \
                  debugfs_energy.o \
                  lcd/lcd_base.o
 
+
+# S6E8AA0:
 ifeq ($(CONFIG_LCD_S6E8AA0), y)
 	swap_energy-y += lcd/s6e8aa0.o
+	EXTRA_CFLAGS += -DCONFIG_ENEGRGY_LCD
+endif
+
+
+# MARU:
+ifeq ($(CONFIG_MARU_BACKLIGHT), y)
+	swap_energy-y += lcd/maru.o
 	EXTRA_CFLAGS += -DCONFIG_ENEGRGY_LCD
 endif
