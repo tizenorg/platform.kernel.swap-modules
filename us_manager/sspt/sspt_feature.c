@@ -23,6 +23,7 @@
  */
 
 #include "sspt_feature.h"
+#include "sspt_proc.h"
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/list.h>
@@ -150,6 +151,26 @@ static void destroy_feature_img(struct sspt_feature_img *fi)
 	kfree(fi);
 }
 
+static void del_feature_by_img(struct sspt_feature *f,
+			       struct sspt_feature_img *img)
+{
+	struct sspt_feature_data *fd;
+
+	list_for_each_entry(fd, &f->feature_list, list) {
+		if (img == fd->img) {
+			/* delete from list */
+			list_del(&fd->list);
+			destroy_feature_data(fd);
+			break;
+		}
+	}
+}
+
+static void del_feature_from_proc(struct sspt_proc *proc, void *data)
+{
+	del_feature_by_img(proc->feature, (struct sspt_feature_img *)data);
+}
+
 void *sspt_get_feature_data(struct sspt_feature *f, sspt_feature_id_t id)
 {
 	struct sspt_feature_img *img = (struct sspt_feature_img *)id;
@@ -180,7 +201,7 @@ void sspt_unregister_feature(sspt_feature_id_t id)
 {
 	struct sspt_feature_img *fi = (struct sspt_feature_img *)id;
 
-	/* TODO: remove from instrumentation process */
 	destroy_feature_img(fi);
+	on_each_proc(del_feature_from_proc, (void *)fi);
 }
 EXPORT_SYMBOL_GPL(sspt_unregister_feature);
