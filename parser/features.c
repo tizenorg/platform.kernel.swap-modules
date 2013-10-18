@@ -47,20 +47,16 @@ enum features_list {
 
 int set_us_inst(struct conf_data *conf)
 {
-	int ret;
+	set_quiet(QT_OFF);
 
-	ret = usm_start();
-
-	return ret;
+	return 0;
 }
 
 int unset_us_inst(void)
 {
-	int ret;
+	set_quiet(QT_ON);
 
-	ret = usm_stop();
-
-	return ret;
+	return 0;
 }
 
 int set_syscall_file(struct conf_data *conf)

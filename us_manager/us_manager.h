@@ -25,6 +25,15 @@
 #ifndef _US_MANAGER_H
 #define _US_MANAGER_H
 
+
+enum quiet_type {
+	QT_ON,
+	QT_OFF
+};
+
+void set_quiet(enum quiet_type q);
+enum quiet_type get_quiet(void);
+
 int usm_start(void);
 int usm_stop(void);
 

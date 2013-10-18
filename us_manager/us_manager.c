@@ -27,6 +27,7 @@
 #include "pf/pf_group.h"
 #include "sspt/sspt_proc.h"
 #include "helper.h"
+#include "us_manager.h"
 #include <writer/event_filter.h>
 
 /* FIXME: move /un/init_msg() elsewhere and remove this include  */
@@ -99,6 +100,28 @@ unlock:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(usm_start);
+
+
+
+
+
+/* ============================================================================
+ * ===                                QUIET                                 ===
+ * ============================================================================
+ */
+static enum quiet_type quiet = QT_ON;
+
+void set_quiet(enum quiet_type q)
+{
+	quiet = q;
+}
+EXPORT_SYMBOL_GPL(set_quiet);
+
+enum quiet_type get_quiet(void)
+{
+	return quiet;
+}
+EXPORT_SYMBOL_GPL(get_quiet);
 
 
 

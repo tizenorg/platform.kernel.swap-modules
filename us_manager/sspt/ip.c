@@ -27,13 +27,15 @@
 #include "sspt_page.h"
 #include "sspt_file.h"
 #include <writer/swap_writer_module.h>
+#include <us_manager/us_manager.h>
 
 
 static int entry_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 
-	entry_event(ip->args, regs, PT_US, PST_NONE);
+	if (get_quiet() == QT_OFF)
+		entry_event(ip->args, regs, PT_US, PST_NONE);
 
 	return 0;
 }
@@ -48,7 +50,8 @@ static int ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 	addr = ip->offset & 0x01 ? addr | 0x01 : addr;
 #endif
 
-	exit_event(regs, addr, ret_addr);
+	if (get_quiet() == QT_OFF)
+		exit_event(regs, addr, ret_addr);
 
 	return 0;
 }

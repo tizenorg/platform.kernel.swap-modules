@@ -82,7 +82,11 @@ int msg_start(struct msg_buf *mb)
 		goto free_us_inst;
 	}
 
-	return 0;
+	ret = usm_start();
+	if (ret)
+		goto free_us_inst;
+
+	return ret;
 
 free_us_inst:
 	destroy_us_inst_data(us_inst);
@@ -100,6 +104,10 @@ int msg_stop(struct msg_buf *mb)
 		print_err("to long message, remained=%u", remained_mb(mb));
 		return -EINVAL;
 	}
+
+	ret = usm_stop();
+	if (ret)
+		return ret;
 
 	conf.use_features0 = 0;
 	conf.use_features1 = 0;
