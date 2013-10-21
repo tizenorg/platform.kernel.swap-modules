@@ -158,11 +158,6 @@ int sspt_unregister_page(struct sspt_page *page,
 	INIT_LIST_HEAD(&ip_list_tmp);
 	list_replace_init(&page->ip_list_inst, &ip_list_tmp);
 
-	if (flag == US_UNINSTALL) {
-		head = &page->ip_list_no_inst;
-		goto splice_and_unlock;
-	}
-
 	spin_unlock(&page->lock);
 
 	list_for_each_entry(ip, &ip_list_tmp, list) {

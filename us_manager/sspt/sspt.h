@@ -67,9 +67,9 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	return ret;
 }
 
-static inline int do_unregister_usprobe(struct us_ip *ip)
+static inline int do_unregister_usprobe(struct us_ip *ip, int disarm)
 {
-	dbi_unregister_uretprobe(&ip->retprobe);
+	__dbi_unregister_uretprobe(&ip->retprobe, disarm);
 
 	return 0;
 }
@@ -80,10 +80,13 @@ static inline int sspt_unregister_usprobe(struct task_struct *task, struct us_ip
 
 	switch (flag) {
 	case US_UNREGS_PROBE:
-		err = do_unregister_usprobe(ip);
+		err = do_unregister_usprobe(ip, 1);
 		break;
 	case US_DISARM:
 		disarm_uprobe(&ip->retprobe.up.kp, task);
+		break;
+	case US_UNINSTALL:
+		err = do_unregister_usprobe(ip, 0);
 		break;
 	default:
 		panic("incorrect value flag=%d", flag);

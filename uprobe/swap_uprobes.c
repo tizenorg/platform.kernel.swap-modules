@@ -572,7 +572,7 @@ out:
 	return ret;
 }
 
-void dbi_unregister_uprobe(struct uprobe *up)
+void __dbi_unregister_uprobe(struct uprobe *up, int disarm)
 {
 	struct kprobe *p, *old_p, *list_p;
 	int cleanup_p;
@@ -598,7 +598,9 @@ valid_p:
 	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_uhandler) &&
 	    (p->list.next == &old_p->list) && (p->list.prev == &old_p->list))) {
 		/* Only probe on the hash list */
-		disarm_uprobe(&up->kp, up->task);
+		if (disarm)
+			disarm_uprobe(&up->kp, up->task);
+
 		hlist_del_rcu(&old_p->hlist);
 		cleanup_p = 1;
 	} else {
@@ -636,6 +638,12 @@ valid_p:
 		}
 	}
 }
+EXPORT_SYMBOL_GPL(__dbi_unregister_uprobe);
+
+void dbi_unregister_uprobe(struct uprobe *up)
+{
+	__dbi_unregister_uprobe(up, 1);
+}
 
 int dbi_register_ujprobe(struct ujprobe *jp)
 {
@@ -650,9 +658,9 @@ int dbi_register_ujprobe(struct ujprobe *jp)
 	return ret;
 }
 
-void dbi_unregister_ujprobe(struct ujprobe *jp)
+void __dbi_unregister_ujprobe(struct ujprobe *jp, int disarm)
 {
-	dbi_unregister_uprobe(&jp->up);
+	__dbi_unregister_uprobe(&jp->up, disarm);
 	/*
 	 * Here is an attempt to unregister even those probes that have not been
 	 * installed (hence not added to the hlist).
@@ -672,6 +680,12 @@ void dbi_unregister_ujprobe(struct ujprobe *jp)
 		hlist_del_rcu(&jp->up.kp.is_hlist);
 	}
 #endif /* CONFIG_ARM */
+}
+EXPORT_SYMBOL_GPL(__dbi_unregister_ujprobe);
+
+void dbi_unregister_ujprobe(struct ujprobe *jp)
+{
+	__dbi_unregister_ujprobe(jp, 1);
 }
 
 int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
@@ -899,12 +913,12 @@ int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct 
 }
 EXPORT_SYMBOL_GPL(dbi_disarm_urp_inst_for_task);
 
-void dbi_unregister_uretprobe(struct uretprobe *rp)
+void __dbi_unregister_uretprobe(struct uretprobe *rp, int disarm)
 {
 	unsigned long flags;
 	struct uretprobe_instance *ri;
 
-	dbi_unregister_uprobe(&rp->up);
+	__dbi_unregister_uprobe(&rp->up, disarm);
 	spin_lock_irqsave (&uretprobe_lock, flags);
 
 	while ((ri = get_used_urp_inst(rp)) != NULL) {
@@ -939,6 +953,12 @@ void dbi_unregister_uretprobe(struct uretprobe *rp)
 
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
 	free_urp_inst(rp);
+}
+EXPORT_SYMBOL_GPL(__dbi_unregister_uretprobe);
+
+void dbi_unregister_uretprobe(struct uretprobe *rp)
+{
+	__dbi_unregister_uretprobe(rp, 1);
 }
 
 void dbi_unregister_all_uprobes(struct task_struct *task)

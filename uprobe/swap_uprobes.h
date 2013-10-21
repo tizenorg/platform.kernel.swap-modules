@@ -89,12 +89,15 @@ struct uretprobe_instance {
 
 int dbi_register_uprobe(struct uprobe *p);
 void dbi_unregister_uprobe(struct uprobe *p);
+void __dbi_unregister_uprobe(struct uprobe *up, int disarm);
 
 int dbi_register_ujprobe(struct ujprobe *jp);
 void dbi_unregister_ujprobe(struct ujprobe *jp);
+void __dbi_unregister_ujprobe(struct ujprobe *jp, int disarm);
 
 int dbi_register_uretprobe(struct uretprobe *rp);
 void dbi_unregister_uretprobe(struct uretprobe *rp);
+void __dbi_unregister_uretprobe(struct uretprobe *rp, int disarm);
 
 void dbi_unregister_all_uprobes(struct task_struct *task);
 
