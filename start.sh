@@ -12,7 +12,7 @@ insmod swap_sampler.ko || exit 1
 insmod swap_energy.ko || exit 1
 insmod swap_message_parser.ko || exit 1  # parser is loaded
 
-~
+
 # Energy coefficients
 # CPU coefficients are divided by 10^6 because
 #  - they were calculated for mAs
