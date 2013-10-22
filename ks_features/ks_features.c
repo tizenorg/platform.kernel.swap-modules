@@ -146,6 +146,32 @@ struct kretprobe switch_rp = {
 	.handler = switch_ret_handler
 };
 
+static int do_register_sc(void)
+{
+	int ret;
+
+	ret = dbi_register_jprobe(&switch_jp);
+	if (ret) {
+		return ret;
+	}
+
+	ret = dbi_register_kretprobe(&switch_rp);
+	if (ret) {
+		dbi_unregister_jprobe(&switch_jp);
+	}
+
+	return ret;
+}
+
+static void do_unregister_sc(void)
+{
+	dbi_unregister_kretprobe(&switch_rp);
+	dbi_unregister_jprobe(&switch_jp);
+}
+
+static DEFINE_MUTEX(mutex_sc_enable);
+static int sc_enable = 0;
+
 int init_switch_context(void)
 {
 	unsigned long addr;
@@ -164,31 +190,48 @@ int init_switch_context(void)
 
 void exit_switch_context(void)
 {
+	if (sc_enable)
+		do_unregister_sc();
 }
 
 static int register_switch_context(void)
 {
-	int ret;
+	int ret = -EINVAL;
 
-	ret = dbi_register_jprobe(&switch_jp);
-	if (ret) {
-		return ret;
+	mutex_lock(&mutex_sc_enable);
+	if (sc_enable) {
+		printk("switch context profiling is already run!\n");
+		goto unlock;
 	}
 
-	ret = dbi_register_kretprobe(&switch_rp);
-	if (ret) {
-		dbi_unregister_jprobe(&switch_jp);
-	}
+	ret = do_register_sc();
+	if (ret == 0)
+		sc_enable = 1;
+
+unlock:
+	mutex_unlock(&mutex_sc_enable);
 
 	return ret;
 }
 
 static int unregister_switch_context(void)
 {
-	dbi_unregister_kretprobe(&switch_rp);
-	dbi_unregister_jprobe(&switch_jp);
+	int ret = 0;
 
-	return 0;
+	mutex_lock(&mutex_sc_enable);
+	if (sc_enable == 0) {
+		printk("switch context profiling is not running!\n");
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	do_unregister_sc();
+
+	sc_enable = 0;
+unlock:
+	mutex_unlock(&mutex_sc_enable);
+
+	return ret;
 }
 /* ====================== SWITCH_CONTEXT ======================= */
 
