@@ -196,7 +196,16 @@ void destroy_conf_data(struct conf_data *conf)
 	kfree(conf);
 }
 
+static struct conf_data config;
+void save_config(const struct conf_data *conf)
+{
+	memcpy(&config, conf, sizeof(config));
+}
 
+void restore_config(struct conf_data *conf)
+{
+	memcpy(conf, &config, sizeof(*conf));
+}
 
 
 

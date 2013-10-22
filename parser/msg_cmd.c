@@ -60,6 +60,7 @@ int msg_start(struct msg_buf *mb)
 {
 	int ret = 0;
 	struct us_inst_data *us_inst;
+	struct conf_data conf;
 
 	reset_seq_num();
 	reset_discarded();
@@ -85,6 +86,9 @@ int msg_start(struct msg_buf *mb)
 	ret = usm_start();
 	if (ret)
 		goto free_us_inst;
+
+	restore_config(&conf);
+	set_config(&conf);
 
 	return ret;
 
@@ -139,6 +143,7 @@ int msg_config(struct msg_buf *mb)
 
 	/* TODO implement the processing */
 	set_config(conf);
+	save_config(conf);
 
 free_conf_data:
 	destroy_conf_data(conf);

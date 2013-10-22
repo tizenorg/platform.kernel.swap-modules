@@ -90,6 +90,9 @@ void destroy_app_info(struct app_info_data *app_info);
 struct conf_data *create_conf_data(struct msg_buf *mb);
 void destroy_conf_data(struct conf_data *conf);
 
+void save_config(const struct conf_data *conf);
+void restore_config(struct conf_data *conf);
+
 struct func_inst_data *create_func_inst_data(struct msg_buf *mb);
 void destroy_func_inst_data(struct func_inst_data *func_inst);
 
