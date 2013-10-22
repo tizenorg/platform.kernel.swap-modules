@@ -44,7 +44,7 @@ int energy_init(void);
 void energy_uninit(void);
 
 int set_energy(void);
-void unset_energy(void);
+int unset_energy(void);
 
 u64 get_parameter_energy(enum parameter_energy pe);
 

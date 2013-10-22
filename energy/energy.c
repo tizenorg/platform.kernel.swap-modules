@@ -469,7 +469,7 @@ u64 get_parameter_energy(enum parameter_energy pe)
 	return val;
 }
 
-int set_energy(void)
+int do_set_energy(void)
 {
 	int ret = 0;
 
@@ -503,15 +503,58 @@ unregister_sys_write:
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(set_energy);
 
-void unset_energy(void)
+void do_unset_energy(void)
 {
 	dbi_unregister_kretprobe(&switch_to_krp);
 	dbi_unregister_kretprobe(&sys_write_krp);
 	dbi_unregister_kretprobe(&sys_read_krp);
 
 	uninit_data_energy();
+}
+
+static DEFINE_MUTEX(mutex_enable);
+static int energy_enable = 0;
+
+int set_energy(void)
+{
+	int ret = -EINVAL;
+
+	mutex_lock(&mutex_enable);
+	if (energy_enable) {
+		printk("energy profiling is already run!\n");
+		goto unlock;
+	}
+
+	ret = do_set_energy();
+	if (ret == 0)
+		energy_enable = 1;
+
+unlock:
+	mutex_unlock(&mutex_enable);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(set_energy);
+
+int unset_energy(void)
+{
+	int ret = 0;
+
+	mutex_lock(&mutex_enable);
+	if (energy_enable == 0) {
+		printk("energy profiling is not running!\n");
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	do_unset_energy();
+
+	energy_enable = 0;
+unlock:
+	mutex_unlock(&mutex_enable);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(unset_energy);
 
@@ -549,4 +592,7 @@ int energy_init(void)
 void energy_uninit(void)
 {
 	uninit_feature();
+
+	if (energy_enable)
+		do_unset_energy();
 }

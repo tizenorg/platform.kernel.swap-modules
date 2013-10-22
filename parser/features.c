@@ -210,8 +210,7 @@ static int set_func_energy(struct conf_data *conf)
 
 static int unset_func_energy(void)
 {
-	unset_energy();
-	return 0;
+	return unset_energy();
 }
 
 struct feature_item {
