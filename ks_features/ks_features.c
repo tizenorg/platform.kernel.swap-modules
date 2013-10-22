@@ -124,50 +124,24 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 
 /* ====================== SWITCH_CONTEXT ======================= */
-static int switch_pre_entry(void *priv_arg, struct pt_regs *regs)
+static int switch_entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	switch_entry(regs);
 
 	return 0;
 }
 
-static int switch_ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs, void *priv_arg)
+static int switch_ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	switch_exit(regs);
 
 	return 0;
 }
 
-struct jprobe switch_jp = {
-	.pre_entry = switch_pre_entry,
-};
-
 struct kretprobe switch_rp = {
+	.entry_handler = switch_entry_handler,
 	.handler = switch_ret_handler
 };
-
-static int do_register_sc(void)
-{
-	int ret;
-
-	ret = dbi_register_jprobe(&switch_jp);
-	if (ret) {
-		return ret;
-	}
-
-	ret = dbi_register_kretprobe(&switch_rp);
-	if (ret) {
-		dbi_unregister_jprobe(&switch_jp);
-	}
-
-	return ret;
-}
-
-static void do_unregister_sc(void)
-{
-	dbi_unregister_kretprobe(&switch_rp);
-	dbi_unregister_jprobe(&switch_jp);
-}
 
 static DEFINE_MUTEX(mutex_sc_enable);
 static int sc_enable = 0;
@@ -182,7 +156,6 @@ int init_switch_context(void)
 		return -EINVAL;
 	}
 
-	switch_jp.kp.addr = (kprobe_opcode_t *)addr;
 	switch_rp.kp.addr = (kprobe_opcode_t *)addr;
 
 	return 0;
@@ -191,7 +164,7 @@ int init_switch_context(void)
 void exit_switch_context(void)
 {
 	if (sc_enable)
-		do_unregister_sc();
+		dbi_unregister_kretprobe(&switch_rp);
 }
 
 static int register_switch_context(void)
@@ -204,7 +177,7 @@ static int register_switch_context(void)
 		goto unlock;
 	}
 
-	ret = do_register_sc();
+	ret = dbi_register_kretprobe(&switch_rp);
 	if (ret == 0)
 		sc_enable = 1;
 
@@ -225,7 +198,7 @@ static int unregister_switch_context(void)
 		goto unlock;
 	}
 
-	do_unregister_sc();
+	dbi_unregister_kretprobe(&switch_rp);
 
 	sc_enable = 0;
 unlock:
