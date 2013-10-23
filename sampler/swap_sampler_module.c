@@ -210,15 +210,12 @@ static struct notifier_block __refdata dbi_cpu_notifier = {
 	.notifier_call = dbi_cpu_notify,
 };
 
-int swap_sampler_start(unsigned int timer_quantum)
+static int do_swap_sampler_start(unsigned int timer_quantum)
 {
 	if (timer_quantum <= 0)
-		return -E_SS_WRONG_QUANTUM;
+		return -EINVAL;
 
 	dbi_timer_quantum = timer_quantum * 1000 * 1000;
-
-	if (!try_module_get(THIS_MODULE))
-		print_err("Error of try_module_get() for sampling module\n");
 
 #ifdef CONFIG_HIGH_RES_TIMERS
 	dbi_hrtimer_start();
@@ -226,20 +223,60 @@ int swap_sampler_start(unsigned int timer_quantum)
 	dbi_timer_start();
 #endif
 
-	return E_SS_SUCCESS;
+	return 0;
 }
-EXPORT_SYMBOL_GPL(swap_sampler_start);
 
-int swap_sampler_stop(void)
+static void do_swap_sampler_stop(void)
 {
 #ifdef CONFIG_HIGH_RES_TIMERS
 	dbi_hrtimer_stop();
 #else
 	dbi_timer_stop();
 #endif
-	module_put(THIS_MODULE);
+}
 
-	return E_SS_SUCCESS;
+static DEFINE_MUTEX(mutex_run);
+static int sampler_run = 0;
+
+int swap_sampler_start(unsigned int timer_quantum)
+{
+	int ret = -EINVAL;
+
+	mutex_lock(&mutex_run);
+	if (sampler_run) {
+		printk("sampler profiling is already run!\n");
+		goto unlock;
+	}
+
+	ret = do_swap_sampler_start(timer_quantum);
+	if (ret == 0)
+		sampler_run = 1;
+
+unlock:
+	mutex_unlock(&mutex_run);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(swap_sampler_start);
+
+int swap_sampler_stop(void)
+{
+	int ret = 0;
+
+	mutex_lock(&mutex_run);
+	if (sampler_run == 0) {
+		printk("energy profiling is not running!\n");
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	do_swap_sampler_stop();
+
+	sampler_run = 0;
+unlock:
+	mutex_unlock(&mutex_run);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(swap_sampler_stop);
 
@@ -260,6 +297,9 @@ static int __init sampler_init(void)
 
 static void __exit sampler_exit(void)
 {
+	if (sampler_run)
+		do_swap_sampler_stop();
+
 	unregister_hotcpu_notifier(&dbi_cpu_notifier);
 
 	print_msg("Sampler uninitialized\n");
