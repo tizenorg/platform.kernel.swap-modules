@@ -250,8 +250,38 @@ static void unset_pst(struct feature *f, size_t id)
 	ksp[id].sub_type &= !f->sub_type;
 }
 
-static int install_features(struct feature *f)
+static void do_uninstall_features(struct feature *f, size_t i)
 {
+	int ret;
+	size_t id;
+	const size_t end = ((size_t) 0) - 1;
+
+	for (; i != end; --i) {
+		id = f->feature_list[i];
+
+		if (get_counter(id) == 0) {
+			printk("syscall %s not installed\n",
+			       get_sys_name(id));
+			BUG();
+		}
+
+		dec_counter(id);
+
+		if (get_counter(id) == 0) {
+			ret = unregister_syscall(id);
+			if (ret)
+				printk("syscall %s uninstall error, ret=%d\n",
+				       get_sys_name(id), ret);
+
+		}
+
+		unset_pst(f, id);
+	}
+}
+
+static int do_install_features(struct feature *f)
+{
+	int ret;
 	size_t i, id;
 
 	for (i = 0; i < f->cnt; ++i) {
@@ -259,10 +289,12 @@ static int install_features(struct feature *f)
 		set_pst(f, id);
 
 		if (get_counter(id) == 0) {
-			int ret = register_syscall(id);
+			ret = register_syscall(id);
 			if (ret) {
-				printk("syscall %d install error, ret = %d\n",
-				       id, ret);
+				printk("syscall %s install error, ret=%d\n",
+				       get_sys_name(id), ret);
+
+				do_uninstall_features(f, --i);
 				return ret;
 			}
 		}
@@ -273,32 +305,44 @@ static int install_features(struct feature *f)
 	return 0;
 }
 
-static int uninstall_features(struct feature *f)
+static DEFINE_MUTEX(mutex_features);
+
+static int install_features(struct feature *f)
 {
-	size_t i, id;
+	int ret = 0;
 
-	for (i = 0; i < f->cnt; ++i) {
-		id = f->feature_list[i];
-
-		if (get_counter(id) == 0) {
-			/* TODO: error */
-			return -EINVAL;
-		}
-
-		dec_counter(id);
-
-		if (get_counter(id) == 0) {
-			int ret = unregister_syscall(id);
-			if (ret) {
-				/* TODO: error */
-				return ret;
-			}
-		}
-
-		unset_pst(f, id);
+	mutex_lock(&mutex_features);
+	if (f->enable) {
+		printk("energy profiling is already run!\n");
+		ret = -EINVAL;
+		goto unlock;
 	}
 
-	return 0;
+	ret = do_install_features(f);
+
+	f->enable = 1;
+unlock:
+	mutex_unlock(&mutex_features);
+	return ret;
+}
+
+static int uninstall_features(struct feature *f)
+{
+	int ret = 0;
+
+	mutex_lock(&mutex_features);
+	if (f->enable == 0) {
+		printk("feature[%d] is not running!\n", feature_index(f));
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	do_uninstall_features(f, f->cnt - 1);
+
+	f->enable = 0;
+unlock:
+	mutex_unlock(&mutex_features);
+	return ret;
 }
 
 static struct feature *get_feature(enum feature_id id)
@@ -341,15 +385,11 @@ int unset_feature(enum feature_id id)
 }
 EXPORT_SYMBOL_GPL(unset_feature);
 
-static int __init init_ks_feature(void)
+static int init_syscall_features(void)
 {
-	int i, ret;
+	size_t i;
 	unsigned long addr, ni_syscall;
-	char *name;
-
-	ret = init_switch_context();
-	if (ret)
-		return ret;
+	const char *name;
 
 	ni_syscall = swap_ksyms("sys_ni_syscall");
 
@@ -362,25 +402,44 @@ static int __init init_ks_feature(void)
 		}
 
 		if (ni_syscall == addr) {
-			printk("INFO: %s is not install\n", get_sys_name(i));
+			printk("INFO: %s is not install\n", name);
 			addr = 0;
 		}
 
-		ksp[i].rp.kp.addr = addr;
+		ksp[i].rp.kp.addr = (kprobe_opcode_t *)addr;
 	}
 
 	return 0;
 }
 
-static void __exit exit_ks_feature(void)
+static void uninit_syscall_features(void)
 {
-	int id;
+	size_t id;
 
 	for (id = 0; id < syscall_name_cnt; ++id) {
 		if (get_counter(id) > 0)
 			unregister_syscall(id);
 	}
+}
 
+static int __init init_ks_feature(void)
+{
+	int ret;
+
+	ret = init_switch_context();
+	if (ret)
+		return ret;
+
+	ret = init_syscall_features();
+	if (ret)
+		exit_switch_context();
+
+	return ret;
+}
+
+static void __exit exit_ks_feature(void)
+{
+	uninit_syscall_features();
 	exit_switch_context();
 }
 

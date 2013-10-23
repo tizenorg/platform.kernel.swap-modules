@@ -24,11 +24,14 @@
 
 
 #include "syscall_list.h"
+#include <linux/mutex.h>
 
 struct feature {
 	size_t cnt;
 	enum syscall_id *feature_list;
 	int sub_type;
+
+	unsigned enable:1;
 };
 
 #define X(name, args) id_##name
@@ -257,7 +260,8 @@ static enum syscall_id id_desc[] = {
 { 								\
 	.cnt = sizeof(x) / sizeof(enum syscall_id),		\
 	.feature_list = x,					\
-	.sub_type = subtype					\
+	.sub_type = subtype,					\
+	.enable = 0						\
 }
 
 static struct feature features[] = {
@@ -273,3 +277,8 @@ static struct feature features[] = {
 enum {
 	feature_cnt = sizeof(features) / sizeof(struct feature)
 };
+
+static int feature_index(struct feature *f)
+{
+	return f - features;
+}
