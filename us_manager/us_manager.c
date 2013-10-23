@@ -36,7 +36,7 @@
 
 
 static DEFINE_MUTEX(mutex_inst);
-static int flag_inst = 0;
+static enum status_type status = ST_OFF;
 
 
 static void do_usm_stop(void)
@@ -59,22 +59,34 @@ static int do_usm_start(void)
 	return 0;
 }
 
+enum status_type usm_get_status(void)
+{
+	mutex_lock(&mutex_inst);
+	return status;
+}
+EXPORT_SYMBOL_GPL(usm_get_status);
+
+void usm_put_status(enum status_type st)
+{
+	status = st;
+	mutex_unlock(&mutex_inst);
+}
+EXPORT_SYMBOL_GPL(usm_put_status);
+
 int usm_stop(void)
 {
 	int ret = 0;
 
-	mutex_lock(&mutex_inst);
-	if (flag_inst == 0) {
+	if (usm_get_status() == ST_OFF) {
 		printk("US instrumentation is not running!\n");
 		ret = -EINVAL;
-		goto unlock;
+		goto put;
 	}
 
 	do_usm_stop();
 
-	flag_inst = 0;
-unlock:
-	mutex_unlock(&mutex_inst);
+put:
+	usm_put_status(ST_OFF);
 
 	return ret;
 }
@@ -83,19 +95,20 @@ EXPORT_SYMBOL_GPL(usm_stop);
 int usm_start(void)
 {
 	int ret = -EINVAL;
+	enum status_type st;
 
-	mutex_lock(&mutex_inst);
-	if (flag_inst) {
+	st = usm_get_status();
+	if (st == ST_ON) {
 		printk("US instrumentation is already run!\n");
-		goto unlock;
+		goto put;
 	}
 
 	ret = do_usm_start();
 	if (ret == 0)
-		flag_inst = 1;
+		st = ST_ON;
 
-unlock:
-	mutex_unlock(&mutex_inst);
+put:
+	usm_put_status(st);
 
 	return ret;
 }
@@ -180,10 +193,8 @@ static int __init init_us_manager(void)
 
 static void __exit exit_us_manager(void)
 {
-	mutex_lock(&mutex_inst);
-	if (flag_inst)
+	if (status == ST_ON)
 		do_usm_stop();
-	mutex_unlock(&mutex_inst);
 
 	uninit_msg();
 	uninit_helper();

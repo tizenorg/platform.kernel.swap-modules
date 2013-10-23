@@ -31,8 +31,16 @@ enum quiet_type {
 	QT_OFF
 };
 
+enum status_type {
+	ST_OFF,
+	ST_ON
+};
+
 void set_quiet(enum quiet_type q);
 enum quiet_type get_quiet(void);
+
+enum status_type usm_get_status(void);
+void usm_put_status(enum status_type st);
 
 int usm_start(void);
 int usm_stop(void);
