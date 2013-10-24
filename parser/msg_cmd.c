@@ -130,6 +130,7 @@ int msg_config(struct msg_buf *mb)
 {
 	int ret = 0;
 	struct conf_data *conf;
+	enum status_type st;
 
 	conf = create_conf_data(mb);
 	if (conf == NULL)
@@ -141,9 +142,12 @@ int msg_config(struct msg_buf *mb)
 		goto free_conf_data;
 	}
 
-	/* TODO implement the processing */
-	set_config(conf);
+	st = usm_get_status();
+	if (st == ST_ON)
+		set_config(conf);
+
 	save_config(conf);
+	usm_put_status(st);
 
 free_conf_data:
 	destroy_conf_data(conf);
