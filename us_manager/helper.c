@@ -115,12 +115,6 @@ static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	if(task->mm != current->mm) {	/* check flags CLONE_VM */
 		rm_uprobes_child(task);
-
-		/*
-		 * Ignoring page_addr, because it is
-		 * first calling call_page_fault()
-		 */
-		call_page_fault(task, 0xbadc0de);
 	}
 out:
 	return 0;
