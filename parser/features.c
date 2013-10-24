@@ -334,7 +334,7 @@ void uninit_features(void)
 {
 }
 
-int set_features(struct conf_data *conf)
+static int do_set_features(struct conf_data *conf)
 {
 	int i, ret;
 	u64 feature_XOR;
@@ -371,4 +371,17 @@ int set_features(struct conf_data *conf)
 	}
 
 	return 0;
+}
+
+static DEFINE_MUTEX(mutex_features);
+
+int set_features(struct conf_data *conf)
+{
+	int ret;
+
+	mutex_lock(&mutex_features);
+	ret = do_set_features(conf);
+	mutex_unlock(&mutex_features);
+
+	return ret;
 }
