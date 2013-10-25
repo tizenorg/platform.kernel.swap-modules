@@ -453,6 +453,7 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 			len -= 1;
 			break;
 
+		case 'f': /* 4 byte(float) */
 		case 'd': /* 4 byte(int) */
 			if (len < 4)
 				return -ENOMEM;
@@ -471,8 +472,6 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 			buf += 8;
 			len -= 8;
 			break;
-//		case 'f': /* 4 byte(float) */
-//			break;
 //		case 'w': /* 8 byte(double) */
 //			break;
 		case 's': /* string end with '\0' */
