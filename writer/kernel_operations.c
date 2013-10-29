@@ -24,6 +24,8 @@
  */
 
 #include <asm/ptrace.h>
+#include <asm/uaccess.h>
+#include <linux/kernel.h>
 
 #if defined(CONFIG_ARM)
 
@@ -49,8 +51,11 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 
 	/* Get other args from stack */
 	for (i = stack_args; i < cnt; ++i) {
-		unsigned long *args_in_sp = (unsigned long *)regs->ARM_sp;
-		args[i] = args_in_sp[i - stack_args];
+		unsigned long *args_in_sp = (unsigned long *)regs->ARM_sp +
+					    i - stack_args;
+		if (get_user(args[i], args_in_sp))
+			printk("failed to dereference a pointer, addr=%p\n",
+			       args_in_sp);
 	}
 
 	return 0;
@@ -88,8 +93,11 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 
 	/* Get other args from stack */
 	for (i = stack_args; i < cnt; ++i) {
-		unsigned long *args_in_sp = (unsigned long *)regs->sp + 1;
-		args[i] = args_in_sp[i - stack_args];
+		unsigned long *args_in_sp = (unsigned long *)regs->sp +
+					    1 + i - stack_args;
+		if (get_user(args[i], args_in_sp))
+			printk("failed to dereference a pointer, addr=%p\n",
+			       args_in_sp);
 	}
 
 	return 0;
