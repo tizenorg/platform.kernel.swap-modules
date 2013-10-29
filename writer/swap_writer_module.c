@@ -405,7 +405,6 @@ static char *pack_msg_func_entry(char *payload, const char *fmt, struct pt_regs 
 	mfe->tid = task->pid;
 	mfe->cpu_num = smp_processor_id();
 	mfe->pc_addr = get_regs_ip(regs);
-//TODO ret address for x86!
 	mfe->caller_pc_addr = get_regs_ret_func(regs);
 	mfe->probe_type = pt;
 	mfe->probe_sub_type = sub_type;

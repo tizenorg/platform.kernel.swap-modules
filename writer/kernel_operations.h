@@ -60,11 +60,16 @@
 
 static inline u32 get_regs_ret_func(struct pt_regs *regs)
 {
-	u32 addr;
+	u32 *sp, addr = 0;
 
-	if (get_user(addr, (u32 *)regs->sp)) {
-		printk("failed to dereference a pointer, addr=%p\n", addr);
-		return 0;
+	if (user_mode(regs)) {
+		sp = regs->sp;
+		if (get_user(addr, sp))
+			printk("failed to dereference a pointer, sp=%p, "
+			       "pc=%p\n", sp, get_regs_ip(regs));
+	} else {
+		sp = (u32 *)kernel_stack_pointer(regs);
+		addr = *sp;
 	}
 
 	return addr;
