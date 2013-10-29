@@ -55,9 +55,20 @@
 #elif defined(CONFIG_X86_32)
 
 #define get_regs_ip(regs)           regs->ip - 1
-#define get_regs_ret_func(regs)     regs->bp + 8
 #define get_regs_ret_val(regs)      regs->ax
 #define get_regs_stack_ptr(regs)    regs->sp
+
+static inline u32 get_regs_ret_func(struct pt_regs *regs)
+{
+	u32 addr;
+
+	if (get_user(addr, (u32 *)regs->sp)) {
+		printk("failed to dereference a pointer, addr=%p\n", addr);
+		return 0;
+	}
+
+	return addr;
+}
 
 #endif /* CONFIG_arch */
 
