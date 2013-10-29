@@ -292,16 +292,17 @@ static char *pack_proc_info(char *payload, struct task_struct *task,
 {
 	struct proc_info *pi = (struct proc_info *)payload;
 	struct vm_area_struct *vma = find_vma_exe_by_dentry(task->mm, dentry);
-	struct timespec current_time;
+	struct timespec boot_time;
+	struct timespec start_time;
 	char *end_path = NULL;
+
+	getboottime(&boot_time);
+	start_time = timespec_add(boot_time, task->real_start_time);
 
 	pi->pid = task->tgid;
 	pi->ppid = task->real_parent->tgid;
-
-	/* FIXME: pi->start_time: take into account task->start_time, system uptime */
-	getnstimeofday(&current_time);
-	pi->start_sec = (u32)current_time.tv_sec;
-	pi->start_nsec = (u32)current_time.tv_nsec;
+	pi->start_sec = (u32)start_time.tv_sec;
+	pi->start_nsec = (u32)start_time.tv_nsec;
 
 	if (vma) {
 		pi->low_addr = vma->vm_start;
