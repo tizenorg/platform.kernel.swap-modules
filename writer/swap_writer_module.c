@@ -413,6 +413,16 @@ static char *pack_msg_func_entry(char *payload, const char *fmt, struct pt_regs 
 	return payload + sizeof(*mfe);
 }
 
+static size_t count_char(const char *str, char ch)
+{
+	size_t count = 0;
+	for ( ;*str; ++str)
+		if (*str == ch)
+			++count;
+
+	return count;
+}
+
 static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 {
 	enum { args_cnt = 16 };
@@ -420,24 +430,28 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 	unsigned long arg, args[args_cnt];
 	u32 *tmp_u32;
 	u64 *tmp_u64;
-	int i, cnt;
+	int i,		/* the index of the argument */
+	    cnt,	/* the number of arguments */
+	    fmt_i,	/* format index */
+	    fmt_len;	/* the number of parameters, in format */
 
-	cnt = strlen(fmt);
+	fmt_len = strlen(fmt);
+	cnt = fmt_len + count_char(fmt, 'w');
 
 	/* FIXME: when the number of arguments is greater than args_cnt */
 	cnt = cnt < args_cnt ? cnt : args_cnt;
 	get_args(args, cnt, regs);
 
-	for (i = 0; i < cnt; ++i) {
+	for (i = 0, fmt_i = 0; (fmt_i < fmt_len) && (i < cnt); ++i, ++fmt_i) {
 		if (len < 2)
 			return -ENOMEM;
 
 		arg = args[i];
-		*buf = fmt[i];
+		*buf = fmt[fmt_i];
 		buf += 1;
 		len -= 1;
 
-		switch (fmt[i]) {
+		switch (fmt[fmt_i]) {
 		case 'b': /* 1 byte(bool) */
 			if (len < 1)
 				return -ENOMEM;
@@ -472,8 +486,15 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 			buf += 8;
 			len -= 8;
 			break;
-//		case 'w': /* 8 byte(double) */
-//			break;
+		case 'w': /* 8 byte(double) */
+			if (len < 8 && (i + 1) < cnt)
+				return -ENOMEM;
+			tmp_u64 = buf;
+			*tmp_u64 = *((u64 *)&args[i]);
+			++i;
+			buf += 8;
+			len -= 8;
+			break;
 		case 's': /* string end with '\0' */
 		{
 			enum { max_str_len = 512 };
