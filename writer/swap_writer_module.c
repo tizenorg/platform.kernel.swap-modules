@@ -52,7 +52,9 @@ enum MSG_ID {
 	MSG_FUNCTION_ENTRY		= 0x0008,
 	MSG_FUNCTION_EXIT		= 0x0009,
 	MSG_CONTEXT_SWITCH_ENTRY	= 0x0010,
-	MSG_CONTEXT_SWITCH_EXIT		= 0x0011
+	MSG_CONTEXT_SWITCH_EXIT		= 0x0011,
+	MSG_PROC_MAP			= 0x0012,
+	MSG_PROC_UNMAP			= 0x0013
 };
 
 static char *cpu_buf[NR_CPUS];
@@ -329,6 +331,87 @@ int proc_info_msg(struct task_struct *task, struct dentry *dentry)
 	return write_to_buffer(buf);
 }
 EXPORT_SYMBOL_GPL(proc_info_msg);
+
+
+
+
+
+/* ============================================================================
+ * =                             PROCESS MAP                                  =
+ * ============================================================================
+ */
+struct proc_map {
+	u32 pid;
+	u64 low_addr;
+	u64 high_addr;
+	char bin_path[0];
+} __attribute__((packed));
+
+static char *pack_proc_map(char *payload, struct vm_area_struct *vma)
+{
+	struct proc_map *pm = (struct proc_map *)payload;
+
+	pm->pid = current->tgid;
+	pm->low_addr = vma->vm_start;
+	pm->high_addr = vma->vm_end;
+
+	return pack_path(pm->bin_path, vma->vm_file);
+}
+
+void pcoc_map_msg(struct vm_area_struct *vma)
+{
+	char *buf, *payload, *buf_end;
+
+	buf = get_current_buf();
+	payload = pack_basic_msg_fmt(buf, MSG_PROC_MAP);
+	buf_end = pack_proc_map(payload, vma);
+
+	set_len_msg(buf, buf_end);
+
+	write_to_buffer(buf);
+}
+EXPORT_SYMBOL_GPL(pcoc_map_msg);
+
+
+
+
+
+/* ============================================================================
+ * =                            PROCESS UNMAP                                 =
+ * ============================================================================
+ */
+struct proc_unmap {
+	u32 pid;
+	u64 low_addr;
+	u64 high_addr;
+} __attribute__((packed));
+
+static char *pack_proc_unmap(char *payload, unsigned long start,
+			     unsigned long end)
+{
+	struct proc_map *pum = (struct proc_unmap *)payload;
+
+	pum->pid = current->tgid;
+	pum->low_addr = start;
+	pum->high_addr = end;
+
+	return payload + sizeof(*pum);
+}
+
+void proc_unmap_msg(unsigned long start, unsigned long end)
+{
+	char *buf, *payload, *buf_end;
+
+	buf = get_current_buf();
+	payload = pack_basic_msg_fmt(buf, MSG_PROC_UNMAP);
+	buf_end = pack_proc_unmap(payload, start, end);
+
+	set_len_msg(buf, buf_end);
+
+	write_to_buffer(buf);
+}
+EXPORT_SYMBOL_GPL(proc_unmap_msg);
+
 
 
 

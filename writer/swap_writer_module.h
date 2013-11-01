@@ -53,6 +53,8 @@ unsigned int get_discarded_count(void);
 void reset_seq_num(void);
 
 int proc_info_msg(struct task_struct *task, struct dentry *dentry);
+void pcoc_map_msg(struct vm_area_struct *vma);
+void proc_unmap_msg(unsigned long start, unsigned long end);
 int sample_msg(struct pt_regs *regs);
 
 int entry_event(const char *fmt, struct pt_regs *regs,

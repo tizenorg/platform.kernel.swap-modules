@@ -27,6 +27,7 @@
 #include <dbi_kprobes_deps.h>
 #include <ksyms.h>
 #include <writer/kernel_operations.h>
+#include <writer/swap_writer_module.h>
 #include "us_slot_manager.h"
 #include "sspt/sspt.h"
 #include "helper.h"
@@ -178,7 +179,7 @@ static void remove_unmap_probes(struct sspt_proc *proc, struct unmap_data *umd)
 {
 	struct task_struct *task = proc->task;
 	unsigned long start = umd->start;
-	size_t len = umd->len;
+	size_t len = PAGE_ALIGN(umd->len);
 	LIST_HEAD(head);
 
 	if (sspt_proc_get_files_by_region(proc, &head, start, len)) {
@@ -189,14 +190,16 @@ static void remove_unmap_probes(struct sspt_proc *proc, struct unmap_data *umd)
 			if (file->vm_start >= end)
 				continue;
 
-			if (file->vm_start >= start)
+			if (file->vm_start >= start) {
 				sspt_file_uninstall(file, task, US_UNINSTALL);
-			else {
+			} else {
 				/* TODO: uninstall pages: start..file->vm_end */
 			}
 		}
 
 		sspt_proc_insert_files(proc, &head);
+
+		proc_unmap_msg(start, end);
 	}
 }
 
@@ -245,6 +248,44 @@ static struct kretprobe unmap_kretprobe = {
 
 
 
+/*
+ ******************************************************************************
+ *                               do_mmap_pgoff()                              *
+ ******************************************************************************
+ */
+static int ret_handler_mmap(struct kretprobe_instance *ri,
+			    struct pt_regs *regs)
+{
+	struct sspt_proc *proc;
+	struct task_struct *task;
+	unsigned long start_addr;
+	struct vm_area_struct *vma;
+
+	task = current->group_leader;
+	if (is_kthread(task))
+		return 0;
+
+	start_addr = (unsigned long)get_regs_ret_val(regs);
+	if (IS_ERR_VALUE(start_addr))
+		return 0;
+
+	proc = sspt_proc_get_by_task(task);
+	if (proc == NULL)
+		return 0;
+
+	vma = find_vma_intersection(task->mm, start_addr, start_addr + 1);
+	if (vma && check_vma(vma))
+		pcoc_map_msg(vma);
+
+	return 0;
+}
+
+static struct kretprobe mmap_kretprobe = {
+	.handler = ret_handler_mmap
+};
+
+
+
 int register_helper(void)
 {
 	int ret = 0;
@@ -271,14 +312,25 @@ int register_helper(void)
 		goto unregister_mr;
 	}
 
+	/* install kretprobe on 'do_mmap_pgoff' to detect when mapping file */
+	ret = dbi_register_kretprobe(&mmap_kretprobe);
+	if (ret) {
+		printk("dbi_register_kretprobe(do_mmap_pgoff) result=%d!\n", ret);
+		goto unregister_cp;
+	}
+
 	/* install kretprobe on 'handle_mm_fault' to detect when they will be loaded */
 	ret = dbi_register_kretprobe(&mf_kretprobe);
 	if (ret) {
 		printk("dbi_register_kretprobe(do_page_fault) result=%d!\n", ret);
-		goto unregister_cp;
+		goto unregister_mmap;
 	}
 
 	return ret;
+
+
+unregister_mmap:
+	dbi_unregister_kretprobe(&mmap_kretprobe);
 
 unregister_cp:
 	dbi_unregister_kretprobe(&cp_kretprobe);
@@ -296,6 +348,9 @@ void unregister_helper(void)
 {
 	/* uninstall kretprobe with 'handle_mm_fault' */
 	dbi_unregister_kretprobe(&mf_kretprobe);
+
+	/* uninstall kretprobe with 'do_mmap_pgoff' */
+	dbi_unregister_kretprobe(&mmap_kretprobe);
 
 	/* uninstall kretprobe with 'copy_process' */
 	dbi_unregister_kretprobe(&cp_kretprobe);
@@ -337,6 +392,13 @@ int init_helper(void)
 		return -EINVAL;
 	}
 	unmap_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
+
+	addr = swap_ksyms("do_mmap_pgoff");
+	if (addr == 0) {
+		printk("Cannot find address for do_mmap_pgoff function!\n");
+		return -EINVAL;
+	}
+	mmap_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
 
 	return 0;
 }
