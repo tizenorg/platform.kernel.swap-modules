@@ -50,13 +50,7 @@ static int entry_handler_mf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct pf_data *data = (struct pf_data *)ri->data;
 
-#if defined(CONFIG_X86)
-	data->addr = regs->EREG(cx);
-#elif defined(CONFIG_ARM)
-	data->addr = regs->ARM_r2;
-#else
-#error this architecture is not supported
-#endif
+	data->addr = swap_get_karg(regs, 2);
 
 	return 0;
 }
@@ -136,15 +130,7 @@ static struct kretprobe cp_kretprobe = {
 /* Detects when target process removes IPs. */
 static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
-	struct task_struct *task;
-
-#if defined(CONFIG_X86)
-	task = (struct task_struct *)regs->EREG(ax);
-#elif defined(CONFIG_ARM)
-	task = (struct task_struct *)regs->ARM_r0;
-#else
-#error this architecture is not supported
-#endif
+	struct task_struct *task = (struct task_struct *)swap_get_karg(regs, 0);
 
 	if (is_kthread(task))
 		goto out;
@@ -208,15 +194,8 @@ static int entry_handler_unmap(struct kretprobe_instance *ri,
 {
 	struct unmap_data *data = (struct unmap_data *)ri->data;
 
-#if defined(CONFIG_X86)
-	data->start = regs->dx;
-	data->len = (size_t)regs->cx;
-#elif defined(CONFIG_ARM)
-	data->start = regs->ARM_r1;
-	data->len = (size_t)regs->ARM_r2;
-#else
-#error this architecture is not supported
-#endif
+	data->start = swap_get_karg(regs, 1);
+	data->len = (size_t)swap_get_karg(regs, 2);
 
 	return 0;
 }
