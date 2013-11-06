@@ -36,12 +36,13 @@ struct us_ip {
 
 	struct uretprobe retprobe;
 	char *args;
+	char ret_type;
 
 	unsigned long offset;
 };
 
 
-struct us_ip *create_ip(unsigned long offset, const char *args);
+struct us_ip *create_ip(unsigned long offset, const char *args, char ret_type);
 void free_ip(struct us_ip *ip);
 
 #endif /* __IP__ */

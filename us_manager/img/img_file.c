@@ -68,7 +68,7 @@ static struct img_ip *find_img_ip(struct img_file *file, unsigned long addr)
 }
 
 int img_file_add_ip(struct img_file *file, unsigned long addr,
-		    const char *args)
+		    const char *args, char ret_type)
 {
 	struct img_ip *ip;
 
@@ -78,7 +78,7 @@ int img_file_add_ip(struct img_file *file, unsigned long addr,
 		return 0;
 	}
 
-	ip = create_img_ip(addr, args);
+	ip = create_img_ip(addr, args, ret_type);
 	img_add_ip_by_list(file, ip);
 
 	return 0;

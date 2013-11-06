@@ -50,7 +50,7 @@ void sspt_file_free(struct sspt_file *file);
 struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
 					unsigned long page);
 void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
-		      const char *args);
+		      const char *args, char ret_type);
 
 struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_addr);
 void sspt_put_page(struct sspt_page *page);

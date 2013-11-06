@@ -65,18 +65,18 @@ static struct img_file *find_img_file(struct img_proc *proc, struct dentry *dent
 }
 
 int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
-		    unsigned long addr, const char *args)
+		    unsigned long addr, const char *args, char ret_type)
 {
 	int ret;
 	struct img_file *file;
 
 	file = find_img_file(proc, dentry);
 	if (file)
-		return img_file_add_ip(file, addr, args);
+		return img_file_add_ip(file, addr, args, ret_type);
 
 	file = create_img_file(dentry);
 
-	ret = img_file_add_ip(file, addr, args);
+	ret = img_file_add_ip(file, addr, args, ret_type);
 	if (ret) {
 		printk("Cannot add ip to img file\n");
 		free_img_file(file);

@@ -26,7 +26,8 @@
 #include "img_ip.h"
 #include <linux/slab.h>
 
-struct img_ip *create_img_ip(unsigned long addr, const char *args)
+struct img_ip *create_img_ip(unsigned long addr, const char *args,
+			     char ret_type)
 {
 	struct img_ip *ip;
 	size_t len;
@@ -39,6 +40,8 @@ struct img_ip *create_img_ip(unsigned long addr, const char *args)
 	len = strlen(args) + 1;
 	ip->args = kmalloc(len, GFP_KERNEL);
 	memcpy(ip->args, args, len);
+
+	ip->ret_type = ret_type;
 
 	return ip;
 }

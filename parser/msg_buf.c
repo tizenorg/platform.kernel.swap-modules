@@ -73,6 +73,19 @@ int is_end_mb(struct msg_buf *mb)
 	return mb->ptr == mb->end;
 }
 
+int get_u8(struct msg_buf *mb, u8 *val)
+{
+	if (cmp_mb(mb, sizeof(*val)) < 0)
+		return -EINVAL;
+
+	*val = *((u8 *)mb->ptr);
+	mb->ptr += sizeof(*val);
+
+	print_parse_debug("u8 ->%d;%08X\n", *val, *val);
+
+	return 0;
+}
+
 int get_u32(struct msg_buf *mb, u32 *val)
 {
 	if (cmp_mb(mb, sizeof(*val)) < 0)

@@ -218,6 +218,7 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 	struct func_inst_data *fi;
 	u64 addr;
 	char *args;
+	char ret_type;
 
 	print_parse_debug("func addr:");
 	if (get_u64(mb, &addr)) {
@@ -231,6 +232,12 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 		return NULL;
 	}
 
+	print_parse_debug("funct ret type:");
+	if (get_u8(mb, (u8 *)&ret_type)) {
+		print_err("failed to read data function arguments\n");
+		return NULL;
+	}
+
 	fi = kmalloc(sizeof(*fi), GFP_KERNEL);
 	if (fi == NULL) {
 		print_err("out of memory\n");
@@ -240,6 +247,7 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 
 	fi->addr = addr;
 	fi->args = args;
+	fi->ret_type = ret_type;
 
 	return fi;
 }

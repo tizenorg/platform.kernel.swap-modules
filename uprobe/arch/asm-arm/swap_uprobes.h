@@ -33,12 +33,21 @@
 
 
 struct kprobe;
-struct pt_regs;
 struct task_struct;
 struct uprobe;
 struct uretprobe;
 struct uretprobe_instance;
 
+static inline u32 swap_get_urp_float(struct pt_regs *regs)
+{
+	return regs->ARM_r0;
+}
+
+static inline u64 swap_get_urp_double(struct pt_regs *regs)
+{
+
+	return regs->ARM_r0 | (u64)regs->ARM_r1 << 32;
+}
 
 static inline void arch_ujprobe_return(void)
 {

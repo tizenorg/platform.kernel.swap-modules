@@ -27,6 +27,7 @@
 #ifndef _ARM_SWAP_UPROBES_H
 #define _ARM_SWAP_UPROBES_H
 
+
 #include <kprobe/arch/asm/dbi_kprobes.h>
 
 
@@ -34,6 +35,25 @@ struct uprobe;
 struct uretprobe;
 struct uretprobe_instance;
 
+
+
+static inline u32 swap_get_urp_float(struct pt_regs *regs)
+{
+	u32 st0;
+
+	asm volatile ("fstps	%0" : "=m" (st0));
+
+	return st0;
+}
+
+static inline u64 swap_get_urp_double(struct pt_regs *regs)
+{
+	u64 st1;
+
+	asm volatile ("fstpl	%0" : "=m" (st1));
+
+	return st1;
+}
 
 static inline void arch_ujprobe_return(void)
 {

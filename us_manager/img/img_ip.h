@@ -32,9 +32,11 @@ struct img_ip {
 	struct list_head list;			/* for img_file */
 	unsigned long addr;
 	char *args;
+	char ret_type;
 };
 
-struct img_ip *create_img_ip(unsigned long addr, const char *args);
+struct img_ip *create_img_ip(unsigned long addr, const char *args,
+			     char ret_type);
 void free_img_ip(struct img_ip *ip);
 
 /* debug */

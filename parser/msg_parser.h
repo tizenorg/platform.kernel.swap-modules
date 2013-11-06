@@ -59,6 +59,7 @@ struct conf_data {
 struct func_inst_data {
 	u64 addr;
 	char *args;
+	char ret_type;
 };
 
 /* Library struct */

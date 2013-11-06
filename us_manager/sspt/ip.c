@@ -56,13 +56,13 @@ static int ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 		addr = ip->offset & 0x01 ? addr | 0x01 : addr;
 #endif
 
-		exit_event(regs, addr, ret_addr);
+		exit_event(ip->ret_type, regs, addr, ret_addr);
 	}
 
 	return 0;
 }
 
-struct us_ip *create_ip(unsigned long offset, const char *args)
+struct us_ip *create_ip(unsigned long offset, const char *args, char ret_type)
 {
 	size_t len = strlen(args) + 1;
 	struct us_ip *ip = kmalloc(sizeof(*ip) + len, GFP_ATOMIC);
@@ -73,6 +73,7 @@ struct us_ip *create_ip(unsigned long offset, const char *args)
 		INIT_LIST_HEAD(&ip->list);
 		ip->offset = offset;
 		ip->args = (char *)ip + sizeof(*ip);
+		ip->ret_type = ret_type;
 
 		/* copy args */
 		memcpy(ip->args, args, len);

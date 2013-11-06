@@ -67,7 +67,8 @@ static int mod_func_inst(struct func_inst_data *func, struct pf_group *pfg,
 
 	switch (mt) {
 	case MT_ADD:
-		ret = pf_register_probe(pfg, dentry, func->addr, func->args);
+		ret = pf_register_probe(pfg, dentry, func->addr, func->args,
+					func->ret_type);
 		break;
 	case MT_DEL:
 		ret = pf_unregister_probe(pfg, dentry, func->addr);

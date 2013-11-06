@@ -37,7 +37,7 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv);
 void put_pf_group(struct pf_group *pfg);
 
 int pf_register_probe(struct pf_group *pfg, struct dentry *dentry,
-		      unsigned long offset, const char *args);
+		      unsigned long offset, const char *args, char ret_type);
 int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 			unsigned long offset);
 

@@ -639,37 +639,132 @@ struct msg_func_exit {
 	u64 pc_addr;
 	u64 caller_pc_addr;
 	u32 cpu_num;
-	u64 ret_val;
+	char ret_val[0];
 } __attribute__((packed));
 
-static char *pack_msg_func_exit(char *payload, struct pt_regs *regs,
-				unsigned long func_addr,
-				unsigned long ret_addr)
+static int pack_msg_ret_val(char *buf, int len, char ret_type,
+			      struct pt_regs *regs)
 {
-	struct msg_func_exit *mfe = (struct msg_func_exit *)payload;
+	const char *buf_old = buf;
+	u32 *tmp_u32;
+	u64 *tmp_u64;
+
+	*buf = ret_type;
+	++buf;
+
+	switch (ret_type) {
+	case 'b': /* 1 byte(bool) */
+		if (len < 1)
+			return -ENOMEM;
+		*buf = (char)!!get_regs_ret_val(regs);
+		++buf;
+		break;
+	case 'c': /* 1 byte(char) */
+		if (len < 1)
+			return -ENOMEM;
+		*buf = (char)get_regs_ret_val(regs);
+		++buf;
+		break;
+	case 'd': /* 4 byte(int) */
+		if (len < 4)
+			return -ENOMEM;
+		tmp_u32 = (u32 *)buf;
+		*tmp_u32 = get_regs_ret_val(regs);
+		buf += 4;
+		break;
+	case 'x': /* 8 byte(long) */
+	case 'p': /* 8 byte(pointer) */
+		if (len < 8)
+			return -ENOMEM;
+		tmp_u64 = (u64 *)buf;
+		*tmp_u64 = (u64)get_regs_ret_val(regs);
+		buf += 8;
+		break;
+	case 's': /* string end with '\0' */
+	{
+		enum { max_str_len = 512 };
+		const char __user *user_s;
+		int len_s, ret;
+
+		user_s = (const char __user *)get_regs_ret_val(regs);
+		len_s = strnlen_user(user_s, max_str_len);
+		if (len < len_s)
+			return -ENOMEM;
+
+		ret = strncpy_from_user(buf, user_s, len_s);
+		if (ret < 0)
+			return -EFAULT;
+
+		buf[ret] = '\0';
+		buf += ret + 1;
+	}
+		break;
+	case 'n':
+	case 'v':
+		break;
+	case 'f': /* 4 byte(float) */
+		if (len < 4)
+			return -ENOMEM;
+		tmp_u32 = (u32 *)buf;
+		*tmp_u32 = swap_get_urp_float(regs);
+		buf += 4;
+		break;
+	case 'w': /* 8 byte(double) */
+		if (len < 8)
+			return -ENOMEM;
+		tmp_u64 = (u64 *)buf;
+		*tmp_u64 = swap_get_urp_double(regs);
+		buf += 8;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return buf - buf_old;
+}
+
+
+static int pack_msg_func_exit(char *buf, int len, char ret_type,
+			      struct pt_regs *regs, unsigned long func_addr,
+			      unsigned long ret_addr)
+{
+	struct msg_func_exit *mfe = (struct msg_func_exit *)buf;
 	struct task_struct *task = current;
+	int ret;
 
 	mfe->pid = task->tgid;
 	mfe->tid = task->pid;
 	mfe->cpu_num = smp_processor_id();
 	mfe->pc_addr = func_addr;
 	mfe->caller_pc_addr = ret_addr;
-	mfe->ret_val = get_regs_ret_val(regs);
 
-	return payload + sizeof(*mfe);
+	ret = pack_msg_ret_val(mfe->ret_val, len, ret_type, regs);
+	if (ret < 0) {
+		printk("ERROR: packing MSG_FUNCTION_EXIT (ret=%d)\n", ret);
+		return ret;
+	}
+
+	return sizeof(*mfe) + ret;
 }
 
-int exit_event(struct pt_regs *regs, unsigned long func_addr,
+int exit_event(char ret_type, struct pt_regs *regs, unsigned long func_addr,
 	       unsigned long ret_addr)
 {
 	char *buf, *payload, *buf_end;
+	int ret;
 
 	if (!check_event(current))
 		return 0;
 
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_EXIT);
-	buf_end = pack_msg_func_exit(payload, regs, func_addr, ret_addr);
+	/* FIXME: len=1024 */
+	ret = pack_msg_func_exit(payload, 1024, ret_type, regs,
+				 func_addr, ret_addr);
+	if (ret < 0)
+		return ret;
+
+	buf_end = payload + ret;
 	set_len_msg(buf, buf_end);
 
 	return write_to_buffer(buf);
