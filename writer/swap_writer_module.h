@@ -44,6 +44,9 @@ enum PROBE_SUB_TYPE {
 };
 
 struct pt_regs;
+struct dentry;
+struct task_struct;
+struct vm_area_struct;
 
 int init_msg(size_t buf_size);
 void uninit_msg(void);

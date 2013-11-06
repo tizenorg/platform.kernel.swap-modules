@@ -389,7 +389,7 @@ struct proc_unmap {
 static char *pack_proc_unmap(char *payload, unsigned long start,
 			     unsigned long end)
 {
-	struct proc_map *pum = (struct proc_unmap *)payload;
+	struct proc_unmap *pum = (struct proc_unmap *)payload;
 
 	pum->pid = current->tgid;
 	pum->low_addr = start;
@@ -554,8 +554,8 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 		case 'd': /* 4 byte(int) */
 			if (len < 4)
 				return -ENOMEM;
-			tmp_u32 = buf;
-			*tmp_u32 = arg;
+			tmp_u32 = (u32 *)buf;
+			*tmp_u32 = (u32)arg;
 			buf += 4;
 			len -= 4;
 			break;
@@ -564,7 +564,7 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 		case 'p': /* 8 byte(pointer) */
 			if (len < 8)
 				return -ENOMEM;
-			tmp_u64 = buf;
+			tmp_u64 = (u64 *)buf;
 			*tmp_u64 = (u64)arg;
 			buf += 8;
 			len -= 8;
@@ -572,7 +572,7 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 		case 'w': /* 8 byte(double) */
 			if (len < 8 && (i + 1) < cnt)
 				return -ENOMEM;
-			tmp_u64 = buf;
+			tmp_u64 = (u64 *)buf;
 			*tmp_u64 = *((u64 *)&args[i]);
 			++i;
 			buf += 8;
