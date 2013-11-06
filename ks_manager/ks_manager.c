@@ -71,7 +71,7 @@ static struct probe *find_probe(unsigned long addr)
 
 	/* check if such probe does exist */
 	swap_hlist_for_each_entry(p, node, &list_probes, hlist)
-		if (p->p.jp.kp.addr == addr)
+		if ((unsigned long)p->p.jp.kp.addr == addr)
 			return p;
 
 	return NULL;
