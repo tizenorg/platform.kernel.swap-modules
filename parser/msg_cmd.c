@@ -32,11 +32,6 @@
 #include "us_inst.h"
 #include "../us_manager/us_manager.h"
 
-static int set_app_info(struct app_info_data *app_info)
-{
-	return 0;
-}
-
 static int set_config(struct conf_data *conf)
 {
 	int ret;

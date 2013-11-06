@@ -120,7 +120,7 @@ static int get_pfg_by_app_info(struct app_info_data *app_info, struct pf_group *
 		*pfg = get_pf_group_by_dentry(dentry, dentry);
 		break;
 	default:
-		printk("ERROR: app_type=%0x%x\n", app_info->app_type);
+		printk("ERROR: app_type=0x%x\n", app_info->app_type);
 		return -EINVAL;
 	}
 
@@ -150,7 +150,7 @@ static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 
 		ret = mod_func_inst(app_inst->func[i], pfg, dentry, mt);
 		if (ret) {
-			printk("Cannot mod func inst, ret = \n", ret);
+			printk("Cannot mod func inst, ret = %d\n", ret);
 			return ret;
 		}
 	}
