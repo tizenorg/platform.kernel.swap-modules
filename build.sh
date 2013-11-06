@@ -77,7 +77,7 @@ make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${us_manager
 
 ks_features_module_name=swap_ks_features.ko
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${ks_features_dir} \
-	extra_cflags="-I${modules_dir} -I${kprobe_dir} -I${kprobe_arch_dir} -I${ksyms_dir}" \
+	extra_cflags="-Werror -I${modules_dir} -I${kprobe_dir} -I${kprobe_arch_dir} -I${ksyms_dir}" \
 	modules || exit 1
 
 sampler_module_name=swap_sampler.ko

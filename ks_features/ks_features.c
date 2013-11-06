@@ -110,8 +110,8 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	struct kretprobe *rp = ri->rp;
 
 	if (rp) {
-		unsigned long func_addr = rp->kp.addr;
-		unsigned long ret_addr = ri->ret_addr;
+		unsigned long func_addr = (unsigned long)rp->kp.addr;
+		unsigned long ret_addr = (unsigned long)ri->ret_addr;
 
 		exit_event(regs, func_addr, ret_addr);
 	}
