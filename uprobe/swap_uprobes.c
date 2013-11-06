@@ -378,7 +378,6 @@ struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *
 static void remove_uprobe(struct uprobe *up)
 {
 	struct kprobe *p = &up->kp;
-	struct task_struct *task = up->task;
 
 #ifdef CONFIG_ARM
 	free_insn_slot(up->sm, p->ainsn.insn_arm);

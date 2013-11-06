@@ -40,7 +40,7 @@ static inline int longjmp_break_uhandler(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-static inline int arch_opcode_analysis_uretprobe(kprobe_opcode_t opcode)
+static inline int arch_opcode_analysis_uretprobe(struct uretprobe *rp)
 {
 	return 0;
 }

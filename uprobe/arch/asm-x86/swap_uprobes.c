@@ -110,7 +110,7 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 	struct ujprobe *jp = container_of(up, struct ujprobe, up);
 	kprobe_pre_entry_handler_t pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
-	unsigned long addr, args[6];
+	unsigned long args[6];
 
 	/* FIXME some user space apps crash if we clean interrupt bit */
 	//regs->EREG(flags) &= ~IF_MASK;
@@ -123,7 +123,7 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 		panic("failed to read user space func arguments %lx!\n", regs->EREG(sp) + 4);
 
 	if (pre_entry)
-		p->ss_addr = pre_entry(jp->priv_arg, regs);
+		p->ss_addr = (kprobe_opcode_t *)pre_entry(jp->priv_arg, regs);
 
 	if (entry)
 		entry(args[0], args[1], args[2], args[3], args[4], args[5]);
