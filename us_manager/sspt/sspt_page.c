@@ -172,7 +172,6 @@ int sspt_unregister_page(struct sspt_page *page,
 
 	spin_lock(&page->lock);
 
-splice_and_unlock:
 	list_splice(&ip_list_tmp, head);
 	spin_unlock(&page->lock);
 

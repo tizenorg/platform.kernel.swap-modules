@@ -136,7 +136,6 @@ static struct kretprobe cp_kretprobe = {
 /* Detects when target process removes IPs. */
 static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
-	struct sspt_proc *proc = NULL;
 	struct task_struct *task;
 
 #if defined(CONFIG_X86)

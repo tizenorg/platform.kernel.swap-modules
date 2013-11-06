@@ -28,6 +28,7 @@
 #include "ip.h"
 #include <linux/types.h>
 
+enum US_FLAGS;
 struct vm_area_struct;
 
 struct sspt_file {

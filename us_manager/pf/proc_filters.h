@@ -28,6 +28,7 @@
 
 #include <linux/types.h>
 
+struct dentry;
 struct task_struct;
 
 struct proc_filter {

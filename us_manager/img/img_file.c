@@ -90,7 +90,7 @@ int img_file_del_ip(struct img_file *file, unsigned long addr)
 
 	ip = find_img_ip(file, addr);
 	if (ip == NULL) {
-		printk("Warning: no ip found in img, addr = %p\n", addr);
+		printk("Warning: no ip found in img, addr = %lx\n", addr);
 		return -EINVAL;
 	}
 

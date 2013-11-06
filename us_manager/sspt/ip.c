@@ -50,7 +50,7 @@ static int ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 	if (rp && get_quiet() == QT_OFF) {
 		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
 		unsigned long addr = (unsigned long)ip->retprobe.up.kp.addr;
-		unsigned long ret_addr = ri->ret_addr;
+		unsigned long ret_addr = (unsigned long)ri->ret_addr;
 
 #if defined(CONFIG_ARM)
 		addr = ip->offset & 0x01 ? addr | 0x01 : addr;
@@ -64,18 +64,25 @@ static int ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 struct us_ip *create_ip(unsigned long offset, const char *args)
 {
-	struct us_ip *ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
-	memset(ip, 0, sizeof(*ip));
+	size_t len = strlen(args) + 1;
+	struct us_ip *ip = kmalloc(sizeof(*ip) + len, GFP_ATOMIC);
 
-	INIT_LIST_HEAD(&ip->list);
-	ip->offset = offset;
+	if (ip != NULL) {
+		memset(ip, 0, sizeof(*ip));
 
-	/* TODO: or copy args?! */
-	ip->args = args;
+		INIT_LIST_HEAD(&ip->list);
+		ip->offset = offset;
+		ip->args = (char *)ip + sizeof(*ip);
 
-	/* retprobe */
-	ip->retprobe.handler = ret_handler;
-	ip->retprobe.entry_handler = entry_handler;
+		/* copy args */
+		memcpy(ip->args, args, len);
+
+		/* retprobe */
+		ip->retprobe.handler = ret_handler;
+		ip->retprobe.entry_handler = entry_handler;
+	} else {
+		printk("Cannot kmalloc in create_ip function!\n");
+	}
 
 	return ip;
 }

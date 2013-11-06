@@ -77,8 +77,6 @@ static void *sm_alloc_us(struct slot_manager *sm)
 
 static void sm_free_us(struct slot_manager *sm, void *ptr)
 {
-	struct task_struct *task = sm->data;
-
 	/*
 	 * E. G.: This code provides kernel dump because of rescheduling while atomic.
 	 * As workaround, this code was commented. In this case we will have memory leaks
@@ -87,6 +85,8 @@ static void sm_free_us(struct slot_manager *sm, void *ptr)
 	 * for improving supportability and performance.
 	 */
 #if 0
+	struct task_struct *task = sm->data;
+
 	mm = get_task_mm(task);
 	if (mm) {
 		down_write(&mm->mmap_sem);

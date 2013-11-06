@@ -39,7 +39,7 @@ static inline void print_retprobe(struct uretprobe *rp)
 			(unsigned long)rp->handler);
 }
 
-static inline print_ip(struct us_ip *ip, int i)
+static inline void print_ip(struct us_ip *ip, int i)
 {
 	printk("###       addr[%2d]=%lx, R_addr=%lx\n",
 				i, (unsigned long)ip->offset,

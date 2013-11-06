@@ -234,8 +234,6 @@ int sspt_file_uninstall(struct sspt_file *file, struct task_struct *task, enum U
 
 void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma)
 {
-	struct task_struct *task = file->proc->task;
-
 	file->vm_start = vma->vm_start;
 	file->vm_end = vma->vm_end;
 

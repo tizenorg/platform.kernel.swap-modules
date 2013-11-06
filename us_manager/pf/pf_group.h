@@ -30,6 +30,7 @@
 
 struct dentry;
 struct pf_group;
+struct sspt_proc;
 
 struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv);
 struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv);

@@ -255,7 +255,7 @@ void uninstall_proc(struct sspt_proc *proc)
 {
 	struct task_struct *task = proc->task;
 	struct pf_group *pfg;
-	struct pls_struct *pls;
+	struct pl_struct *pls;
 	int i;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
@@ -284,7 +284,7 @@ void uninstall_proc(struct sspt_proc *proc)
 
 void call_mm_release(struct task_struct *task)
 {
-	struct sspt_struct *proc;
+	struct sspt_proc *proc;
 
 	proc = sspt_proc_get_by_task(task);
 	if (proc)
@@ -298,8 +298,6 @@ void uninstall_page(unsigned long addr)
 
 void install_all(void)
 {
-	struct pf_group *pfg;
-	struct sspt_proc *proc;
 	struct task_struct *task;
 	int tmp_oops_in_progress;
 
@@ -322,10 +320,9 @@ void install_all(void)
 static void clean_pfg(void)
 {
 	struct pf_group *pfg, *n;
-	struct proc_filter *filter;
 
 	list_for_each_entry_safe(pfg, n, &pfg_list, list) {
-		list_del(&pfg->list);
+		del_pfg_by_list(pfg);
 		free_pfg(pfg);
 	}
 }
