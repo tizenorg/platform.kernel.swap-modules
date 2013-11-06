@@ -109,15 +109,15 @@ static void sm_free(struct slot_manager *sm, void *ptr)
 	__wrapper_module_free(ptr);
 }
 
-static void init_sm()
+static void init_sm(void)
 {
 	sm.slot_size = KPROBES_TRAMP_LEN;
 	sm.alloc = sm_alloc;
 	sm.free = sm_free;
-	INIT_HLIST_NODE(&sm.page_list);
+	INIT_HLIST_HEAD(&sm.page_list);
 }
 
-static void exit_sm()
+static void exit_sm(void)
 {
 	/* FIXME: free */
 }
@@ -661,7 +661,6 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	unsigned long flags, orig_ret_address = 0;
 	unsigned long trampoline_address = (unsigned long)&kretprobe_trampoline;
 
-	struct kretprobe *crp = NULL;
 	struct kprobe_ctlblk *kcb;
 
 	preempt_disable();

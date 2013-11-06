@@ -505,7 +505,7 @@ void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ct
 
 void __naked kretprobe_trampoline(void);
 
-static unsigned long swap_get_karg(struct pt_regs *regs, unsigned long n)
+static inline unsigned long swap_get_karg(struct pt_regs *regs, unsigned long n)
 {
 	switch (n) {
 	case 0:

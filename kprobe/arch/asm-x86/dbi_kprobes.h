@@ -227,7 +227,7 @@ static inline int arch_check_insn(struct arch_specific_insn *ainsn)
 	return 0;
 }
 
-static unsigned long swap_get_karg(struct pt_regs *regs, unsigned long n)
+static inline unsigned long swap_get_karg(struct pt_regs *regs, unsigned long n)
 {
 	switch (n) {
 	case 0:

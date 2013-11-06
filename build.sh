@@ -57,7 +57,7 @@ make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${driver_dir
 
 kprobe_module_name=swap_kprobe.ko
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${kprobe_dir} \
-	extra_cflags="-I${modules_dir} -I${kprobe_dir} -I${kprobe_arch_dir} -I${ksyms_dir}" \
+	extra_cflags="-Werror -I${modules_dir} -I${kprobe_dir} -I${kprobe_arch_dir} -I${ksyms_dir}" \
 	modules || exit 1
 
 ks_manager_module_name=swap_ks_manager.ko

@@ -462,14 +462,14 @@ static struct undef_hook undef_ho_k = {
 int arch_init_kprobes(void)
 {
 	// Register hooks (kprobe_handler)
-	__swap_register_undef_hook = swap_ksyms("register_undef_hook");
+	__swap_register_undef_hook = (void *)swap_ksyms("register_undef_hook");
 	if (__swap_register_undef_hook == NULL) {
 		printk("no register_undef_hook symbol found!\n");
                 return -1;
         }
 
         // Unregister hooks (kprobe_handler)
-	__swap_unregister_undef_hook = swap_ksyms("unregister_undef_hook");
+	__swap_unregister_undef_hook = (void *)swap_ksyms("unregister_undef_hook");
 	if (__swap_unregister_undef_hook == NULL) {
                 printk("no unregister_undef_hook symbol found!\n");
                 return -1;

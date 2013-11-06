@@ -257,8 +257,6 @@ static int is_IF_modifier (kprobe_opcode_t opcode)
 
 int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 {
-	kprobe_opcode_t insns[KPROBES_TRAMP_LEN];
-
 	int ret = 0;
 
 	if ((unsigned long) p->addr & 0x01)
@@ -514,7 +512,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	kprobe_pre_entry_handler_t pre_entry;
 	entry_point_t entry;
 
-	unsigned long addr, args[6];
+	unsigned long addr;
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
 
 	DBPRINTF ("setjmp_pre_handler %p:%d", p->addr, p->tgid);
@@ -536,7 +534,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	trace_hardirqs_off();
 #endif
 	if (pre_entry)
-		p->ss_addr = pre_entry(jp->priv_arg, regs);
+		p->ss_addr = (kprobe_opcode_t *)pre_entry(jp->priv_arg, regs);
 
 	regs->EREG(ip) = (unsigned long)(jp->entry);
 
@@ -584,7 +582,7 @@ void arch_ujprobe_return(void)
  */
 static void resume_execution (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
 {
-	unsigned long *tos, tos_dword = 0;
+	unsigned long *tos;
 	unsigned long copy_eip = (unsigned long) p->ainsn.insn;
 	unsigned long orig_eip = (unsigned long) p->addr;
 	kprobe_opcode_t insns[2];
@@ -841,6 +839,8 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 		preempt_enable_no_resched ();
 		return 1;
 	}
+
+	return 0;
 }
 
 void arch_arm_kprobe (struct kprobe *p)
