@@ -74,6 +74,7 @@ static ssize_t write_raw(struct file *file, const char __user *user_buf,
 }
 
 static const struct file_operations fops_raw = {
+	.owner = THIS_MODULE,
 	.write =	write_raw,
 	.llseek =	default_llseek
 };
@@ -129,6 +130,7 @@ static ssize_t read_af(struct file *file, char __user *user_buf,
 }
 
 static const struct file_operations fops_available_filters = {
+	.owner = THIS_MODULE,
 	.read =		read_af,
 	.llseek =	default_llseek
 };
@@ -186,6 +188,7 @@ static ssize_t write_filter(struct file *file, const char __user *user_buf,
 }
 
 static const struct file_operations fops_filter = {
+	.owner = THIS_MODULE,
 	.read =		read_filter,
 	.write =	write_filter,
 	.llseek =	default_llseek

@@ -62,6 +62,7 @@ static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
 
 /* File operations structure */
 const struct file_operations swap_device_fops = {
+	.owner = THIS_MODULE,
 	.read = swap_device_read,
 	.open = swap_device_open,
 	.release = swap_device_release,
