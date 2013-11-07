@@ -1,4 +1,5 @@
 EXTRA_CFLAGS := $(extra_cflags)
+KBUILD_EXTRA_SYMBOLS = $(src)/../writer/Module.symvers
 
 obj-m := swap_sampler.o
 swap_sampler-y := swap_sampler_module.o

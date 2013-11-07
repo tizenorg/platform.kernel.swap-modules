@@ -1,4 +1,10 @@
 EXTRA_CFLAGS := $(extra_cflags)
+KBUILD_EXTRA_SYMBOLS = $(src)/../energy/Module.symvers \
+                       $(src)/../ks_features/Module.symvers \
+                       $(src)/../driver/Module.symvers \
+                       $(src)/../writer/Module.symvers \
+                       $(src)/../us_manager/Module.symvers \
+                       $(src)/../sampler/Module.symvers
 
 obj-m := swap_message_parser.o
 swap_message_parser-y := swap_msg_parser.o \

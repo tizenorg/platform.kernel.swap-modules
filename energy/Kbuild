@@ -1,4 +1,7 @@
 EXTRA_CFLAGS := $(extra_cflags)
+KBUILD_EXTRA_SYMBOLS = $(src)/../kprobe/Module.symvers \
+                       $(src)/../us_manager/Module.symvers \
+                       $(src)/../driver/Module.symvers
 
 obj-m := swap_energy.o
 swap_energy-y := energy_module.o \

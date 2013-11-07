@@ -1,4 +1,6 @@
 EXTRA_CFLAGS := $(extra_cflags)
+KBUILD_EXTRA_SYMBOLS = $(src)/../buffer/Module.symvers \
+                       $(src)/../driver/Module.symvers
 
 obj-m := swap_writer.o
 swap_writer-y := swap_writer_module.o \
