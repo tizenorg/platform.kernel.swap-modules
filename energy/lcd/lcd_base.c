@@ -47,7 +47,8 @@ int read_val(const char *path)
 	int ret;
 	struct file *f;
 	unsigned long val;
-	char buf[32];
+	enum { buf_len = 32 };
+	char buf[buf_len];
 
 	f = filp_open(path, O_RDONLY, 0);
 	if (IS_ERR(f)) {
@@ -59,6 +60,8 @@ int read_val(const char *path)
 	filp_close(f, NULL);
 	if (ret < 0)
 		return ret;
+
+	buf[ret >= buf_len ? buf_len - 1 : ret] = '\0';
 
 	ret = strict_strtoul(buf, 0, &val);
 	if (ret)
