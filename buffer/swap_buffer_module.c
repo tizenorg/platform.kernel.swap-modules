@@ -80,7 +80,8 @@ int swap_buffer_init(size_t subbuffer_size, unsigned int nr_subbuffers,
 	if ((swap_buffer_status & BUFFER_ALLOC) &&
 		(subbuffers_size == subbuffer_size) &&
 		(subbuffers_num == nr_subbuffers) &&
-		(subbuffer_full_callback == subbuffer_callback)) {
+		((subbuffer_callback_type)subbuffer_full_callback ==
+		 subbuffer_callback)) {
 		result = buffer_queue_reset();
 		goto swap_buffer_init_work;
 	}

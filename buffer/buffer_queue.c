@@ -150,8 +150,6 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	}
 	allocated_buffers++;
 
-	print_msg(" Buffer allocated = 0x%p\n", write_queue.end_ptr->data_buffer);
-
 	sync_init(&write_queue.end_ptr->buffer_sync);
 
 	/* Buffer initialization */
@@ -179,10 +177,6 @@ int buffer_queue_allocation(size_t subbuffer_size,
 			goto buffer_allocation_error_free;
 		}
 		allocated_buffers++;
-
-		print_msg(" Buffer allocated = 0x%p, pages_order = %d\n",
-			  write_queue.end_ptr->data_buffer,
-			  pages_order_in_subbuffer);
 
 		sync_init(&write_queue.end_ptr->buffer_sync);
 
@@ -274,8 +268,6 @@ void buffer_queue_free(void)
 		tmp = read_queue.start_ptr;
 		read_queue.start_ptr = read_queue.start_ptr->next_in_queue;
 		buffer_free(tmp->data_buffer, queue_subbuffer_size);
-		print_msg(" Buffer free = 0x%x\n", (unsigned long)
-			   tmp->data_buffer);
 		memory_free(tmp);
 	}
 
@@ -284,8 +276,6 @@ void buffer_queue_free(void)
 		tmp = write_queue.start_ptr;
 		write_queue.start_ptr = write_queue.start_ptr->next_in_queue;
 		buffer_free(tmp->data_buffer, queue_subbuffer_size);
-		print_msg(" Buffer free = 0x%x\n", (unsigned long)
-										   tmp->data_buffer);
 		memory_free(tmp);
 	}
 
