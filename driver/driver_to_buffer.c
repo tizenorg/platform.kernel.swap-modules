@@ -138,8 +138,6 @@ static int driver_to_buffer_release(void)
 /* Buffers callback function */
 int driver_to_buffer_callback(void)
 {
-	int result;
-
 	/* Increment buffers_to_read counter */
 	inc_buffers_to_read();
 	swap_device_wake_up_process();
@@ -212,7 +210,7 @@ int driver_to_buffer_fill_spd(struct splice_pipe_desc *spd)
 	struct partial_page *partial = spd->partial;
 
 	while (data_to_splice) {
-		size_t read_from_current_page = min(data_to_splice, PAGE_SIZE);
+		size_t read_from_current_page = min(data_to_splice, (size_t)PAGE_SIZE);
 
 		pages[spd->nr_pages] = alloc_page(GFP_KERNEL);
 		if (!pages[spd->nr_pages]) {
