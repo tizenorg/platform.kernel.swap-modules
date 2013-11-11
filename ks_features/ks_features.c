@@ -25,8 +25,8 @@
 
 #include <linux/module.h>
 #include <asm/errno.h>
-#include <ksyms.h>
-#include <dbi_kprobes.h>
+#include <ksyms/ksyms.h>
+#include <kprobe/dbi_kprobes.h>
 #include <writer/swap_writer_module.h>
 #include "ks_features.h"
 #include "syscall_list.h"
