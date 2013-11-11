@@ -63,7 +63,7 @@ make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${kprobe_dir
 
 ks_manager_module_name=swap_ks_manager.ko
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${ks_manager_dir} \
-	extra_cflags="-Werror -I${modules_dir} -I${kprobe_dir} -I${kprobe_arch_dir}" \
+	extra_cflags="-Werror -I${modules_dir} -I${kprobe_arch_dir}" \
 	modules || exit 1
 
 uprobe_module_name=swap_uprobe.ko

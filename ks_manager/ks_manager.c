@@ -24,8 +24,8 @@
 
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <dbi_kprobes.h>
-#include <dbi_kprobes_deps.h>
+#include <kprobe/dbi_kprobes.h>
+#include <kprobe/dbi_kprobes_deps.h>
 #include "ks_manager.h"
 
 struct probe {
