@@ -28,6 +28,10 @@
 #ifndef _ARM_SWAP_UPROBES_H
 #define _ARM_SWAP_UPROBES_H
 
+
+#include <asm/dbi_kprobes.h>
+
+
 struct kprobe;
 struct pt_regs;
 struct task_struct;
@@ -50,6 +54,28 @@ void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs);
 void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs);
+
+static inline unsigned long swap_get_uarg(struct pt_regs *regs, unsigned long n)
+{
+	u32 *ptr, addr = 0;
+
+	switch (n) {
+	case 0:
+		return regs->ARM_r0;
+	case 1:
+		return regs->ARM_r1;
+	case 2:
+		return regs->ARM_r2;
+	case 3:
+		return regs->ARM_r3;
+	}
+
+	ptr = (u32 *)regs->ARM_sp + n - 4;
+	if (get_user(addr, ptr))
+		printk("failed to dereference a pointer, ptr=%p\n", ptr);
+
+	return addr;
+}
 
 int swap_arch_init_uprobes(void);
 void swap_arch_exit_uprobes(void);

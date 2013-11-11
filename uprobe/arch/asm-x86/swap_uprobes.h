@@ -49,6 +49,18 @@ void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs);
 void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs);
 
+static inline unsigned long swap_get_uarg(struct pt_regs *regs, unsigned long n)
+{
+	u32 *ptr, addr = 0;
+
+	/* 1 - return address saved on top of the stack */
+	ptr = (u32 *)regs->sp + n + 1;
+	if (get_user(addr, ptr))
+		printk("failed to dereference a pointer, ptr=%p\n", ptr);
+
+	return addr;
+}
+
 int swap_arch_init_uprobes(void);
 void swap_arch_exit_uprobes(void);
 
