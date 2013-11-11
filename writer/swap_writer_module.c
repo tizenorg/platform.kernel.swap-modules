@@ -35,8 +35,8 @@
 #include <linux/slab.h>
 #include <asm/uaccess.h>
 
-#include "../buffer/swap_buffer_module.h"
-#include "../buffer/swap_buffer_errors.h"
+#include <buffer/swap_buffer_module.h>
+#include <buffer/swap_buffer_errors.h>
 
 #include "swap_writer_module.h"
 #include "swap_writer_errors.h"

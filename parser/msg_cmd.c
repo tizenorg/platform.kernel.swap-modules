@@ -30,7 +30,7 @@
 #include "features.h"
 #include "parser_defs.h"
 #include "us_inst.h"
-#include "../us_manager/us_manager.h"
+#include <us_manager/us_manager.h>
 
 static int set_config(struct conf_data *conf)
 {
