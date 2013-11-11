@@ -36,6 +36,7 @@
 #include <linux/gfp.h>
 #include <linux/mm.h>
 
+#include "data_types.h"
 
 
 /* MESSAGES */
@@ -54,12 +55,6 @@
 
 
 /* LOCKS */
-
-/* Using spinlocks as sync primitives */
-struct sync_t {
-	spinlock_t spinlock;
-	unsigned long flags;
-};
 
 /* Spinlocks initialization */
 static inline void sync_init(struct sync_t *buffer_sync)
@@ -82,8 +77,6 @@ static inline void sync_unlock(struct sync_t *buffer_sync)
 
 /* SWAP SUBBUFER */
 
-/* swap_subbuffer_ptr points to the first memory page of the subbuffer */
-typedef struct page *swap_subbuffer_ptr;
 
 /* We alloc memory for swap_subbuffer structures with common kmalloc */
 #define memory_allocation(memory_size)  kmalloc(memory_size, GFP_KERNEL)

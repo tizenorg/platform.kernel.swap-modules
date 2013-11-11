@@ -28,6 +28,7 @@
 #include "buffer_queue.h"
 #include "buffer_description.h"
 #include "swap_buffer_errors.h"
+#include "kernel_operations.h"
 
 /* Bitwise mask for buffer status */
 enum _swap_buffer_status_mask {

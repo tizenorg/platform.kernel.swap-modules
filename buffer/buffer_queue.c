@@ -45,6 +45,7 @@
 #include "buffer_queue.h"
 #include "swap_buffer_to_buffer_queue.h"
 #include "swap_buffer_errors.h"
+#include "kernel_operations.h"
 
 /* Queue structure. Consist of pointers to the first and the last elements of
  * queue. */

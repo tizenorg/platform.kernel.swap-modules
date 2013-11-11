@@ -27,6 +27,7 @@
 #include <linux/splice.h>
 #include <asm/uaccess.h>
 #include <linux/spinlock.h>
+#include <linux/mm.h>
 
 #include <buffer/swap_buffer_module.h>
 #include <buffer/swap_buffer_errors.h>
