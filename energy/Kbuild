@@ -45,19 +45,19 @@ UNREG_RET := void
 ###############################################################################
 # S6E8AA0:
 ifeq ($(CONFIG_LCD_S6E8AA0), y)
-	swap_energy-y += lcd/s6e8aa0.o
+	#swap_energy-y += lcd/s6e8aa0.o
 
-	REG_FUNC_LIST += s6e8aa0_register
-	UNREG_FUNC_LIST += s6e8aa0_unregister
+	#REG_FUNC_LIST += s6e8aa0_register
+	#UNREG_FUNC_LIST += s6e8aa0_unregister
 endif
 
 
 # MARU:
 ifeq ($(CONFIG_MARU_BACKLIGHT), y)
-	swap_energy-y += lcd/maru.o
+	#swap_energy-y += lcd/maru.o
 
-	REG_FUNC_LIST += maru_register
-	UNREG_FUNC_LIST += maru_unregister
+	#REG_FUNC_LIST += maru_register
+	#UNREG_FUNC_LIST += maru_unregister
 endif
 
 

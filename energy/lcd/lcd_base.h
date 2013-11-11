@@ -25,21 +25,45 @@
  *
  */
 
+
 #include <linux/errno.h>
 
 
-struct lcd_ops_get {
-	int (*get_backlight)(void);
-	int (*get_power)(void);
+enum lcd_action_type {
+	LAT_BRIGHTNESS
 };
 
-struct lcd_ops_set {
-	void (*set_backlight)(int val);
-	void (*set_power)(int val);
+enum lcd_paramerer_type {
+	LPD_MIN_BRIGHTNESS,
+	LPD_MAX_BRIGHTNESS,
+	LPD_BRIGHTNESS
 };
 
+struct lcd_ops;
+
+typedef int (*check_lcd)(void);
+typedef int (*notifier_lcd)(struct lcd_ops *ops, enum lcd_action_type action,
+			    void *data);
+typedef unsigned long (*get_parameter_lcd)(struct lcd_ops *ops,
+					   enum lcd_paramerer_type type);
+
+
+struct lcd_ops {
+	struct list_head list;
+
+	char *name;
+	check_lcd check;
+	notifier_lcd notifler;
+	get_parameter_lcd get;
+
+	void *priv;
+};
+
+int register_lcd(struct lcd_ops *ops);
+void unregister_lcd(struct lcd_ops *ops);
 
 int read_val(const char *path);
+
 int lcd_init(void);
 void lcd_exit(void);
 

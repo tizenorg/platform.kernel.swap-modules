@@ -36,6 +36,7 @@
 #include <us_manager/sspt/sspt_feature.h>
 #include <linux/atomic.h>
 #include "energy.h"
+#include "lcd/lcd_base.h"
 
 
 static u64 get_ntime(void)
@@ -585,12 +586,19 @@ int energy_init(void)
 	sys_write_krp.kp.addr = (kprobe_opcode_t *)addr;
 
 	ret = init_feature();
+	if (ret)
+		return ret;
+
+	ret = lcd_init();
+	if (ret)
+		uninit_feature();
 
 	return ret;
 }
 
 void energy_uninit(void)
 {
+	lcd_exit();
 	uninit_feature();
 
 	if (energy_enable)

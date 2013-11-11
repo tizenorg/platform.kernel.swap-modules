@@ -24,22 +24,9 @@
 
 
 #include <linux/module.h>
+#include <linux/slab.h>
 #include <linux/fs.h>
 #include "lcd_base.h"
-
-
-#ifdef CONFIG_ENEGRGY_LCD
-int lcd_mach_init(struct lcd_ops_set *ops_set, struct lcd_ops_get *ops_get);
-void lcd_mach_exit(void);
-#else /* CONFIG_ENEGRGY_LCD */
-static int lcd_mach_init(struct lcd_ops_set *ops_set, struct lcd_ops_get *ops_get)
-{
-	return -EPERM;
-}
-static void lcd_mach_exit(void)
-{
-}
-#endif /* CONFIG_ENEGRGY_LCD */
 
 
 int read_val(const char *path)
@@ -70,35 +57,154 @@ int read_val(const char *path)
 	return (int)val;
 }
 
-void set_backlight(int val)
-{
-	/* TODO: implement */
-}
-
-void set_power(int val)
-{
-	/* TODO: implement */
-}
-
-static struct lcd_ops_set ops_set = {
-	.set_backlight = set_backlight,
-	.set_power = set_power
+enum {
+	brightness_cnt = 10
 };
 
-static struct lcd_ops_get ops_get = { NULL, NULL };
+void set_brightness(struct lcd_ops *ops, int val)
+{
+	/* TODO: implement */
+	printk("####### set_backlight: name=%s val=%d\n", ops->name, val);
+}
 
-int lcd_init(void)
+struct lcd_priv_data {
+	int min_brightness;
+	int max_brightness;
+
+	int brightness[brightness_cnt];
+
+	/* W = slope * brightness + intercept */
+	u64 slope_denominator;
+	u64 slope_numenator;
+	u64 intercept_denominator;
+	u64 intercept_numenator;
+};
+
+static int func_notifier_lcd(struct lcd_ops *ops, enum lcd_action_type action,
+			     void *data)
+{
+	switch (action) {
+	case LAT_BRIGHTNESS:
+		set_brightness(ops, (int)data);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static void *create_lcd_priv(struct lcd_ops *ops)
+{
+	int i;
+	struct lcd_priv_data *lpd = kmalloc(sizeof(*lpd), GFP_KERNEL);
+
+	lpd->min_brightness = ops->get(ops, LPD_MIN_BRIGHTNESS);
+	lpd->max_brightness = ops->get(ops, LPD_MAX_BRIGHTNESS);
+
+	for (i = 0; i < brightness_cnt; ++i)
+		lpd->brightness[i] = 0;
+
+	lpd->slope_denominator = 1;
+	lpd->slope_numenator = 1;
+	lpd->intercept_denominator = 1;
+	lpd->intercept_numenator = 1;
+
+	return (void *)lpd;
+}
+
+static void destroy_lcd_priv(void *data)
+{
+	kfree(data);
+}
+
+static LIST_HEAD(lcd_list);
+static DEFINE_MUTEX(lcd_lock);
+
+static void add_lcd(struct lcd_ops *ops)
+{
+	ops->priv = create_lcd_priv(ops);
+	ops->notifler = func_notifier_lcd;
+
+	INIT_LIST_HEAD(&ops->list);
+	list_add(&ops->list, &lcd_list);
+}
+
+static void del_lcd(struct lcd_ops *ops)
+{
+	list_del(&ops->list);
+
+	destroy_lcd_priv(ops->priv);
+}
+
+static struct lcd_ops *find_lcd(const char *name)
+{
+	struct lcd_ops *ops;
+
+	list_for_each_entry(ops, &lcd_list, list)
+		if (strcmp(ops->name, name) == 0)
+			return ops;
+
+	return NULL;
+}
+
+static int lcd_is_register(struct lcd_ops *ops)
+{
+	struct lcd_ops *o;
+
+	list_for_each_entry(o, &lcd_list, list)
+		if (o == ops)
+			return 1;
+
+	return 0;
+}
+
+int register_lcd(struct lcd_ops *ops)
 {
 	int ret;
 
-	ret = lcd_mach_init(&ops_set, &ops_get);
-	if (ret)
-		return ret;
+	if (ops->check() == 0) {
+		printk("error checking %s\n", ops->name);
+		return -EINVAL;
+	}
 
+	mutex_lock(&lcd_lock);
+	if (find_lcd(ops->name)) {
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	add_lcd(ops);
+
+unlock:
+	mutex_unlock(&lcd_lock);
 	return ret;
 }
 
+void unregister_lcd(struct lcd_ops *ops)
+{
+	mutex_lock(&lcd_lock);
+	if (lcd_is_register(ops) == 0)
+		goto unlock;
+
+	del_lcd(ops);
+
+unlock:
+	mutex_unlock(&lcd_lock);
+}
+
+
+DEFINITION_REG_FUNC;
+DEFINITION_UNREG_FUNC;
+
 void lcd_exit(void)
 {
-	lcd_mach_exit();
+	UNREGISTER_ALL_FUNC();
+}
+
+int lcd_init(void)
+{
+	REGISTER_ALL_FUNC();
+
+	return 0;
 }
