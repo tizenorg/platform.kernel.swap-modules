@@ -27,11 +27,11 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 #include "proc_filters.h"
-#include <img/img_proc.h>
-#include <img/img_file.h>
-#include <img/img_ip.h>
-#include <sspt/sspt_proc.h>
-#include <helper.h>
+#include <us_manager/img/img_proc.h>
+#include <us_manager/img/img_file.h>
+#include <us_manager/img/img_ip.h>
+#include <us_manager/sspt/sspt_proc.h>
+#include <us_manager/helper.h>
 #include <writer/swap_writer_module.h>
 
 struct pf_group {

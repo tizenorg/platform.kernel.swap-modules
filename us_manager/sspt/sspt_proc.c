@@ -29,7 +29,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/list.h>
-#include <us_slot_manager.h>
+#include <us_manager/us_slot_manager.h>
 #include <writer/swap_writer_module.h>
 
 #define mm_read_lock(task, mm, atomic, lock)			\

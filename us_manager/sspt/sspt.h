@@ -30,11 +30,11 @@
 #include "sspt_file.h"
 #include "sspt_proc.h"
 #include "sspt_debug.h"
-#include <swap_uprobes.h>
+#include <uprobe/swap_uprobes.h>
 
 
-#include <us_manager.h>
-#include <pf/pf_group.h>
+#include <us_manager/us_manager.h>
+#include <us_manager/pf/pf_group.h>
 
 
 static inline int check_vma(struct vm_area_struct *vma)

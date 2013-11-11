@@ -29,8 +29,8 @@
 #include <linux/mm.h>
 #include <linux/mman.h>
 #include <linux/list.h>
-#include <dbi_insn_slots.h>
-#include <asm/dbi_kprobes.h>
+#include <kprobe/dbi_insn_slots.h>
+#include <kprobe/arch/asm/dbi_kprobes.h>
 
 static unsigned long alloc_user_pages(struct task_struct *task, unsigned long len, unsigned long prot, unsigned long flags)
 {

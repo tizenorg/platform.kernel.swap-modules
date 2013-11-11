@@ -28,7 +28,7 @@
 #include <linux/mm_types.h>
 #include <linux/fs.h>
 #include "proc_filters.h"
-#include <sspt/sspt.h>
+#include <us_manager/sspt/sspt.h>
 
 static int check_dentry(struct task_struct *task, struct dentry *dentry)
 {

@@ -23,9 +23,9 @@
  */
 
 
-#include <dbi_kprobes.h>
-#include <dbi_kprobes_deps.h>
-#include <ksyms.h>
+#include <kprobe/dbi_kprobes.h>
+#include <kprobe/dbi_kprobes_deps.h>
+#include <ksyms/ksyms.h>
 #include <writer/kernel_operations.h>
 #include <writer/swap_writer_module.h>
 #include "us_slot_manager.h"

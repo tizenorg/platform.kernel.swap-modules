@@ -30,7 +30,7 @@
 #include <linux/list.h>
 #include <linux/hash.h>
 #include <linux/sched.h>
-#include <dbi_kprobes_deps.h>
+#include <kprobe/dbi_kprobes_deps.h>
 
 static int calculation_hash_bits(int cnt)
 {

@@ -25,7 +25,7 @@
  *
  */
 
-#include <dbi_kprobes_deps.h>
+#include <kprobe/dbi_kprobes_deps.h>
 
 static inline void print_jprobe(struct jprobe *jp)
 {
