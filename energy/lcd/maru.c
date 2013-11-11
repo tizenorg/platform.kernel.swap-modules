@@ -27,21 +27,57 @@
 #include <linux/backlight.h>
 #include "lcd_base.h"
 
-static struct lcd_ops_set *ops_s = NULL;
 
 
+static const char path_backlight[]	= "/sys/class/backlight/emulator/brightness";
+static const char path_backlight_min[]	= "/sys/class/backlight/emulator/min_brightness";
+static const char path_backlight_max[]	= "/sys/class/backlight/emulator/max_brightness";
+
+static const char *all_path[] = {
+	path_backlight,
+	path_backlight_min,
+	path_backlight_max
+};
+
+enum {
+	all_path_cnt = sizeof(all_path) / sizeof(char *)
+};
 
 
-
-/* ============================================================================
- * ===                               POWER                                  ===
- * ============================================================================
- */
-static int get_power(void)
+static int maru_check(void)
 {
-	/* in drivers/maru/maru_lcd.c value 'lcd_power' constant and zero */
-	return 0;
+	int i;
+
+	for (i = 0; i < all_path_cnt; ++i) {
+		int ret = read_val(all_path[i]);
+
+		if (IS_ERR_VALUE(ret))
+			return 0;
+	}
+
+	return 1;
 }
+
+static unsigned long maru_get_parameter(struct lcd_ops *ops,
+					enum lcd_paramerer_type type)
+{
+	switch (type) {
+	case LPD_MIN_BRIGHTNESS:
+		return read_val(path_backlight_min);
+	case LPD_MAX_BRIGHTNESS:
+		return read_val(path_backlight_max);
+	case LPD_BRIGHTNESS:
+		return read_val(path_backlight);
+	}
+
+	return -EINVAL;
+}
+
+static struct lcd_ops ops = {
+	.name = "maru",
+	.check = maru_check,
+	.get = maru_get_parameter
+};
 
 
 
@@ -51,18 +87,13 @@ static int get_power(void)
  * ===                              BACKLIGHT                               ===
  * ============================================================================
  */
-static int get_backlight(void)
-{
-	const char *backlight_path = "/sys/class/backlight/emulator/brightness";
-
-	return read_val(backlight_path);
-}
-
 static int entry_handler_set_backlight(struct kretprobe_instance *ri,
 				       struct pt_regs *regs)
 {
 	int *brightness = (int *)ri->data;
-	struct backlight_device *bd = (struct backlight_device *)regs->ax;
+	struct backlight_device *bd;
+
+	bd = (struct backlight_device *)swap_get_karg(regs, 0);
 	*brightness = bd->props.brightness;
 
 	return 0;
@@ -74,8 +105,8 @@ static int ret_handler_set_backlight(struct kretprobe_instance *ri,
 	int ret = regs_return_value(regs);
 	int *brightness = (int *)ri->data;
 
-	if (!ret && ops_s && ops_s->set_backlight)
-		ops_s->set_backlight(*brightness);
+	if (!ret && ops.notifler)
+		ops.notifler(&ops, LAT_BRIGHTNESS, (void *)*brightness);
 
 	return 0;
 }
@@ -92,26 +123,23 @@ static struct kretprobe set_backlight_krp = {
 
 
 /* ============================================================================
- * ===                              INIT/EXIT                               ===
+ * ===                         REGISTER/UNREGISTER                          ===
  * ============================================================================
  */
-int lcd_mach_init(struct lcd_ops_set *ops_set, struct lcd_ops_get *ops_get)
+void maru_register(void)
 {
-	int ret = 0;
+	int ret;
 
-	ret = dbi_register_kretprobe(&set_backlight_krp);
+	dbi_register_kretprobe(&set_backlight_krp);
+
+	ret = register_lcd(&ops);
 	if (ret)
-		return ret;
+		printk("error maru_register()\n");
 
-	ops_s = ops_set;
-	ops_get->get_power = get_power;
-	ops_get->get_backlight = get_backlight;
-
-	return ret;
 }
 
-void lcd_mach_exit(void)
+void maru_unregister(void)
 {
+	unregister_lcd(&ops);
 	dbi_unregister_kretprobe(&set_backlight_krp);
-	ops_s = NULL;
 }

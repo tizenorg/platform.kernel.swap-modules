@@ -54,10 +54,10 @@ endif
 
 # MARU:
 ifeq ($(CONFIG_MARU_BACKLIGHT), y)
-	#swap_energy-y += lcd/maru.o
+	swap_energy-y += lcd/maru.o
 
-	#REG_FUNC_LIST += maru_register
-	#UNREG_FUNC_LIST += maru_unregister
+	REG_FUNC_LIST += maru_register
+	UNREG_FUNC_LIST += maru_unregister
 endif
 
 
