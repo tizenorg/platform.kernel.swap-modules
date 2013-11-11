@@ -29,6 +29,12 @@
 
 #include <asm/dbi_kprobes.h>
 
+
+struct uprobe;
+struct uretprobe;
+struct uretprobe_instance;
+
+
 static inline void arch_ujprobe_return(void)
 {
 }

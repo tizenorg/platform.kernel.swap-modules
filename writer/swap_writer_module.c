@@ -34,6 +34,8 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <asm/uaccess.h>
+#include <asm/dbi_kprobes.h>
+#include <asm/swap_uprobes.h>
 
 #include <buffer/swap_buffer_module.h>
 #include <buffer/swap_buffer_errors.h>
@@ -496,40 +498,28 @@ static char *pack_msg_func_entry(char *payload, const char *fmt, struct pt_regs 
 	return payload + sizeof(*mfe);
 }
 
-static size_t count_char(const char *str, char ch)
+static unsigned long get_arg(struct pt_regs *regs, unsigned long n)
 {
-	size_t count = 0;
-	for ( ;*str; ++str)
-		if (*str == ch)
-			++count;
-
-	return count;
+	return user_mode(regs) ?
+			swap_get_uarg(regs, n) :	/* US argument */
+			swap_get_sarg(regs, n);		/* sys_call argument */
 }
 
 static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 {
-	enum { args_cnt = 16 };
 	char *buf_old = buf;
-	unsigned long arg, args[args_cnt];
 	u32 *tmp_u32;
 	u64 *tmp_u64;
 	int i,		/* the index of the argument */
-	    cnt,	/* the number of arguments */
 	    fmt_i,	/* format index */
 	    fmt_len;	/* the number of parameters, in format */
 
 	fmt_len = strlen(fmt);
-	cnt = fmt_len + count_char(fmt, 'w');
 
-	/* FIXME: when the number of arguments is greater than args_cnt */
-	cnt = cnt < args_cnt ? cnt : args_cnt;
-	get_args(args, cnt, regs);
-
-	for (i = 0, fmt_i = 0; (fmt_i < fmt_len) && (i < cnt); ++i, ++fmt_i) {
+	for (i = 0, fmt_i = 0; fmt_i < fmt_len; ++i, ++fmt_i) {
 		if (len < 2)
 			return -ENOMEM;
 
-		arg = args[i];
 		*buf = fmt[fmt_i];
 		buf += 1;
 		len -= 1;
@@ -538,43 +528,42 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 		case 'b': /* 1 byte(bool) */
 			if (len < 1)
 				return -ENOMEM;
-			*buf = (char)!!arg;
+			*buf = (char)!!get_arg(regs, i);
 			buf += 1;
 			len -= 1;
 			break;
 		case 'c': /* 1 byte(char) */
 			if (len < 1)
 				return -ENOMEM;
-			*buf = (char)arg;
+			*buf = (char)get_arg(regs, i);
 			buf += 1;
 			len -= 1;
 			break;
-
 		case 'f': /* 4 byte(float) */
 		case 'd': /* 4 byte(int) */
 			if (len < 4)
 				return -ENOMEM;
 			tmp_u32 = (u32 *)buf;
-			*tmp_u32 = (u32)arg;
+			*tmp_u32 = (u32)get_arg(regs, i);
 			buf += 4;
 			len -= 4;
 			break;
-
 		case 'x': /* 8 byte(long) */
 		case 'p': /* 8 byte(pointer) */
 			if (len < 8)
 				return -ENOMEM;
 			tmp_u64 = (u64 *)buf;
-			*tmp_u64 = (u64)arg;
+			*tmp_u64 = (u64)get_arg(regs, i);
 			buf += 8;
 			len -= 8;
 			break;
 		case 'w': /* 8 byte(double) */
-			if (len < 8 && (i + 1) < cnt)
+			if (len < 8)
 				return -ENOMEM;
 			tmp_u64 = (u64 *)buf;
-			*tmp_u64 = *((u64 *)&args[i]);
+			*tmp_u64 = get_arg(regs, i);
 			++i;
+			*tmp_u64 |= (u64)get_arg(regs, i) << 32;
 			buf += 8;
 			len -= 8;
 			break;
@@ -584,7 +573,7 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 			const char __user *user_s;
 			int len_s, ret;
 
-			user_s = (const char __user *)arg;
+			user_s = (const char __user *)get_arg(regs, i);
 			len_s = strnlen_user(user_s, max_str_len);
 			if (len < len_s)
 				return -ENOMEM;

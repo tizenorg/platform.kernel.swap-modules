@@ -35,6 +35,9 @@
 struct kprobe;
 struct pt_regs;
 struct task_struct;
+struct uprobe;
+struct uretprobe;
+struct uretprobe_instance;
 
 
 static inline void arch_ujprobe_return(void)

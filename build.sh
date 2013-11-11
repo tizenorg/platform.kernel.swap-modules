@@ -54,7 +54,7 @@ make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${driver_dir
 writer_module_name=swap_writer.ko
 writer_inc=${modules_inc}
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${writer_dir} \
-	extra_cflags="-Werror -I${modules_dir}" modules || exit 1
+	extra_cflags="-Werror -I${modules_dir} -I${kprobe_dir} -I${kprobe_arch_dir} -I${uprobe_arch_dir}" modules || exit 1
 
 kprobe_module_name=swap_kprobe.ko
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${kprobe_dir} \

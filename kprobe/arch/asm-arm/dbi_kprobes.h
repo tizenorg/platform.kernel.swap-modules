@@ -521,6 +521,11 @@ static inline unsigned long swap_get_karg(struct pt_regs *regs, unsigned long n)
 	return *((unsigned long *)regs->ARM_sp + n - 4);
 }
 
+static inline unsigned long swap_get_sarg(struct pt_regs *regs, unsigned long n)
+{
+	return swap_get_karg(regs, n);
+}
+
 int arch_init_kprobes(void);
 void arch_exit_kprobes(void);
 

@@ -246,6 +246,12 @@ static inline unsigned long swap_get_karg(struct pt_regs *regs, unsigned long n)
 	return *((unsigned long *)kernel_stack_pointer(regs) + n - 2);
 }
 
+static inline unsigned long swap_get_sarg(struct pt_regs *regs, unsigned long n)
+{
+	/* 1 - return address saved on top of the stack */
+	return *((unsigned long *)kernel_stack_pointer(regs) + n + 1);
+}
+
 int arch_init_kprobes(void);
 void arch_exit_kprobes(void);
 
