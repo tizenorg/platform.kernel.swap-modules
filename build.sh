@@ -87,7 +87,7 @@ make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${sampler_di
 
 energy_module_name=swap_energy.ko
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${energy_dir} \
-	extra_cflags="-Werror -I${modules_dir} -I${kprobe_dir} -I${kprobe_arch_dir}" modules || exit 1
+	extra_cflags="-Werror -I${modules_dir}" modules || exit 1
 
 parser_module_name=swap_message_parser.ko
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} M=${parser_dir} \
