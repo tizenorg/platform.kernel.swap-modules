@@ -28,8 +28,8 @@
  *
  */
 
-#include "../../dbi_kprobes_deps.h"
-#include "../dbi_kprobes.h"
+#include <kprobe/dbi_kprobes_deps.h>
+#include <kprobe/dbi_kprobes.h>
 
 typedef unsigned long kprobe_opcode_t;
 

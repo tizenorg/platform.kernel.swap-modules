@@ -32,7 +32,7 @@
 #include <linux/mempolicy.h>
 #include <linux/highmem.h>
 #include <linux/pagemap.h>
-#include "../ksyms/ksyms.h"
+#include <ksyms/ksyms.h>
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 #define swap_hlist_for_each_entry_rcu(tpos, pos, head, member) hlist_for_each_entry_rcu(tpos, head, member)

@@ -47,12 +47,12 @@
  */
 
 #include "dbi_kprobes.h"
-#include "arch/asm/dbi_kprobes.h"
+#include <asm/dbi_kprobes.h>
 
 #include "dbi_kdebug.h"
 #include "dbi_kprobes_deps.h"
 #include "dbi_insn_slots.h"
-#include <ksyms.h>
+#include <ksyms/ksyms.h>
 
 #include <linux/version.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)

@@ -34,13 +34,12 @@
 
 #include "dbi_kprobes.h"
 #include "trampoline_arm.h"
-#include "../dbi_kprobes.h"
-#include "../../dbi_kprobes.h"
+#include <kprobe/dbi_kprobes.h>
 
-#include "../../dbi_kdebug.h"
-#include "../../dbi_insn_slots.h"
-#include "../../dbi_kprobes_deps.h"
-#include <ksyms.h>
+#include <kprobe/dbi_kdebug.h>
+#include <kprobe/dbi_insn_slots.h>
+#include <kprobe/dbi_kprobes_deps.h>
+#include <ksyms/ksyms.h>
 
 #include <asm/cacheflush.h>
 #include <asm/traps.h>

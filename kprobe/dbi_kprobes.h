@@ -58,7 +58,7 @@
 #include <linux/sched.h>
 #include <linux/pagemap.h>
 
-#include <asm/dbi_kprobes.h>
+#include <kprobe/arch/asm/dbi_kprobes.h>
 
 
 #ifdef CONFIG_ARM

@@ -49,12 +49,11 @@
 #include <linux/kdebug.h>
 
 #include "dbi_kprobes.h"
-#include "../dbi_kprobes.h"
-#include "../../dbi_kprobes.h"
+#include <kprobe/dbi_kprobes.h>
 
-#include "../../dbi_kdebug.h"
-#include "../../dbi_insn_slots.h"
-#include "../../dbi_kprobes_deps.h"
+#include <kprobe/dbi_kdebug.h>
+#include <kprobe/dbi_insn_slots.h>
+#include <kprobe/dbi_kprobes_deps.h>
 #define SUPRESS_BUG_MESSAGES
 
 extern struct kprobe * per_cpu__current_kprobe;

@@ -50,7 +50,7 @@
  */
 
 #include <linux/version.h>
-#include <dbi_kprobes_deps.h>
+#include <kprobe/dbi_kprobes_deps.h>
 
 typedef u8 kprobe_opcode_t;
 
