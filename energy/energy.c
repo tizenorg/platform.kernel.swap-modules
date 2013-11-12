@@ -25,7 +25,6 @@
 
 
 #include <linux/module.h>
-#include <linux/time.h>
 #include <linux/file.h>
 #include <linux/spinlock.h>
 #include <linux/magic.h>
@@ -37,17 +36,7 @@
 #include <linux/atomic.h>
 #include "energy.h"
 #include "lcd/lcd_base.h"
-
-
-static u64 get_ntime(void)
-{
-	struct timespec ts;
-	getnstimeofday(&ts);
-	return timespec_to_ns(&ts);
-}
-
-
-
+#include "tm_stat.h"
 
 
 /* ============================================================================
