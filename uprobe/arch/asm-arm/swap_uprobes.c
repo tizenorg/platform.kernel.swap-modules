@@ -24,18 +24,18 @@
  *
  */
 
-#include <dbi_kprobes.h>
-#include <asm/dbi_kprobes.h>
-#include <asm/trampoline_arm.h>
+#include <kprobe/dbi_kprobes.h>
+#include <kprobe/arch/asm/dbi_kprobes.h>
+#include <kprobe/arch/asm/trampoline_arm.h>
 #include <asm/traps.h>
-#include <swap_uprobes.h>
-#include <asm/swap_uprobes.h>
-#include <dbi_insn_slots.h>
-#include <dbi_kprobes_deps.h>
+#include <uprobe/swap_uprobes.h>
+#include <uprobe/arch/asm/swap_uprobes.h>
+#include <kprobe/dbi_insn_slots.h>
+#include <kprobe/dbi_kprobes_deps.h>
 #include "trampoline_thumb.h"
 
 // FIXME:
-#include <dbi_kdebug.h>
+#include <kprobe/dbi_kdebug.h>
 
 
 #define flush_insns(addr, size)					\

@@ -25,10 +25,10 @@
  */
 
 #include <linux/kdebug.h>
-#include <asm/dbi_kprobes.h>
-#include <swap_uprobes.h>
-#include <asm/swap_uprobes.h>
-#include <dbi_insn_slots.h>
+#include <kprobe/arch/asm/dbi_kprobes.h>
+#include <uprobe/swap_uprobes.h>
+#include <uprobe/arch/asm/swap_uprobes.h>
+#include <kprobe/dbi_insn_slots.h>
 
 struct uprobe_ctlblk {
         unsigned long flags;

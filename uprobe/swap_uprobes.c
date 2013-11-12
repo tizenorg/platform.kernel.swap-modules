@@ -26,15 +26,15 @@
 
 
 #include "swap_uprobes.h"
-#include "dbi_kdebug.h"
+#include <kprobe/dbi_kdebug.h>
 
-#include <asm/swap_uprobes.h>
+#include <uprobe/arch/asm/swap_uprobes.h>
 
 #include <linux/hash.h>
 #include <linux/mempolicy.h>
 #include <linux/module.h>
-#include <dbi_insn_slots.h>
-#include <dbi_kprobes_deps.h>
+#include <kprobe/dbi_insn_slots.h>
+#include <kprobe/dbi_kprobes_deps.h>
 
 enum {
 	UPROBE_HASH_BITS  = 10,

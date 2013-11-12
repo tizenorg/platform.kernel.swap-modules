@@ -27,7 +27,7 @@
 #ifndef _ARM_SWAP_UPROBES_H
 #define _ARM_SWAP_UPROBES_H
 
-#include <asm/dbi_kprobes.h>
+#include <kprobe/arch/asm/dbi_kprobes.h>
 
 
 struct uprobe;
