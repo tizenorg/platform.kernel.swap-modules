@@ -47,7 +47,7 @@
  */
 
 #include "dbi_kprobes.h"
-#include <asm/dbi_kprobes.h>
+#include <kprobe/arch/asm/dbi_kprobes.h>
 
 #include "dbi_kdebug.h"
 #include "dbi_kprobes_deps.h"
