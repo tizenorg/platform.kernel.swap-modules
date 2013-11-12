@@ -168,7 +168,7 @@ void *alloc_insn_slot(struct slot_manager *sm)
 {
 	void *free_slot;
 	struct fixed_alloc *fa;
-	struct hlist_node *pos;
+	DECLARE_NODE_PTR_FOR_HLIST(pos);
 
 	swap_hlist_for_each_entry_rcu(fa, pos, &sm->page_list, hlist) {
 		free_slot = chunk_allocate(&fa->chunk, sm->slot_size);
@@ -190,7 +190,7 @@ EXPORT_SYMBOL_GPL(alloc_insn_slot);
 void free_insn_slot(struct slot_manager *sm, void *slot)
 {
 	struct fixed_alloc *fa;
-	struct hlist_node *pos;
+	DECLARE_NODE_PTR_FOR_HLIST(pos);
 
 	swap_hlist_for_each_entry_rcu(fa, pos, &sm->page_list, hlist) {
 		if (!chunk_check_ptr(&fa->chunk, slot, PAGE_SIZE))

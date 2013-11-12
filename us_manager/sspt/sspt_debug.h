@@ -71,10 +71,10 @@ static inline void print_file_probes(const struct sspt_file *file)
 	int i;
 	unsigned long table_size;
 	struct sspt_page *page = NULL;
-	struct hlist_node *node = NULL;
 	struct hlist_head *head = NULL;
 	static unsigned char *NA = "N/A";
 	unsigned char *name;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	if (file == NULL) {
 		printk("### file_p == NULL\n");

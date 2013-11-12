@@ -31,6 +31,7 @@
 #include <linux/list.h>
 #include <kprobe/dbi_insn_slots.h>
 #include <kprobe/arch/asm/dbi_kprobes.h>
+#include "us_manager_common.h"
 
 static unsigned long alloc_user_pages(struct task_struct *task, unsigned long len, unsigned long prot, unsigned long flags)
 {
@@ -53,7 +54,7 @@ static unsigned long alloc_user_pages(struct task_struct *task, unsigned long le
 		}
 		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily
 		current_thread_info()->task = task;
-		ret = do_mmap(NULL, 0, len, prot, flags, 0);
+		ret = swap_do_mmap(NULL, 0, len, prot, flags, 0);
 		current_thread_info()->task = otask;
 		if (!atomic) {
 			downgrade_write (&mm->mmap_sem);

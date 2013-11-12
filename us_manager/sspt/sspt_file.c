@@ -68,10 +68,11 @@ struct sspt_file *sspt_file_create(struct dentry *dentry, int page_cnt)
 
 void sspt_file_free(struct sspt_file *file)
 {
-	struct hlist_node *p, *n;
 	struct hlist_head *head;
 	struct sspt_page *page;
 	int i, table_size = (1 << file->page_probes_hash_bits);
+	struct hlist_node *n;
+	DECLARE_NODE_PTR_FOR_HLIST(p);
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
@@ -94,9 +95,9 @@ static void sspt_add_page(struct sspt_file *file, struct sspt_page *page)
 
 static struct sspt_page *sspt_find_page(struct sspt_file *file, unsigned long offset)
 {
-	struct hlist_node *node;
 	struct hlist_head *head;
 	struct sspt_page *page;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	head = &file->page_probes_table[hash_ptr((void *)offset, file->page_probes_hash_bits)];
 	swap_hlist_for_each_entry(page, node, head, hlist) {
@@ -166,8 +167,9 @@ int sspt_file_check_install_pages(struct sspt_file *file)
 {
 	int i, table_size;
 	struct sspt_page *page;
-	struct hlist_node *node, *tmp;
 	struct hlist_head *head;
+	struct hlist_node *tmp;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	table_size = (1 << file->page_probes_hash_bits);
 	for (i = 0; i < table_size; ++i) {
@@ -185,11 +187,11 @@ int sspt_file_check_install_pages(struct sspt_file *file)
 void sspt_file_install(struct sspt_file *file)
 {
 	struct sspt_page *page = NULL;
-	struct hlist_node *node = NULL;
 	struct hlist_head *head = NULL;
 	int i, table_size = (1 << file->page_probes_hash_bits);
 	unsigned long page_addr;
 	struct mm_struct *mm;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
@@ -211,8 +213,9 @@ int sspt_file_uninstall(struct sspt_file *file, struct task_struct *task, enum U
 	int i, err = 0;
 	int table_size = (1 << file->page_probes_hash_bits);
 	struct sspt_page *page;
-	struct hlist_node *node, *tmp;
 	struct hlist_head *head;
+	struct hlist_node *tmp;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];

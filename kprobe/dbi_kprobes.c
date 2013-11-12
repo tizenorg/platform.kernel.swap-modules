@@ -181,8 +181,8 @@ struct kprobe_ctlblk *get_kprobe_ctlblk(void)
 struct kprobe *get_kprobe(void *addr)
 {
 	struct hlist_head *head;
-	struct hlist_node *node;
 	struct kprobe *p;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	head = &kprobe_table[hash_ptr (addr, KPROBE_HASH_BITS)];
 	swap_hlist_for_each_entry_rcu(p, node, head, hlist) {
@@ -278,8 +278,8 @@ void kprobes_inc_nmissed_count(struct kprobe *p)
 /* Called with kretprobe_lock held */
 struct kretprobe_instance *get_free_rp_inst(struct kretprobe *rp)
 {
-	struct hlist_node *node;
 	struct kretprobe_instance *ri;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	swap_hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
 		return ri;
@@ -298,8 +298,8 @@ EXPORT_SYMBOL_GPL(get_free_rp_inst);
 /* Called with kretprobe_lock held */
 struct kretprobe_instance *get_free_rp_inst_no_alloc(struct kretprobe *rp)
 {
-	struct hlist_node *node;
 	struct kretprobe_instance *ri;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	swap_hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
 		return ri;
@@ -311,8 +311,8 @@ struct kretprobe_instance *get_free_rp_inst_no_alloc(struct kretprobe *rp)
 /* Called with kretprobe_lock held */
 struct kretprobe_instance *get_used_rp_inst(struct kretprobe *rp)
 {
-	struct hlist_node *node;
 	struct kretprobe_instance *ri;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	swap_hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
 		return ri;
@@ -657,11 +657,13 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct kretprobe_instance *ri = NULL;
 	struct hlist_head *head;
-	struct hlist_node *node, *tmp;
 	unsigned long flags, orig_ret_address = 0;
 	unsigned long trampoline_address = (unsigned long)&kretprobe_trampoline;
 
 	struct kprobe_ctlblk *kcb;
+
+	struct hlist_node *tmp;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	preempt_disable();
 	kcb = get_kprobe_ctlblk();
@@ -834,7 +836,7 @@ static void dbi_unregister_kretprobe_top(struct kretprobe *rp)
 {
 	unsigned long flags;
 	struct kretprobe_instance *ri;
-	struct hlist_node *node;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	dbi_unregister_kprobe(&rp->kp);
 

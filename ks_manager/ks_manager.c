@@ -67,7 +67,7 @@ static void remove_probe_to_list(struct probe *p)
 static struct probe *find_probe(unsigned long addr)
 {
 	struct probe *p;
-	struct hlist_node *node;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	/* check if such probe does exist */
 	swap_hlist_for_each_entry(p, node, &list_probes, hlist)
@@ -131,7 +131,8 @@ EXPORT_SYMBOL_GPL(ksm_unregister_probe);
 int ksm_unregister_probe_all(void)
 {
 	struct probe *p;
-	struct hlist_node *node, *n;
+	struct hlist_node *n;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	swap_hlist_for_each_entry_safe(p, node, n, &list_probes, hlist) {
 		do_ksm_unregister_probe(p);

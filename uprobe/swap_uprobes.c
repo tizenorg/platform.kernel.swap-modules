@@ -55,8 +55,8 @@ void print_kprobe_hash_table(void)
 {
 	int i;
 	struct hlist_head *head;
-	struct hlist_node *node;
 	struct kprobe *p;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	// print uprobe table
 	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
@@ -72,8 +72,8 @@ void print_kretprobe_hash_table(void)
 {
 	int i;
 	struct hlist_head *head;
-	struct hlist_node *node;
 	struct kprobe *p;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	// print uprobe table
 	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
@@ -89,8 +89,8 @@ void print_uprobe_hash_table(void)
 {
 	int i;
 	struct hlist_head *head;
-	struct hlist_node *node;
 	struct kprobe *p;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	// print uprobe table
 	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
@@ -286,8 +286,8 @@ static void init_uretprobe_inst_table(void)
 struct kprobe *get_ukprobe(void *addr, pid_t tgid)
 {
 	struct hlist_head *head;
-	struct hlist_node *node;
 	struct kprobe *p;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	head = &uprobe_table[hash_ptr(addr, UPROBE_HASH_BITS)];
 	swap_hlist_for_each_entry_rcu(p, node, head, hlist) {
@@ -316,8 +316,8 @@ static void add_uprobe_table(struct kprobe *p)
 static struct kprobe *get_ukprobe_bis_arm(void *addr, pid_t tgid)
 {
 	struct hlist_head *head;
-	struct hlist_node *node;
 	struct kprobe *p;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	/* TODO: test - two processes invokes instrumented function */
 	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
@@ -333,8 +333,8 @@ static struct kprobe *get_ukprobe_bis_arm(void *addr, pid_t tgid)
 static struct kprobe *get_ukprobe_bis_thumb(void *addr, pid_t tgid)
 {
 	struct hlist_head *head;
-	struct hlist_node *node;
 	struct kprobe *p;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	/* TODO: test - two processes invokes instrumented function */
 	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
@@ -357,8 +357,8 @@ struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *
 struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *regs)
 {
 	struct hlist_head *head;
-	struct hlist_node *node;
 	struct kprobe *p;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	addr -= UPROBES_TRAMP_RET_BREAK_IDX;
 
@@ -426,8 +426,8 @@ static void recycle_urp_inst(struct uretprobe_instance *ri)
 /* Called with uretprobe_lock held */
 static struct uretprobe_instance *get_used_urp_inst(struct uretprobe *rp)
 {
-	struct hlist_node *node;
 	struct uretprobe_instance *ri;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	swap_hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
 		return ri;
@@ -439,8 +439,8 @@ static struct uretprobe_instance *get_used_urp_inst(struct uretprobe *rp)
 /* Called with uretprobe_lock held */
 struct uretprobe_instance *get_free_urp_inst_no_alloc(struct uretprobe *rp)
 {
-	struct hlist_node *node;
 	struct uretprobe_instance *ri;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	swap_hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
 		return ri;
@@ -490,8 +490,8 @@ static int alloc_nodes_uretprobe(struct uretprobe *rp)
 /* Called with uretprobe_lock held */
 static struct uretprobe_instance *get_free_urp_inst(struct uretprobe *rp)
 {
-	struct hlist_node *node;
 	struct uretprobe_instance *ri;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	swap_hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
 		return ri;
@@ -691,8 +691,9 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct uretprobe_instance *ri = NULL;
 	struct hlist_head *head;
-	struct hlist_node *node, *tmp;
 	unsigned long flags, tramp_addr, orig_ret_addr = 0;
+	struct hlist_node *tmp;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	tramp_addr = arch_get_trampoline_addr(p, regs);
 	spin_lock_irqsave(&uretprobe_lock, flags);
@@ -899,8 +900,9 @@ out:
 int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task)
 {
 	struct uretprobe_instance *ri;
-	struct hlist_node *node, *tmp;
 	struct hlist_head *head = uretprobe_inst_table_head(parent->mm);
+	struct hlist_node *tmp;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	swap_hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
 		if (parent == ri->task) {
@@ -963,9 +965,10 @@ void dbi_unregister_uretprobe(struct uretprobe *rp)
 void dbi_unregister_all_uprobes(struct task_struct *task)
 {
 	struct hlist_head *head;
-	struct hlist_node *node, *tnode;
 	struct kprobe *p;
 	int i;
+	struct hlist_node *tnode;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
 		head = &uprobe_table[i];
