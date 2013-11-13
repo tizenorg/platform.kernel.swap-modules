@@ -44,8 +44,7 @@
  * ============================================================================
  */
 struct cpus_time {
-	u64 time_running[NR_CPUS];
-	u64 time_entry[NR_CPUS];
+	struct tm_stat tm[NR_CPUS];
 };
 
 static void cpus_time_init(struct cpus_time *ct, u64 time)
@@ -53,8 +52,8 @@ static void cpus_time_init(struct cpus_time *ct, u64 time)
 	int cpu;
 
 	for (cpu = 0; cpu < NR_CPUS; ++cpu) {
-		ct->time_running[cpu] = 0;
-		ct->time_entry[cpu] = time;
+		tm_stat_init(&ct->tm[cpu]);
+		tm_stat_set_timestamp(&ct->tm[cpu], time);
 	}
 }
 
@@ -64,19 +63,19 @@ static u64 cpus_time_get_running_all(struct cpus_time *ct)
 	int cpu;
 
 	for (cpu = 0; cpu < NR_CPUS; ++cpu)
-		time += ct->time_running[cpu];
+		time += tm_stat_running(&ct->tm[cpu]);
 
 	return time;
 }
 
 static void cpus_time_save_entry(struct cpus_time *ct, int cpu, u64 time)
 {
-	ct->time_entry[cpu] = time;
+	tm_stat_set_timestamp(&ct->tm[cpu], time);
 }
 
 static void cpus_time_update_running(struct cpus_time *ct, int cpu, u64 time)
 {
-	ct->time_running[cpu] += time - ct->time_entry[cpu];
+	tm_stat_update(&ct->tm[cpu], time);
 }
 
 
