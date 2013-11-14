@@ -33,7 +33,7 @@ enum lcd_action_type {
 	LAT_BRIGHTNESS
 };
 
-enum lcd_paramerer_type {
+enum lcd_parameter_type {
 	LPD_MIN_BRIGHTNESS,
 	LPD_MAX_BRIGHTNESS,
 	LPD_BRIGHTNESS
@@ -45,7 +45,7 @@ typedef int (*check_lcd)(void);
 typedef int (*notifier_lcd)(struct lcd_ops *ops, enum lcd_action_type action,
 			    void *data);
 typedef unsigned long (*get_parameter_lcd)(struct lcd_ops *ops,
-					   enum lcd_paramerer_type type);
+					   enum lcd_parameter_type type);
 
 
 struct lcd_ops {
@@ -53,7 +53,7 @@ struct lcd_ops {
 
 	char *name;
 	check_lcd check;
-	notifier_lcd notifler;
+	notifier_lcd notifier;
 	get_parameter_lcd get;
 
 	void *priv;

@@ -156,7 +156,7 @@ static DEFINE_MUTEX(lcd_lock);
 static void add_lcd(struct lcd_ops *ops)
 {
 	ops->priv = create_lcd_priv(ops);
-	ops->notifler = func_notifier_lcd;
+	ops->notifier = func_notifier_lcd;
 	set_brightness(ops, ops->get(ops, LPD_BRIGHTNESS));
 
 	INIT_LIST_HEAD(&ops->list);

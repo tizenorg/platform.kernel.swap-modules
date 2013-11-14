@@ -59,7 +59,7 @@ static int maru_check(void)
 }
 
 static unsigned long maru_get_parameter(struct lcd_ops *ops,
-					enum lcd_paramerer_type type)
+					enum lcd_parameter_type type)
 {
 	switch (type) {
 	case LPD_MIN_BRIGHTNESS:
@@ -105,8 +105,8 @@ static int ret_handler_set_backlight(struct kretprobe_instance *ri,
 	int ret = regs_return_value(regs);
 	int *brightness = (int *)ri->data;
 
-	if (!ret && ops.notifler)
-		ops.notifler(&ops, LAT_BRIGHTNESS, (void *)*brightness);
+	if (!ret && ops.notifier)
+		ops.notifier(&ops, LAT_BRIGHTNESS, (void *)*brightness);
 
 	return 0;
 }
