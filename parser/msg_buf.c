@@ -106,7 +106,7 @@ int get_u64(struct msg_buf *mb, u64 *val)
 
 	*val = *((u64 *)mb->ptr);
 	mb->ptr += sizeof(*val);
-	print_parse_debug("u64->%d; 0x%016lX\n", *val, *val);
+	print_parse_debug("u64->%llu; 0x%016llX\n", *val, *val);
 
 	return 0;
 }
