@@ -26,6 +26,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/fs.h>
+#include <energy/tm_stat.h>
 #include "lcd_base.h"
 
 
@@ -58,27 +59,82 @@ int read_val(const char *path)
 }
 
 enum {
-	brightness_cnt = 10
+	brt_no_init = -1,
+	brt_cnt = 10
 };
-
-void set_brightness(struct lcd_ops *ops, int val)
-{
-	/* TODO: implement */
-	printk("####### set_backlight: name=%s val=%d\n", ops->name, val);
-}
 
 struct lcd_priv_data {
-	int min_brightness;
-	int max_brightness;
+	int min_brt;
+	int max_brt;
 
-	int brightness[brightness_cnt];
+	struct tm_stat tms_brt[brt_cnt];
+	spinlock_t lock_tms;
+	int brt_old;
 
-	/* W = slope * brightness + intercept */
-	u64 slope_denominator;
-	u64 slope_numenator;
-	u64 intercept_denominator;
-	u64 intercept_numenator;
+	u64 min_denom;
+	u64 min_num;
+	u64 max_denom;
+	u64 max_num;
 };
+
+static void *create_lcd_priv(struct lcd_ops *ops)
+{
+	int i;
+	struct lcd_priv_data *lcd = kmalloc(sizeof(*lcd), GFP_KERNEL);
+
+	lcd->min_brt = ops->get(ops, LPD_MIN_BRIGHTNESS);
+	lcd->max_brt = ops->get(ops, LPD_MAX_BRIGHTNESS);
+
+	for (i = 0; i < brt_cnt; ++i)
+		tm_stat_init(&lcd->tms_brt[i]);
+
+	spin_lock_init(&lcd->lock_tms);
+
+	lcd->brt_old = brt_no_init;
+
+	lcd->min_denom = 1;
+	lcd->min_num = 1;
+	lcd->max_denom = 1;
+	lcd->max_num = 1;
+
+	return (void *)lcd;
+}
+
+static void destroy_lcd_priv(void *data)
+{
+	kfree(data);
+}
+
+static struct lcd_priv_data *get_lcd_priv(struct lcd_ops *ops)
+{
+	return (struct lcd_priv_data *)ops->priv;
+}
+
+static void set_brightness(struct lcd_ops *ops, int brt)
+{
+	struct lcd_priv_data *lcd = get_lcd_priv(ops);
+	int n;
+
+	if (brt > lcd->max_brt || brt < lcd->min_brt) {
+		printk("LCD energy error: set brightness=%d, "
+		       "when brightness[%d..%d]\n",
+		       brt, lcd->min_brt, lcd->max_brt);
+		brt = brt > lcd->max_brt ? lcd->max_brt : lcd->min_brt;
+	}
+
+	n = brt_cnt * (brt - lcd->min_brt) / (lcd->max_brt - lcd->min_brt + 1);
+
+	spin_lock(&lcd->lock_tms);
+	if (lcd->brt_old != n) {
+		u64 time = get_ntime();
+		if (lcd->brt_old != brt_no_init)
+			tm_stat_update(&lcd->tms_brt[lcd->brt_old], time);
+
+		tm_stat_set_timestamp(&lcd->tms_brt[n], time);
+		lcd->brt_old = n;
+	}
+	spin_unlock(&lcd->lock_tms);
+}
 
 static int func_notifier_lcd(struct lcd_ops *ops, enum lcd_action_type action,
 			     void *data)
@@ -94,30 +150,6 @@ static int func_notifier_lcd(struct lcd_ops *ops, enum lcd_action_type action,
 	return 0;
 }
 
-static void *create_lcd_priv(struct lcd_ops *ops)
-{
-	int i;
-	struct lcd_priv_data *lpd = kmalloc(sizeof(*lpd), GFP_KERNEL);
-
-	lpd->min_brightness = ops->get(ops, LPD_MIN_BRIGHTNESS);
-	lpd->max_brightness = ops->get(ops, LPD_MAX_BRIGHTNESS);
-
-	for (i = 0; i < brightness_cnt; ++i)
-		lpd->brightness[i] = 0;
-
-	lpd->slope_denominator = 1;
-	lpd->slope_numenator = 1;
-	lpd->intercept_denominator = 1;
-	lpd->intercept_numenator = 1;
-
-	return (void *)lpd;
-}
-
-static void destroy_lcd_priv(void *data)
-{
-	kfree(data);
-}
-
 static LIST_HEAD(lcd_list);
 static DEFINE_MUTEX(lcd_lock);
 
@@ -125,6 +157,7 @@ static void add_lcd(struct lcd_ops *ops)
 {
 	ops->priv = create_lcd_priv(ops);
 	ops->notifler = func_notifier_lcd;
+	set_brightness(ops, ops->get(ops, LPD_BRIGHTNESS));
 
 	INIT_LIST_HEAD(&ops->list);
 	list_add(&ops->list, &lcd_list);
@@ -134,6 +167,7 @@ static void del_lcd(struct lcd_ops *ops)
 {
 	list_del(&ops->list);
 
+	get_energy_lcd(ops);
 	destroy_lcd_priv(ops->priv);
 }
 
@@ -157,6 +191,30 @@ static int lcd_is_register(struct lcd_ops *ops)
 			return 1;
 
 	return 0;
+}
+
+u64 get_energy_lcd(struct lcd_ops *ops)
+{
+	struct lcd_priv_data *lcd = get_lcd_priv(ops);
+	enum { brt_cnt_1 = brt_cnt - 1 };
+	u64 i_max, j_min, t, e = 0;
+	int i, j;
+
+	spin_lock(&lcd->lock_tms);
+	for (i = 0; i < brt_cnt; ++i) {
+		t = tm_stat_running(&lcd->tms_brt[i]);
+		if (i == lcd->brt_old)
+			t += get_ntime() - tm_stat_timestamp(&lcd->tms_brt[i]);
+
+		/* e = (i * max + (k - i) * min) * t / k */
+		j = brt_cnt_1 - i;
+		i_max = div_u64(i * lcd->max_num * t, lcd->max_denom);
+		j_min = div_u64(j * lcd->min_num * t, lcd->min_denom);
+		e += div_u64(i_max + j_min, brt_cnt_1);
+	}
+	spin_unlock(&lcd->lock_tms);
+
+	return e;
 }
 
 int register_lcd(struct lcd_ops *ops)
