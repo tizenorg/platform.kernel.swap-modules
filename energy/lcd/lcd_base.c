@@ -219,7 +219,7 @@ u64 get_energy_lcd(struct lcd_ops *ops)
 
 int register_lcd(struct lcd_ops *ops)
 {
-	int ret;
+	int ret = 0;
 
 	if (ops->check() == 0) {
 		printk("error checking %s\n", ops->name);
