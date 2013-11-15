@@ -29,74 +29,71 @@
 #include <linux/math64.h>
 #include <driver/swap_debugfs.h>
 #include "energy.h"
+#include "rational_debugfs.h"
 
 
 /* CPU running */
-static u64 cpu_numerator = 1;
-static u64 cpu_denominator = 1;
+static DEFINE_RATIONAL(cpu_running_coef);
 
 static u64 cpu_system(void)
 {
 	u64 time = get_parameter_energy(PE_TIME_SYSTEM);
 
-	return div_u64(time * cpu_numerator, cpu_denominator);
+	return div_u64(time * cpu_running_coef.num, cpu_running_coef.denom);
 }
 
 static u64 cpu_apps(void)
 {
 	u64 time = get_parameter_energy(PE_TIME_APPS);
 
-	return div_u64(time * cpu_numerator, cpu_denominator);
+	return div_u64(time * cpu_running_coef.num, cpu_running_coef.denom);
 }
 
 
 /* CPU idle */
-static u64 cpu_idle_numerator = 1;
-static u64 cpu_idle_denominator = 1;
+static DEFINE_RATIONAL(cpu_idle_coef);
 
 static u64 cpu_idle_system(void)
 {
 	u64 time = get_parameter_energy(PE_TIME_IDLE);
 
-	return div_u64(time * cpu_idle_numerator, cpu_idle_denominator);
+	return div_u64(time * cpu_idle_coef.num, cpu_idle_coef.denom);
 }
 
 
 /* flash read */
-static u64 fr_numerator = 1;
-static u64 fr_denominator = 1;
+static DEFINE_RATIONAL(fr_coef);
 
 static u64 fr_system(void)
 {
 	u64 byte = get_parameter_energy(PE_READ_SYSTEM);
 
-	return div_u64(byte * fr_numerator, fr_denominator);
+	return div_u64(byte * fr_coef.num, fr_coef.denom);
 }
 
 static u64 fr_apps(void)
 {
 	u64 byte = get_parameter_energy(PE_READ_APPS);
 
-	return div_u64(byte * fr_numerator, fr_denominator);
+	return div_u64(byte * fr_coef.num, fr_coef.denom);
 }
 
 
 /* flash write */
-static u64 fw_numerator = 1;
-static u64 fw_denominator = 1;
+static DEFINE_RATIONAL(fw_coef);
 
 static u64 fw_system(void)
 {
 	u64 byte = get_parameter_energy(PE_WRITE_SYSTEM);
 
-	return div_u64(byte * fw_numerator, fw_denominator);
+	return div_u64(byte * fw_coef.num, fw_coef.denom);
 }
 
 static u64 fw_apps(void)
 {
 	u64 byte = get_parameter_energy(PE_WRITE_APPS);
 
-	return div_u64(byte * fw_numerator, fw_denominator);
+	return div_u64(byte * fw_coef.num, fw_coef.denom);
 }
 
 
@@ -107,25 +104,6 @@ static u64 fw_apps(void)
  * ===                             PARAMETERS                               ===
  * ============================================================================
  */
-static int denominator_set(void *data, u64 val)
-{
-	if (val == 0)
-		return -EINVAL;
-
-	*(u64 *)data = val;
-	return 0;
-}
-
-static int denominator_get(void *data, u64 *val)
-{
-	*val = *(u64 *)data;
-	return 0;
-}
-
-DEFINE_SIMPLE_ATTRIBUTE(fops_denominator, denominator_get, \
-			denominator_set, "%llu\n");
-
-
 static int get_func_u64(void *data, u64 *val)
 {
 	u64 (*func)(void) = data;
@@ -138,8 +116,7 @@ DEFINE_SIMPLE_ATTRIBUTE(fops_get_u64, get_func_u64, NULL, "%llu\n");
 
 struct param_data {
 	char *name;
-	u64 *numerator;
-	u64 *denominator;
+	struct rational *coef;
 	u64 (*system)(void);
 	u64 (*apps)(void);
 };
@@ -147,26 +124,16 @@ struct param_data {
 static struct dentry *create_parameter(struct dentry *parent,
 				       struct param_data *param)
 {
-	struct dentry *name, *num, *den, *system, *apps;
+	struct dentry *name, *system, *apps = NULL;
 
 	name = debugfs_create_dir(param->name, parent);
 	if (name == NULL)
 		return NULL;
 
-	num = debugfs_create_u64("numerator", 0600, name, param->numerator);
-	if (num == NULL)
-		goto rm_name;
-
-	den = debugfs_create_file("denominator", 0600, name,
-				  param->denominator,
-				  &fops_denominator);
-	if (den == NULL)
-		goto rm_numerator;
-
 	system = debugfs_create_file("system", 0600, name, param->system,
 				     &fops_get_u64);
 	if (system == NULL)
-		goto rm_denominator;
+		goto rm_name;
 
 	if (param->apps) {
 		apps = debugfs_create_file("apps", 0600, name, param->apps,
@@ -175,14 +142,17 @@ static struct dentry *create_parameter(struct dentry *parent,
 			goto rm_system;
 	}
 
+	if (create_rational_files(name, param->coef,
+				  "numerator", "denominator"))
+		goto rm_apps;
+
 	return name;
 
+rm_apps:
+	if (param->apps)
+		debugfs_remove(apps);
 rm_system:
 	debugfs_remove(system);
-rm_denominator:
-	debugfs_remove(den);
-rm_numerator:
-	debugfs_remove(num);
 rm_name:
 	debugfs_remove(name);
 
@@ -192,29 +162,25 @@ rm_name:
 struct param_data parameters[] = {
 	{
 		.name = "cpu_running",
-		.numerator = &cpu_numerator,
-		.denominator = &cpu_denominator,
+		.coef = &cpu_running_coef,
 		.system = cpu_system,
 		.apps = cpu_apps
 	},
 	{
 		.name = "cpu_idle",
-		.numerator = &cpu_idle_numerator,
-		.denominator = &cpu_idle_denominator,
+		.coef = &cpu_idle_coef,
 		.system = cpu_idle_system,
 		.apps = NULL
 	},
 	{
 		.name = "flash_read",
-		.numerator = &fr_numerator,
-		.denominator = &fr_denominator,
+		.coef = &fr_coef,
 		.system = fr_system,
 		.apps = fr_apps
 	},
 	{
 		.name = "flash_write",
-		.numerator = &fw_numerator,
-		.denominator = &fw_denominator,
+		.coef = &fw_coef,
 		.system = fw_system,
 		.apps = fw_apps
 	}
