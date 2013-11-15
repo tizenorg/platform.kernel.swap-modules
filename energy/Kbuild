@@ -15,7 +15,8 @@ swap_energy-y := energy_module.o \
                  energy.o \
                  rational_debugfs.o \
                  debugfs_energy.o \
-                 lcd/lcd_base.o
+                 lcd/lcd_base.o \
+                 lcd/lcd_debugfs.o
 
 
 

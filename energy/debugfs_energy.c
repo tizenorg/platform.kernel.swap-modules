@@ -30,6 +30,7 @@
 #include <driver/swap_debugfs.h>
 #include "energy.h"
 #include "rational_debugfs.h"
+#include "lcd/lcd_debugfs.h"
 
 
 /* CPU running */
@@ -202,6 +203,7 @@ static struct dentry *energy_dir = NULL;
 
 void exit_debugfs_energy(void)
 {
+	exit_lcd_debugfs();
 	if (energy_dir)
 		debugfs_remove_recursive(energy_dir);
 
@@ -210,7 +212,7 @@ void exit_debugfs_energy(void)
 
 int init_debugfs_energy(void)
 {
-	int i;
+	int i, ret = -ENOMEM;
 	struct dentry *swap_dir, *dentry;
 
 	swap_dir = get_swap_debugfs_dir();
@@ -227,9 +229,13 @@ int init_debugfs_energy(void)
 			goto fail;
 	}
 
+	ret = init_lcd_debugfs(energy_dir);
+	if (ret)
+		goto fail;
+
 	return 0;
 
 fail:
 	exit_debugfs_energy();
-	return -ENOMEM;
+	return ret;
 }

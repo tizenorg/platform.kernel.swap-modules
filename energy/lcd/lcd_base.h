@@ -27,6 +27,7 @@
 
 
 #include <linux/errno.h>
+#include <energy/rational_debugfs.h>
 
 
 enum lcd_action_type {
@@ -55,6 +56,11 @@ struct lcd_ops {
 	check_lcd check;
 	notifier_lcd notifier;
 	get_parameter_lcd get;
+
+	/* for debugfs */
+	struct dentry *dentry;
+	struct rational min_coef;
+	struct rational max_coef;
 
 	void *priv;
 };

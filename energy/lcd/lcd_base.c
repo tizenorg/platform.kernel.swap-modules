@@ -28,6 +28,7 @@
 #include <linux/fs.h>
 #include <energy/tm_stat.h>
 #include "lcd_base.h"
+#include "lcd_debugfs.h"
 
 
 int read_val(const char *path)
@@ -156,6 +157,13 @@ static DEFINE_MUTEX(lcd_lock);
 static void add_lcd(struct lcd_ops *ops)
 {
 	ops->priv = create_lcd_priv(ops);
+
+	/* TODO: create init_func() for 'struct rational' */
+	ops->min_coef.num = 1;
+	ops->min_coef.denom = 1;
+	ops->max_coef.num = 1;
+	ops->max_coef.denom = 1;
+
 	ops->notifier = func_notifier_lcd;
 	set_brightness(ops, ops->get(ops, LPD_BRIGHTNESS));
 
@@ -233,6 +241,9 @@ int register_lcd(struct lcd_ops *ops)
 	}
 
 	add_lcd(ops);
+	ret = register_lcd_debugfs(ops);
+	if (ret)
+		del_lcd(ops);
 
 unlock:
 	mutex_unlock(&lcd_lock);
@@ -245,6 +256,7 @@ void unregister_lcd(struct lcd_ops *ops)
 	if (lcd_is_register(ops) == 0)
 		goto unlock;
 
+	unregister_lcd_debugfs(ops);
 	del_lcd(ops);
 
 unlock:

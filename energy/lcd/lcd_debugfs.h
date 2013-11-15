@@ -1,6 +1,9 @@
+#ifndef _LCD_DEBUGFS_H
+#define _LCD_DEBUGFS_H
+
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  energy/energy_mod.c
+ *  energy/lcd/lcd_debugfs.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,33 +26,13 @@
  */
 
 
-#include <linux/module.h>
-#include "energy.h"
-#include "debugfs_energy.h"
+struct dentry;
+struct lcd_ops;
 
+int register_lcd_debugfs(struct lcd_ops *ops);
+void unregister_lcd_debugfs(struct lcd_ops *ops);
 
-static int __init swap_energy_init(void)
-{
-	int ret;
+int init_lcd_debugfs(struct dentry *energy_dir);
+void exit_lcd_debugfs(void);
 
-	ret = init_debugfs_energy();
-	if (ret)
-		return ret;
-
-	ret = energy_init();
-	if (ret)
-		exit_debugfs_energy();;
-
-	return ret;
-}
-
-static void __exit swap_energy_exit(void)
-{
-	energy_uninit();
-	exit_debugfs_energy();
-}
-
-module_init(swap_energy_init);
-module_exit(swap_energy_exit);
-
-MODULE_LICENSE("GPL");
+#endif /* _LCD_DEBUGFS_H */
