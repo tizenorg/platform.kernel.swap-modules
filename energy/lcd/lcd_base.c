@@ -68,7 +68,8 @@ struct lcd_priv_data {
 	int min_brt;
 	int max_brt;
 
-	struct tm_stat tms_brt[brt_cnt];
+	size_t tms_brt_cnt;
+	struct tm_stat *tms_brt;
 	spinlock_t lock_tms;
 	int brt_old;
 
@@ -78,15 +79,30 @@ struct lcd_priv_data {
 	u64 max_num;
 };
 
-static void *create_lcd_priv(struct lcd_ops *ops)
+static void *create_lcd_priv(struct lcd_ops *ops, size_t tms_brt_cnt)
 {
 	int i;
-	struct lcd_priv_data *lcd = kmalloc(sizeof(*lcd), GFP_KERNEL);
+	struct lcd_priv_data *lcd;
+
+	if (tms_brt_cnt <= 0) {
+		printk("error variable tms_brt_cnt=%d\n", tms_brt_cnt);
+		return NULL;
+	}
+
+	lcd = kmalloc(sizeof(*lcd) + sizeof(*lcd->tms_brt) * tms_brt_cnt,
+		      GFP_KERNEL);
+	if (lcd == NULL) {
+		printk("error: %s - out of memory\n", __func__);
+		return NULL;
+	}
+
+	lcd->tms_brt = (void *)lcd + sizeof(*lcd);
+	lcd->tms_brt_cnt = tms_brt_cnt;
 
 	lcd->min_brt = ops->get(ops, LPD_MIN_BRIGHTNESS);
 	lcd->max_brt = ops->get(ops, LPD_MAX_BRIGHTNESS);
 
-	for (i = 0; i < brt_cnt; ++i)
+	for (i = 0; i < tms_brt_cnt; ++i)
 		tm_stat_init(&lcd->tms_brt[i]);
 
 	spin_lock_init(&lcd->lock_tms);
@@ -123,7 +139,8 @@ static void set_brightness(struct lcd_ops *ops, int brt)
 		brt = brt > lcd->max_brt ? lcd->max_brt : lcd->min_brt;
 	}
 
-	n = brt_cnt * (brt - lcd->min_brt) / (lcd->max_brt - lcd->min_brt + 1);
+	n = lcd->tms_brt_cnt * (brt - lcd->min_brt) /
+	    (lcd->max_brt - lcd->min_brt + 1);
 
 	spin_lock(&lcd->lock_tms);
 	if (lcd->brt_old != n) {
@@ -156,7 +173,7 @@ static DEFINE_MUTEX(lcd_lock);
 
 static void add_lcd(struct lcd_ops *ops)
 {
-	ops->priv = create_lcd_priv(ops);
+	ops->priv = create_lcd_priv(ops, brt_cnt);
 
 	/* TODO: create init_func() for 'struct rational' */
 	ops->min_coef.num = 1;
@@ -204,12 +221,12 @@ static int lcd_is_register(struct lcd_ops *ops)
 u64 get_energy_lcd(struct lcd_ops *ops)
 {
 	struct lcd_priv_data *lcd = get_lcd_priv(ops);
-	enum { brt_cnt_1 = brt_cnt - 1 };
+	const size_t brt_cnt_1 = lcd->tms_brt_cnt - 1;
 	u64 i_max, j_min, t, e = 0;
 	int i, j;
 
 	spin_lock(&lcd->lock_tms);
-	for (i = 0; i < brt_cnt; ++i) {
+	for (i = 0; i < lcd->tms_brt_cnt; ++i) {
 		t = tm_stat_running(&lcd->tms_brt[i]);
 		if (i == lcd->brt_old)
 			t += get_ntime() - tm_stat_timestamp(&lcd->tms_brt[i]);
