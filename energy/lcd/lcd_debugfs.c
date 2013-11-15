@@ -25,13 +25,41 @@
 
 #include <linux/debugfs.h>
 #include <linux/export.h>
+#include <linux/slab.h>
 #include <energy/lcd/lcd_base.h>
 #include <energy/rational_debugfs.h>
 
 
 static int get_system(void *data, u64 *val)
 {
-	/* TODO: implement */
+	struct lcd_ops *ops = (struct lcd_ops *)data;
+	const size_t size = get_lcd_size_array(ops);
+	const size_t size_1 = size - 1;
+	u64 i_max, j_min, t, e = 0;
+	u64 *array_time;
+	int i, j;
+
+	array_time = kmalloc(sizeof(*array_time) * size, GFP_KERNEL);
+	if (array_time == NULL)
+		return -ENOMEM;
+
+	get_lcd_array_time(ops, array_time);
+
+	for (i = 0; i < size; ++i) {
+		t = array_time[i];
+
+		/* e = (i * max + (k - i) * min) * t / k */
+		j = size_1 - i;
+		i_max = div_u64(i * ops->max_coef.num * t,
+				ops->max_coef.denom);
+		j_min = div_u64(j * ops->min_coef.num * t,
+				ops->min_coef.denom);
+		e += div_u64(i_max + j_min, size_1);
+	}
+
+	kfree(array_time);
+
+	*val = e;
 
 	return 0;
 }

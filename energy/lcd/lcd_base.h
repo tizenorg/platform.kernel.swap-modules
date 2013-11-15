@@ -65,7 +65,8 @@ struct lcd_ops {
 	void *priv;
 };
 
-u64 get_energy_lcd(struct lcd_ops *ops);
+size_t get_lcd_size_array(struct lcd_ops *ops);
+void get_lcd_array_time(struct lcd_ops *ops, u64 *array_time);
 
 int register_lcd(struct lcd_ops *ops);
 void unregister_lcd(struct lcd_ops *ops);

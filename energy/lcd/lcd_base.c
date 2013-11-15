@@ -191,8 +191,6 @@ static void add_lcd(struct lcd_ops *ops)
 static void del_lcd(struct lcd_ops *ops)
 {
 	list_del(&ops->list);
-
-	get_energy_lcd(ops);
 	destroy_lcd_priv(ops->priv);
 }
 
@@ -218,28 +216,26 @@ static int lcd_is_register(struct lcd_ops *ops)
 	return 0;
 }
 
-u64 get_energy_lcd(struct lcd_ops *ops)
+size_t get_lcd_size_array(struct lcd_ops *ops)
 {
 	struct lcd_priv_data *lcd = get_lcd_priv(ops);
-	const size_t brt_cnt_1 = lcd->tms_brt_cnt - 1;
-	u64 i_max, j_min, t, e = 0;
-	int i, j;
+
+	return lcd->tms_brt_cnt;
+}
+
+void get_lcd_array_time(struct lcd_ops *ops, u64 *array_time)
+{
+	struct lcd_priv_data *lcd = get_lcd_priv(ops);
+	int i;
 
 	spin_lock(&lcd->lock_tms);
 	for (i = 0; i < lcd->tms_brt_cnt; ++i) {
-		t = tm_stat_running(&lcd->tms_brt[i]);
+		array_time[i] = tm_stat_running(&lcd->tms_brt[i]);
 		if (i == lcd->brt_old)
-			t += get_ntime() - tm_stat_timestamp(&lcd->tms_brt[i]);
-
-		/* e = (i * max + (k - i) * min) * t / k */
-		j = brt_cnt_1 - i;
-		i_max = div_u64(i * lcd->max_num * t, lcd->max_denom);
-		j_min = div_u64(j * lcd->min_num * t, lcd->min_denom);
-		e += div_u64(i_max + j_min, brt_cnt_1);
+			array_time[i] += get_ntime() -
+					 tm_stat_timestamp(&lcd->tms_brt[i]);
 	}
 	spin_unlock(&lcd->lock_tms);
-
-	return e;
 }
 
 int register_lcd(struct lcd_ops *ops)
