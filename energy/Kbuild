@@ -27,8 +27,8 @@ swap_energy-y := energy_module.o \
 ###############################################################################
 # S6E8AA0:
 ifeq ($(CONFIG_LCD_S6E8AA0), y)
-    #swap_energy-y += lcd/s6e8aa0.o
-    #LCD_FUNC_LIST += s6e8aa0
+    swap_energy-y += lcd/s6e8aa0.o
+    LCD_FUNC_LIST += s6e8aa0
 endif
 
 
