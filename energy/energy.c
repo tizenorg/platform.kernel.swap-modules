@@ -482,6 +482,9 @@ int do_set_energy(void)
 		goto unregister_sys_write;
 	}
 
+	/* TODO: check return value */
+	lcd_set_energy();
+
 	return ret;
 
 unregister_sys_read:
@@ -495,6 +498,8 @@ unregister_sys_write:
 
 void do_unset_energy(void)
 {
+	lcd_unset_energy();
+
 	dbi_unregister_kretprobe(&switch_to_krp);
 	dbi_unregister_kretprobe(&sys_write_krp);
 	dbi_unregister_kretprobe(&sys_read_krp);

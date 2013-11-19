@@ -23,43 +23,19 @@ swap_energy-y := energy_module.o \
 
 
 ###############################################################################
-###                      description register functions                     ###
-###############################################################################
-REG_ARGS := void
-REG_RET := void
-
-
-
-
-
-###############################################################################
-###                     description unregister functions                    ###
-###############################################################################
-UNREG_ARGS := void
-UNREG_RET := void
-
-
-
-
-
-###############################################################################
 ###                               math support                              ###
 ###############################################################################
 # S6E8AA0:
 ifeq ($(CONFIG_LCD_S6E8AA0), y)
-	#swap_energy-y += lcd/s6e8aa0.o
-
-	#REG_FUNC_LIST += s6e8aa0_register
-	#UNREG_FUNC_LIST += s6e8aa0_unregister
+    #swap_energy-y += lcd/s6e8aa0.o
+    #LCD_FUNC_LIST += s6e8aa0
 endif
 
 
 # MARU:
 ifeq ($(CONFIG_MARU_BACKLIGHT), y)
-	swap_energy-y += lcd/maru.o
-
-	REG_FUNC_LIST += maru_register
-	UNREG_FUNC_LIST += maru_unregister
+    swap_energy-y += lcd/maru.o
+    LCD_FUNC_LIST += maru
 endif
 
 
@@ -67,69 +43,39 @@ endif
 
 
 ###############################################################################
-###               generate defines for un/register functions                ###
+###                          description functions                          ###
 ###############################################################################
-EMPTY :=
-SPACE := $(EMPTY) $(EMPTY)
+LCD_FUNC_ARGS := void
+LCD_FUNC_RET := struct lcd_ops *
+
+
+
+
+
+###############################################################################
+###                            generate defines                             ###
+###############################################################################
+LCD_PREFIX := lcd_energy_
+
+# add prefix
+TMP := $(foreach it, $(LCD_FUNC_LIST), $(LCD_PREFIX)$(it))
+LCD_FUNC_LIST := $(TMP)
+
+# generate DEFINITION_LCD_FUNC
+TMP := ($(LCD_FUNC_ARGS));
+DEFINITION_LCD_FUNC := DEFINITION_LCD_FUNC=\
+$(foreach it, $(LCD_FUNC_LIST), "extern" $(LCD_FUNC_RET) $(it)$(TMP))
+
+
+# generate DEFINITION_LCD_ARRAY
 COMMA := ,
+AND := &
+DEFINITION_LCD_ARRAY := DEFINITION_LCD_ARRAY=\
+"{" $(foreach it, $(LCD_FUNC_LIST), &$(it),) "}"
 
 
-
-
-
-###############################################################################
-###                generate defines for register functions                  ###
-###############################################################################
-TMP := ($(REG_ARGS));
-DEFINITION_REG_FUNC := DEFINITION_REG_FUNC=$(foreach it, $(REG_FUNC_LIST), "extern" $(REG_RET) $(it)$(TMP))
-
-ifeq (void,$(REG_ARGS))
-	REG_ARGS :=
-endif
-
-TMP := $(subst $(SPACE),$(EMPTY),$(REG_ARGS))   # remove space
-TMP := $(subst $(COMMA), ,$(TMP))               # replace ',' --> ' '
-LAST := $(words $(TMP))
-
-TMP := $(shell seq 1 $(LAST))
-TMP := $(foreach it, $(TMP), "X"$(it))
-TMP := $(strip $(TMP))
-TMP := $(subst $(SPACE),$(COMMA),$(TMP))        # replace ' ' --> ','
-TMP := $(strip $(TMP))
-
-REG_ARG_LIST := $(TMP)
-TMP := ($(REG_ARG_LIST));
-
-CALL_REG_FUNC := REGISTER_ALL_FUNC($(REG_ARG_LIST))={$(foreach it, $(REG_FUNC_LIST), $(it)$(TMP))}
-
-
-
-
-
-###############################################################################
-###               generate defines for unregister functions                 ###
-###############################################################################
-TMP := ($(UNREG_ARGS));
-DEFINITION_UNREG_FUNC := DEFINITION_UNREG_FUNC=$(foreach it, $(UNREG_FUNC_LIST), "extern" $(UNREG_RET) $(it)$(TMP))
-
-ifeq (void, $(UNREG_ARGS))
-	UNREG_ARGS :=
-endif
-
-TMP := $(subst $(SPACE),$(EMPTY),$(UNREG_ARGS)) # remove space
-TMP := $(subst $(COMMA), ,$(TMP))               # replace ',' --> ' '
-LAST := $(words $(TMP))
-
-TMP := $(shell seq 1 $(LAST))
-TMP := $(foreach it, $(TMP), "X"$(it))
-TMP := $(strip $(TMP))
-TMP := $(subst $(SPACE),$(COMMA),$(TMP))        # replace ' ' --> ','
-TMP := $(strip $(TMP))
-
-UNREG_ARG_LIST := $(TMP)
-TMP := ($(UNREG_ARG_LIST));
-
-CALL_UNREG_FUNC := UNREGISTER_ALL_FUNC($(UNREG_ARG_LIST))={$(foreach it, $(UNREG_FUNC_LIST), $(it)$(TMP))}
+# generate LCD_MAKE_FNAME
+LCD_MAKE_FNAME := LCD_MAKE_FNAME(name)=$(LCD_PREFIX)\#\#name
 
 
 
@@ -138,7 +84,6 @@ CALL_UNREG_FUNC := UNREGISTER_ALL_FUNC($(UNREG_ARG_LIST))={$(foreach it, $(UNREG
 ###############################################################################
 ###                  add generate defines to EXTRA_CFLAGS                   ###
 ###############################################################################
-EXTRA_CFLAGS += -D"$(DEFINITION_REG_FUNC)" \
-                -D"$(CALL_REG_FUNC)" \
-                -D"$(DEFINITION_UNREG_FUNC)" \
-                -D"$(CALL_UNREG_FUNC)"
+EXTRA_CFLAGS += -D"$(DEFINITION_LCD_FUNC)" \
+                -D"$(DEFINITION_LCD_ARRAY)" \
+                -D"$(LCD_MAKE_FNAME)"

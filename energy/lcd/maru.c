@@ -44,7 +44,7 @@ enum {
 };
 
 
-static int maru_check(void)
+static int maru_check(struct lcd_ops *ops)
 {
 	int i;
 
@@ -73,20 +73,54 @@ static unsigned long maru_get_parameter(struct lcd_ops *ops,
 	return -EINVAL;
 }
 
-static struct lcd_ops ops = {
-	.name = "maru",
-	.check = maru_check,
-	.get = maru_get_parameter
+
+
+
+
+static int entry_handler_set_backlight(struct kretprobe_instance *ri,
+				       struct pt_regs *regs);
+static int ret_handler_set_backlight(struct kretprobe_instance *ri,
+				     struct pt_regs *regs);
+
+static struct kretprobe set_backlight_krp = {
+	.kp.symbol_name = "marubl_send_intensity",
+	.entry_handler = entry_handler_set_backlight,
+	.handler = ret_handler_set_backlight,
+	.data_size = sizeof(int)
 };
 
 
 
 
 
-/* ============================================================================
- * ===                              BACKLIGHT                               ===
- * ============================================================================
- */
+static int maru_set(struct lcd_ops *ops)
+{
+	return dbi_register_kretprobe(&set_backlight_krp);
+}
+
+static int maru_unset(struct lcd_ops *ops)
+{
+	dbi_unregister_kretprobe(&set_backlight_krp);
+	return 0;
+}
+
+static struct lcd_ops maru_ops = {
+	.name = "maru",
+	.check = maru_check,
+	.set = maru_set,
+	.unset = maru_unset,
+	.get = maru_get_parameter
+};
+
+struct lcd_ops *LCD_MAKE_FNAME(maru)(void)
+{
+	return &maru_ops;
+}
+
+
+
+
+
 static int entry_handler_set_backlight(struct kretprobe_instance *ri,
 				       struct pt_regs *regs)
 {
@@ -105,41 +139,9 @@ static int ret_handler_set_backlight(struct kretprobe_instance *ri,
 	int ret = regs_return_value(regs);
 	int *brightness = (int *)ri->data;
 
-	if (!ret && ops.notifier)
-		ops.notifier(&ops, LAT_BRIGHTNESS, (void *)*brightness);
+	if (!ret && maru_ops.notifier)
+		maru_ops.notifier(&maru_ops, LAT_BRIGHTNESS,
+				  (void *)*brightness);
 
 	return 0;
-}
-
-static struct kretprobe set_backlight_krp = {
-	.kp.symbol_name = "marubl_send_intensity",
-	.entry_handler = entry_handler_set_backlight,
-	.handler = ret_handler_set_backlight,
-	.data_size = sizeof(int)
-};
-
-
-
-
-
-/* ============================================================================
- * ===                         REGISTER/UNREGISTER                          ===
- * ============================================================================
- */
-void maru_register(void)
-{
-	int ret;
-
-	dbi_register_kretprobe(&set_backlight_krp);
-
-	ret = register_lcd(&ops);
-	if (ret)
-		printk("error maru_register()\n");
-
-}
-
-void maru_unregister(void)
-{
-	unregister_lcd(&ops);
-	dbi_unregister_kretprobe(&set_backlight_krp);
 }

@@ -127,6 +127,19 @@ static struct lcd_priv_data *get_lcd_priv(struct lcd_ops *ops)
 	return (struct lcd_priv_data *)ops->priv;
 }
 
+static void clean_brightness(struct lcd_ops *ops)
+{
+	struct lcd_priv_data *lcd = get_lcd_priv(ops);
+	int i;
+
+	spin_lock(&lcd->lock_tms);
+	for (i = 0; i < lcd->tms_brt_cnt; ++i)
+		tm_stat_init(&lcd->tms_brt[i]);
+
+	lcd->brt_old = brt_no_init;
+	spin_unlock(&lcd->lock_tms);
+}
+
 static void set_brightness(struct lcd_ops *ops, int brt)
 {
 	struct lcd_priv_data *lcd = get_lcd_priv(ops);
@@ -168,54 +181,6 @@ static int func_notifier_lcd(struct lcd_ops *ops, enum lcd_action_type action,
 	return 0;
 }
 
-static LIST_HEAD(lcd_list);
-static DEFINE_MUTEX(lcd_lock);
-
-static void add_lcd(struct lcd_ops *ops)
-{
-	ops->priv = create_lcd_priv(ops, brt_cnt);
-
-	/* TODO: create init_func() for 'struct rational' */
-	ops->min_coef.num = 1;
-	ops->min_coef.denom = 1;
-	ops->max_coef.num = 1;
-	ops->max_coef.denom = 1;
-
-	ops->notifier = func_notifier_lcd;
-	set_brightness(ops, ops->get(ops, LPD_BRIGHTNESS));
-
-	INIT_LIST_HEAD(&ops->list);
-	list_add(&ops->list, &lcd_list);
-}
-
-static void del_lcd(struct lcd_ops *ops)
-{
-	list_del(&ops->list);
-	destroy_lcd_priv(ops->priv);
-}
-
-static struct lcd_ops *find_lcd(const char *name)
-{
-	struct lcd_ops *ops;
-
-	list_for_each_entry(ops, &lcd_list, list)
-		if (strcmp(ops->name, name) == 0)
-			return ops;
-
-	return NULL;
-}
-
-static int lcd_is_register(struct lcd_ops *ops)
-{
-	struct lcd_ops *o;
-
-	list_for_each_entry(o, &lcd_list, list)
-		if (o == ops)
-			return 1;
-
-	return 0;
-}
-
 size_t get_lcd_size_array(struct lcd_ops *ops)
 {
 	struct lcd_priv_data *lcd = get_lcd_priv(ops);
@@ -238,56 +203,159 @@ void get_lcd_array_time(struct lcd_ops *ops, u64 *array_time)
 	spin_unlock(&lcd->lock_tms);
 }
 
-int register_lcd(struct lcd_ops *ops)
+static int register_lcd(struct lcd_ops *ops)
 {
 	int ret = 0;
 
-	if (ops->check() == 0) {
-		printk("error checking %s\n", ops->name);
-		return -EINVAL;
-	}
+	ops->priv = create_lcd_priv(ops, brt_cnt);
 
-	mutex_lock(&lcd_lock);
-	if (find_lcd(ops->name)) {
-		ret = -EINVAL;
-		goto unlock;
-	}
+	/* TODO: create init_func() for 'struct rational' */
+	ops->min_coef.num = 1;
+	ops->min_coef.denom = 1;
+	ops->max_coef.num = 1;
+	ops->max_coef.denom = 1;
 
-	add_lcd(ops);
+	ops->notifier = func_notifier_lcd;
+
 	ret = register_lcd_debugfs(ops);
 	if (ret)
-		del_lcd(ops);
+		destroy_lcd_priv(ops->priv);
 
-unlock:
-	mutex_unlock(&lcd_lock);
 	return ret;
 }
 
-void unregister_lcd(struct lcd_ops *ops)
+static void unregister_lcd(struct lcd_ops *ops)
 {
-	mutex_lock(&lcd_lock);
-	if (lcd_is_register(ops) == 0)
-		goto unlock;
-
 	unregister_lcd_debugfs(ops);
-	del_lcd(ops);
-
-unlock:
-	mutex_unlock(&lcd_lock);
+	destroy_lcd_priv(ops->priv);
 }
 
 
-DEFINITION_REG_FUNC;
-DEFINITION_UNREG_FUNC;
+
+
+/* ============================================================================
+ * ===                          LCD_INIT/LCD_EXIT                           ===
+ * ============================================================================
+ */
+typedef struct lcd_ops *(*get_ops_t)(void);
+
+DEFINITION_LCD_FUNC;
+
+get_ops_t lcd_ops[] = DEFINITION_LCD_ARRAY;
+enum { lcd_ops_cnt = sizeof(lcd_ops) / sizeof(get_ops_t) };
+
+enum ST_LCD_OPS {
+	SLO_REGISTER	= 1 << 0,
+	SLO_SET		= 1 << 1
+};
+
+static DEFINE_MUTEX(lcd_lock);
+static enum ST_LCD_OPS stat_lcd_ops[lcd_ops_cnt];
 
 void lcd_exit(void)
 {
-	UNREGISTER_ALL_FUNC();
+	int i;
+	struct lcd_ops *ops;
+
+	mutex_lock(&lcd_lock);
+	for (i = 0; i < lcd_ops_cnt; ++i) {
+		ops = lcd_ops[i]();
+
+		if (stat_lcd_ops[i] & SLO_SET) {
+			ops->unset(ops);
+			stat_lcd_ops[i] &= ~SLO_SET;
+		}
+
+		if (stat_lcd_ops[i] & SLO_REGISTER) {
+			unregister_lcd(ops);
+			stat_lcd_ops[i] &= ~SLO_REGISTER;
+		}
+	}
+	mutex_unlock(&lcd_lock);
 }
 
 int lcd_init(void)
 {
-	REGISTER_ALL_FUNC();
+	int i, ret, count = 0;
+	struct lcd_ops *ops;
 
-	return 0;
+	mutex_lock(&lcd_lock);
+	for (i = 0; i < lcd_ops_cnt; ++i) {
+		ops = lcd_ops[i]();
+		if (ops == NULL) {
+			printk("error %s [ops == NULL]\n", ops->name);
+			continue;
+		}
+
+		if (0 == ops->check(ops)) {
+			printk("error checking %s\n", ops->name);
+			continue;
+		}
+
+		ret = register_lcd(ops);
+		if (ret) {
+			printk("error register_lcd %s\n", ops->name);
+			continue;
+		}
+
+		stat_lcd_ops[i] |= SLO_REGISTER;
+		++count;
+	}
+	mutex_unlock(&lcd_lock);
+
+	return count ? 0 : -EPERM;
+}
+
+
+
+
+
+/* ============================================================================
+ * ===                     LCD_SET_ENERGY/LCD_UNSET_ENERGY                  ===
+ * ============================================================================
+ */
+int lcd_set_energy(void)
+{
+	int i, ret, count = 0;
+	struct lcd_ops *ops;
+
+	mutex_lock(&lcd_lock);
+	for (i = 0; i < lcd_ops_cnt; ++i) {
+		ops = lcd_ops[i]();
+		if (stat_lcd_ops[i] & SLO_REGISTER) {
+			ret = ops->set(ops);
+			if (ret) {
+				printk("error %s set LCD energy", ops->name);
+				continue;
+			}
+
+			set_brightness(ops, ops->get(ops, LPD_BRIGHTNESS));
+
+			stat_lcd_ops[i] |= SLO_SET;
+			++count;
+		}
+	}
+	mutex_unlock(&lcd_lock);
+
+	return count ? 0 : -EPERM;
+}
+
+void lcd_unset_energy(void)
+{
+	int i, ret;
+	struct lcd_ops *ops;
+
+	mutex_lock(&lcd_lock);
+	for (i = 0; i < lcd_ops_cnt; ++i) {
+		ops = lcd_ops[i]();
+		if (stat_lcd_ops[i] & SLO_SET) {
+			ret = ops->unset(ops);
+			if (ret)
+				printk("error %s unset LCD energy", ops->name);
+
+			clean_brightness(ops);
+			stat_lcd_ops[i] &= ~SLO_SET;
+		}
+	}
+	mutex_unlock(&lcd_lock);
 }

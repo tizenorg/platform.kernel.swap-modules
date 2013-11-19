@@ -42,7 +42,7 @@ enum lcd_parameter_type {
 
 struct lcd_ops;
 
-typedef int (*check_lcd)(void);
+typedef int (*call_lcd)(struct lcd_ops *ops);
 typedef int (*notifier_lcd)(struct lcd_ops *ops, enum lcd_action_type action,
 			    void *data);
 typedef unsigned long (*get_parameter_lcd)(struct lcd_ops *ops,
@@ -50,12 +50,13 @@ typedef unsigned long (*get_parameter_lcd)(struct lcd_ops *ops,
 
 
 struct lcd_ops {
-	struct list_head list;
-
 	char *name;
-	check_lcd check;
 	notifier_lcd notifier;
 	get_parameter_lcd get;
+
+	call_lcd check;
+	call_lcd set;
+	call_lcd unset;
 
 	/* for debugfs */
 	struct dentry *dentry;
@@ -68,10 +69,10 @@ struct lcd_ops {
 size_t get_lcd_size_array(struct lcd_ops *ops);
 void get_lcd_array_time(struct lcd_ops *ops, u64 *array_time);
 
-int register_lcd(struct lcd_ops *ops);
-void unregister_lcd(struct lcd_ops *ops);
-
 int read_val(const char *path);
+
+int lcd_set_energy(void);
+void lcd_unset_energy(void);
 
 int lcd_init(void);
 void lcd_exit(void);
