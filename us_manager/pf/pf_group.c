@@ -289,6 +289,7 @@ void call_mm_release(struct task_struct *task)
 
 	proc = sspt_proc_get_by_task(task);
 	if (proc)
+		/* TODO: uninstall_proc - is not atomic context */
 		uninstall_proc(proc);
 }
 
@@ -335,15 +336,8 @@ static void on_each_uninstall_proc(struct sspt_proc *proc, void *data)
 
 void uninstall_all(void)
 {
-	int tmp_oops_in_progress;
-
-	tmp_oops_in_progress = oops_in_progress;
-	oops_in_progress = 1;
-
-	on_each_proc(on_each_uninstall_proc, NULL);
-
-	oops_in_progress = tmp_oops_in_progress;
-
+	wait_proc_lock();
+	on_each_proc_no_lock(on_each_uninstall_proc, NULL);
 	clean_pfg();
 }
 

@@ -115,17 +115,28 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 }
 EXPORT_SYMBOL_GPL(sspt_proc_get_by_task);
 
-void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data)
+void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *), void *data)
 {
 	struct sspt_proc *proc, *tmp;
 
-	spin_lock(&proc_lock);
 	list_for_each_entry_safe(proc, tmp, &proc_probes_list, list) {
 		func(proc, data);
 	}
+}
+
+void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data)
+{
+	spin_lock(&proc_lock);
+	on_each_proc_no_lock(func, data);
 	spin_unlock(&proc_lock);
 }
 EXPORT_SYMBOL_GPL(on_each_proc);
+
+void wait_proc_lock(void)
+{
+	spin_lock(&proc_lock);
+	spin_unlock(&proc_lock);
+}
 
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
 					       void *priv)
