@@ -95,12 +95,12 @@ static int is_thumb2(kprobe_opcode_t insn)
 
 static int arch_copy_trampoline_arm_uprobe(struct uprobe *up)
 {
-	struct task_struct *task = up->task;
 	struct kprobe *p = up2kp(up);
-	unsigned long insns[UPROBES_TRAMP_LEN];
+	int uregs, pc_dep;
 	unsigned long insn = p->opcode;
 	unsigned long vaddr = (unsigned long)p->addr;
-	int uregs, pc_dep;
+	unsigned long *tramp = up->atramp.tramp_arm;
+	enum { tramp_len = sizeof(up->atramp.tramp_arm) };
 
 	p->safe_arm = 1;
 	if (vaddr & 0x03) {
@@ -162,61 +162,56 @@ static int arch_copy_trampoline_arm_uprobe(struct uprobe *up)
 	}
 
 	if (unlikely(uregs && pc_dep)) {
-		memcpy(insns, pc_dep_insn_execbuf, sizeof(insns));
-		if (prep_pc_dep_insn_execbuf(insns, insn, uregs) != 0) {
+		memcpy(tramp, pc_dep_insn_execbuf, tramp_len);
+		if (prep_pc_dep_insn_execbuf(tramp, insn, uregs) != 0) {
 			printk("Error in %s at %d: failed "
 			       "to prepare exec buffer for insn %lx!",
 			       __FILE__, __LINE__, insn);
 			p->safe_arm = 1;
 		}
 
-		insns[6] = vaddr + 8;
+		tramp[6] = vaddr + 8;
 	} else {
-		memcpy(insns, gen_insn_execbuf, sizeof(insns));
-		insns[UPROBES_TRAMP_INSN_IDX] = insn;
+		memcpy(tramp, gen_insn_execbuf, tramp_len);
+		tramp[UPROBES_TRAMP_INSN_IDX] = insn;
 	}
 
-	insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-	insns[7] = vaddr + 4;
+	tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+	tramp[7] = vaddr + 4;
 
 	/* B */
 	if (ARM_INSN_MATCH(B, insn) &&
 	    !ARM_INSN_MATCH(BLX1, insn)) {
 		/* B check can be false positive on BLX1 instruction */
-		memcpy(insns, b_cond_insn_execbuf, sizeof(insns));
-		insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-		insns[0] |= insn & 0xf0000000;
-		insns[6] = get_addr_b(insn, vaddr);
-		insns[7] = vaddr + 4;
+		memcpy(tramp, b_cond_insn_execbuf, tramp_len);
+		tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		tramp[0] |= insn & 0xf0000000;
+		tramp[6] = get_addr_b(insn, vaddr);
+		tramp[7] = vaddr + 4;
 	/* BX, BLX (Rm) */
 	} else if (ARM_INSN_MATCH(BX, insn) ||
 		   ARM_INSN_MATCH(BLX2, insn)) {
-		memcpy(insns, b_r_insn_execbuf, sizeof (insns));
-		insns[0] = insn;
-		insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-		insns[7] = vaddr + 4;
+		memcpy(tramp, b_r_insn_execbuf, tramp_len);
+		tramp[0] = insn;
+		tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		tramp[7] = vaddr + 4;
 	/* BL, BLX (Off) */
 	} else if (ARM_INSN_MATCH(BLX1, insn)) {
-		memcpy(insns, blx_off_insn_execbuf, sizeof(insns));
-		insns[0] |= 0xe0000000;
-		insns[1] |= 0xe0000000;
-		insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-		insns[6] = get_addr_b(insn, vaddr) +
+		memcpy(tramp, blx_off_insn_execbuf, tramp_len);
+		tramp[0] |= 0xe0000000;
+		tramp[1] |= 0xe0000000;
+		tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		tramp[6] = get_addr_b(insn, vaddr) +
 			   2 * (insn & 01000000) + 1; /* jump to thumb */
-		insns[7] = vaddr + 4;
+		tramp[7] = vaddr + 4;
 	/* BL */
 	} else if (ARM_INSN_MATCH(BL, insn)) {
-		memcpy(insns, blx_off_insn_execbuf, sizeof(insns));
-		insns[0] |= insn & 0xf0000000;
-		insns[1] |= insn & 0xf0000000;
-		insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-		insns[6] = get_addr_b(insn, vaddr);
-		insns[7] = vaddr + 4;
-	}
-
-	if (!write_proc_vm_atomic(task, (unsigned long)p->ainsn.insn_arm,
-				  insns, sizeof(insns))) {
-		panic("failed to write memory %p!\n", p->ainsn.insn_arm);
+		memcpy(tramp, blx_off_insn_execbuf, tramp_len);
+		tramp[0] |= insn & 0xf0000000;
+		tramp[1] |= insn & 0xf0000000;
+		tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		tramp[6] = get_addr_b(insn, vaddr);
+		tramp[7] = vaddr + 4;
 	}
 
 	return 0;
@@ -485,13 +480,12 @@ static int prep_pc_dep_insn_execbuf_thumb(kprobe_opcode_t * insns, kprobe_opcode
 static int arch_copy_trampoline_thumb_uprobe(struct uprobe *up)
 {
 	int uregs, pc_dep;
-	struct task_struct *task = up->task;
 	struct kprobe *p = up2kp(up);
 	unsigned int addr;
 	unsigned long vaddr = (unsigned long)p->addr;
 	unsigned long insn = p->opcode;
-	/* TODO: or array size UPROBES_TRAMP_LEN?! */
-	unsigned long insns[UPROBES_TRAMP_LEN * 2];
+	unsigned long *tramp = up->atramp.tramp_thumb;
+	enum { tramp_len = sizeof(up->atramp.tramp_thumb) };
 
 	p->safe_thumb = 1;
 	if (vaddr & 0x01) {
@@ -562,158 +556,132 @@ static int arch_copy_trampoline_thumb_uprobe(struct uprobe *up)
 	}
 
 	if (unlikely(uregs && pc_dep)) {
-		memcpy(insns, pc_dep_insn_execbuf_thumb, 18 * 2);
-		if (prep_pc_dep_insn_execbuf_thumb(insns, insn, uregs) != 0) {
+		memcpy(tramp, pc_dep_insn_execbuf_thumb, tramp_len);
+		if (prep_pc_dep_insn_execbuf_thumb(tramp, insn, uregs) != 0) {
 			printk("Error in %s at %d: failed to prepare exec buffer for insn %lx!",
 			       __FILE__, __LINE__, insn);
 			p->safe_thumb = 1;
 		}
 
 		addr = vaddr + 4;
-		*((unsigned short*)insns + 13) = 0xdeff;
-		*((unsigned short*)insns + 14) = addr & 0x0000ffff;
-		*((unsigned short*)insns + 15) = addr >> 16;
+		*((unsigned short*)tramp + 13) = 0xdeff;
+		*((unsigned short*)tramp + 14) = addr & 0x0000ffff;
+		*((unsigned short*)tramp + 15) = addr >> 16;
 		if (!is_thumb2(insn)) {
 			addr = vaddr + 2;
-			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
-			*((unsigned short*)insns + 17) = addr >> 16;
+			*((unsigned short*)tramp + 16) = (addr & 0x0000ffff) | 0x1;
+			*((unsigned short*)tramp + 17) = addr >> 16;
 		} else {
 			addr = vaddr + 4;
-			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
-			*((unsigned short*)insns + 17) = addr >> 16;
+			*((unsigned short*)tramp + 16) = (addr & 0x0000ffff) | 0x1;
+			*((unsigned short*)tramp + 17) = addr >> 16;
 		}
 	} else {
-		memcpy(insns, gen_insn_execbuf_thumb, 18 * 2);
-		*((unsigned short*)insns + 13) = 0xdeff;
+		memcpy(tramp, gen_insn_execbuf_thumb, tramp_len);
+		*((unsigned short*)tramp + 13) = 0xdeff;
 		if (!is_thumb2(insn)) {
 			addr = vaddr + 2;
-			*((unsigned short*)insns + 2) = insn;
-			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
-			*((unsigned short*)insns + 17) = addr >> 16;
+			*((unsigned short*)tramp + 2) = insn;
+			*((unsigned short*)tramp + 16) = (addr & 0x0000ffff) | 0x1;
+			*((unsigned short*)tramp + 17) = addr >> 16;
 		} else {
 			addr = vaddr + 4;
-			insns[1] = insn;
-			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
-			*((unsigned short*)insns + 17) = addr >> 16;
+			tramp[1] = insn;
+			*((unsigned short*)tramp + 16) = (addr & 0x0000ffff) | 0x1;
+			*((unsigned short*)tramp + 17) = addr >> 16;
 		}
 	}
 
 	if (THUMB_INSN_MATCH(B2, insn)) {
-		memcpy(insns, b_off_insn_execbuf_thumb, sizeof(insns));
-		*((unsigned short*)insns + 13) = 0xdeff;
+		memcpy(tramp, b_off_insn_execbuf_thumb, tramp_len);
+		*((unsigned short*)tramp + 13) = 0xdeff;
 		addr = branch_t16_dest(insn, vaddr);
-		*((unsigned short*)insns + 14) = (addr & 0x0000ffff) | 0x1;
-		*((unsigned short*)insns + 15) = addr >> 16;
-		*((unsigned short*)insns + 16) = 0;
-		*((unsigned short*)insns + 17) = 0;
+		*((unsigned short*)tramp + 14) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)tramp + 15) = addr >> 16;
+		*((unsigned short*)tramp + 16) = 0;
+		*((unsigned short*)tramp + 17) = 0;
 
 	} else if (THUMB_INSN_MATCH(B1, insn)) {
-		memcpy(insns, b_cond_insn_execbuf_thumb, sizeof(insns));
-		*((unsigned short*)insns + 13) = 0xdeff;
-		*((unsigned short*)insns + 0) |= (insn & 0xf00);
+		memcpy(tramp, b_cond_insn_execbuf_thumb, tramp_len);
+		*((unsigned short*)tramp + 13) = 0xdeff;
+		*((unsigned short*)tramp + 0) |= (insn & 0xf00);
 		addr = branch_cond_t16_dest(insn, vaddr);
-		*((unsigned short*)insns + 14) = (addr & 0x0000ffff) | 0x1;
-		*((unsigned short*)insns + 15) = addr >> 16;
+		*((unsigned short*)tramp + 14) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)tramp + 15) = addr >> 16;
 		addr = vaddr + 2;
-		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
-		*((unsigned short*)insns + 17) = addr >> 16;
+		*((unsigned short*)tramp + 16) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)tramp + 17) = addr >> 16;
 
 	} else if (THUMB_INSN_MATCH(BLX2, insn) ||
 		   THUMB_INSN_MATCH(BX, insn)) {
-		memcpy(insns, b_r_insn_execbuf_thumb, sizeof(insns));
-		*((unsigned short*)insns + 13) = 0xdeff;
-		*((unsigned short*)insns + 4) = insn;
+		memcpy(tramp, b_r_insn_execbuf_thumb, tramp_len);
+		*((unsigned short*)tramp + 13) = 0xdeff;
+		*((unsigned short*)tramp + 4) = insn;
 		addr = vaddr + 2;
-		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
-		*((unsigned short*)insns + 17) = addr >> 16;
+		*((unsigned short*)tramp + 16) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)tramp + 17) = addr >> 16;
 
 	} else if (THUMB2_INSN_MATCH(BLX1, insn) ||
 		   THUMB2_INSN_MATCH(BL, insn)) {
-		memcpy(insns, blx_off_insn_execbuf_thumb, sizeof(insns));
-		*((unsigned short*)insns + 13) = 0xdeff;
+		memcpy(tramp, blx_off_insn_execbuf_thumb, tramp_len);
+		*((unsigned short*)tramp + 13) = 0xdeff;
 		addr = branch_t32_dest(insn, vaddr);
-		*((unsigned short*)insns + 14) = (addr & 0x0000ffff);
-		*((unsigned short*)insns + 15) = addr >> 16;
+		*((unsigned short*)tramp + 14) = (addr & 0x0000ffff);
+		*((unsigned short*)tramp + 15) = addr >> 16;
 		addr = vaddr + 4;
-		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
-		*((unsigned short*)insns + 17) = addr >> 16;
+		*((unsigned short*)tramp + 16) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)tramp + 17) = addr >> 16;
 
 	} else if (THUMB_INSN_MATCH(CBZ, insn)) {
-		memcpy(insns, cbz_insn_execbuf_thumb, sizeof(insns));
-		*((unsigned short*)insns + 13) = 0xdeff;
-		*((unsigned short*)insns + 0) = insn &  (~insn & 0xf8);
-		*((unsigned short*)insns + 0) &= 0x20;
+		memcpy(tramp, cbz_insn_execbuf_thumb, tramp_len);
+		*((unsigned short*)tramp + 13) = 0xdeff;
+		*((unsigned short*)tramp + 0) = insn &  (~insn & 0xf8);
+		*((unsigned short*)tramp + 0) &= 0x20;
 		addr = cbz_t16_dest(insn, vaddr);
-		*((unsigned short*)insns + 14) = (addr & 0x0000ffff) | 0x1;
-		*((unsigned short*)insns + 15) = addr >> 16;
+		*((unsigned short*)tramp + 14) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)tramp + 15) = addr >> 16;
 		addr = vaddr + 2;
-		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
-		*((unsigned short*)insns + 17) = addr >> 16;
-	}
-
-	if (!write_proc_vm_atomic(task, (unsigned long)p->ainsn.insn_thumb, insns, 18 * 2)) {
-		panic("failed to write memory %p!\n", p->ainsn.insn_thumb);
+		*((unsigned short*)tramp + 16) = (addr & 0x0000ffff) | 0x1;
+		*((unsigned short*)tramp + 17) = addr >> 16;
 	}
 
 	return 0;
 }
 
-int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list)
+int arch_prepare_uprobe(struct uprobe *up)
 {
-	int ret = 0;
-	struct kprobe *p = &up->kp;
+	struct kprobe *p = up2kp(up);
 	struct task_struct *task = up->task;
-	kprobe_opcode_t insn[MAX_INSN_SIZE];
+	unsigned long vaddr = (unsigned long)p->addr;
+	unsigned long insn;
 
-	if ((unsigned long)p->addr & 0x01) {
-		printk("Error in %s at %d: attempt to register kprobe at an unaligned address\n", __FILE__, __LINE__);
+	if (vaddr & 0x01) {
+		printk("Error in %s at %d: attempt to register uprobe "
+		       "at an unaligned address\n", __FILE__, __LINE__);
 		return -EINVAL;
 	}
 
-	if (!read_proc_vm_atomic(task, (unsigned long)p->addr, &insn, MAX_INSN_SIZE * sizeof(kprobe_opcode_t))) {
-		panic("Failed to read memory task[tgid=%u, comm=%s] %p!\n", task->tgid, task->comm, p->addr);
-	}
+	if (!read_proc_vm_atomic(task, vaddr, &insn, sizeof(insn)))
+		panic("failed to read memory %lx!\n", vaddr);
 
-	p->opcode = insn[0];
-	p->ainsn.insn_arm = alloc_insn_slot(up->sm);
-	if (!p->ainsn.insn_arm) {
-		printk("Error in %s at %d: kprobe slot allocation error (arm)\n", __FILE__, __LINE__);
-		return -ENOMEM;
-	}
+	p->opcode = insn;
 
-	ret = arch_copy_trampoline_arm_uprobe(up);
-	if (ret) {
-		free_insn_slot(up->sm, p->ainsn.insn_arm);
-		return -EFAULT;
-	}
-
-	p->ainsn.insn_thumb = alloc_insn_slot(up->sm);
-	if (!p->ainsn.insn_thumb) {
-		printk("Error in %s at %d: kprobe slot allocation error (thumb)\n", __FILE__, __LINE__);
-		return -ENOMEM;
-	}
-
-	ret = arch_copy_trampoline_thumb_uprobe(up);
-	if (ret) {
-		free_insn_slot(up->sm, p->ainsn.insn_arm);
-		free_insn_slot(up->sm, p->ainsn.insn_thumb);
-		return -EFAULT;
-	}
+	arch_copy_trampoline_arm_uprobe(up);
+	arch_copy_trampoline_thumb_uprobe(up);
 
 	if ((p->safe_arm) && (p->safe_thumb)) {
-		printk("Error in %s at %d: failed arch_copy_trampoline_*_uprobe() (both) [tgid=%u, addr=%lx, data=%lx]\n",
-		       __FILE__, __LINE__, task->tgid, (unsigned long)p->addr, (unsigned long)p->opcode);
-		if (!write_proc_vm_atomic(task, (unsigned long)p->addr, &p->opcode, sizeof(p->opcode))) {
-			panic("Failed to write memory %p!\n", p->addr);
-		}
+		printk("Error in %s at %d: failed "
+		       "arch_copy_trampoline_*_uprobe() (both) "
+		       "[tgid=%u, addr=%lx, data=%lx]\n",
+		       __FILE__, __LINE__, task->tgid, vaddr, insn);
 
-		free_insn_slot(up->sm, p->ainsn.insn_arm);
-		free_insn_slot(up->sm, p->ainsn.insn_thumb);
+		if (!write_proc_vm_atomic(task, vaddr, &insn, sizeof(insn)))
+			panic("Failed to write memory %p!\n", p->addr);
 
 		return -EFAULT;
 	}
 
-	return ret;
+	return 0;
 }
 
 void arch_opcode_analysis_uretprobe(struct uretprobe *rp)
@@ -784,42 +752,6 @@ void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
 		regs->ARM_cpsr &= ~PSR_T_BIT;
 }
 
-static int check_validity_insn(struct kprobe *p, struct pt_regs *regs)
-{
-	struct kprobe *kp;
-
-	if (unlikely(thumb_mode(regs))) {
-		if (p->safe_thumb) {
-			goto disarm;
-		}
-
-		p->ainsn.insn = p->ainsn.insn_thumb;
-		list_for_each_entry_rcu(kp, &p->list, list) {
-			kp->ainsn.insn = p->ainsn.insn_thumb;
-		}
-	} else {
-		if (p->safe_arm) {
-			goto disarm;
-		}
-
-		p->ainsn.insn = p->ainsn.insn_arm;
-		list_for_each_entry_rcu(kp, &p->list, list) {
-			kp->ainsn.insn = p->ainsn.insn_arm;
-		}
-	}
-
-	return 0;
-
-disarm:
-	printk("Error in %s at %d: we are in arm mode (!) and check "
-	       "instruction was fail (%0lX instruction at %p address)!\n",
-	       __FILE__, __LINE__, p->opcode, p->addr);
-
-	/* Test case when we do our actions on already running application */
-	disarm_uprobe(p, kp2up(p)->task);
-	return -1;
-}
-
 static void restore_opcode_for_thumb(struct kprobe *p, struct pt_regs *regs)
 {
 	if (thumb_mode(regs) && !is_thumb2(p->opcode)) {
@@ -830,6 +762,55 @@ static void restore_opcode_for_thumb(struct kprobe *p, struct pt_regs *regs)
 	}
 }
 
+static int make_trampoline(struct uprobe *up, struct pt_regs *regs)
+{
+	unsigned long *tramp, *utramp;
+	struct kprobe *p = up2kp(up);
+	int sw;
+
+	/*
+	 * 0 bit - thumb mode		(0 - arm, 1 - thumb)
+	 * 1 bit - arm mode support	(0 - off, 1  on)
+	 * 2 bit - thumb mode support	(0 - off, 1  on)`
+	 */
+	sw = (!!thumb_mode(regs)) |
+	     (int)!p->safe_arm << 1 |
+	     (int)!p->safe_thumb << 2;
+
+	switch (sw) {
+	/* ARM */
+	case 0b110:
+	case 0b010:
+		tramp = up->atramp.tramp_arm;
+		break;
+	/* THUMB */
+	case 0b111:
+	case 0b101:
+		restore_opcode_for_thumb(p, regs);
+		tramp = up->atramp.tramp_thumb;
+		break;
+	default:
+		printk("Error in %s at %d: we are in arm mode "
+		       "(!) and check instruction was fail "
+		       "(%0lX instruction at %p address)!\n",
+		       __FILE__, __LINE__, p->opcode, p->addr);
+
+		disarm_uprobe(p, up->task);
+
+		return 1;
+	}
+
+	utramp = alloc_insn_slot(up->sm);
+
+	if (!write_proc_vm_atomic(up->task, (unsigned long)utramp, tramp,
+				  UPROBES_TRAMP_LEN * sizeof(*tramp)))
+		panic("failed to write memory %p!\n", utramp);
+
+	p->ainsn.insn = utramp;
+
+	return 0;
+}
+
 static int uprobe_handler(struct pt_regs *regs)
 {
 	kprobe_opcode_t *addr = (kprobe_opcode_t *)(regs->ARM_pc);
@@ -838,20 +819,32 @@ static int uprobe_handler(struct pt_regs *regs)
 	struct kprobe *p;
 
 	p = get_ukprobe(addr, tgid);
-
 	if (p == NULL) {
-		p = get_ukprobe_by_insn_slot(addr, tgid, regs);
+		unsigned long offset_bp = thumb_mode(regs) ?
+					  0x1a :
+					  4 * UPROBES_TRAMP_RET_BREAK_IDX;
+		void *tramp_addr = (void *)addr - offset_bp;
+
+		p = get_ukprobe_by_insn_slot(tramp_addr, tgid, regs);
 		if (p == NULL) {
-			printk("no_kprobe: Not one of ours: let "
+			printk("no_uprobe: Not one of ours: let "
 			       "kernel handle it %p\n", addr);
 			return 1;
 		}
 
 		trampoline_uprobe_handler(p, regs);
-	} else if (check_validity_insn(p, regs) != 0) {
-		printk("no_uprobe live\n");
 	} else {
-		restore_opcode_for_thumb(p, regs);
+		if (p->ainsn.insn == NULL) {
+			struct uprobe *up = kp2up(p);
+
+			if (make_trampoline(up, regs)) {
+				printk("no_uprobe live\n");
+				return 0;
+			}
+
+			/* for uretprobe */
+			add_uprobe_table(p);
+		}
 
 		if (!p->pre_handler || !p->pre_handler(p, regs)) {
 			prepare_singlestep(p, regs);

@@ -28,11 +28,14 @@
  */
 
 #include <kprobe/dbi_kprobes.h>
+#include <uprobe/arch/asm/swap_uprobes.h>
+
 
 struct uprobe {
 	struct kprobe kp;
 	struct task_struct *task;
 	struct slot_manager *sm;
+	struct arch_specific_tramp atramp;
 };
 
 typedef unsigned long (*uprobe_pre_entry_handler_t)(void *priv_arg, struct pt_regs * regs);
@@ -118,5 +121,7 @@ static inline struct kprobe *up2kp(struct uprobe *p)
 void disarm_uprobe(struct kprobe *p, struct task_struct *task);
 
 int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs);
+
+void add_uprobe_table(struct kprobe *p);
 
 #endif /*  _DBI_UPROBES_H */

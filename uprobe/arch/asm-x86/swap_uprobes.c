@@ -63,43 +63,23 @@ static void restore_current_flags(struct pt_regs *regs)
 	regs->EREG(flags) |= __get_cpu_var(ucb).flags & IF_MASK;
 }
 
-int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list)
+int arch_prepare_uprobe(struct uprobe *up)
 {
 	int ret = 0;
-	struct kprobe *p = &up->kp;
+	struct kprobe *p = up2kp(up);
 	struct task_struct *task = up->task;
-	kprobe_opcode_t insns[UPROBES_TRAMP_LEN];
+	u8 *tramp = up->atramp.tramp;
 
-	if (!ret) {
-		kprobe_opcode_t insn[MAX_INSN_SIZE];
-		struct arch_specific_insn ainsn;
+	if (!read_proc_vm_atomic(task, (unsigned long)p->addr,
+				 tramp, MAX_INSN_SIZE))
+		panic("failed to read memory %p!\n", p->addr);
 
-		if (!read_proc_vm_atomic(task, (unsigned long)p->addr, &insn, MAX_INSN_SIZE * sizeof(kprobe_opcode_t)))
-			panic("failed to read memory %p!\n", p->addr);
+	tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
 
-		ainsn.insn = insn;
-		ret = arch_check_insn(&ainsn);
-		if (!ret) {
-			p->opcode = insn[0];
-			p->ainsn.insn = alloc_insn_slot(up->sm);
-			if (!p->ainsn.insn)
-				return -ENOMEM;
+	/* TODO: remove dual info */
+	p->opcode = tramp[0];
 
-			if (can_boost(insn))
-				p->ainsn.boostable = 0;
-			else
-				p->ainsn.boostable = -1;
-
-			memcpy(&insns[UPROBES_TRAMP_INSN_IDX], insn, MAX_INSN_SIZE*sizeof(kprobe_opcode_t));
-			insns[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-
-			if (!write_proc_vm_atomic(task, (unsigned long)p->ainsn.insn, insns, sizeof(insns))) {
-				free_insn_slot(up->sm, p->ainsn.insn);
-				panic("failed to write memory %p!\n", p->ainsn.insn);
-				return -EINVAL;
-			}
-		}
-	}
+	p->ainsn.boostable = can_boost(tramp) ? 0 : -1;
 
 	return ret;
 }
@@ -256,6 +236,31 @@ no_change:
 	return;
 }
 
+static int make_trampoline(struct uprobe *up)
+{
+	struct kprobe *p = up2kp(up);
+	struct task_struct *task = up->task;
+	void *tramp;
+
+	tramp = alloc_insn_slot(up->sm);
+	if (tramp == 0) {
+		printk("trampoline out of memory\n");
+		return -ENOMEM;
+	}
+
+	if (!write_proc_vm_atomic(task, (unsigned long)tramp,
+				  up->atramp.tramp,
+				  sizeof(up->atramp.tramp))) {
+		free_insn_slot(up->sm, tramp);
+		panic("failed to write memory %p!\n", tramp);
+		return -EINVAL;
+	}
+
+	p->ainsn.insn = tramp;
+
+	return 0;
+}
+
 static int uprobe_handler(struct pt_regs *regs)
 {
 	struct kprobe *p;
@@ -269,8 +274,9 @@ static int uprobe_handler(struct pt_regs *regs)
 	p = get_ukprobe(addr, tgid);
 
 	if (p == NULL) {
-		p = get_ukprobe_by_insn_slot(addr, tgid, regs);
+		void *tramp_addr = (void *)addr - UPROBES_TRAMP_RET_BREAK_IDX;
 
+		p = get_ukprobe_by_insn_slot(tramp_addr, tgid, regs);
 		if (p == NULL) {
 			printk("no_uprobe\n");
 			return 0;
@@ -279,6 +285,15 @@ static int uprobe_handler(struct pt_regs *regs)
 		trampoline_uprobe_handler(p, regs);
 		return 1;
 	} else {
+		if (p->ainsn.insn == NULL) {
+			struct uprobe *up = kp2up(p);
+
+			make_trampoline(up);
+
+			/* for uretprobe */
+			add_uprobe_table(p);
+		}
+
 		if (!p->pre_handler || !p->pre_handler(p, regs)) {
 			if (p->ainsn.boostable == 1 && !p->post_handler) {
 				regs->EREG(ip) = (unsigned long)p->ainsn.insn;

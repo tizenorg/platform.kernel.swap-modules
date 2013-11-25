@@ -38,6 +38,13 @@ struct uprobe;
 struct uretprobe;
 struct uretprobe_instance;
 
+
+struct arch_specific_tramp {
+	unsigned long tramp_arm[UPROBES_TRAMP_LEN];
+	unsigned long tramp_thumb[UPROBES_TRAMP_LEN];
+};
+
+
 static inline u32 swap_get_urp_float(struct pt_regs *regs)
 {
 	return regs->ARM_r0;
@@ -53,7 +60,7 @@ static inline void arch_ujprobe_return(void)
 {
 }
 
-int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list);
+int arch_prepare_uprobe(struct uprobe *up);
 
 int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs);
 static inline int longjmp_break_uhandler(struct kprobe *p, struct pt_regs *regs)

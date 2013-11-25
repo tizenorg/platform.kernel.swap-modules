@@ -57,6 +57,7 @@ typedef u8 kprobe_opcode_t;
 #define BREAKPOINT_INSTRUCTION          0xcc
 #define RELATIVEJUMP_INSTRUCTION        0xe9
 
+#define BP_INSN_SIZE                    1
 #define MAX_INSN_SIZE                   16
 #define MAX_STACK_SIZE                  64
 

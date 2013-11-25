@@ -43,7 +43,6 @@ enum {
 
 struct hlist_head uprobe_insn_slot_table[UPROBE_TABLE_SIZE];
 struct hlist_head uprobe_table[UPROBE_TABLE_SIZE];
-struct hlist_head uprobe_insn_pages;
 
 DEFINE_SPINLOCK(uretprobe_lock);	/* Protects uretprobe_inst_table */
 static struct hlist_head uretprobe_inst_table[UPROBE_TABLE_SIZE];
@@ -299,68 +298,17 @@ struct kprobe *get_ukprobe(void *addr, pid_t tgid)
 	return NULL;
 }
 
-static void add_uprobe_table(struct kprobe *p)
+void add_uprobe_table(struct kprobe *p)
 {
-#ifdef CONFIG_ARM
-	INIT_HLIST_NODE(&p->is_hlist_arm);
-	hlist_add_head_rcu(&p->is_hlist_arm, &uprobe_insn_slot_table[hash_ptr(p->ainsn.insn_arm, UPROBE_HASH_BITS)]);
-	INIT_HLIST_NODE(&p->is_hlist_thumb);
-	hlist_add_head_rcu(&p->is_hlist_thumb, &uprobe_insn_slot_table[hash_ptr(p->ainsn.insn_thumb, UPROBE_HASH_BITS)]);
-#else /* CONFIG_ARM */
 	INIT_HLIST_NODE(&p->is_hlist);
 	hlist_add_head_rcu(&p->is_hlist, &uprobe_insn_slot_table[hash_ptr(p->ainsn.insn, UPROBE_HASH_BITS)]);
-#endif /* CONFIG_ARM */
-}
-
-#ifdef CONFIG_ARM
-static struct kprobe *get_ukprobe_bis_arm(void *addr, pid_t tgid)
-{
-	struct hlist_head *head;
-	struct kprobe *p;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	/* TODO: test - two processes invokes instrumented function */
-	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
-	swap_hlist_for_each_entry_rcu(p, node, head, is_hlist_arm) {
-		if (p->ainsn.insn == addr && kp2up(p)->task->tgid == tgid) {
-			return p;
-		}
-	}
-
-	return NULL;
-}
-
-static struct kprobe *get_ukprobe_bis_thumb(void *addr, pid_t tgid)
-{
-	struct hlist_head *head;
-	struct kprobe *p;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	/* TODO: test - two processes invokes instrumented function */
-	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
-	swap_hlist_for_each_entry_rcu(p, node, head, is_hlist_thumb) {
-		if (p->ainsn.insn == addr && kp2up(p)->task->tgid == tgid) {
-			return p;
-		}
-	}
-
-	return NULL;
 }
 
 struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *regs)
 {
-	return thumb_mode(regs) ?
-			get_ukprobe_bis_thumb(addr - 0x1a, tgid) :
-			get_ukprobe_bis_arm(addr - 4 * UPROBES_TRAMP_RET_BREAK_IDX, tgid);
-}
-#else /* CONFIG_ARM */
-struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *regs)
-{
 	struct hlist_head *head;
 	struct kprobe *p;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	addr -= UPROBES_TRAMP_RET_BREAK_IDX;
 
 	/* TODO: test - two processes invokes instrumented function */
 	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
@@ -372,19 +320,13 @@ struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *
 
 	return NULL;
 }
-#endif /* CONFIG_ARM */
 
 
 static void remove_uprobe(struct uprobe *up)
 {
-	struct kprobe *p = &up->kp;
+	struct kprobe *p = up2kp(up);
 
-#ifdef CONFIG_ARM
-	free_insn_slot(up->sm, p->ainsn.insn_arm);
-	free_insn_slot(up->sm, p->ainsn.insn_thumb);
-#else /* CONFIG_ARM */
 	free_insn_slot(up->sm, p->ainsn.insn);
-#endif /* CONFIG_ARM */
 }
 
 static struct hlist_head *uretprobe_inst_table_head(void *hash_key)
@@ -527,6 +469,7 @@ int dbi_register_uprobe(struct uprobe *up)
 	}
 #endif
 
+	p->ainsn.insn = NULL;
 	p->mod_refcounted = 0;
 	p->nmissed = 0;
 	INIT_LIST_HEAD(&p->list);
@@ -544,15 +487,11 @@ int dbi_register_uprobe(struct uprobe *up)
 		p->safe_thumb = old_p->safe_thumb;
 #endif
 		ret = register_aggr_uprobe(old_p, p);
-		if (!ret) {
-//			atomic_inc(&kprobe_count);
-			add_uprobe_table(p);
-		}
 		DBPRINTF("goto out\n", ret);
 		goto out;
 	}
 
-	ret = arch_prepare_uprobe(up, &uprobe_insn_pages);
+	ret = arch_prepare_uprobe(up);
 	if (ret) {
 		DBPRINTF("goto out\n", ret);
 		goto out;
@@ -563,7 +502,6 @@ int dbi_register_uprobe(struct uprobe *up)
 	// TODO: add uprobe (must be in function)
 	INIT_HLIST_NODE(&p->hlist);
 	hlist_add_head_rcu(&p->hlist, &uprobe_table[hash_ptr(p->addr, UPROBE_HASH_BITS)]);
-	add_uprobe_table(p);
 	arm_uprobe(up);
 
 out:
@@ -667,18 +605,9 @@ void __dbi_unregister_ujprobe(struct ujprobe *jp, int disarm)
 	 * dereference error. That is why we check whether this node
 	 * really belongs to the hlist.
 	 */
-#ifdef CONFIG_ARM
-	if (!(hlist_unhashed(&jp->up.kp.is_hlist_arm))) {
-		hlist_del_rcu(&jp->up.kp.is_hlist_arm);
-	}
-	if (!(hlist_unhashed(&jp->up.kp.is_hlist_thumb))) {
-		hlist_del_rcu(&jp->up.kp.is_hlist_thumb);
-	}
-#else /* CONFIG_ARM */
 	if (!(hlist_unhashed(&jp->up.kp.is_hlist))) {
 		hlist_del_rcu(&jp->up.kp.is_hlist);
 	}
-#endif /* CONFIG_ARM */
 }
 EXPORT_SYMBOL_GPL(__dbi_unregister_ujprobe);
 
@@ -932,19 +861,10 @@ void __dbi_unregister_uretprobe(struct uretprobe *rp, int disarm)
 
 	if (hlist_empty(&rp->used_instances)) {
 		struct kprobe *p = &rp->up.kp;
-#ifdef CONFIG_ARM
-		if (!(hlist_unhashed(&p->is_hlist_arm))) {
-			hlist_del_rcu(&p->is_hlist_arm);
-		}
 
-		if (!(hlist_unhashed(&p->is_hlist_thumb))) {
-			hlist_del_rcu(&p->is_hlist_thumb);
-		}
-#else /* CONFIG_ARM */
 		if (!(hlist_unhashed(&p->is_hlist))) {
 			hlist_del_rcu(&p->is_hlist);
 		}
-#endif /* CONFIG_ARM */
 	}
 
 	while ((ri = get_used_urp_inst(rp)) != NULL) {

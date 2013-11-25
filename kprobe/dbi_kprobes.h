@@ -98,12 +98,7 @@ struct kprobe
 {
 	struct hlist_node				hlist;
 	/*list of probes to search by instruction slot*/
-#ifdef CONFIG_ARM
-	struct hlist_node				is_hlist_arm;
-	struct hlist_node				is_hlist_thumb;
-#else /* CONFIG_ARM */
 	struct hlist_node				is_hlist;
-#endif /* CONFIG_ARM */
 	/* list of kprobes for multi-handler support */
 	struct list_head				list;
 	/* Indicates that the corresponding module has been ref counted */

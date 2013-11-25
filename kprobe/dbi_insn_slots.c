@@ -192,6 +192,9 @@ void free_insn_slot(struct slot_manager *sm, void *slot)
 	struct fixed_alloc *fa;
 	DECLARE_NODE_PTR_FOR_HLIST(pos);
 
+	if (slot == NULL)
+		return;
+
 	swap_hlist_for_each_entry_rcu(fa, pos, &sm->page_list, hlist) {
 		if (!chunk_check_ptr(&fa->chunk, slot, PAGE_SIZE))
 			continue;

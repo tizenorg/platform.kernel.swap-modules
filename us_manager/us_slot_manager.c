@@ -33,47 +33,14 @@
 #include <kprobe/arch/asm/dbi_kprobes.h>
 #include "us_manager_common.h"
 
-static unsigned long alloc_user_pages(struct task_struct *task, unsigned long len, unsigned long prot, unsigned long flags)
-{
-	unsigned long ret = 0;
-	struct task_struct *otask = current;
-	struct mm_struct *mm;
-	int atomic = in_atomic();
-
-	mm = atomic ? task->active_mm : get_task_mm(task);
-	if (mm) {
-		if (!atomic) {
-			if (!down_write_trylock(&mm->mmap_sem)) {
-				rcu_read_lock();
-
-				up_read(&mm->mmap_sem);
-				down_write(&mm->mmap_sem);
-
-				rcu_read_unlock();
-			}
-		}
-		// FIXME: its seems to be bad decision to replace 'current' pointer temporarily
-		current_thread_info()->task = task;
-		ret = swap_do_mmap(NULL, 0, len, prot, flags, 0);
-		current_thread_info()->task = otask;
-		if (!atomic) {
-			downgrade_write (&mm->mmap_sem);
-			mmput(mm);
-		}
-	} else {
-		printk("proc %d has no mm", task->tgid);
-	}
-
-	return ret;
-}
 
 static void *sm_alloc_us(struct slot_manager *sm)
 {
-	struct task_struct *task = sm->data;
+	unsigned long addr;
 
-	return (void *)alloc_user_pages(task, PAGE_SIZE,
-					PROT_EXEC|PROT_READ|PROT_WRITE,
-					MAP_ANONYMOUS|MAP_PRIVATE);
+	addr = swap_do_mmap(NULL, 0, PAGE_SIZE, PROT_EXEC|PROT_READ|PROT_WRITE,
+			    MAP_ANONYMOUS|MAP_PRIVATE, 0);
+	return (void *)addr;
 }
 
 static void sm_free_us(struct slot_manager *sm, void *ptr)
