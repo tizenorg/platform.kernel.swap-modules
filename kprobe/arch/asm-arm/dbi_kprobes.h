@@ -484,7 +484,7 @@ static inline int arch_init_module_deps(void)
 	return 0;
 }
 
-int arch_check_insn_arm(struct arch_specific_insn *ainsn);
+int arch_check_insn_arm(unsigned long insn);
 int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int uregs);
 
 struct slot_manager;

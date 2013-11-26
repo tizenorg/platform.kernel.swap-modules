@@ -113,41 +113,40 @@ int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int u
 }
 EXPORT_SYMBOL_GPL(prep_pc_dep_insn_execbuf);
 
-int arch_check_insn_arm(struct arch_specific_insn *ainsn)
+int arch_check_insn_arm(unsigned long insn)
 {
-	int ret = 0;
-
-	// check instructions that can change PC by nature
+	/* check instructions that can change PC by nature */
 	if (
-//	    ARM_INSN_MATCH(UNDEF, ainsn->insn_arm[0]) ||
-	    ARM_INSN_MATCH(AUNDEF, ainsn->insn_arm[0]) ||
-	    ARM_INSN_MATCH(SWI, ainsn->insn_arm[0]) ||
-	    ARM_INSN_MATCH(BREAK, ainsn->insn_arm[0]) ||
-	    ARM_INSN_MATCH(BXJ, ainsn->insn_arm[0])) 	{
-		DBPRINTF ("Bad insn arch_check_insn_arm: %lx\n", ainsn->insn_arm[0]);
-		ret = -EFAULT;
+	 /* ARM_INSN_MATCH(UNDEF, insn) || */
+	    ARM_INSN_MATCH(AUNDEF, insn) ||
+	    ARM_INSN_MATCH(SWI, insn) ||
+	    ARM_INSN_MATCH(BREAK, insn) ||
+	    ARM_INSN_MATCH(BXJ, insn)) {
+		goto bad_insn;
 #ifndef CONFIG_CPU_V7
-	// check instructions that can write result to PC
-	} else if ((ARM_INSN_MATCH(DPIS, ainsn->insn_arm[0]) ||
-		   ARM_INSN_MATCH(DPRS, ainsn->insn_arm[0]) ||
-		   ARM_INSN_MATCH(DPI, ainsn->insn_arm[0]) ||
-		   ARM_INSN_MATCH(LIO, ainsn->insn_arm[0]) ||
-		   ARM_INSN_MATCH(LRO, ainsn->insn_arm[0])) &&
-		   (ARM_INSN_REG_RD(ainsn->insn_arm[0]) == 15)) {
-		DBPRINTF ("Bad arch_check_insn_arm: %lx\n", ainsn->insn_arm[0]);
-		ret = -EFAULT;
-#endif // CONFIG_CPU_V7
-	// check special instruction loads store multiple registers
-	} else if ((ARM_INSN_MATCH(LM, ainsn->insn_arm[0]) || ARM_INSN_MATCH(SM, ainsn->insn_arm[0])) &&
-			// store pc or load to pc
-		   (ARM_INSN_REG_MR(ainsn->insn_arm[0], 15) ||
-			 // store/load with pc update
-		    ((ARM_INSN_REG_RN(ainsn->insn_arm[0]) == 15) && (ainsn->insn_arm[0] & 0x200000)))) {
-		DBPRINTF ("Bad insn arch_check_insn_arm: %lx\n", ainsn->insn_arm[0]);
-		ret = -EFAULT;
+	/* check instructions that can write result to PC */
+	} else if ((ARM_INSN_MATCH(DPIS, insn) ||
+		    ARM_INSN_MATCH(DPRS, insn) ||
+		    ARM_INSN_MATCH(DPI, insn) ||
+		    ARM_INSN_MATCH(LIO, insn) ||
+		    ARM_INSN_MATCH(LRO, insn)) &&
+		   (ARM_INSN_REG_RD(insn) == 15)) {
+		goto bad_insn;
+#endif /* CONFIG_CPU_V7 */
+	/* check special instruction loads store multiple registers */
+	} else if ((ARM_INSN_MATCH(LM, insn) || ARM_INSN_MATCH(SM, insn)) &&
+			/* store PC or load to PC */
+		   (ARM_INSN_REG_MR(insn, 15) ||
+			 /* store/load with PC update */
+		    ((ARM_INSN_REG_RN(insn) == 15) && (insn & 0x200000)))) {
+		goto bad_insn;
 	}
 
-	return ret;
+	return 0;
+
+bad_insn:
+	printk("Bad insn arch_check_insn_arm: %lx\n", insn);
+	return -EFAULT;
 }
 EXPORT_SYMBOL_GPL(arch_check_insn_arm);
 
@@ -165,7 +164,7 @@ int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 
 	memcpy(insn, p->addr, MAX_INSN_SIZE * sizeof(kprobe_opcode_t));
 	ainsn.insn_arm = ainsn.insn = insn;
-	ret = arch_check_insn_arm(&ainsn);
+	ret = arch_check_insn_arm(insn[0]);
 	if (!ret) {
 		p->opcode = *p->addr;
 		uregs = pc_dep = 0;

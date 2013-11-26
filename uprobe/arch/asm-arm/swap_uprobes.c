@@ -108,7 +108,7 @@ static int arch_copy_trampoline_arm_uprobe(struct kprobe *p, struct task_struct 
 
 	insn[0] = p->opcode;
 	ainsn.insn_arm = insn;
-	if (!arch_check_insn_arm(&ainsn)) {
+	if (!arch_check_insn_arm(insn[0])) {
 		p->safe_arm = 0;
 	}
 
