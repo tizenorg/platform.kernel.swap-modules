@@ -482,179 +482,177 @@ static int prep_pc_dep_insn_execbuf_thumb(kprobe_opcode_t * insns, kprobe_opcode
 	return 0;
 }
 
-static int arch_copy_trampoline_thumb_uprobe(struct kprobe *p, struct task_struct *task, int atomic)
+static int arch_copy_trampoline_thumb_uprobe(struct uprobe *up)
 {
 	int uregs, pc_dep;
+	struct task_struct *task = up->task;
+	struct kprobe *p = up2kp(up);
 	unsigned int addr;
-	kprobe_opcode_t insn[MAX_INSN_SIZE];
-	kprobe_opcode_t insns[UPROBES_TRAMP_LEN * 2];
+	unsigned long vaddr = (unsigned long)p->addr;
+	unsigned long insn = p->opcode;
+	/* TODO: or array size UPROBES_TRAMP_LEN?! */
+	unsigned long insns[UPROBES_TRAMP_LEN * 2];
 
 	p->safe_thumb = 1;
-	if ((unsigned long)p->addr & 0x01) {
+	if (vaddr & 0x01) {
 		printk("Error in %s at %d: attempt to register kprobe at an unaligned address\n", __FILE__, __LINE__);
 		return -EINVAL;
 	}
 
-	insn[0] = p->opcode;
-	if (!arch_check_insn_thumb(insn[0])) {
+	if (!arch_check_insn_thumb(insn)) {
 		p->safe_thumb = 0;
 	}
 
 	uregs = 0;
 	pc_dep = 0;
 
-	if (THUMB_INSN_MATCH(APC, insn[0]) || THUMB_INSN_MATCH(LRO3, insn[0])) {
-		uregs = 0x0700;		// 8-10
+	if (THUMB_INSN_MATCH(APC, insn) || THUMB_INSN_MATCH(LRO3, insn)) {
+		uregs = 0x0700;		/* 8-10 */
 		pc_dep = 1;
-	} else if (THUMB_INSN_MATCH(MOV3, insn[0]) && (((((unsigned char)insn[0]) & 0xff) >> 3) == 15)) {
-		// MOV Rd, PC
+	} else if (THUMB_INSN_MATCH(MOV3, insn) && (((((unsigned char)insn) & 0xff) >> 3) == 15)) {
+		/* MOV Rd, PC */
 		uregs = 0x07;
 		pc_dep = 1;
-	} else if THUMB2_INSN_MATCH(ADR, insn[0]) {
-		uregs = 0x0f00;		// Rd 8-11
+	} else if THUMB2_INSN_MATCH(ADR, insn) {
+		uregs = 0x0f00;		/* Rd 8-11 */
 		pc_dep = 1;
-	} else if (((THUMB2_INSN_MATCH(LDRW, insn[0]) || THUMB2_INSN_MATCH(LDRW1, insn[0]) ||
-		     THUMB2_INSN_MATCH(LDRBW, insn[0]) || THUMB2_INSN_MATCH(LDRBW1, insn[0]) ||
-		     THUMB2_INSN_MATCH(LDRHW, insn[0]) || THUMB2_INSN_MATCH(LDRHW1, insn[0]) ||
-		     THUMB2_INSN_MATCH(LDRWL, insn[0])) && THUMB2_INSN_REG_RN(insn[0]) == 15) ||
-		     THUMB2_INSN_MATCH(LDREX, insn[0]) ||
-		     ((THUMB2_INSN_MATCH(STRW, insn[0]) || THUMB2_INSN_MATCH(STRBW, insn[0]) ||
-		       THUMB2_INSN_MATCH(STRHW, insn[0]) || THUMB2_INSN_MATCH(STRHW1, insn[0])) &&
-		      (THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RT(insn[0]) == 15)) ||
-		     ((THUMB2_INSN_MATCH(STRT, insn[0]) || THUMB2_INSN_MATCH(STRHT, insn[0])) &&
-		       (THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RT(insn[0]) == 15))) {
-		uregs = 0xf000;		// Rt 12-15
+	} else if (((THUMB2_INSN_MATCH(LDRW, insn) || THUMB2_INSN_MATCH(LDRW1, insn) ||
+		     THUMB2_INSN_MATCH(LDRBW, insn) || THUMB2_INSN_MATCH(LDRBW1, insn) ||
+		     THUMB2_INSN_MATCH(LDRHW, insn) || THUMB2_INSN_MATCH(LDRHW1, insn) ||
+		     THUMB2_INSN_MATCH(LDRWL, insn)) && THUMB2_INSN_REG_RN(insn) == 15) ||
+		     THUMB2_INSN_MATCH(LDREX, insn) ||
+		     ((THUMB2_INSN_MATCH(STRW, insn) || THUMB2_INSN_MATCH(STRBW, insn) ||
+		       THUMB2_INSN_MATCH(STRHW, insn) || THUMB2_INSN_MATCH(STRHW1, insn)) &&
+		      (THUMB2_INSN_REG_RN(insn) == 15 || THUMB2_INSN_REG_RT(insn) == 15)) ||
+		     ((THUMB2_INSN_MATCH(STRT, insn) || THUMB2_INSN_MATCH(STRHT, insn)) &&
+		       (THUMB2_INSN_REG_RN(insn) == 15 || THUMB2_INSN_REG_RT(insn) == 15))) {
+		uregs = 0xf000;		/* Rt 12-15 */
 		pc_dep = 1;
-	} else if ((THUMB2_INSN_MATCH(LDRD, insn[0]) || THUMB2_INSN_MATCH(LDRD1, insn[0])) && (THUMB2_INSN_REG_RN(insn[0]) == 15)) {
-		uregs = 0xff00;		// Rt 12-15, Rt2 8-11
+	} else if ((THUMB2_INSN_MATCH(LDRD, insn) || THUMB2_INSN_MATCH(LDRD1, insn)) && (THUMB2_INSN_REG_RN(insn) == 15)) {
+		uregs = 0xff00;		/* Rt 12-15, Rt2 8-11 */
 		pc_dep = 1;
-	} else if (THUMB2_INSN_MATCH(MUL, insn[0]) && THUMB2_INSN_REG_RM(insn[0]) == 15) {
+	} else if (THUMB2_INSN_MATCH(MUL, insn) && THUMB2_INSN_REG_RM(insn) == 15) {
 		uregs = 0xf;
 		pc_dep = 1;
-	} else if (THUMB2_INSN_MATCH(DP, insn[0]) && (THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RM(insn[0]) == 15)) {
-		uregs = 0xf000;		// Rd 12-15
+	} else if (THUMB2_INSN_MATCH(DP, insn) && (THUMB2_INSN_REG_RN(insn) == 15 || THUMB2_INSN_REG_RM(insn) == 15)) {
+		uregs = 0xf000;		/* Rd 12-15 */
 		pc_dep = 1;
-	} else if (THUMB2_INSN_MATCH(STRD, insn[0]) && ((THUMB2_INSN_REG_RN(insn[0]) == 15) || (THUMB2_INSN_REG_RT(insn[0]) == 15) || THUMB2_INSN_REG_RT2(insn[0]) == 15)) {
-		uregs = 0xff00;		// Rt 12-15, Rt2 8-11
+	} else if (THUMB2_INSN_MATCH(STRD, insn) && ((THUMB2_INSN_REG_RN(insn) == 15) || (THUMB2_INSN_REG_RT(insn) == 15) || THUMB2_INSN_REG_RT2(insn) == 15)) {
+		uregs = 0xff00;		/* Rt 12-15, Rt2 8-11 */
 		pc_dep = 1;
-	} else if (THUMB2_INSN_MATCH(RSBW, insn[0]) && THUMB2_INSN_REG_RN(insn[0]) == 15) {
-		uregs = 0x0f00;		// Rd 8-11
+	} else if (THUMB2_INSN_MATCH(RSBW, insn) && THUMB2_INSN_REG_RN(insn) == 15) {
+		uregs = 0x0f00;		/* Rd 8-11 */
 		pc_dep = 1;
-	} else if (THUMB2_INSN_MATCH (RORW, insn[0]) && (THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RM(insn[0]) == 15)) {
+	} else if (THUMB2_INSN_MATCH (RORW, insn) && (THUMB2_INSN_REG_RN(insn) == 15 || THUMB2_INSN_REG_RM(insn) == 15)) {
 		uregs = 0x0f00;
 		pc_dep = 1;
-	} else if ((THUMB2_INSN_MATCH(ROR, insn[0]) || THUMB2_INSN_MATCH(LSLW2, insn[0]) || THUMB2_INSN_MATCH(LSRW2, insn[0])) && THUMB2_INSN_REG_RM(insn[0]) == 15) {
-		uregs = 0x0f00;		// Rd 8-11
+	} else if ((THUMB2_INSN_MATCH(ROR, insn) || THUMB2_INSN_MATCH(LSLW2, insn) || THUMB2_INSN_MATCH(LSRW2, insn)) && THUMB2_INSN_REG_RM(insn) == 15) {
+		uregs = 0x0f00;		/* Rd 8-11 */
 		pc_dep = 1;
-	} else if ((THUMB2_INSN_MATCH(LSLW1, insn[0]) || THUMB2_INSN_MATCH(LSRW1, insn[0])) && (THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RM(insn[0]) == 15)) {
-		uregs = 0x0f00;		// Rd 8-11
+	} else if ((THUMB2_INSN_MATCH(LSLW1, insn) || THUMB2_INSN_MATCH(LSRW1, insn)) && (THUMB2_INSN_REG_RN(insn) == 15 || THUMB2_INSN_REG_RM(insn) == 15)) {
+		uregs = 0x0f00;		/* Rd 8-11 */
 		pc_dep = 1;
-	} else if ((THUMB2_INSN_MATCH(TEQ1, insn[0]) || THUMB2_INSN_MATCH(TST1, insn[0])) && THUMB2_INSN_REG_RN(insn[0]) == 15) {
-		uregs = 0xf0000;	//Rn 0-3 (16-19)
+	} else if ((THUMB2_INSN_MATCH(TEQ1, insn) || THUMB2_INSN_MATCH(TST1, insn)) && THUMB2_INSN_REG_RN(insn) == 15) {
+		uregs = 0xf0000;	/* Rn 0-3 (16-19) */
 		pc_dep = 1;
-	} else if ((THUMB2_INSN_MATCH(TEQ2, insn[0]) || THUMB2_INSN_MATCH(TST2, insn[0])) &&
-		   (THUMB2_INSN_REG_RN(insn[0]) == 15 || THUMB2_INSN_REG_RM(insn[0]) == 15)) {
-		uregs = 0xf0000;	//Rn 0-3 (16-19)
+	} else if ((THUMB2_INSN_MATCH(TEQ2, insn) || THUMB2_INSN_MATCH(TST2, insn)) &&
+		   (THUMB2_INSN_REG_RN(insn) == 15 || THUMB2_INSN_REG_RM(insn) == 15)) {
+		uregs = 0xf0000;	/* Rn 0-3 (16-19) */
 		pc_dep = 1;
 	}
 
 	if (unlikely(uregs && pc_dep)) {
 		memcpy(insns, pc_dep_insn_execbuf_thumb, 18 * 2);
-		if (prep_pc_dep_insn_execbuf_thumb(insns, insn[0], uregs) != 0) {
+		if (prep_pc_dep_insn_execbuf_thumb(insns, insn, uregs) != 0) {
 			printk("Error in %s at %d: failed to prepare exec buffer for insn %lx!",
-			       __FILE__, __LINE__, insn[0]);
+			       __FILE__, __LINE__, insn);
 			p->safe_thumb = 1;
-			//free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_thumb, 0);
-			//return -EINVAL;
 		}
 
-		addr = ((unsigned int)p->addr) + 4;
+		addr = vaddr + 4;
 		*((unsigned short*)insns + 13) = 0xdeff;
 		*((unsigned short*)insns + 14) = addr & 0x0000ffff;
 		*((unsigned short*)insns + 15) = addr >> 16;
-		if (!is_thumb2(insn[0])) {
-			addr = ((unsigned int)p->addr) + 2;
+		if (!is_thumb2(insn)) {
+			addr = vaddr + 2;
 			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 			*((unsigned short*)insns + 17) = addr >> 16;
 		} else {
-			addr = ((unsigned int)p->addr) + 4;
+			addr = vaddr + 4;
 			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 			*((unsigned short*)insns + 17) = addr >> 16;
 		}
 	} else {
 		memcpy(insns, gen_insn_execbuf_thumb, 18 * 2);
 		*((unsigned short*)insns + 13) = 0xdeff;
-		if (!is_thumb2(insn[0])) {
-			addr = ((unsigned int)p->addr) + 2;
-			*((unsigned short*)insns + 2) = insn[0];
+		if (!is_thumb2(insn)) {
+			addr = vaddr + 2;
+			*((unsigned short*)insns + 2) = insn;
 			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 			*((unsigned short*)insns + 17) = addr >> 16;
 		} else {
-			addr = ((unsigned int)p->addr) + 4;
-			insns[1] = insn[0];
+			addr = vaddr + 4;
+			insns[1] = insn;
 			*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 			*((unsigned short*)insns + 17) = addr >> 16;
 		}
 	}
 
-	if (THUMB_INSN_MATCH(B2, insn[0])) {
+	if (THUMB_INSN_MATCH(B2, insn)) {
 		memcpy(insns, b_off_insn_execbuf_thumb, sizeof(insns));
 		*((unsigned short*)insns + 13) = 0xdeff;
-		addr = branch_t16_dest(insn[0], (unsigned int)p->addr);
+		addr = branch_t16_dest(insn, vaddr);
 		*((unsigned short*)insns + 14) = (addr & 0x0000ffff) | 0x1;
 		*((unsigned short*)insns + 15) = addr >> 16;
 		*((unsigned short*)insns + 16) = 0;
 		*((unsigned short*)insns + 17) = 0;
 
-	} else if (THUMB_INSN_MATCH(B1, insn[0])) {
+	} else if (THUMB_INSN_MATCH(B1, insn)) {
 		memcpy(insns, b_cond_insn_execbuf_thumb, sizeof(insns));
 		*((unsigned short*)insns + 13) = 0xdeff;
-		*((unsigned short*)insns + 0) |= (insn[0] & 0xf00);
-		addr = branch_cond_t16_dest(insn[0], (unsigned int)p->addr);
+		*((unsigned short*)insns + 0) |= (insn & 0xf00);
+		addr = branch_cond_t16_dest(insn, vaddr);
 		*((unsigned short*)insns + 14) = (addr & 0x0000ffff) | 0x1;
 		*((unsigned short*)insns + 15) = addr >> 16;
-		addr = ((unsigned int)p->addr) + 2;
+		addr = vaddr + 2;
 		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 		*((unsigned short*)insns + 17) = addr >> 16;
 
-	} else if (THUMB_INSN_MATCH(BLX2, insn[0]) ||
-		   THUMB_INSN_MATCH(BX, insn[0])) {
+	} else if (THUMB_INSN_MATCH(BLX2, insn) ||
+		   THUMB_INSN_MATCH(BX, insn)) {
 		memcpy(insns, b_r_insn_execbuf_thumb, sizeof(insns));
 		*((unsigned short*)insns + 13) = 0xdeff;
-		*((unsigned short*)insns + 4) = insn[0];
-		addr = ((unsigned int)p->addr) + 2;
+		*((unsigned short*)insns + 4) = insn;
+		addr = vaddr + 2;
 		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 		*((unsigned short*)insns + 17) = addr >> 16;
 
-	} else if (THUMB2_INSN_MATCH(BLX1, insn[0]) ||
-		   THUMB2_INSN_MATCH(BL, insn[0])) {
+	} else if (THUMB2_INSN_MATCH(BLX1, insn) ||
+		   THUMB2_INSN_MATCH(BL, insn)) {
 		memcpy(insns, blx_off_insn_execbuf_thumb, sizeof(insns));
 		*((unsigned short*)insns + 13) = 0xdeff;
-		addr = branch_t32_dest(insn[0], (unsigned int)p->addr);
+		addr = branch_t32_dest(insn, vaddr);
 		*((unsigned short*)insns + 14) = (addr & 0x0000ffff);
 		*((unsigned short*)insns + 15) = addr >> 16;
-		addr = ((unsigned int)p->addr) + 4;
+		addr = vaddr + 4;
 		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 		*((unsigned short*)insns + 17) = addr >> 16;
 
-	} else if (THUMB_INSN_MATCH(CBZ, insn[0])) {
+	} else if (THUMB_INSN_MATCH(CBZ, insn)) {
 		memcpy(insns, cbz_insn_execbuf_thumb, sizeof(insns));
 		*((unsigned short*)insns + 13) = 0xdeff;
-		*((unsigned short*)insns + 0) = insn[0] &  (~insn[0] & 0xf8);
+		*((unsigned short*)insns + 0) = insn &  (~insn & 0xf8);
 		*((unsigned short*)insns + 0) &= 0x20;
-		addr = cbz_t16_dest(insn[0], (unsigned int)p->addr);
+		addr = cbz_t16_dest(insn, vaddr);
 		*((unsigned short*)insns + 14) = (addr & 0x0000ffff) | 0x1;
 		*((unsigned short*)insns + 15) = addr >> 16;
-		addr = ((unsigned int)p->addr) + 2;
+		addr = vaddr + 2;
 		*((unsigned short*)insns + 16) = (addr & 0x0000ffff) | 0x1;
 		*((unsigned short*)insns + 17) = addr >> 16;
 	}
 
-	if (!write_proc_vm_atomic (task, (unsigned long)p->ainsn.insn_thumb, insns, 18 * 2)) {
+	if (!write_proc_vm_atomic(task, (unsigned long)p->ainsn.insn_thumb, insns, 18 * 2)) {
 		panic("failed to write memory %p!\n", p->ainsn.insn_thumb);
-		// Mr_Nobody: we have to panic, really??...
-		//free_insn_slot (&uprobe_insn_pages, task, p->ainsn.insn_thumb, 0);
-		//return -EINVAL;
 	}
 
 	return 0;
@@ -695,7 +693,7 @@ int arch_prepare_uprobe(struct uprobe *up, struct hlist_head *page_list)
 		return -ENOMEM;
 	}
 
-	ret = arch_copy_trampoline_thumb_uprobe(p, task, 1);
+	ret = arch_copy_trampoline_thumb_uprobe(up);
 	if (ret) {
 		free_insn_slot(up->sm, p->ainsn.insn_arm);
 		free_insn_slot(up->sm, p->ainsn.insn_thumb);
