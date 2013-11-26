@@ -393,11 +393,6 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 	sync_lock(&write_queue.queue_sync);
 
 	while (write_queue.start_ptr) {
-		/* If start points to NULL => list is empty => exit */
-		if (!write_queue.start_ptr) {
-			result = NULL;
-			goto get_from_write_list_unlock;
-		}
 
 		/* We're found subbuffer */
 		if (is_buffer_enough(write_queue.start_ptr, size)) {
@@ -438,7 +433,6 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 		}
 	}
 
-get_from_write_list_unlock:
 	/* Unlock write list sync primitive */
 	sync_unlock(&write_queue.queue_sync);
 
