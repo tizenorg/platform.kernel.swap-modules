@@ -222,45 +222,45 @@ static int arch_copy_trampoline_arm_uprobe(struct uprobe *up)
 	return 0;
 }
 
-static int arch_check_insn_thumb(struct arch_specific_insn *ainsn)
+static int arch_check_insn_thumb(unsigned long insn)
 {
 	int ret = 0;
 
-	// check instructions that can change PC
-	if (THUMB_INSN_MATCH(UNDEF, ainsn->insn_thumb[0]) ||
-	    THUMB_INSN_MATCH(SWI, ainsn->insn_thumb[0]) ||
-	    THUMB_INSN_MATCH(BREAK, ainsn->insn_thumb[0]) ||
-	    THUMB2_INSN_MATCH(B1, ainsn->insn_thumb[0]) ||
-	    THUMB2_INSN_MATCH(B2, ainsn->insn_thumb[0]) ||
-	    THUMB2_INSN_MATCH(BXJ, ainsn->insn_thumb[0]) ||
-	    (THUMB2_INSN_MATCH(ADR, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RD(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LDRW, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RT(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LDRW1, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RT(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LDRHW, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RT(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LDRHW1, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RT(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LDRWL, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RT(ainsn->insn_thumb[0]) == 15) ||
-	    THUMB2_INSN_MATCH(LDMIA, ainsn->insn_thumb[0]) ||
-	    THUMB2_INSN_MATCH(LDMDB, ainsn->insn_thumb[0]) ||
-	    (THUMB2_INSN_MATCH(DP, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RD(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(RSBW, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RD(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(RORW, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RD(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(ROR, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RD(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LSLW1, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RD(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LSLW2, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RD(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LSRW1, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RD(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LSRW2, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RD(ainsn->insn_thumb[0]) == 15) ||
+	/* check instructions that can change PC */
+	if (THUMB_INSN_MATCH(UNDEF, insn) ||
+	    THUMB_INSN_MATCH(SWI, insn) ||
+	    THUMB_INSN_MATCH(BREAK, insn) ||
+	    THUMB2_INSN_MATCH(B1, insn) ||
+	    THUMB2_INSN_MATCH(B2, insn) ||
+	    THUMB2_INSN_MATCH(BXJ, insn) ||
+	    (THUMB2_INSN_MATCH(ADR, insn) && THUMB2_INSN_REG_RD(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LDRW, insn) && THUMB2_INSN_REG_RT(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LDRW1, insn) && THUMB2_INSN_REG_RT(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LDRHW, insn) && THUMB2_INSN_REG_RT(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LDRHW1, insn) && THUMB2_INSN_REG_RT(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LDRWL, insn) && THUMB2_INSN_REG_RT(insn) == 15) ||
+	    THUMB2_INSN_MATCH(LDMIA, insn) ||
+	    THUMB2_INSN_MATCH(LDMDB, insn) ||
+	    (THUMB2_INSN_MATCH(DP, insn) && THUMB2_INSN_REG_RD(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(RSBW, insn) && THUMB2_INSN_REG_RD(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(RORW, insn) && THUMB2_INSN_REG_RD(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(ROR, insn) && THUMB2_INSN_REG_RD(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LSLW1, insn) && THUMB2_INSN_REG_RD(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LSLW2, insn) && THUMB2_INSN_REG_RD(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LSRW1, insn) && THUMB2_INSN_REG_RD(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LSRW2, insn) && THUMB2_INSN_REG_RD(insn) == 15) ||
 	    /* skip PC, #-imm12 -> SP, #-imm8 and Tegra-hanging instructions */
-	    (THUMB2_INSN_MATCH(STRW1, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RN(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(STRBW1, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RN(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(STRHW1, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RN(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(STRW, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RN(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(STRHW, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RN(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LDRW, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RN(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LDRBW, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RN(ainsn->insn_thumb[0]) == 15) ||
-	    (THUMB2_INSN_MATCH(LDRHW, ainsn->insn_thumb[0]) && THUMB2_INSN_REG_RN(ainsn->insn_thumb[0]) == 15) ||
+	    (THUMB2_INSN_MATCH(STRW1, insn) && THUMB2_INSN_REG_RN(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(STRBW1, insn) && THUMB2_INSN_REG_RN(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(STRHW1, insn) && THUMB2_INSN_REG_RN(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(STRW, insn) && THUMB2_INSN_REG_RN(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(STRHW, insn) && THUMB2_INSN_REG_RN(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LDRW, insn) && THUMB2_INSN_REG_RN(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LDRBW, insn) && THUMB2_INSN_REG_RN(insn) == 15) ||
+	    (THUMB2_INSN_MATCH(LDRHW, insn) && THUMB2_INSN_REG_RN(insn) == 15) ||
 	    /* skip STRDx/LDRDx Rt, Rt2, [Rd, ...] */
-	    (THUMB2_INSN_MATCH(LDRD, ainsn->insn_thumb[0]) || THUMB2_INSN_MATCH(LDRD1, ainsn->insn_thumb[0]) || THUMB2_INSN_MATCH(STRD, ainsn->insn_thumb[0])) ) {
-		DBPRINTF("Bad insn arch_check_insn_thumb: %lx\n", ainsn->insn_thumb[0]);
+	    (THUMB2_INSN_MATCH(LDRD, insn) || THUMB2_INSN_MATCH(LDRD1, insn) || THUMB2_INSN_MATCH(STRD, insn))) {
+		printk("Bad insn arch_check_insn_thumb: %lx\n", insn);
 		ret = -EFAULT;
 	}
 
@@ -487,7 +487,6 @@ static int arch_copy_trampoline_thumb_uprobe(struct kprobe *p, struct task_struc
 	int uregs, pc_dep;
 	unsigned int addr;
 	kprobe_opcode_t insn[MAX_INSN_SIZE];
-	struct arch_specific_insn ainsn;
 	kprobe_opcode_t insns[UPROBES_TRAMP_LEN * 2];
 
 	p->safe_thumb = 1;
@@ -497,8 +496,7 @@ static int arch_copy_trampoline_thumb_uprobe(struct kprobe *p, struct task_struc
 	}
 
 	insn[0] = p->opcode;
-	ainsn.insn_thumb = insn;
-	if (!arch_check_insn_thumb(&ainsn)) {
+	if (!arch_check_insn_thumb(insn[0])) {
 		p->safe_thumb = 0;
 	}
 
