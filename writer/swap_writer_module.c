@@ -268,26 +268,59 @@ out:
 	return vma;
 }
 
-static char *pack_proc_info_part(char *end_path, struct mm_struct *mm)
+static char *pack_shared_kmem(char *lib_obj, struct mm_struct *mm,
+                              u32 *lib_cnt_p)
 {
-	struct proc_info_part *pip;
-	struct vm_area_struct *vma;
-	char *lib_obj;
-	int lib_cnt = 0;
+	struct lib_obj *so = (struct lib_obj *)lib_obj;
+	char *so_obj;
+	unsigned long start = 0, end = 0;
 
-	pip = (struct proc_info_part *)end_path;
-	lib_obj = pip->libs;
+	const char *kmem_name = get_shared_kmem(mm, &start, &end);
+	size_t name_len;
+
+	if (kmem_name == NULL)
+		return lib_obj;
+
+	name_len = strlen(kmem_name) + 1;
+	so->low_addr = (u64)start;
+	so->high_addr = (u64)end;
+	memcpy(so->lib_path, kmem_name, name_len);
+	(*lib_cnt_p)++;
+	so_obj = so->lib_path + name_len;
+
+	return so_obj;
+}
+
+static char *pack_libs(char *lib_obj, struct mm_struct *mm, u32 *lib_cnt_p)
+{
+	struct vm_area_struct *vma;
 
 	down_read(&mm->mmap_sem);
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (check_vma(vma)) {
 			lib_obj = pack_lib_obj(lib_obj, vma);
-			++lib_cnt;
+			++(*lib_cnt_p);
 		}
 	}
 	up_read(&mm->mmap_sem);
 
-	pip->lib_cnt = lib_cnt;
+	return lib_obj;
+}
+
+static char *pack_proc_info_part(char *end_path, struct mm_struct *mm)
+{
+	struct proc_info_part *pip;
+	char *lib_obj;
+	u32 *lib_cnt_p;
+
+	pip = (struct proc_info_part *)end_path;
+	pip->lib_cnt = 0;
+	lib_obj = pip->libs;
+	lib_cnt_p = &pip->lib_cnt;
+
+	lib_obj = pack_libs(lib_obj, mm, lib_cnt_p);
+	lib_obj = pack_shared_kmem(lib_obj, mm, lib_cnt_p);
+
 	return lib_obj;
 }
 

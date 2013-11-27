@@ -1,6 +1,6 @@
 /*
  *  SWAP Writer
- *  modules/writer/swap_writer_module.c
+ *  modules/writer/kernel_operations_arm.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,9 +25,15 @@
 
 #include <asm/ptrace.h>
 #include <asm/uaccess.h>
+#include <asm/page.h>
 #include <linux/kernel.h>
+#include <linux/mm.h>
+#include <generated/autoconf.h>
 
-#if defined(CONFIG_ARM)
+#include "kernel_operations.h"
+
+
+/* ======================= ARGS ========================== */
 
 int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 {
@@ -61,46 +67,20 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 	return 0;
 }
 
-#elif defined(CONFIG_X86_32)
 
-int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
+/* ================== KERNEL SHARED MEM ===================== */
+
+/* CONFIG_VECTORS_BASE used to handle both MMU and non-MMU cases.
+ * According to docs (Documentation/arm/memory.txt) all vector addresses
+ * are fixed and vectors are always equal to one page, so,
+ * end = start + PAGE_SIZE
+ * */
+
+const char *get_shared_kmem(struct mm_struct *mm, unsigned long *start,
+                            unsigned long *end)
 {
-	int i, stack_args = 0;
+	*start = CONFIG_VECTORS_BASE;
+	*end = CONFIG_VECTORS_BASE + PAGE_SIZE;
 
-	/* If we're in kernel mode on x86, get arguments from bx, cx, dx, si,
-	 * di, bp
-	 */
-	if (!user_mode(regs)) {
-		int args_in_regs;
-		args_in_regs = cnt < 5 ? cnt : 5;
-		stack_args = 6;
-
-		switch (args_in_regs) {
-			case 5:
-				args[5] = regs->bp;
-			case 4:
-				args[4] = regs->di;
-			case 3:
-				args[3] = regs->si;
-			case 2:
-				args[2] = regs->dx;
-			case 1:
-				args[1] = regs->cx;
-			case 0:
-				args[0] = regs->bx;
-		}
-	}
-
-	/* Get other args from stack */
-	for (i = stack_args; i < cnt; ++i) {
-		unsigned long *args_in_sp = (unsigned long *)regs->sp +
-					    1 + i - stack_args;
-		if (get_user(args[i], args_in_sp))
-			printk("failed to dereference a pointer, addr=%p\n",
-			       args_in_sp);
-	}
-
-	return 0;
+	return "[vectors]";
 }
-
-#endif /* CONFIG_arch */

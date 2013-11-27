@@ -45,6 +45,8 @@
 
 /* ARCH-DEPENDED OPERATIONS */
 
+
+/* Regs manipulations */
 #if defined(CONFIG_ARM)
 
 #define get_regs_ip(regs)           regs->ARM_pc
@@ -78,5 +80,9 @@ static inline u32 get_regs_ret_func(struct pt_regs *regs)
 #endif /* CONFIG_arch */
 
 int get_args(unsigned long args[], int cnt, struct pt_regs *regs);
+
+/* Returns shared kernel memory area name if it is found, otherwise - NULL */
+const char *get_shared_kmem(struct mm_struct *mm, unsigned long *start,
+			    unsigned long *end);
 
 #endif /* __KERNEL_OPERATIONS_H__ */

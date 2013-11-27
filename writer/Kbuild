@@ -4,6 +4,8 @@ KBUILD_EXTRA_SYMBOLS = $(src)/../buffer/Module.symvers \
 
 obj-m := swap_writer.o
 swap_writer-y := swap_writer_module.o \
-                 kernel_operations.o \
                  debugfs_writer.o \
                  event_filter.o
+
+swap_writer-$(CONFIG_ARM) += kernel_operations_arm.o
+swap_writer-$(CONFIG_X86) += kernel_operations_x86.o
