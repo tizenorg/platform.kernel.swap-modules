@@ -24,18 +24,10 @@
  */
 
 #include <asm/ptrace.h>
-#include <asm/processor.h>
-#include <asm/types.h>
 #include <linux/jiffies.h>
-#include <linux/cpumask.h>
 #include <linux/sched.h>
 #include <linux/notifier.h>
-#include <linux/kernel.h>
-#include <linux/smp.h>
-#include <linux/init.h>
 #include <linux/cpu.h>
-#include <linux/hash.h>
-#include <linux/list.h>
 #include <linux/module.h>
 
 #include <writer/swap_writer_module.h>
