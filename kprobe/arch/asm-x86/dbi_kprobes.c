@@ -95,6 +95,8 @@ IMP_MOD_DEP_WRAPPER(text_poke, addr, opcode, len)
 DECLARE_MOD_DEP_WRAPPER(show_registers, void, struct pt_regs * regs)
 IMP_MOD_DEP_WRAPPER(show_registers, regs)
 
+#define stack_addr(regs) ((unsigned long *)kernel_stack_pointer(regs))
+
 /*
  * Function return probe trampoline:
  *      - init_kprobes() establishes a probepoint here
@@ -519,7 +521,7 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	entry = (entry_point_t) jp->entry;
 
 	kcb->jprobe_saved_regs = *regs;
-	kcb->jprobe_saved_esp = &regs->EREG(sp);
+	kcb->jprobe_saved_esp = stack_addr(regs);
 	addr = (unsigned long)(kcb->jprobe_saved_esp);
 
 	/* TBD: As Linus pointed out, gcc assumes that the callee
@@ -588,7 +590,7 @@ static void resume_execution (struct kprobe *p, struct pt_regs *regs, struct kpr
 
 	regs->EREG (flags) &= ~TF_MASK;
 
-	tos = (unsigned long *)&regs->EREG(sp);
+	tos = stack_addr(regs);
 	insns[0] = p->ainsn.insn[0];
 	insns[1] = p->ainsn.insn[1];
 
@@ -822,10 +824,10 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 
 	if ((addr > (u8 *) dbi_jprobe_return) && (addr < (u8 *) dbi_jprobe_return_end))
 	{
-		if ((unsigned long *)(&regs->EREG(sp)) != kcb->jprobe_saved_esp)
-		{
+		if (stack_addr(regs) != kcb->jprobe_saved_esp) {
 			struct pt_regs *saved_regs = &kcb->jprobe_saved_regs;
-			printk ("current esp %p does not match saved esp %p\n", &regs->EREG (sp), kcb->jprobe_saved_esp);
+			printk("current esp %p does not match saved esp %p\n",
+			       stack_addr(regs), kcb->jprobe_saved_esp);
 			printk ("Saved registers for jprobe %p\n", jp);
 			show_registers (saved_regs);
 			printk ("Current registers\n");
@@ -860,16 +862,14 @@ static __used void *trampoline_probe_handler_x86(struct pt_regs *regs)
 
 void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	unsigned long *ptr_ret_addr;
+	unsigned long *ptr_ret_addr = stack_addr(regs);
 
 	/* for __switch_to probe */
 	if ((unsigned long)ri->rp->kp.addr == sched_addr) {
-		ptr_ret_addr = (unsigned long *)kernel_stack_pointer(regs);
 		ri->sp = NULL;
 		ri->task = (struct task_struct *)regs->dx;
 	} else {
-		ptr_ret_addr = (unsigned long *)&regs->sp;
-		ri->sp = &regs->sp;
+		ri->sp = ptr_ret_addr;
 	}
 
 	/* Save the return address */
