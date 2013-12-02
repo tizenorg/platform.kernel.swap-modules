@@ -35,6 +35,12 @@ struct uprobe_ctlblk {
         struct kprobe *p;
 };
 
+static unsigned long trampoline_addr(struct uprobe *up)
+{
+	return (unsigned long)(up->kp.ainsn.insn +
+			       UPROBES_TRAMP_RET_BREAK_IDX);
+}
+
 static DEFINE_PER_CPU(struct uprobe_ctlblk, ucb) = { 0, NULL };
 
 static struct kprobe *get_current_probe(void)
@@ -116,7 +122,8 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	/* Replace the return addr with trampoline addr */
-	unsigned long ra = (unsigned long)(ri->rp->up.kp.ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
+	unsigned long ra = trampoline_addr(&ri->rp->up);
+	ri->sp = (kprobe_opcode_t *)regs->sp;
 
 	if (!read_proc_vm_atomic(current, regs->EREG(sp), &(ri->ret_addr), sizeof(ri->ret_addr)))
 		panic("failed to read user space func ra %lx!\n", regs->EREG(sp));
@@ -125,9 +132,41 @@ void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 		panic("failed to write user space func ra %lx!\n", regs->EREG(sp));
 }
 
+int arch_disarm_urp_inst(struct uretprobe_instance *ri,
+			 struct task_struct *task)
+{
+	int len;
+	unsigned long ret_addr;
+	unsigned long sp = (unsigned long)ri->sp;
+	unsigned long tramp_addr = trampoline_addr(&ri->rp->up);
+	len = read_proc_vm_atomic(task, sp, &ret_addr, sizeof(ret_addr));
+	if (len != sizeof(ret_addr)) {
+		printk("---> %s (%d/%d): failed to read stack from %08lx\n",
+		       task->comm, task->tgid, task->pid, sp);
+		return -EFAULT;
+	}
+
+	if (tramp_addr == ret_addr) {
+		len = write_proc_vm_atomic(task, sp, &ri->ret_addr,
+					   sizeof(ri->ret_addr));
+		if (len != sizeof(ri->ret_addr)) {
+			printk("---> %s (%d/%d): failed to write "
+			       "orig_ret_addr to %08lx",
+			       task->comm, task->tgid, task->pid, sp);
+			return -EFAULT;
+		}
+	} else {
+		printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx\n",
+		       task->comm, task->tgid, task->pid, sp);
+		return -ENOENT;
+	}
+
+	return 0;
+}
+
 unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs)
 {
-	return (unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
+	return trampoline_addr(kp2up(p));
 }
 
 void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
