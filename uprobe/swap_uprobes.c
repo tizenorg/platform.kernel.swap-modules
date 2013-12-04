@@ -734,7 +734,7 @@ int dbi_register_uretprobe(struct uretprobe *rp)
 	INIT_HLIST_HEAD(&rp->free_instances);
 
 	for (i = 0; i < rp->maxactive; i++) {
-		inst = kmalloc(sizeof(*inst), GFP_KERNEL);
+		inst = kmalloc(sizeof(*inst), GFP_ATOMIC);
 		if (inst == NULL) {
 			free_urp_inst(rp);
 			return -ENOMEM;
