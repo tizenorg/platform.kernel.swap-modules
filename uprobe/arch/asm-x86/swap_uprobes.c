@@ -75,10 +75,16 @@ int arch_prepare_uprobe(struct uprobe *up)
 	struct kprobe *p = up2kp(up);
 	struct task_struct *task = up->task;
 	u8 *tramp = up->atramp.tramp;
+	enum { call_relative_opcode = 0xe8 };
 
 	if (!read_proc_vm_atomic(task, (unsigned long)p->addr,
 				 tramp, MAX_INSN_SIZE))
 		panic("failed to read memory %p!\n", p->addr);
+	/* TODO: this is a workaround */
+	if (tramp[0] == call_relative_opcode) {
+		printk("cannot install probe: 1st instruction is call\n");
+		return -1;
+	}
 
 	tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
 
