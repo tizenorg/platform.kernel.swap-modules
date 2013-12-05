@@ -70,8 +70,8 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
 		}
 
 		INIT_LIST_HEAD(&proc->list);
-		proc->tgid = task ? task->tgid : 0;
-		proc->task = task;
+		proc->tgid = task->tgid;
+		proc->task = task->group_leader;
 		proc->sm = create_sm_us(task);
 		proc->first_install = 0;
 		INIT_LIST_HEAD(&proc->file_list);

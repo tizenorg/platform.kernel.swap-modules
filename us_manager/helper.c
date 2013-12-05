@@ -58,10 +58,9 @@ static int entry_handler_mf(struct kretprobe_instance *ri, struct pt_regs *regs)
 /* Detects when IPs are really loaded into phy mem and installs probes. */
 static int ret_handler_mf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct task_struct *task;
+	struct task_struct *task = current;
 	unsigned long page_addr;
 
-	task = current->group_leader;
 	if (is_kthread(task))
 		return 0;
 

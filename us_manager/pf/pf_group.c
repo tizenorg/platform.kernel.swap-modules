@@ -227,7 +227,7 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 			continue;
 
 		proc = get_proc_by_pfg(pfg, task);
-		if (proc == NULL) {
+		if (proc == NULL && task->tgid == task->pid) {
 			proc = new_proc_by_pfg(pfg, task);
 			pfg_first = pfg;
 		}
