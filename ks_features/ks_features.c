@@ -24,6 +24,8 @@
 
 
 #include <linux/module.h>
+#include <linux/slab.h>
+
 #include <asm/errno.h>
 #include <ksyms/ksyms.h>
 #include <kprobe/dbi_kprobes.h>
@@ -229,6 +231,7 @@ static int register_syscall(size_t id)
 	return ret;
 }
 
+
 static int unregister_syscall(size_t id)
 {
 	printk("unregister_syscall: %s\n", get_sys_name(id));
@@ -237,6 +240,42 @@ static int unregister_syscall(size_t id)
 		return 0;
 
 	dbi_unregister_kretprobe(&ksp[id].rp);
+
+	return 0;
+}
+
+static int unregister_multiple_syscalls(size_t *id_p, size_t cnt)
+{
+	struct kretprobe **rpp;
+	const size_t end = ((size_t) 0) - 1;
+	size_t i = 0, id;
+	int ret = 0;
+
+	if (cnt == 1)
+		return unregister_syscall(id_p[0]);
+
+	--cnt;
+
+	rpp = kmalloc(GFP_KERNEL, sizeof(&(((struct ks_probe *) 0)->rp)) * cnt);
+	if (rpp == NULL) {
+		for (; cnt != end; --cnt) {
+			ret = unregister_syscall(id_p[cnt]);
+			if (ret)
+				return ret;
+        }
+		return ret;
+	}
+
+	for (; cnt != end; --cnt) {
+		id = id_p[cnt];
+		if (ksp[id].rp.kp.addr != NULL) {
+				rpp[i] = &ksp[id].rp;
+				++i;
+		}
+	}
+
+	dbi_unregister_kretprobes(rpp, i);
+	kfree(rpp);
 
 	return 0;
 }
@@ -254,8 +293,13 @@ static void unset_pst(struct feature *f, size_t id)
 static void do_uninstall_features(struct feature *f, size_t i)
 {
 	int ret;
+	size_t *id_p;
 	size_t id;
+	size_t cnt = 0;
 	const size_t end = ((size_t) 0) - 1;
+
+	id_p = kmalloc(GFP_KERNEL, sizeof(id) * (i + 1));
+	/* NULL check is below in loop */
 
 	for (; i != end; --i) {
 		id = f->feature_list[i];
@@ -263,20 +307,30 @@ static void do_uninstall_features(struct feature *f, size_t i)
 		if (get_counter(id) == 0) {
 			printk("syscall %s not installed\n",
 			       get_sys_name(id));
+			kfree(id_p);
 			BUG();
 		}
 
 		dec_counter(id);
 
 		if (get_counter(id) == 0) {
-			ret = unregister_syscall(id);
-			if (ret)
-				printk("syscall %s uninstall error, ret=%d\n",
-				       get_sys_name(id), ret);
-
+			if (id_p != NULL) {
+				id_p[cnt] = id;
+				++cnt;
+			} else {
+				ret = unregister_syscall(id);
+				if (ret)
+					printk("syscall %s uninstall error, ret=%d\n",
+						   get_sys_name(id), ret);
+			}
 		}
 
 		unset_pst(f, id);
+	}
+
+	if (id_p != NULL) {
+		unregister_multiple_syscalls(id_p, cnt);
+		kfree(id_p);
 	}
 }
 
@@ -337,12 +391,11 @@ static int uninstall_features(struct feature *f)
 		ret = -EINVAL;
 		goto unlock;
 	}
-
 	do_uninstall_features(f, f->cnt - 1);
-
 	f->enable = 0;
 unlock:
 	mutex_unlock(&mutex_features);
+
 	return ret;
 }
 
