@@ -33,12 +33,16 @@ static int __init swap_energy_init(void)
 	int ret;
 
 	ret = init_debugfs_energy();
-	if (ret)
+	if (ret) {
+		printk("Cannot init debugfs for energy\n");
 		return ret;
+	}
 
 	ret = energy_init();
-	if (ret)
-		exit_debugfs_energy();;
+	if (ret) {
+		printk("Cannot init energy\n");
+		exit_debugfs_energy();
+	}
 
 	return ret;
 }

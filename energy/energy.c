@@ -579,12 +579,16 @@ int energy_init(void)
 	sys_write_krp.kp.addr = (kprobe_opcode_t *)addr;
 
 	ret = init_feature();
-	if (ret)
+	if (ret) {
+		printk("Cannot init feature\n");
 		return ret;
+	}
 
 	ret = lcd_init();
-	if (ret)
+	if (ret) {
+		printk("Cannot init LCD\n");
 		uninit_feature();
+	}
 
 	return ret;
 }
