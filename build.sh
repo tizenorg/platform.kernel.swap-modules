@@ -35,6 +35,18 @@ sampler_dir=${modules_dir}/sampler
 energy_dir=${modules_dir}/energy
 parser_dir=${modules_dir}/parser
 
+buffer_module_name=swap_buffer.ko
+driver_module_name=swap_driver.ko
+writer_module_name=swap_writer.ko
+kprobe_module_name=swap_kprobe.ko
+ks_manager_module_name=swap_ks_manager.ko
+uprobe_module_name=swap_uprobe.ko
+us_manager_module_name=swap_us_manager.ko
+ks_features_module_name=swap_ks_features.ko
+sampler_module_name=swap_sampler.ko
+energy_module_name=swap_energy.ko
+parser_module_name=swap_message_parser.ko
+
 install_dir="/opt/swap/sdk"
 
 rm -f ${kprobe_arch_dir}/asm
