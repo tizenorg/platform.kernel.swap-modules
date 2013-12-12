@@ -37,6 +37,7 @@ struct us_ip {
 	struct uretprobe retprobe;
 	char *args;
 	char ret_type;
+	unsigned long orig_addr;
 
 	unsigned long offset;
 };

@@ -513,7 +513,8 @@ struct msg_func_entry {
 	char args[0];
 } __attribute__((packed));
 
-static char *pack_msg_func_entry(char *payload, const char *fmt, struct pt_regs *regs,
+static char *pack_msg_func_entry(char *payload, const char *fmt,
+				 unsigned long func_addr, struct pt_regs *regs,
 				 enum PROBE_TYPE pt, int sub_type)
 {
 	struct msg_func_entry *mfe = (struct msg_func_entry *)payload;
@@ -522,7 +523,7 @@ static char *pack_msg_func_entry(char *payload, const char *fmt, struct pt_regs 
 	mfe->pid = task->tgid;
 	mfe->tid = task->pid;
 	mfe->cpu_num = smp_processor_id();
-	mfe->pc_addr = get_regs_ip(regs);
+	mfe->pc_addr = func_addr;
 	mfe->caller_pc_addr = get_regs_ret_func(regs);
 	mfe->probe_type = pt;
 	mfe->probe_sub_type = sub_type;
@@ -629,8 +630,8 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 	return buf - buf_old;
 }
 
-int entry_event(const char *fmt, struct pt_regs *regs,
-		 enum PROBE_TYPE pt, int sub_type)
+int entry_event(const char *fmt, unsigned long func_addr, struct pt_regs *regs,
+		enum PROBE_TYPE pt, int sub_type)
 {
 	char *buf, *payload, *args, *buf_end;
 	int ret;
@@ -640,7 +641,8 @@ int entry_event(const char *fmt, struct pt_regs *regs,
 
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_ENTRY);
-	args = pack_msg_func_entry(payload, fmt, regs, pt, sub_type);
+	args = pack_msg_func_entry(payload, fmt, func_addr,
+				   regs, pt, sub_type);
 
 	/* FIXME: len = 1024 */
 	ret = pack_args(args, 1024, fmt, regs);

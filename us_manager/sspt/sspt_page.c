@@ -119,6 +119,8 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 	list_for_each_entry_safe(ip, n, &ip_list_tmp, list) {
 		/* set uprobe address */
 		addr = file->vm_start + page->offset + ip->offset;
+
+		ip->orig_addr = addr;
 		ip->retprobe.up.kp.addr = (kprobe_opcode_t *)addr;
 
 		err = sspt_register_usprobe(ip);

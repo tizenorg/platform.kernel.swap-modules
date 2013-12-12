@@ -60,8 +60,8 @@ void pcoc_map_msg(struct vm_area_struct *vma);
 void proc_unmap_msg(unsigned long start, unsigned long end);
 int sample_msg(struct pt_regs *regs);
 
-int entry_event(const char *fmt, struct pt_regs *regs,
-		 enum PROBE_TYPE pt, int sub_type);
+int entry_event(const char *fmt, unsigned long func_addr, struct pt_regs *regs,
+		enum PROBE_TYPE pt, int sub_type);
 int exit_event(char ret_type, struct pt_regs *regs, unsigned long func_addr,
 	       unsigned long ret_addr);
 

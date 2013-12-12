@@ -36,8 +36,10 @@ static int entry_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 	if (rp && get_quiet() == QT_OFF) {
 		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
+		const char *fmt = ip->args;
+		unsigned long addr = (unsigned long)ip->orig_addr;
 
-		entry_event(ip->args, regs, PT_US, PST_NONE);
+		entry_event(fmt, addr, regs, PT_US, PST_NONE);
 	}
 
 	return 0;
@@ -49,12 +51,8 @@ static int ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 	if (rp && get_quiet() == QT_OFF) {
 		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
-		unsigned long addr = (unsigned long)ip->retprobe.up.kp.addr;
+		unsigned long addr = (unsigned long)ip->orig_addr;
 		unsigned long ret_addr = (unsigned long)ri->ret_addr;
-
-#if defined(CONFIG_ARM)
-		addr = ip->offset & 0x01 ? addr | 0x01 : addr;
-#endif
 
 		exit_event(ip->ret_type, regs, addr, ret_addr);
 	}

@@ -97,9 +97,10 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	if (rp) {
 		struct ks_probe *ksp = container_of(rp, struct ks_probe, rp);
 		const char *fmt = ksp->args;
+		unsigned long addr = (unsigned long)ksp->rp.kp.addr;
 		int sub_type = ksp->sub_type;
 
-		entry_event(fmt, regs, PT_KS, sub_type);
+		entry_event(fmt, addr, regs, PT_KS, sub_type);
 	}
 
 	return 0;
