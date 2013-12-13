@@ -283,7 +283,7 @@ int lcd_init(void)
 	for (i = 0; i < lcd_ops_cnt; ++i) {
 		ops = lcd_ops[i]();
 		if (ops == NULL) {
-			printk("error %s [ops == NULL]\n", ops->name);
+			printk("error %s [ops == NULL]\n", __func__);
 			continue;
 		}
 
