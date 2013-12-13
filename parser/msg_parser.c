@@ -285,12 +285,12 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 	print_parse_debug("func count:");
 	if (get_u32(mb, &cnt)) {
 		print_err("failed to read count of functions\n");
-		return NULL;
+		goto free_path;
 	}
 
 	if (remained_mb(mb) / MIN_SIZE_FUNC_INST < cnt) {
 		print_err("to match count of functions(%u)\n", cnt);
-		return NULL;
+		goto free_path;
 	}
 
 	li = kmalloc(sizeof(*li), GFP_KERNEL);
