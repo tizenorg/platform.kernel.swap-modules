@@ -201,7 +201,7 @@ void sspt_unregister_feature(sspt_feature_id_t id)
 {
 	struct sspt_feature_img *fi = (struct sspt_feature_img *)id;
 
-	destroy_feature_img(fi);
 	on_each_proc(del_feature_from_proc, (void *)fi);
+	destroy_feature_img(fi);
 }
 EXPORT_SYMBOL_GPL(sspt_unregister_feature);
