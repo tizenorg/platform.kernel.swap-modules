@@ -523,6 +523,7 @@ int dbi_register_kprobe(struct kprobe *p)
 #endif
 	p->mod_refcounted = 0;
 	p->nmissed = 0;
+	INIT_LIST_HEAD(&p->list);
 
 	old_p = get_kprobe(p->addr);
 	if (old_p) {
