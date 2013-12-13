@@ -546,67 +546,54 @@ out:
 	return ret;
 }
 
-void dbi_unregister_kprobe(struct kprobe *p)
+static void dbi_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
 {
-	struct kprobe *old_p, *list_p;
-	int cleanup_p;
+	struct kprobe *list_p;
 
-	old_p = get_kprobe(p->addr);
-	DBPRINTF ("dbi_unregister_kprobe p=%p old_p=%p", p, old_p);
-	if (unlikely (!old_p))
-		return;
-
-	if (p != old_p) {
-		list_for_each_entry_rcu(list_p, &old_p->list, list)
-			if (list_p == p)
-				/* kprobe p is a valid probe */
-				goto valid_p;
-		return;
-	}
-
-valid_p:
-	DBPRINTF ("dbi_unregister_kprobe valid_p");
 	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_handler) &&
 	    (p->list.next == &old_p->list) && (p->list.prev == &old_p->list))) {
 		/* Only probe on the hash list */
 		arch_disarm_kprobe(p);
 		hlist_del_rcu(&old_p->hlist);
-		cleanup_p = 1;
+
+		if (p != old_p)
+			kfree(old_p);
+		/* Synchronize and remove probe in bottom */
 	} else {
 		list_del_rcu(&p->list);
-		cleanup_p = 0;
-	}
-	DBPRINTF ("dbi_unregister_kprobe cleanup_p=%d", cleanup_p);
 
-	if (cleanup_p) {
-		if (p != old_p) {
-			list_del_rcu(&p->list);
-			kfree(old_p);
-		}
-
-		if (!in_atomic()) {
-			synchronize_sched();
-		}
-
-		remove_kprobe(p);
-	} else {
 		if (p->break_handler)
 			old_p->break_handler = NULL;
 		if (p->post_handler) {
-			list_for_each_entry_rcu(list_p, &old_p->list, list) {
-				if (list_p->post_handler) {
-					cleanup_p = 2;
-					break;
-				}
-			}
+			list_for_each_entry_rcu(list_p, &old_p->list, list)
+				if (list_p->post_handler)
+					return;
 
-			if (cleanup_p == 0)
-				old_p->post_handler = NULL;
+			old_p->post_handler = NULL;
 		}
 	}
 	/* Set NULL addr for reusability if symbol_name is used */
 	if (p->symbol_name)
 		p->addr = NULL;
+}
+
+void dbi_unregister_kprobe(struct kprobe *kp)
+{
+	struct kprobe *old_p, *list_p;
+
+	old_p = get_kprobe(kp->addr);
+	if (unlikely (!old_p))
+		return;
+
+	if (kp != old_p) {
+		list_for_each_entry_rcu(list_p, &old_p->list, list)
+			if (list_p == kp)
+				/* kprobe p is a valid probe */
+				dbi_unregister_valid_kprobe(kp, old_p);
+		return;
+	}
+
+	dbi_unregister_valid_kprobe(kp, old_p);
 }
 
 int dbi_register_jprobe(struct jprobe *jp)
@@ -854,6 +841,7 @@ static void dbi_unregister_kretprobe_top(struct kretprobe *rp)
 					(unsigned long)rp->kp.addr);
 		}
 	}
+
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 }
 
@@ -862,18 +850,36 @@ static void dbi_unregister_kretprobe_bottom(struct kretprobe *rp)
 	unsigned long flags;
 	struct kretprobe_instance *ri;
 
+	if (list_empty(&rp->kp.list))
+		remove_kprobe(&rp->kp);
+
 	spin_lock_irqsave(&kretprobe_lock, flags);
+
 	while ((ri = get_used_rp_inst(rp)) != NULL) {
 		recycle_rp_inst(ri);
 	}
-	spin_unlock_irqrestore(&kretprobe_lock, flags);
 	free_rp_inst(rp);
+
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+}
+
+void dbi_unregister_kretprobes(struct kretprobe **rpp, size_t size)
+{
+	size_t i;
+
+	for (i = 0; i < size; i++)
+		dbi_unregister_kretprobe_top(rpp[i]);
+
+	if (!in_atomic())
+		synchronize_sched();
+
+	for (i = 0; i < size; i++)
+		dbi_unregister_kretprobe_bottom(rpp[i]);
 }
 
 void dbi_unregister_kretprobe(struct kretprobe *rp)
 {
-	dbi_unregister_kretprobe_top(rp);
-	dbi_unregister_kretprobe_bottom(rp);
+	dbi_unregister_kretprobes(&rp, 1);
 }
 
 struct kretprobe *clone_kretprobe(struct kretprobe *rp)
@@ -1043,6 +1049,7 @@ EXPORT_SYMBOL_GPL(dbi_register_jprobe);
 EXPORT_SYMBOL_GPL(dbi_unregister_jprobe);
 EXPORT_SYMBOL_GPL(dbi_jprobe_return);
 EXPORT_SYMBOL_GPL(dbi_register_kretprobe);
+EXPORT_SYMBOL_GPL(dbi_unregister_kretprobes);
 EXPORT_SYMBOL_GPL(dbi_unregister_kretprobe);
 
 MODULE_LICENSE("Dual BSD/GPL");

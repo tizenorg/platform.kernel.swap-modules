@@ -254,6 +254,7 @@ struct kretprobe_instance * get_used_rp_inst (struct kretprobe *rp);
 int alloc_nodes_kretprobe(struct kretprobe *rp);
 int dbi_register_kretprobe (struct kretprobe *rp);
 void dbi_unregister_kretprobe (struct kretprobe *rp);
+void dbi_unregister_kretprobes(struct kretprobe **rpp, size_t size);
 
 void kretprobe_assert (struct kretprobe_instance *ri,
 		unsigned long orig_ret_address, unsigned long trampoline_address);
