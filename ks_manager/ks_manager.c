@@ -119,7 +119,7 @@ int ksm_unregister_probe(unsigned long addr)
 	struct probe *p;
 
 	p = find_probe(addr);
-	if (p)
+	if (p == NULL)
 		return -EINVAL;
 
 	do_ksm_unregister_probe(p);
