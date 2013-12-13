@@ -85,8 +85,6 @@ int msg_start(struct msg_buf *mb)
 	restore_config(&conf);
 	set_config(&conf);
 
-	return ret;
-
 free_us_inst:
 	destroy_us_inst_data(us_inst);
 
