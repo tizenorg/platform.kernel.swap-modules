@@ -114,19 +114,22 @@ int get_u64(struct msg_buf *mb, u64 *val)
 int get_string(struct msg_buf *mb, char **str)
 {
 	size_t len, len_max;
+	enum { min_len_str = 1 };
 
-	len_max = mb->end - mb->ptr - 1;
-	if(len_max < 0)
+	if (cmp_mb(mb, min_len_str) < 0)
 		return -EINVAL;
 
-	len = strlen(mb->ptr) + 1;
+	len_max = remained_mb(mb) - 1;
+	len = strnlen(mb->ptr, len_max);
 
-	*str = kmalloc(len, GFP_KERNEL);
+	*str = kmalloc(len + 1, GFP_KERNEL);
 	if (*str == NULL)
 		return -ENOMEM;
 
 	memcpy(*str, mb->ptr, len);
-	mb->ptr += len;
+	(*str)[len] = '\0';
+
+	mb->ptr += len + 1;
 
 	print_parse_debug("str->'%s'\n", *str);
 	return 0;
