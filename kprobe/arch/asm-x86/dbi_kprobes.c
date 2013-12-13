@@ -258,43 +258,17 @@ static int is_IF_modifier (kprobe_opcode_t opcode)
 
 int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 {
-	int ret = 0;
+	/* insn: must be on special executable page on i386. */
+	p->ainsn.insn = alloc_insn_slot(sm);
+	if (p->ainsn.insn == NULL)
+		return -ENOMEM;
 
-	if ((unsigned long) p->addr & 0x01)
-	{
-		DBPRINTF ("Attempt to register kprobe at an unaligned address\n");
-		//ret = -EINVAL;
-	}
+	memcpy(p->ainsn.insn, p->addr, MAX_INSN_SIZE);
 
+	p->opcode = *p->addr;
+	p->ainsn.boostable = can_boost(p->addr) ? 0 : -1;
 
-	if (!ret)
-	{
-		kprobe_opcode_t insn[MAX_INSN_SIZE];
-		struct arch_specific_insn ainsn;
-		/* insn: must be on special executable page on i386. */
-		p->ainsn.insn = alloc_insn_slot(sm);
-		if (!p->ainsn.insn)
-			return -ENOMEM;
-		memcpy (insn, p->addr, MAX_INSN_SIZE * sizeof (kprobe_opcode_t));
-		ainsn.insn = insn;
-		ret = arch_check_insn (&ainsn);
-		if (!ret)
-		{
-			p->opcode = *p->addr;
-		}
-
-		if (can_boost (p->addr))
-			p->ainsn.boostable = 0;
-		else
-			p->ainsn.boostable = -1;
-		memcpy (p->ainsn.insn, insn, MAX_INSN_SIZE * sizeof (kprobe_opcode_t));
-	}
-	else
-	{
-		free_insn_slot(sm, p->ainsn.insn);
-	}
-
-	return ret;
+	return 0;
 }
 
 void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
