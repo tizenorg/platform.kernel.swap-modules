@@ -504,11 +504,8 @@ int dbi_register_kprobe(struct kprobe *p)
 	 * and add it to the address.  That way the addr
 	 * field can either be global or relative to a symbol.
 	 */
-	if (p->symbol_name) {
-		if (p->addr)
-			return -EINVAL;
+	if (p->symbol_name)
 		p->addr = (kprobe_opcode_t *)swap_ksyms(p->symbol_name);
-	}
 
 	if (!p->addr)
 		return -EINVAL;
