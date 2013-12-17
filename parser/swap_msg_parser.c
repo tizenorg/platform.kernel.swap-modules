@@ -56,12 +56,18 @@ static int msg_handler(void __user *msg)
 	struct msg_buf mb;
 	void __user *payload;
 	struct basic_msg_fmt bmf;
+	enum { size_max = 128 * 1024 * 1024 };
 
 	ret = copy_from_user(&bmf, (void*)msg, sizeof(bmf));
 	if (ret)
 		return ret;
 
 	size = bmf.len;
+	if (size >= size_max) {
+		printk("%s: too large message, size=%u\n", __func__, size);
+		return -ENOMEM;
+	}
+
 	ret = init_mb(&mb, size);
 	if (ret)
 		return ret;
