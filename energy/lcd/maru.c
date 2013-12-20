@@ -68,9 +68,9 @@ static unsigned long maru_get_parameter(struct lcd_ops *ops,
 		return read_val(path_backlight_max);
 	case LPD_BRIGHTNESS:
 		return read_val(path_backlight);
+	default:
+		return -EINVAL;
 	}
-
-	return -EINVAL;
 }
 
 

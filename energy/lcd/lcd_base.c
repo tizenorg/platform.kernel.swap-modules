@@ -26,6 +26,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/fs.h>
+#include <linux/fb.h>
 #include <energy/tm_stat.h>
 #include "lcd_base.h"
 #include "lcd_debugfs.h"
@@ -64,6 +65,11 @@ enum {
 	brt_cnt = 10
 };
 
+enum power_t {
+	PW_ON,
+	PW_OFF
+};
+
 struct lcd_priv_data {
 	int min_brt;
 	int max_brt;
@@ -72,6 +78,7 @@ struct lcd_priv_data {
 	struct tm_stat *tms_brt;
 	spinlock_t lock_tms;
 	int brt_old;
+	enum power_t power;
 
 	u64 min_denom;
 	u64 min_num;
@@ -108,6 +115,7 @@ static void *create_lcd_priv(struct lcd_ops *ops, size_t tms_brt_cnt)
 	spin_lock_init(&lcd->lock_tms);
 
 	lcd->brt_old = brt_no_init;
+	lcd->power = PW_OFF;
 
 	lcd->min_denom = 1;
 	lcd->min_num = 1;
@@ -140,11 +148,8 @@ static void clean_brightness(struct lcd_ops *ops)
 	spin_unlock(&lcd->lock_tms);
 }
 
-static void set_brightness(struct lcd_ops *ops, int brt)
+static int get_brt_num_of_array(struct lcd_priv_data *lcd, int brt)
 {
-	struct lcd_priv_data *lcd = get_lcd_priv(ops);
-	int n;
-
 	if (brt > lcd->max_brt || brt < lcd->min_brt) {
 		printk("LCD energy error: set brightness=%d, "
 		       "when brightness[%d..%d]\n",
@@ -152,18 +157,80 @@ static void set_brightness(struct lcd_ops *ops, int brt)
 		brt = brt > lcd->max_brt ? lcd->max_brt : lcd->min_brt;
 	}
 
-	n = lcd->tms_brt_cnt * (brt - lcd->min_brt) /
-	    (lcd->max_brt - lcd->min_brt + 1);
+	return lcd->tms_brt_cnt * (brt - lcd->min_brt) /
+	       (lcd->max_brt - lcd->min_brt + 1);
+}
+
+static void set_brightness(struct lcd_ops *ops, int brt)
+{
+	struct lcd_priv_data *lcd = get_lcd_priv(ops);
+	int n = get_brt_num_of_array(lcd, brt);
 
 	spin_lock(&lcd->lock_tms);
-	if (lcd->brt_old != n) {
+
+	if (lcd->power == PW_ON && lcd->brt_old != n) {
 		u64 time = get_ntime();
 		if (lcd->brt_old != brt_no_init)
 			tm_stat_update(&lcd->tms_brt[lcd->brt_old], time);
 
 		tm_stat_set_timestamp(&lcd->tms_brt[n], time);
-		lcd->brt_old = n;
 	}
+	lcd->brt_old = n;
+
+	spin_unlock(&lcd->lock_tms);
+}
+
+static void set_power_on_set_brt(struct lcd_priv_data *lcd)
+{
+	if (lcd->brt_old != brt_no_init) {
+		u64 time = get_ntime();
+		tm_stat_set_timestamp(&lcd->tms_brt[lcd->brt_old], time);
+	}
+}
+
+static void set_power_on(struct lcd_priv_data *lcd)
+{
+	if (lcd->power == PW_OFF)
+		set_power_on_set_brt(lcd);
+
+	lcd->power = PW_ON;
+}
+
+static void set_power_off_update_brt(struct lcd_priv_data *lcd)
+{
+	if (lcd->brt_old != brt_no_init) {
+		u64 time = get_ntime();
+		tm_stat_update(&lcd->tms_brt[lcd->brt_old], time);
+		lcd->brt_old = brt_no_init;
+	}
+}
+
+static void set_power_off(struct lcd_priv_data *lcd)
+{
+	if (lcd->power == PW_ON)
+		set_power_off_update_brt(lcd);
+
+	lcd->power = PW_OFF;
+}
+
+static void set_power(struct lcd_ops *ops, int val)
+{
+	struct lcd_priv_data *lcd = get_lcd_priv(ops);
+
+	spin_lock(&lcd->lock_tms);
+
+	switch (val) {
+	case FB_BLANK_UNBLANK:
+		set_power_on(lcd);
+		break;
+	case FB_BLANK_POWERDOWN:
+		set_power_off(lcd);
+		break;
+	default:
+		printk("LCD energy error: set power=%d\n", val);
+		break;
+	}
+
 	spin_unlock(&lcd->lock_tms);
 }
 
@@ -174,7 +241,11 @@ static int func_notifier_lcd(struct lcd_ops *ops, enum lcd_action_type action,
 	case LAT_BRIGHTNESS:
 		set_brightness(ops, (int)data);
 		break;
+	case LAT_POWER:
+		set_power(ops, (int)data);
+		break;
 	default:
+		printk("LCD energy error: action=%d\n", action);
 		return -EINVAL;
 	}
 
@@ -194,11 +265,14 @@ void get_lcd_array_time(struct lcd_ops *ops, u64 *array_time)
 	int i;
 
 	spin_lock(&lcd->lock_tms);
-	for (i = 0; i < lcd->tms_brt_cnt; ++i) {
+	for (i = 0; i < lcd->tms_brt_cnt; ++i)
 		array_time[i] = tm_stat_running(&lcd->tms_brt[i]);
-		if (i == lcd->brt_old)
-			array_time[i] += get_ntime() -
-					 tm_stat_timestamp(&lcd->tms_brt[i]);
+
+	if (lcd->power == PW_ON && lcd->brt_old != brt_no_init) {
+		int old = lcd->brt_old;
+		struct tm_stat *tm = &lcd->tms_brt[old];
+
+		array_time[old] += get_ntime() - tm_stat_timestamp(tm);
 	}
 	spin_unlock(&lcd->lock_tms);
 }
@@ -330,6 +404,7 @@ int lcd_set_energy(void)
 			}
 
 			set_brightness(ops, ops->get(ops, LPD_BRIGHTNESS));
+			set_power(ops, ops->get(ops, LPD_POWER));
 
 			stat_lcd_ops[i] |= SLO_SET;
 			++count;

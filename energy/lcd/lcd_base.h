@@ -31,13 +31,16 @@
 
 
 enum lcd_action_type {
-	LAT_BRIGHTNESS
+	LAT_BRIGHTNESS,
+	LAT_POWER
 };
 
 enum lcd_parameter_type {
 	LPD_MIN_BRIGHTNESS,
 	LPD_MAX_BRIGHTNESS,
-	LPD_BRIGHTNESS
+	LPD_BRIGHTNESS,
+
+	LPD_POWER
 };
 
 struct lcd_ops;
