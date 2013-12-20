@@ -32,6 +32,13 @@ ifeq ($(CONFIG_LCD_S6E8AA0), y)
 endif
 
 
+# PANEL_S6E8AA0:
+ifeq ($(CONFIG_DISPLAY_PANEL_S6E8AA0), y)
+    swap_energy-y += lcd/s6e8aa0_panel.o
+    LCD_FUNC_LIST += s6e8aa0_panel
+endif
+
+
 # MARU:
 ifeq ($(CONFIG_MARU_BACKLIGHT), y)
     swap_energy-y += lcd/maru.o
