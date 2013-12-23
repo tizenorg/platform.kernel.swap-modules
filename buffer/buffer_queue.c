@@ -535,21 +535,6 @@ int remove_from_busy_list(struct swap_subbuffer *subbuffer)
 	return result;
 }
 
-/* Get subbuffers count in read list */
-/* XXX Think about locks */
-int get_full_buffers_count(void)
-{
-	int result = 0;
-	struct swap_subbuffer *buffer = read_queue.start_ptr;
-
-	while (buffer && buffer->full_buffer_part) {
-		result += 1;
-		buffer = buffer->next_in_queue;
-	}
-
-	return result;
-}
-
 /* Set all subbuffers in write list to read list */
 void buffer_queue_flush(void)
 {

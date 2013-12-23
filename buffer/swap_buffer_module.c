@@ -250,15 +250,15 @@ int swap_buffer_release(struct swap_subbuffer **subbuffer)
 EXPORT_SYMBOL_GPL(swap_buffer_release);
 
 
-int swap_buffer_flush(void)
+unsigned int swap_buffer_flush(void)
 {
-	int result = 0;
+	unsigned int result;
 
 	/* Set all non-empty write buffers to read list */
 	buffer_queue_flush();
 
 	/* Get count of all full buffers */
-	result = get_full_buffers_count();
+	result = get_readable_buf_cnt();
 
 	return result;
 }
