@@ -188,15 +188,10 @@ ssize_t driver_to_buffer_read(char __user *buf, size_t count)
 /* Flush swap_buffer */
 int driver_to_buffer_flush(void)
 {
-	int result;
+	unsigned int flushed;
 
-	result = swap_buffer_flush();
-
-	if (result >= 0)
-		set_buffers_to_read(result);
-	else if (result < 0)
-		return -E_SD_BUFFER_ERROR;
-
+	flushed = swap_buffer_flush();
+	set_buffers_to_read(flushed);
 	swap_device_wake_up_process();
 
 	return E_SD_SUCCESS;
@@ -251,12 +246,21 @@ int driver_to_buffer_buffer_to_read(void)
 int driver_to_buffer_initialize(size_t size, unsigned int count)
 {
 	int result;
+	struct buffer_init_t buf_init = {
+		.subbuffer_size = size,
+		.nr_subbuffers = count,
+		.subbuffer_full_cb = driver_to_buffer_callback,
+		.lower_threshold = 20,
+		.low_mem_cb = NULL,
+		.top_threshold = 80,
+		.enough_mem_cb = NULL,
+	};
 
 	if (size == 0 && count == 0) {
 		return -E_SD_WRONG_ARGS;
 	}
 
-	result = swap_buffer_init(size, count, (void*)&driver_to_buffer_callback);
+	result = swap_buffer_init(&buf_init);
 	if (result == -E_SB_NO_MEM_QUEUE_BUSY
 		|| result == -E_SB_NO_MEM_BUFFER_STRUCT) {
 		return -E_SD_NO_MEMORY;

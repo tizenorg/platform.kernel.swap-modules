@@ -28,25 +28,26 @@
 #define __SWAP_BUFFER_ERRORS_H__
 
 enum _swap_buffer_errors {
-	E_SB_SUCCESS = 0,		   /* Success */
-	E_SB_UNRELEASED_BUFFERS = 1,	/* There are some unreleased buffers. Mainly
+	E_SB_SUCCESS = 0,               /* Success */
+	E_SB_UNRELEASED_BUFFERS = 1,    /* There are some unreleased buffers. Mainly
 					   returned by swap_buffer_uninit */
 	E_SB_NO_WRITABLE_BUFFERS = 2,   /* No buffers for writing */
-	E_SB_WRONG_DATA_SIZE = 3,	   /* Wrong data size: size == 0 or
+	E_SB_WRONG_DATA_SIZE = 3,       /* Wrong data size: size == 0 or
 					   size > subbuffer size */
-	E_SB_IS_STOPPED = 4,		/* Trying to write data after SWAP buffer
+	E_SB_IS_STOPPED = 4,            /* Trying to write data after SWAP buffer
 					   has been stopped. */
-	E_SB_OVERLAP = 5,		   /* Memory areas of data to be written and
+	E_SB_OVERLAP = 5,               /* Memory areas of data to be written and
 					   subbuffer itself are overlap */
 	E_SB_NO_READABLE_BUFFERS = 6,   /* No buffers for reading */
-	E_SB_NO_CALLBACK = 7,	   /* Callback function ptr == NULL */
-	E_SB_NO_MEM_QUEUE_BUSY = 8,	 /* Memory for queue_busy wasn't allocated */
+	E_SB_NO_CALLBACK = 7,           /* Callback function ptr == NULL */
+	E_SB_NO_MEM_QUEUE_BUSY = 8,     /* Memory for queue_busy wasn't allocated */
 	E_SB_NO_MEM_BUFFER_STRUCT = 9,  /* Memory for one of struct swap_buffer
 					   wasn't allocated */
 	E_SB_NO_MEM_DATA_BUFFER = 10,   /* Memort for data buffer itself wasn't
 					   allocated */
 	E_SB_NO_SUBBUFFER_IN_BUSY = 11, /* No such subbuffer in busy_list */
-	E_SB_NOT_ALLOC = 12		 /* Subbuffers aren't allocated */
+	E_SB_NOT_ALLOC = 12,            /* Subbuffers aren't allocated */
+	E_SB_WRONG_THRESHOLD = 13       /* Thresholds > 100, top < lower */
 };
 
 #endif /* __SWAP_BUFFER_ERRORS_H__ */
