@@ -52,6 +52,7 @@
 struct queue {
 	struct swap_subbuffer *start_ptr;
 	struct swap_subbuffer *end_ptr;
+	unsigned int subbuffers_count;
 	struct sync_t queue_sync;
 };
 
@@ -59,6 +60,7 @@ struct queue {
 struct queue write_queue = {
 	.start_ptr = NULL,
 	.end_ptr = NULL,
+	.subbuffers_count = 0,
 	.queue_sync = {
 		.flags = 0x0
 	}
@@ -68,6 +70,7 @@ struct queue write_queue = {
 struct queue read_queue = {
 	.start_ptr = NULL,
 	.end_ptr = NULL,
+	.subbuffers_count = 0,
 	.queue_sync = {
 		.flags = 0x0
 	}
@@ -185,6 +188,9 @@ int buffer_queue_allocation(size_t subbuffer_size,
 		memset(buffer_address(write_queue.end_ptr->data_buffer), 0,
 		       queue_subbuffer_size);
 	}
+
+	/* All subbuffers are in write list */
+	write_queue.subbuffers_count = subbuffers_count;
 
 	return E_SB_SUCCESS;
 
@@ -328,6 +334,7 @@ struct swap_subbuffer *get_from_read_list(void)
 		read_queue.end_ptr = NULL;
 	}
 	read_queue.start_ptr = read_queue.start_ptr->next_in_queue;
+	--read_queue.subbuffers_count;
 
 get_from_read_list_unlock:
 	/* Unlock read sync primitive */
@@ -339,7 +346,6 @@ get_from_read_list_unlock:
 /* Add subbuffer to read list */
 void add_to_read_list(struct swap_subbuffer *subbuffer)
 {
-
 	/* Lock read sync primitive */
 	sync_lock(&read_queue.queue_sync);
 
@@ -354,6 +360,7 @@ void add_to_read_list(struct swap_subbuffer *subbuffer)
 		read_queue.end_ptr = subbuffer;
 	}
 	read_queue.end_ptr->next_in_queue = NULL;
+	++read_queue.subbuffers_count;
 
 	/* Unlock read sync primitive */
 	sync_unlock(&read_queue.queue_sync);
@@ -370,6 +377,13 @@ int add_to_read_list_with_callback(struct swap_subbuffer *subbuffer)
 
 	return result;
 }
+
+/* Returns subbuffers to read count */
+unsigned int get_readable_buf_cnt(void)
+{
+	return read_queue.subbuffers_count;
+}
+
 
 /* Get first writable subbuffer from write list */
 struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
@@ -420,6 +434,7 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 
 			/* Move start write pointer */
 			write_queue.start_ptr = write_queue.start_ptr->next_in_queue;
+			--write_queue.subbuffers_count;
 
 			/* Add to callback list */
 			if (!callback_queue.start_ptr)
@@ -456,8 +471,6 @@ void add_to_write_list(struct swap_subbuffer *subbuffer)
 	sync_lock(&write_queue.queue_sync);
 
 	/* Reinitialize */
-	// TODO Useless memset
-//	memset(buffer_address(subbuffer->data_buffer), 0, queue_subbuffer_size);
 	subbuffer->full_buffer_part = 0;
 
 	if (!write_queue.start_ptr)
@@ -470,9 +483,17 @@ void add_to_write_list(struct swap_subbuffer *subbuffer)
 		write_queue.end_ptr = subbuffer;
 	}
 	write_queue.end_ptr->next_in_queue = NULL;
+	++write_queue.subbuffers_count;
 
 	sync_unlock(&write_queue.queue_sync);
 }
+
+/* Returns subbuffers to write count */
+unsigned int get_writable_buf_cnt(void)
+{
+	return write_queue.subbuffers_count;
+}
+
 
 /* Add subbuffer to busy list when it is read from out of the buffer */
 void add_to_busy_list(struct swap_subbuffer *subbuffer)
@@ -551,6 +572,7 @@ void buffer_queue_flush(void)
 			write_queue.end_ptr = NULL;
 		}
 		write_queue.start_ptr = write_queue.start_ptr->next_in_queue;
+		--write_queue.subbuffers_count;
 
 		add_to_read_list(buffer);
 

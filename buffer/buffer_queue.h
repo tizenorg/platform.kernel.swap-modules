@@ -41,6 +41,8 @@ void add_to_busy_list(struct swap_subbuffer *subbuffer);
 int remove_from_busy_list(struct swap_subbuffer *subbuffer);
 int get_full_buffers_count(void);
 
+unsigned int get_readable_buf_cnt(void);
+unsigned int get_writable_buf_cnt(void);
 int get_busy_buffers_count(void);
 int get_pages_count_in_subbuffer(void);
 
