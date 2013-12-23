@@ -5,11 +5,13 @@
 static const char path_backlight[]	= "/sys/class/backlight/s6e8aa0-bl/brightness";
 static const char path_backlight_min[]	= "/sys/class/backlight/s6e8aa0-bl/min_brightness";
 static const char path_backlight_max[]	= "/sys/class/backlight/s6e8aa0-bl/max_brightness";
+static const char path_power[]		= "/sys/class/lcd/s6e8aa0/lcd_power";
 
 static const char *all_path[] = {
 	path_backlight,
 	path_backlight_min,
-	path_backlight_max
+	path_backlight_max,
+	path_power
 };
 
 enum {
@@ -42,6 +44,8 @@ static unsigned long s6e8aa0_get_parameter(struct lcd_ops *ops,
 		return read_val(path_backlight_max);
 	case LPD_BRIGHTNESS:
 		return read_val(path_backlight);
+	case LPD_POWER:
+		return read_val(path_power);
 	default:
 		return -EINVAL;
 	}
@@ -49,41 +53,10 @@ static unsigned long s6e8aa0_get_parameter(struct lcd_ops *ops,
 
 
 
-
-
-#if 0 /* is not supported */
-/* ============================================================================
- * ===                               POWER                                  ===
- * ============================================================================
- */
-static int get_power(void)
-{
-	const char *power_path = "/sys/class/lcd/s6e8aa0/lcd_power";
-
-	return read_val(power_path);
-}
-
 static int entry_handler_set_power(struct kretprobe_instance *ri,
-				   struct pt_regs *regs)
-{
-	int *power = (int *)ri->data;
-
-	*power = (int)regs->ARM_r1;
-
-	return 0;
-}
-
+				   struct pt_regs *regs);
 static int ret_handler_set_power(struct kretprobe_instance *ri,
-				 struct pt_regs *regs)
-{
-	int ret = regs_return_value(regs);
-	int *power = (int *)ri->data;
-
-	if (!ret && ops_s && ops_s->set_power)
-		ops_s->set_power(*power);
-
-	return 0;
-}
+				 struct pt_regs *regs);
 
 static struct kretprobe set_power_krp = {
 	.kp.symbol_name = "s6e8aa0_set_power",
@@ -91,8 +64,6 @@ static struct kretprobe set_power_krp = {
 	.handler = ret_handler_set_power,
 	.data_size = sizeof(int)
 };
-#endif
-
 
 
 static int entry_handler_set_backlight(struct kretprobe_instance *ri,
@@ -109,12 +80,24 @@ static struct kretprobe set_backlight_krp = {
 
 int s6e8aa0_set(struct lcd_ops *ops)
 {
-	return dbi_register_kretprobe(&set_backlight_krp);
+	int ret;
+
+	ret = dbi_register_kretprobe(&set_power_krp);
+	if (ret)
+		return ret;
+
+	ret = dbi_register_kretprobe(&set_backlight_krp);
+	if (ret)
+		dbi_unregister_kretprobe(&set_power_krp);
+
+	return ret;
 }
 
 int s6e8aa0_unset(struct lcd_ops *ops)
 {
 	dbi_unregister_kretprobe(&set_backlight_krp);
+	dbi_unregister_kretprobe(&set_power_krp);
+
 	return 0;
 }
 
@@ -129,6 +112,36 @@ static struct lcd_ops s6e8aa0_ops = {
 struct lcd_ops *LCD_MAKE_FNAME(s6e8aa0)(void)
 {
 	return &s6e8aa0_ops;
+}
+
+
+
+
+
+/* ============================================================================
+ * ===                               POWER                                  ===
+ * ============================================================================
+ */
+static int entry_handler_set_power(struct kretprobe_instance *ri,
+				   struct pt_regs *regs)
+{
+	int *power = (int *)ri->data;
+
+	*power = (int)swap_get_karg(regs, 1);
+
+	return 0;
+}
+
+static int ret_handler_set_power(struct kretprobe_instance *ri,
+				 struct pt_regs *regs)
+{
+	int ret = regs_return_value(regs);
+	int *power = (int *)ri->data;
+
+	if (!ret && s6e8aa0_ops.notifier)
+		s6e8aa0_ops.notifier(&s6e8aa0_ops, LAT_POWER, (void *)*power);
+
+	return 0;
 }
 
 
