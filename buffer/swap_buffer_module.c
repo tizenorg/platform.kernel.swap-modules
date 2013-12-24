@@ -197,6 +197,13 @@ ssize_t swap_buffer_write(void *data, size_t size)
 
 	result = size;
 
+	if ((get_writable_buf_cnt() < min_writable_bufs) &&
+	    !(swap_buffer_status & BUFFER_PAUSE)) {
+		swap_buffer_status |= BUFFER_PAUSE;
+		if (low_mem_cb != NULL)
+			low_mem_cb();
+	}
+
 	/* Unlock sync (Locked in get_from_write_list()) */
 buf_write_sem_post:
 	sync_unlock(&buffer_to_write->buffer_sync);
@@ -244,6 +251,13 @@ int swap_buffer_release(struct swap_subbuffer **subbuffer)
 
 	/* Add to write list */
 	add_to_write_list(*subbuffer);
+
+	if ((swap_buffer_status & BUFFER_PAUSE) &&
+	    (get_writable_buf_cnt() >= enough_writable_bufs)) {
+		swap_buffer_status &= ~BUFFER_PAUSE;
+		if (enough_mem_cb != NULL)
+			enough_mem_cb();
+	}
 
 	return E_SB_SUCCESS;
 }
