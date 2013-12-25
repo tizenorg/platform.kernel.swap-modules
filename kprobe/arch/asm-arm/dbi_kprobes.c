@@ -163,7 +163,7 @@ int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 		return -ENOMEM;
 
 	memcpy(insn, p->addr, MAX_INSN_SIZE * sizeof(kprobe_opcode_t));
-	ainsn.insn_arm = ainsn.insn = insn;
+	ainsn.insn = insn;
 	ret = arch_check_insn_arm(insn[0]);
 	if (!ret) {
 		p->opcode = *p->addr;

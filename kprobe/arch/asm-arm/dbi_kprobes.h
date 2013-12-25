@@ -468,8 +468,6 @@ struct kprobe_ctlblk {
 struct arch_specific_insn {
 	/* copy of the original instruction */
 	kprobe_opcode_t *insn;
-	kprobe_opcode_t *insn_arm;
-	kprobe_opcode_t *insn_thumb;
 };
 
 typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long);
