@@ -42,9 +42,6 @@
 	flush_icache_range((unsigned long)(addr),		\
 			   (unsigned long)(addr) + (size))
 
-#define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
-#define branch_displacement(insn) sign_extend(((insn) & 0xffffff) << 2, 25)
-
 static inline long branch_t16_dest(kprobe_opcode_t insn, unsigned int insn_addr)
 {
 	long offset = insn & 0x3ff;
@@ -79,12 +76,6 @@ static inline long cbz_t16_dest(kprobe_opcode_t insn, unsigned int insn_addr)
 	return insn_addr + 4 + i + offset;
 }
 
-static unsigned long get_addr_b(unsigned long insn, unsigned long addr)
-{
-	/* real position less then PC by 8 */
-	return (kprobe_opcode_t)((long)addr + 8 + branch_displacement(insn));
-}
-
 /* is instruction Thumb2 and NOT a branch, etc... */
 static int is_thumb2(kprobe_opcode_t insn)
 {
@@ -95,126 +86,16 @@ static int is_thumb2(kprobe_opcode_t insn)
 
 static int arch_copy_trampoline_arm_uprobe(struct uprobe *up)
 {
+	int ret;
 	struct kprobe *p = up2kp(up);
-	int uregs, pc_dep;
 	unsigned long insn = p->opcode;
 	unsigned long vaddr = (unsigned long)p->addr;
 	unsigned long *tramp = up->atramp.tramp_arm;
-	enum { tramp_len = sizeof(up->atramp.tramp_arm) };
 
-	p->safe_arm = 1;
-	if (vaddr & 0x03) {
-		printk("Error in %s at %d: attempt to register uprobe "
-		       "at an unaligned address\n", __FILE__, __LINE__);
-		return -EINVAL;
-	}
+	ret = arch_make_trampoline_arm(vaddr, insn, tramp);
+	p->safe_arm = !!ret;
 
-	if (!arch_check_insn_arm(insn)) {
-		p->safe_arm = 0;
-	}
-
-	uregs = pc_dep = 0;
-	/* Rn, Rm ,Rd */
-	if (ARM_INSN_MATCH(DPIS, insn) || ARM_INSN_MATCH(LRO, insn) ||
-	    ARM_INSN_MATCH(SRO, insn)) {
-		uregs = 0xb;
-		if ((ARM_INSN_REG_RN(insn) == 15) ||
-		    (ARM_INSN_REG_RM(insn) == 15) ||
-		    (ARM_INSN_MATCH(SRO, insn) &&
-		     (ARM_INSN_REG_RD(insn) == 15))) {
-			DBPRINTF("Unboostable insn %lx, DPIS/LRO/SRO\n", insn);
-			pc_dep = 1;
-		}
-	/* Rn ,Rd */
-	} else if (ARM_INSN_MATCH(DPI, insn) || ARM_INSN_MATCH(LIO, insn) ||
-		   ARM_INSN_MATCH(SIO, insn)) {
-		uregs = 0x3;
-		if ((ARM_INSN_REG_RN(insn) == 15) ||
-		    (ARM_INSN_MATCH(SIO, insn) &&
-		    (ARM_INSN_REG_RD(insn) == 15))) {
-			pc_dep = 1;
-			DBPRINTF("Unboostable insn %lx/%p, DPI/LIO/SIO\n",
-				 insn, p);
-		}
-	/* Rn, Rm, Rs */
-	} else if (ARM_INSN_MATCH(DPRS, insn)) {
-		uregs = 0xd;
-		if ((ARM_INSN_REG_RN(insn) == 15) ||
-		    (ARM_INSN_REG_RM(insn) == 15) ||
-		    (ARM_INSN_REG_RS(insn) == 15)) {
-			pc_dep = 1;
-			DBPRINTF("Unboostable insn %lx, DPRS\n", insn);
-		}
-	/* register list */
-	} else if (ARM_INSN_MATCH(SM, insn)) {
-		uregs = 0x10;
-		if (ARM_INSN_REG_MR (insn, 15)) {
-			DBPRINTF ("Unboostable insn %lx, SM\n", insn);
-			pc_dep = 1;
-		}
-	}
-
-	/* check instructions that can write result to SP andu uses PC */
-	if (pc_dep && (ARM_INSN_REG_RD(insn) == 13)) {
-		printk("Error in %s at %d: instruction check failed (arm)\n",
-		       __FILE__, __LINE__);
-		p->safe_arm = 1;
-	}
-
-	if (unlikely(uregs && pc_dep)) {
-		memcpy(tramp, pc_dep_insn_execbuf, tramp_len);
-		if (prep_pc_dep_insn_execbuf(tramp, insn, uregs) != 0) {
-			printk("Error in %s at %d: failed "
-			       "to prepare exec buffer for insn %lx!",
-			       __FILE__, __LINE__, insn);
-			p->safe_arm = 1;
-		}
-
-		tramp[6] = vaddr + 8;
-	} else {
-		memcpy(tramp, gen_insn_execbuf, tramp_len);
-		tramp[UPROBES_TRAMP_INSN_IDX] = insn;
-	}
-
-	tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-	tramp[7] = vaddr + 4;
-
-	/* B */
-	if (ARM_INSN_MATCH(B, insn) &&
-	    !ARM_INSN_MATCH(BLX1, insn)) {
-		/* B check can be false positive on BLX1 instruction */
-		memcpy(tramp, b_cond_insn_execbuf, tramp_len);
-		tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-		tramp[0] |= insn & 0xf0000000;
-		tramp[6] = get_addr_b(insn, vaddr);
-		tramp[7] = vaddr + 4;
-	/* BX, BLX (Rm) */
-	} else if (ARM_INSN_MATCH(BX, insn) ||
-		   ARM_INSN_MATCH(BLX2, insn)) {
-		memcpy(tramp, b_r_insn_execbuf, tramp_len);
-		tramp[0] = insn;
-		tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-		tramp[7] = vaddr + 4;
-	/* BL, BLX (Off) */
-	} else if (ARM_INSN_MATCH(BLX1, insn)) {
-		memcpy(tramp, blx_off_insn_execbuf, tramp_len);
-		tramp[0] |= 0xe0000000;
-		tramp[1] |= 0xe0000000;
-		tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-		tramp[6] = get_addr_b(insn, vaddr) +
-			   2 * (insn & 01000000) + 1; /* jump to thumb */
-		tramp[7] = vaddr + 4;
-	/* BL */
-	} else if (ARM_INSN_MATCH(BL, insn)) {
-		memcpy(tramp, blx_off_insn_execbuf, tramp_len);
-		tramp[0] |= insn & 0xf0000000;
-		tramp[1] |= insn & 0xf0000000;
-		tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
-		tramp[6] = get_addr_b(insn, vaddr);
-		tramp[7] = vaddr + 4;
-	}
-
-	return 0;
+	return ret;
 }
 
 static int arch_check_insn_thumb(unsigned long insn)

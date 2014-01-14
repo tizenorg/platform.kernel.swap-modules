@@ -49,13 +49,23 @@
 
 #define SUPRESS_BUG_MESSAGES
 
+#define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
+#define branch_displacement(insn) sign_extend(((insn) & 0xffffff) << 2, 25)
+
 extern struct kprobe * per_cpu__current_kprobe;
 extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 
 static void (*__swap_register_undef_hook)(struct undef_hook *hook);
 static void (*__swap_unregister_undef_hook)(struct undef_hook *hook);
 
-int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int uregs)
+static unsigned long get_addr_b(unsigned long insn, unsigned long addr)
+{
+	/* real position less then PC by 8 */
+	return (kprobe_opcode_t)((long)addr + 8 + branch_displacement(insn));
+}
+
+static int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns,
+				    kprobe_opcode_t insn, int uregs)
 {
 	int i;
 
@@ -111,9 +121,8 @@ int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int u
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(prep_pc_dep_insn_execbuf);
 
-int arch_check_insn_arm(unsigned long insn)
+static int arch_check_insn_arm(unsigned long insn)
 {
 	/* check instructions that can change PC by nature */
 	if (
@@ -148,97 +157,161 @@ bad_insn:
 	printk("Bad insn arch_check_insn_arm: %lx\n", insn);
 	return -EFAULT;
 }
-EXPORT_SYMBOL_GPL(arch_check_insn_arm);
+
+static int make_branch_tarmpoline(unsigned long addr, unsigned long insn,
+				  unsigned long *tramp)
+{
+	int ok = 0;
+
+	/* B */
+	if (ARM_INSN_MATCH(B, insn) &&
+	    !ARM_INSN_MATCH(BLX1, insn)) {
+		/* B check can be false positive on BLX1 instruction */
+		memcpy(tramp, b_cond_insn_execbuf, KPROBES_TRAMP_LEN);
+		tramp[KPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		tramp[0] |= insn & 0xf0000000;
+		tramp[6] = get_addr_b(insn, addr);
+		tramp[7] = addr + 4;
+		ok = 1;
+	/* BX, BLX (Rm) */
+	} else if (ARM_INSN_MATCH(BX, insn) ||
+		   ARM_INSN_MATCH(BLX2, insn)) {
+		memcpy(tramp, b_r_insn_execbuf, KPROBES_TRAMP_LEN);
+		tramp[0] = insn;
+		tramp[KPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		tramp[7] = addr + 4;
+		ok = 1;
+	/* BL, BLX (Off) */
+	} else if (ARM_INSN_MATCH(BLX1, insn)) {
+		memcpy(tramp, blx_off_insn_execbuf, KPROBES_TRAMP_LEN);
+		tramp[0] |= 0xe0000000;
+		tramp[1] |= 0xe0000000;
+		tramp[KPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		tramp[6] = get_addr_b(insn, addr) +
+			   2 * (insn & 01000000) + 1; /* jump to thumb */
+		tramp[7] = addr + 4;
+		ok = 1;
+	/* BL */
+	} else if (ARM_INSN_MATCH(BL, insn)) {
+		memcpy(tramp, blx_off_insn_execbuf, KPROBES_TRAMP_LEN);
+		tramp[0] |= insn & 0xf0000000;
+		tramp[1] |= insn & 0xf0000000;
+		tramp[KPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+		tramp[6] = get_addr_b(insn, addr);
+		tramp[7] = addr + 4;
+		ok = 1;
+	}
+
+	return ok;
+}
+
+int arch_make_trampoline_arm(unsigned long addr, unsigned long insn,
+			     unsigned long *tramp)
+{
+	int ret, uregs, pc_dep;
+
+	if (addr & 0x03) {
+		printk("Error in %s at %d: attempt to register uprobe "
+		       "at an unaligned address\n", __FILE__, __LINE__);
+		return -EINVAL;
+	}
+
+	ret = arch_check_insn_arm(insn);
+	if (ret)
+		return ret;
+
+	if (make_branch_tarmpoline(addr, insn, tramp))
+		return 0;
+
+	uregs = pc_dep = 0;
+	/* Rn, Rm ,Rd */
+	if (ARM_INSN_MATCH(DPIS, insn) || ARM_INSN_MATCH(LRO, insn) ||
+	    ARM_INSN_MATCH(SRO, insn)) {
+		uregs = 0xb;
+		if ((ARM_INSN_REG_RN(insn) == 15) ||
+		    (ARM_INSN_REG_RM(insn) == 15) ||
+		    (ARM_INSN_MATCH(SRO, insn) &&
+		     (ARM_INSN_REG_RD(insn) == 15))) {
+			pc_dep = 1;
+		}
+	/* Rn ,Rd */
+	} else if (ARM_INSN_MATCH(DPI, insn) || ARM_INSN_MATCH(LIO, insn) ||
+		   ARM_INSN_MATCH(SIO, insn)) {
+		uregs = 0x3;
+		if ((ARM_INSN_REG_RN(insn) == 15) ||
+		    (ARM_INSN_MATCH(SIO, insn) &&
+		    (ARM_INSN_REG_RD(insn) == 15))) {
+			pc_dep = 1;
+		}
+	/* Rn, Rm, Rs */
+	} else if (ARM_INSN_MATCH(DPRS, insn)) {
+		uregs = 0xd;
+		if ((ARM_INSN_REG_RN(insn) == 15) ||
+		    (ARM_INSN_REG_RM(insn) == 15) ||
+		    (ARM_INSN_REG_RS(insn) == 15)) {
+			pc_dep = 1;
+		}
+	/* register list */
+	} else if (ARM_INSN_MATCH(SM, insn)) {
+		uregs = 0x10;
+		if (ARM_INSN_REG_MR(insn, 15)) {
+			pc_dep = 1;
+		}
+	}
+
+	/* check instructions that can write result to SP and uses PC */
+	if (pc_dep && (ARM_INSN_REG_RD(insn) == 13)) {
+		printk("Error in %s at %d: instruction check failed (arm)\n",
+		       __FILE__, __LINE__);
+		return -EFAULT;
+	}
+
+	if (unlikely(uregs && pc_dep)) {
+		memcpy(tramp, pc_dep_insn_execbuf, KPROBES_TRAMP_LEN);
+		if (prep_pc_dep_insn_execbuf(tramp, insn, uregs) != 0) {
+			printk("Error in %s at %d: failed "
+			       "to prepare exec buffer for insn %lx!",
+			       __FILE__, __LINE__, insn);
+			return -EINVAL;
+		}
+
+		tramp[6] = addr + 8;
+	} else {
+		memcpy(tramp, gen_insn_execbuf, KPROBES_TRAMP_LEN);
+		tramp[KPROBES_TRAMP_INSN_IDX] = insn;
+	}
+
+	/* TODO: remove for kprobe */
+	tramp[KPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
+	tramp[7] = addr + 4;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(arch_make_trampoline_arm);
 
 int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 {
-	kprobe_opcode_t insns[KPROBES_TRAMP_LEN];
-	int uregs, pc_dep, ret = 0;
-	kprobe_opcode_t insn[MAX_INSN_SIZE];
-	struct arch_specific_insn ainsn;
+	unsigned long addr = (unsigned long)p->addr;
+	unsigned long insn = p->opcode = *p->addr;
+	unsigned long *tramp;
+	int ret;
 
-	/* insn: must be on special executable page on i386. */
-	p->ainsn.insn = alloc_insn_slot(sm);
-	if (!p->ainsn.insn)
+	tramp = alloc_insn_slot(sm);
+	if (tramp == NULL)
 		return -ENOMEM;
 
-	memcpy(insn, p->addr, MAX_INSN_SIZE * sizeof(kprobe_opcode_t));
-	ainsn.insn = insn;
-	ret = arch_check_insn_arm(insn[0]);
-	if (!ret) {
-		p->opcode = *p->addr;
-		uregs = pc_dep = 0;
-
-		// Rn, Rm ,Rd
-		if (ARM_INSN_MATCH(DPIS, insn[0]) || ARM_INSN_MATCH(LRO, insn[0]) ||
-		    ARM_INSN_MATCH(SRO, insn[0])) {
-			uregs = 0xb;
-			if ((ARM_INSN_REG_RN(insn[0]) == 15) || (ARM_INSN_REG_RM(insn[0]) == 15) ||
-			    (ARM_INSN_MATCH(SRO, insn[0]) && (ARM_INSN_REG_RD(insn[0]) == 15))) {
-				DBPRINTF ("Unboostable insn %lx, DPIS/LRO/SRO\n", insn[0]);
-				pc_dep = 1;
-			}
-
-		// Rn ,Rd
-		} else if( ARM_INSN_MATCH(DPI, insn[0]) || ARM_INSN_MATCH(LIO, insn[0]) ||
-			   ARM_INSN_MATCH(SIO, insn[0])) {
-			uregs = 0x3;
-			if ((ARM_INSN_REG_RN(insn[0]) == 15) || (ARM_INSN_MATCH(SIO, insn[0]) &&
-			    (ARM_INSN_REG_RD (insn[0]) == 15))) {
-				pc_dep = 1;
-				DBPRINTF ("Unboostable insn %lx/%p, DPI/LIO/SIO\n", insn[0], p);
-			}
-		// Rn, Rm, Rs
-		} else if (ARM_INSN_MATCH(DPRS, insn[0])) {
-			uregs = 0xd;
-			if ((ARM_INSN_REG_RN(insn[0]) == 15) || (ARM_INSN_REG_RM(insn[0]) == 15) ||
-			    (ARM_INSN_REG_RS (insn[0]) == 15)) {
-				pc_dep = 1;
-				DBPRINTF ("Unboostable insn %lx, DPRS\n", insn[0]);
-			}
-		// register list
-		} else if(ARM_INSN_MATCH(SM, insn[0])) {
-			uregs = 0x10;
-			if (ARM_INSN_REG_MR(insn[0], 15)) {
-				DBPRINTF ("Unboostable insn %lx, SM\n", insn[0]);
-				pc_dep = 1;
-			}
-		}
-
-		// check instructions that can write result to SP andu uses PC
-		if (pc_dep  && (ARM_INSN_REG_RD(ainsn.insn[0]) == 13)) {
-			free_insn_slot(sm, p->ainsn.insn);
-			ret = -EFAULT;
-		} else {
-			if (uregs && pc_dep) {
-				memcpy(insns, pc_dep_insn_execbuf, sizeof(insns));
-				if (prep_pc_dep_insn_execbuf(insns, insn[0], uregs) != 0) {
-					DBPRINTF ("failed to prepare exec buffer for insn %lx!", insn[0]);
-					free_insn_slot(sm, p->ainsn.insn);
-					return -EINVAL;
-				}
-				insns[6] = (kprobe_opcode_t)(p->addr + 2);
-			} else {
-				memcpy(insns, gen_insn_execbuf, sizeof(insns));
-				insns[KPROBES_TRAMP_INSN_IDX] = insn[0];
-			}
-			insns[7] = (kprobe_opcode_t)(p->addr + 1);
-			DBPRINTF ("arch_prepare_kprobe: insn %lx", insn[0]);
-			DBPRINTF ("arch_prepare_kprobe: to %p - %lx %lx %lx %lx %lx %lx %lx %lx %lx",
-				  p->ainsn.insn, insns[0], insns[1], insns[2], insns[3], insns[4],
-				  insns[5], insns[6], insns[7], insns[8]);
-			memcpy(p->ainsn.insn, insns, sizeof(insns));
-			flush_icache_range((long unsigned)p->ainsn.insn, (long unsigned)(p->ainsn.insn) + sizeof(insns));
-#ifdef BOARD_tegra
-			flush_cache_all();
-#endif
-		}
-	} else {
-		free_insn_slot(sm, p->ainsn.insn);
-		printk("arch_prepare_kprobe: instruction 0x%lx not instrumentation, addr=0x%p\n", insn[0], p->addr);
+	ret = arch_make_trampoline_arm(addr, insn, tramp);
+	if (ret) {
+		free_insn_slot(sm, tramp);
+		return ret;
 	}
 
-	return ret;
+	flush_icache_range((unsigned long)tramp,
+			   (unsigned long)tramp + KPROBES_TRAMP_LEN);
+
+	p->ainsn.insn = tramp;
+
+	return 0;
 }
 
 void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)

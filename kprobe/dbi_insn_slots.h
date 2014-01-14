@@ -51,7 +51,7 @@
 #include <linux/types.h>
 
 struct slot_manager {
-	unsigned long slot_size;
+	unsigned long slot_size;	/* FIXME: allocated in long (4 byte) */
 	void *(*alloc)(struct slot_manager *sm);
 	void (*free)(struct slot_manager *sm, void *ptr);
 	struct hlist_head page_list;

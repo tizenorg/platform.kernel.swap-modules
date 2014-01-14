@@ -52,13 +52,15 @@ typedef unsigned long kprobe_opcode_t;
 
 #define MAX_INSN_SIZE                   1
 
-# define UPROBES_TRAMP_LEN              9
+#define UPROBES_TRAMP_LEN              9 * 4
 # define UPROBES_TRAMP_INSN_IDX         2
 # define UPROBES_TRAMP_SS_BREAK_IDX     4
 # define UPROBES_TRAMP_RET_BREAK_IDX    5
-# define KPROBES_TRAMP_LEN              9
+#define KPROBES_TRAMP_LEN              9 * 4
 # define KPROBES_TRAMP_INSN_IDX         UPROBES_TRAMP_INSN_IDX
 # define KPROBES_TRAMP_SS_BREAK_IDX     UPROBES_TRAMP_SS_BREAK_IDX
+
+/* TODO: remove (not needed for kprobe) */
 # define KPROBES_TRAMP_RET_BREAK_IDX	UPROBES_TRAMP_RET_BREAK_IDX
 
 #define UREGS_OFFSET 8
@@ -482,8 +484,8 @@ static inline int arch_init_module_deps(void)
 	return 0;
 }
 
-int arch_check_insn_arm(unsigned long insn);
-int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns, kprobe_opcode_t insn, int uregs);
+int arch_make_trampoline_arm(unsigned long addr, unsigned long insn,
+			     unsigned long *tramp);
 
 struct slot_manager;
 struct kretprobe;
