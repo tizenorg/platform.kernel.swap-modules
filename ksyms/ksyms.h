@@ -58,4 +58,6 @@ unsigned long swap_ksyms(const char *name);
 
 #endif /*CONFIG_KALLSYMS*/
 
+unsigned long swap_ksyms_substr(const char *name);
+
 #endif /*__KSYMS_H__*/

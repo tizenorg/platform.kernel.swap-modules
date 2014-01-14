@@ -1,6 +1,7 @@
 #!/bin/sh
 
 insmod swap_buffer.ko || exit 1  # buffer is loaded
+insmod swap_ksyms.ko || exit 1
 insmod swap_driver.ko || exit 1  # driver is loaded
 insmod swap_writer.ko || exit 1
 insmod swap_kprobe.ko || exit 1  # kprobe is loaded

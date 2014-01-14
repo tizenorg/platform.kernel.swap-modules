@@ -10,6 +10,7 @@ rmmod swap_ks_manager
 rmmod swap_kprobe
 rmmod swap_writer
 rmmod swap_driver
+rmmod swap_ksyms
 rmmod swap_buffer
 
 

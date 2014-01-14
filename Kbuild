@@ -1,6 +1,7 @@
 EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := buffer/ \
+         ksyms/ \
          driver/ \
          writer/ \
          kprobe/ \
