@@ -1,9 +1,10 @@
 EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_ksyms.o
+swap_ksyms-y := ksyms_module.o
 
 ifeq ($(CONFIG_KALLSYMS),y)
-	swap_ksyms-y := ksyms.o
+	swap_ksyms-y += ksyms.o
 else
-	swap_ksyms-y := no_ksyms.o
+	swap_ksyms-y += no_ksyms.o
 endif

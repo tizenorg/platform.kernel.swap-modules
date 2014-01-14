@@ -23,7 +23,7 @@
  */
 
 #include "ksyms.h"
-#include <linux/module.h>
+#include "ksyms_init.h"
 #include <linux/types.h>
 #include <linux/vmalloc.h>
 #include <linux/semaphore.h>
@@ -319,7 +319,7 @@ unsigned long swap_ksyms_substr(const char *name)
 }
 EXPORT_SYMBOL_GPL(swap_ksyms_substr);
 
-int __init swap_ksyms_init(void)
+int ksyms_init(void)
 {
 	int ret = 0;
 
@@ -339,7 +339,7 @@ int __init swap_ksyms_init(void)
 	return 0;
 }
 
-void __exit swap_ksyms_exit(void)
+void ksyms_exit(void)
 {
 	down(&cnt_init_sm_lock);
 
@@ -349,10 +349,3 @@ void __exit swap_ksyms_exit(void)
 
 	up(&cnt_init_sm_lock);
 }
-
-module_init(swap_ksyms_init);
-module_exit(swap_ksyms_exit);
-
-MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("SWAP ksyms module");
-MODULE_AUTHOR("Vyacheslav Cherkashin <v.cherkashin@samaung.com>");
