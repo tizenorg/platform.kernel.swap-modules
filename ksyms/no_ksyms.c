@@ -139,7 +139,7 @@ static void free_smi(struct sys_map_item *smi)
 	kfree(smi);
 }
 
-static void add_smi(const struct sys_map_item *smi)
+static void add_smi(struct sys_map_item *smi)
 {
 	list_add_tail(&smi->list, &smi_list);
 }
@@ -165,7 +165,7 @@ static struct sys_map_item *get_sys_map_item(char *begin, char *end)
 	memcpy(line, begin, len);
 	line[len] = '\0';
 
-	n = sscanf(line, "%x %c %127s", &addr, &attr, &name);
+	n = sscanf(line, "%lx %c %127s", &addr, &attr, name);
 	name[127] = '\0';
 
 	if (n != 3) {
