@@ -120,7 +120,7 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	sync_init(&buffer_busy_sync);
 
 	/* Memory allocation for queue_busy */
-	queue_busy = memory_allocation(sizeof(**queue_busy) * queue_subbuffer_count);
+	queue_busy = memory_allocation(sizeof(*queue_busy) * queue_subbuffer_count);
 
 	if (!queue_busy) {
 		result = -E_SB_NO_MEM_QUEUE_BUSY;

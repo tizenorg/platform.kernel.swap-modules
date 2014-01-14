@@ -64,7 +64,7 @@ static inline int areas_overlap(const void *area1,const void *area2, size_t size
 	int i;
 
 	for (i = 0; i < size; i++)
-		if ((area1 + i == area2) || (area1 + i == area2))
+		if ((area1 + i == area2) || (area2 + i == area1))
 			return 1;
 
 	return 0;
