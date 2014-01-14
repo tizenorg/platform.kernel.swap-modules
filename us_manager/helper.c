@@ -349,7 +349,7 @@ int init_helper(void)
 	}
 	mf_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
 
-	addr = swap_ksyms("copy_process");
+	addr = swap_ksyms_substr("copy_process");
 	if (addr == 0) {
 		printk("Cannot find address for copy_process function!\n");
 		return -EINVAL;
