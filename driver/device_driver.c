@@ -34,6 +34,7 @@
 #include <linux/sched.h>
 #include <linux/module.h>
 #include <linux/wait.h>
+#include <linux/workqueue.h>
 #include <asm/uaccess.h>
 
 #include <ksyms/ksyms.h>
@@ -95,6 +96,32 @@ static struct device *swap_device_device = NULL;
 
 /* Reading tasks queue */
 static DECLARE_WAIT_QUEUE_HEAD(swap_device_wait);
+
+
+static atomic_t flag_wake_up = ATOMIC_INIT(0);
+
+static void __bottom_wake_up(void)
+{
+	if (waitqueue_active(&swap_device_wait))
+		wake_up_interruptible(&swap_device_wait);
+}
+
+static void bottom_wake_up(struct work_struct *work)
+{
+	if (atomic_read(&flag_wake_up)) {
+		atomic_set(&flag_wake_up, 0);
+		__bottom_wake_up();
+	}
+}
+
+static DECLARE_WORK(w_wake_up, bottom_wake_up);
+
+static void exit_w_wake_up(void)
+{
+	flush_scheduled_work();
+	__bottom_wake_up();
+}
+
 
 /* We need this realization of splice_shrink_spd() because of the its desing
  * frequent changes that I have encountered in custom kernels */
@@ -192,6 +219,8 @@ init_fail:
 /* Unregister device TODO Check wether driver is registered */
 void swap_device_exit(void)
 {
+	exit_w_wake_up();
+
 	splice_to_pipe_p = NULL;
 	splice_grow_spd_p = NULL;
 
@@ -436,7 +465,10 @@ swap_device_splice_read_error:
 
 void swap_device_wake_up_process(void)
 {
-	wake_up_interruptible(&swap_device_wait);
+	if (atomic_read(&flag_wake_up) == 0) {
+		atomic_set(&flag_wake_up, 1);
+		schedule_work(&w_wake_up);
+	}
 }
 
 void set_msg_handler(msg_handler_t mh)
