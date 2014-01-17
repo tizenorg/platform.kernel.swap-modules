@@ -50,6 +50,8 @@
 
 #define SWAP_DEVICE_NAME "swap_device"
 
+#define MAXIMUM_SUBBUFFER_SIZE (64 * 1024)
+
 /* swap_device driver routines */
 static int swap_device_open(struct inode *inode, struct file *filp);
 static int swap_device_release(struct inode *inode, struct file *file);
@@ -305,6 +307,12 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 			result = copy_from_user(&initialize_struct, (void*)arg,
 									sizeof(struct buffer_initialize));
 			if (result) {
+				break;
+			}
+
+			if (initialize_struct.size > MAXIMUM_SUBBUFFER_SIZE) {
+				print_err("Wrong subbuffer size\n");
+				result = -E_SD_WRONG_ARGS;
 				break;
 			}
 
