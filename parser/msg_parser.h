@@ -33,7 +33,8 @@ struct msg_buf;
 enum APP_TYPE {
 	AT_TIZEN_NATIVE_APP	= 0x01,
 	AT_PID			= 0x02,
-	AT_COMMON_EXEC		= 0x03
+	AT_COMMON_EXEC		= 0x03,
+	AT_TIZEN_WEB_APP	= 0x04
 };
 
 enum {

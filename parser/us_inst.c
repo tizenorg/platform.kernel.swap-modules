@@ -120,6 +120,7 @@ static int get_pfg_by_app_info(struct app_info_data *app_info, struct pf_group *
 		*pfg = get_pf_group_by_tgid(app_info->tgid, dentry);
 		break;
 	case AT_TIZEN_NATIVE_APP:
+	case AT_TIZEN_WEB_APP:
 	case AT_COMMON_EXEC:
  pf_dentry:
 		*pfg = get_pf_group_by_dentry(dentry, dentry);

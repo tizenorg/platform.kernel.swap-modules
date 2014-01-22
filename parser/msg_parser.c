@@ -93,6 +93,7 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 
 	switch (app_type) {
 	case AT_TIZEN_NATIVE_APP:
+	case AT_TIZEN_WEB_APP:
 	case AT_COMMON_EXEC:
 		ai->tgid = 0;
 		break;
