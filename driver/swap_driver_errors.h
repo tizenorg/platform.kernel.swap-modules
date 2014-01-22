@@ -45,7 +45,10 @@ enum _swap_driver_errors {
 	E_SD_WRONG_ARGS = 12,	   /* Arguments, passed to the func, doesn't 
 					   pass sanity check */
 	E_SD_NO_MEMORY = 13,		/* No memory to allocate */
-	E_SD_UNINIT_ERROR = 14	  /* swap_buffer uninitialization error */
+	E_SD_UNINIT_ERROR = 14,	   /* swap_buffer uninitialization error */
+	E_SD_NL_INIT_ERR = 15,	   /* Netlink init error */
+	E_SD_NL_MSG_ERR = 16,	   /* Netlink message send error */
+	E_SD_NO_DAEMON_PID = 17	   /* No daemon pid in us_interaction */
 };
 
 #endif /* __SWAP_DRIVER_ERRORS_H__ */

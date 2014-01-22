@@ -27,6 +27,7 @@
 #include "driver_defs.h"
 #include "device_driver.h"
 #include "swap_debugfs.h"
+#include "us_interaction.h"
 
 static int __init swap_driver_init(void)
 {
@@ -36,14 +37,29 @@ static int __init swap_driver_init(void)
 	if (ret)
 		return ret;
 
-	swap_device_init();
+	ret = swap_device_init();
+	if (ret)
+		goto dev_init_fail;
+
+	ret = us_interaction_create();
+	if (ret)
+		goto interact_create_fail;
+
 	print_msg("Driver module initialized\n");
 
 	return 0;
+
+dev_init_fail:
+	swap_debugfs_exit();
+interact_create_fail:
+	swap_device_exit();
+
+	return ret;
 }
 
 static void __exit swap_driver_exit(void)
 {
+	us_interaction_destroy();
 	swap_device_exit();
 	swap_debugfs_exit();
 	print_msg("Driver module uninitialized\n");
