@@ -37,6 +37,7 @@
 #include "driver_defs.h"
 #include "swap_driver_errors.h"
 #include "device_driver_to_driver_to_buffer.h"
+#include "app_manage.h"
 
 /* Current busy buffer */
 static struct swap_subbuffer *busy_buffer = NULL;
@@ -251,9 +252,9 @@ int driver_to_buffer_initialize(size_t size, unsigned int count)
 		.nr_subbuffers = count,
 		.subbuffer_full_cb = driver_to_buffer_callback,
 		.lower_threshold = 20,
-		.low_mem_cb = NULL,
+		.low_mem_cb = app_manage_pause_apps,
 		.top_threshold = 80,
-		.enough_mem_cb = NULL,
+		.enough_mem_cb = app_manage_cont_apps,
 	};
 
 	if (size == 0 && count == 0) {
