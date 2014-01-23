@@ -97,11 +97,15 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 		ai->tgid = 0;
 		break;
 	case AT_PID: {
-		u32 tgid;
-		ret = str_to_u32(ta_id, &tgid);
-		if (ret) {
-			print_err("converting string to PID, str='%s'\n", ta_id);
-			goto free_ai;
+		u32 tgid = 0;
+
+		if (*ta_id != '\0') {
+			ret = str_to_u32(ta_id, &tgid);
+			if (ret) {
+				print_err("converting string to PID, "
+					  "str='%s'\n", ta_id);
+				goto free_ai;
+			}
 		}
 
 		ai->tgid = tgid;
