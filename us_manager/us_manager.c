@@ -28,6 +28,8 @@
 #include "sspt/sspt_proc.h"
 #include "helper.h"
 #include "us_manager.h"
+#include "debugfs_us_manager.h"
+
 #include <writer/event_filter.h>
 
 /* FIXME: move /un/init_msg() elsewhere and remove this include  */
@@ -180,15 +182,29 @@ static int __init init_us_manager(void)
 
 	ret = init_us_filter();
 	if (ret)
-		return ret;
+		goto us_filter_init_fail;
 
 	init_msg(32*1024);
 
 	ret = init_helper();
 	if (ret)
-		return ret;
+		goto helper_init_fail;
+
+	ret = init_debugfs_us_manager();
+	if (ret)
+		goto debugfs_init_fail;
 
 	return 0;
+
+debugfs_init_fail:
+	uninit_helper();
+
+helper_init_fail:
+	uninit_msg();
+	exit_us_filter();
+
+us_filter_init_fail:
+	return ret;
 }
 
 static void __exit exit_us_manager(void)
@@ -196,6 +212,7 @@ static void __exit exit_us_manager(void)
 	if (status == ST_ON)
 		do_usm_stop();
 
+	exit_debugfs_us_manager();
 	uninit_msg();
 	uninit_helper();
 	exit_us_filter();
