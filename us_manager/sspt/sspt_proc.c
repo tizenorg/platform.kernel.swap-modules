@@ -98,6 +98,8 @@ void sspt_proc_free(struct sspt_proc *proc)
 	}
 
 	sspt_destroy_feature(proc->feature);
+
+	terminate_msg(proc->task);
 	kfree(proc);
 }
 

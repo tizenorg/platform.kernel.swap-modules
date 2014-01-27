@@ -49,6 +49,7 @@
 
 enum MSG_ID {
 	MSG_PROC_INFO			= 0x0001,
+	MSG_TERMINATE			= 0x0002,
 	MSG_ERROR			= 0x0003,
 	MSG_SAMPLE			= 0x0004,
 	MSG_FUNCTION_ENTRY		= 0x0008,
@@ -366,6 +367,41 @@ int proc_info_msg(struct task_struct *task, struct dentry *dentry)
 	return write_to_buffer(buf);
 }
 EXPORT_SYMBOL_GPL(proc_info_msg);
+
+
+
+
+
+/* ============================================================================
+ * =                           PROCESS TERMINATE                              =
+ * ============================================================================
+ */
+
+struct proc_terminate {
+	u32 pid;
+} __attribute__((packed));
+
+static char *pack_proc_terminate(char *payload, struct task_struct *task)
+{
+	struct proc_terminate *pt = (struct proc_terminate *)payload;
+
+	pt->pid = task->pid;
+	return payload + sizeof(*pt);
+}
+
+void terminate_msg(struct task_struct *task)
+{
+	char *buf, *payload, *buf_end;
+
+	buf = get_current_buf();
+	payload = pack_basic_msg_fmt(buf, MSG_TERMINATE);
+	buf_end = pack_proc_terminate(payload, task);
+
+	set_len_msg(buf, buf_end);
+
+	write_to_buffer(buf);
+}
+EXPORT_SYMBOL_GPL(terminate_msg);
 
 
 
