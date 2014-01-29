@@ -75,8 +75,7 @@ struct slot_manager sm;
 DEFINE_PER_CPU(struct kprobe *, current_kprobe) = NULL;
 static DEFINE_PER_CPU(struct kprobe_ctlblk, kprobe_ctlblk);
 
-DEFINE_SPINLOCK(kretprobe_lock);	/* Protects kretprobe_inst_table */
-EXPORT_SYMBOL_GPL(kretprobe_lock);
+static DEFINE_SPINLOCK(kretprobe_lock);	/* Protects kretprobe_inst_table */
 static DEFINE_PER_CPU(struct kprobe *, kprobe_instance) = NULL;
 
 struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
