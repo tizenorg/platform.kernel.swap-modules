@@ -824,14 +824,10 @@ static int dbi_disarm_krp_inst(struct kretprobe_instance *ri);
 
 static void dbi_unregister_kretprobe_top(struct kretprobe *rp)
 {
-	unsigned long flags;
 	struct kretprobe_instance *ri;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	dbi_unregister_kprobe(&rp->kp);
-
-	/* No race here */
-	spin_lock_irqsave(&kretprobe_lock, flags);
 
 	swap_hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
 		if (!dbi_disarm_krp_inst(ri)) {
@@ -840,8 +836,6 @@ static void dbi_unregister_kretprobe_top(struct kretprobe *rp)
 					(unsigned long)rp->kp.addr);
 		}
 	}
-
-	spin_unlock_irqrestore(&kretprobe_lock, flags);
 }
 
 static void dbi_unregister_kretprobe_bottom(struct kretprobe *rp)
@@ -865,9 +859,14 @@ static void dbi_unregister_kretprobe_bottom(struct kretprobe *rp)
 void dbi_unregister_kretprobes(struct kretprobe **rpp, size_t size)
 {
 	size_t i;
+	unsigned long flags;
+
+	spin_lock_irqsave(&kretprobe_lock, flags);
 
 	for (i = 0; i < size; i++)
 		dbi_unregister_kretprobe_top(rpp[i]);
+
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
 
 	if (!in_atomic())
 		synchronize_sched();
