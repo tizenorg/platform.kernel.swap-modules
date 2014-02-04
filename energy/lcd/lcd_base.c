@@ -28,6 +28,7 @@
 #include <linux/fs.h>
 #include <linux/fb.h>
 #include <energy/tm_stat.h>
+#include <energy/debugfs_energy.h>
 #include "lcd_base.h"
 #include "lcd_debugfs.h"
 
@@ -326,7 +327,7 @@ enum ST_LCD_OPS {
 static DEFINE_MUTEX(lcd_lock);
 static enum ST_LCD_OPS stat_lcd_ops[lcd_ops_cnt];
 
-void lcd_exit(void)
+static void do_lcd_exit(void)
 {
 	int i;
 	struct lcd_ops *ops;
@@ -348,7 +349,13 @@ void lcd_exit(void)
 	mutex_unlock(&lcd_lock);
 }
 
-int lcd_init(void)
+void lcd_exit(void)
+{
+	do_lcd_exit();
+	exit_lcd_debugfs();
+}
+
+static int do_lcd_init(void)
 {
 	int i, ret, count = 0;
 	struct lcd_ops *ops;
@@ -380,7 +387,29 @@ int lcd_init(void)
 	return count ? 0 : -EPERM;
 }
 
+int lcd_init(void)
+{
+	int ret;
+	struct dentry *energy_dir;
 
+	energy_dir = get_energy_dir();
+	if (energy_dir == NULL) {
+		printk("Cannot energy_dir\n");
+		return -ENOENT;
+	}
+
+	ret = init_lcd_debugfs(energy_dir);
+	if (ret)
+		return ret;
+
+	ret = do_lcd_init();
+	if (ret) {
+		printk("LCD is not supported\n");
+		exit_lcd_debugfs();
+	}
+
+	return ret;
+}
 
 
 

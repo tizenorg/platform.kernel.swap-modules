@@ -41,10 +41,14 @@ echo 69998585 > /sys/kernel/debug/swap/energy/flash_read/denominator &&
 echo 131443 > /sys/kernel/debug/swap/energy/flash_write/numerator &&
 echo 31129333 > /sys/kernel/debug/swap/energy/flash_write/denominator &&
 
-# lcd max (white max - black max) / 2: 255 / 1
-echo 255 > `ls /sys/kernel/debug/swap/energy/lcd/*/max_num` &&
-echo 1000000 > `ls /sys/kernel/debug/swap/energy/lcd/*/max_denom` &&
+# LCD:
+if [ -d /sys/kernel/debug/swap/energy/lcd/ ]
+then
+	# lcd max (white max - black max) / 2: 255 / 1
+	echo 255 > `ls /sys/kernel/debug/swap/energy/lcd/*/max_num` &&
+	echo 1000000 > `ls /sys/kernel/debug/swap/energy/lcd/*/max_denom` &&
 
-# lcd min (white min - black min) / 2: 179 / 1
-echo 179 > `ls /sys/kernel/debug/swap/energy/lcd/*/min_num` &&
-echo 1000000 > `ls /sys/kernel/debug/swap/energy/lcd/*/min_denom`
+	# lcd min (white min - black min) / 2: 179 / 1
+	echo 179 > `ls /sys/kernel/debug/swap/energy/lcd/*/min_num` &&
+	echo 1000000 > `ls /sys/kernel/debug/swap/energy/lcd/*/min_denom`
+fi

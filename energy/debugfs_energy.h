@@ -25,7 +25,14 @@
  *
  */
 
+
+struct dentry;
+
+
 int init_debugfs_energy(void);
 void exit_debugfs_energy(void);
+
+struct dentry *get_energy_dir(void);
+
 
 #endif /* _DEBUGFS_ENERGY_H */

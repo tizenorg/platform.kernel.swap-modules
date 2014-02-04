@@ -585,12 +585,10 @@ int energy_init(void)
 	}
 
 	ret = lcd_init();
-	if (ret) {
-		printk("Cannot init LCD\n");
-		uninit_feature();
-	}
+	if (ret)
+		printk("Cannot init LCD, ret=%d\n", ret);
 
-	return ret;
+	return 0;
 }
 
 void energy_uninit(void)

@@ -201,9 +201,13 @@ enum {
  */
 static struct dentry *energy_dir = NULL;
 
+struct dentry *get_energy_dir(void)
+{
+	return energy_dir;
+}
+
 void exit_debugfs_energy(void)
 {
-	exit_lcd_debugfs();
 	if (energy_dir)
 		debugfs_remove_recursive(energy_dir);
 
@@ -212,7 +216,7 @@ void exit_debugfs_energy(void)
 
 int init_debugfs_energy(void)
 {
-	int i, ret = -ENOMEM;
+	int i;
 	struct dentry *swap_dir, *dentry;
 
 	swap_dir = get_swap_debugfs_dir();
@@ -229,13 +233,9 @@ int init_debugfs_energy(void)
 			goto fail;
 	}
 
-	ret = init_lcd_debugfs(energy_dir);
-	if (ret)
-		goto fail;
-
 	return 0;
 
 fail:
 	exit_debugfs_energy();
-	return ret;
+	return -ENOMEM;
 }
