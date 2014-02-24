@@ -198,6 +198,25 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv)
 }
 EXPORT_SYMBOL_GPL(get_pf_group_by_tgid);
 
+struct pf_group *get_pf_group_dumb(void *priv)
+{
+	struct pf_group *pfg;
+	struct proc_filter *filter;
+
+	list_for_each_entry(pfg, &pfg_list, list) {
+		if (check_pf_dumb(pfg->filter))
+			return pfg;
+	}
+
+	filter = create_pf_dumb(pfg->filter);
+	pfg = create_pfg(filter);
+
+	add_pfg_by_list(pfg);
+
+	return pfg;
+}
+EXPORT_SYMBOL_GPL(get_pf_group_dumb);
+
 void put_pf_group(struct pf_group *pfg)
 {
 

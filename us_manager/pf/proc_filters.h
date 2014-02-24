@@ -42,10 +42,12 @@ struct proc_filter {
 
 struct proc_filter *create_pf_by_dentry(struct dentry *dentry, void *priv);
 struct proc_filter *create_pf_by_tgid(pid_t tgid, void *priv);
+struct proc_filter *create_pf_dumb(void *priv);
 void free_pf(struct proc_filter *pf);
 
 int check_pf_by_dentry(struct proc_filter *filter, struct dentry *dentry);
 int check_pf_by_tgid(struct proc_filter *filter, pid_t tgid);
+int check_pf_dumb(struct proc_filter *filter);
 struct dentry *get_dentry_by_pf(struct proc_filter *filter);
 
 #endif /* _PROC_FILTERS_H */

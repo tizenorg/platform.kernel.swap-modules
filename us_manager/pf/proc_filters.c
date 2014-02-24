@@ -70,6 +70,13 @@ static struct task_struct *call_by_tgid(struct proc_filter *self,
 	return NULL;
 }
 
+/* Dumb call. Each task is exactly what we are looking for :) */
+static struct task_struct *call_dumb(struct proc_filter *self,
+				     struct task_struct *task)
+{
+	return task;
+}
+
 static struct proc_filter *create_pf(void)
 {
 	struct proc_filter *pf = kmalloc(sizeof(*pf), GFP_KERNEL);
@@ -98,6 +105,17 @@ struct proc_filter *create_pf_by_tgid(pid_t tgid, void *priv)
 	return pf;
 }
 
+struct proc_filter *create_pf_dumb(void *priv)
+{
+	struct proc_filter *pf = create_pf();
+
+	pf->call = &call_dumb;
+	pf->data = NULL;
+	pf->priv = priv;
+
+	return pf;
+}
+
 void free_pf(struct proc_filter *pf)
 {
 	kfree(pf);
@@ -112,6 +130,11 @@ int check_pf_by_dentry(struct proc_filter *filter, struct dentry *dentry)
 int check_pf_by_tgid(struct proc_filter *filter, pid_t tgid)
 {
 	return filter->data == (void *)tgid && filter->call == &call_by_tgid;
+}
+
+int check_pf_dumb(struct proc_filter *filter)
+{
+	return filter->call == &call_dumb;
 }
 
 struct dentry *get_dentry_by_pf(struct proc_filter *filter)
