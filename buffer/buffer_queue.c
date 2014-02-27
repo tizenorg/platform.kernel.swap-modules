@@ -49,7 +49,7 @@
 
 /* Queue structure. Consist of pointers to the first and the last elements of
  * queue. */
-struct queue {
+struct queue_t {
 	struct swap_subbuffer *start_ptr;
 	struct swap_subbuffer *end_ptr;
 	unsigned int subbuffers_count;
@@ -57,7 +57,7 @@ struct queue {
 };
 
 /* Write queue */
-struct queue write_queue = {
+struct queue_t write_queue = {
 	.start_ptr = NULL,
 	.end_ptr = NULL,
 	.subbuffers_count = 0,
@@ -67,7 +67,7 @@ struct queue write_queue = {
 };
 
 /* Read queue */
-struct queue read_queue = {
+struct queue_t read_queue = {
 	.start_ptr = NULL,
 	.end_ptr = NULL,
 	.subbuffers_count = 0,
@@ -391,7 +391,7 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 	struct swap_subbuffer *result = NULL;
 
 	/* Callbacks are called at the end of the function to prevent deadlocks */
-	struct queue callback_queue = {
+	struct queue_t callback_queue = {
 		.start_ptr = NULL,
 		.end_ptr = NULL,
 		.queue_sync = {
@@ -531,21 +531,6 @@ int remove_from_busy_list(struct swap_subbuffer *subbuffer)
 
 	/* Unlock busy list sync primitive */
 	sync_unlock(&buffer_busy_sync);
-
-	return result;
-}
-
-/* Get subbuffers count in read list */
-/* XXX Think about locks */
-int get_full_buffers_count(void)
-{
-	int result = 0;
-	struct swap_subbuffer *buffer = read_queue.start_ptr;
-
-	while (buffer && buffer->full_buffer_part) {
-		result += 1;
-		buffer = buffer->next_in_queue;
-	}
 
 	return result;
 }

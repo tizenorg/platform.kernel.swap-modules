@@ -70,6 +70,6 @@ int swap_buffer_get(struct swap_subbuffer **subbuffer);
 int swap_buffer_release(struct swap_subbuffer **subbuffer);
 
 /* SWAP Buffer flush. Puts all buffers to read queue and returns their count. */
-int swap_buffer_flush(void);
+unsigned int swap_buffer_flush(void);
 
 #endif /* __SWAP_BUFFER_MODULE_H__ */
