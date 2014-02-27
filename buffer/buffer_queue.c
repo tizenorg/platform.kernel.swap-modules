@@ -312,6 +312,16 @@ static unsigned int is_buffer_enough(struct swap_subbuffer *subbuffer,
 	return ((queue_subbuffer_size-subbuffer->full_buffer_part) >= size) ? 1 : 0;
 }
 
+static void next_queue_element(struct queue_t *queue)
+{
+	/* If we reached the last elemenet, end pointer should point to NULL */
+	if (queue->start_ptr == queue->end_ptr)
+		queue->end_ptr = NULL;
+
+	queue->start_ptr = queue->start_ptr->next_in_queue;
+	--queue->subbuffers_count;
+}
+
 /* Get first subbuffer from read list */
 struct swap_subbuffer *get_from_read_list(void)
 {
@@ -327,14 +337,7 @@ struct swap_subbuffer *get_from_read_list(void)
 
 	result = read_queue.start_ptr;
 
-	/* If this is the last readable buffer, read_queue.start_ptr next time will 
-	 * points to NULL and that case is handled in the beginning of function
-	 */
-	if (read_queue.start_ptr == read_queue.end_ptr) {
-		read_queue.end_ptr = NULL;
-	}
-	read_queue.start_ptr = read_queue.start_ptr->next_in_queue;
-	--read_queue.subbuffers_count;
+	next_queue_element(&read_queue);
 
 get_from_read_list_unlock:
 	/* Unlock read sync primitive */
@@ -427,14 +430,7 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 		} else {
 			result = write_queue.start_ptr;
 
-			/* If we reached end of the list */
-			if (write_queue.start_ptr == write_queue.end_ptr) {
-				write_queue.end_ptr = NULL;
-			}
-
-			/* Move start write pointer */
-			write_queue.start_ptr = write_queue.start_ptr->next_in_queue;
-			--write_queue.subbuffers_count;
+			next_queue_element(&write_queue);
 
 			/* Add to callback list */
 			if (!callback_queue.start_ptr)
@@ -551,14 +547,7 @@ void buffer_queue_flush(void)
 		sync_lock(&buffer->buffer_sync);
 
 		buffer = write_queue.start_ptr;
-
-		/* If we reached end of the list */
-		if (write_queue.start_ptr == write_queue.end_ptr) {
-			write_queue.end_ptr = NULL;
-		}
-		write_queue.start_ptr = write_queue.start_ptr->next_in_queue;
-		--write_queue.subbuffers_count;
-
+		next_queue_element(&write_queue);
 		add_to_read_list(buffer);
 
 		/* Unlock buffer sync primitive */
