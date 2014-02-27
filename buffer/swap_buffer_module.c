@@ -34,20 +34,20 @@
 enum _swap_buffer_status_mask {
 	BUFFER_FREE = 0,
 	BUFFER_ALLOC = 1,
-	BUFFER_STOP = 2,
+	BUFFER_PAUSE = 2,
 	BUFFER_WORK = 4
 };
 
 /* Buffer status masks:
- *  0 - memory free
- *  1 - memory allocated 
- * 0  - buffer stop
- * 1  - buffer work
+ *   0 - memory free
+ *   1 - memory allocated
+ *  10 - buffer overflow
+ * 100 - buffer work
  * */
-static unsigned char swap_buffer_status = 0;
+static unsigned char swap_buffer_status = BUFFER_FREE;
 
 /* Callback type */
-typedef int(*subbuffer_callback_type)(void *);
+typedef int(*subbuffer_callback_type)(void);
 
 /* Callback that is called when full subbuffer appears */
 static subbuffer_callback_type subbuffer_callback = NULL;
@@ -57,6 +57,11 @@ static size_t subbuffers_size = 0;
 
 /* Subbuffers count */
 static unsigned int subbuffers_num = 0;
+
+static unsigned int enough_writable_bufs = 0;
+static unsigned int min_writable_bufs = 0;
+static int (*low_mem_cb)(void) = NULL;
+static int (*enough_mem_cb)(void) = NULL;
 
 
 static inline int areas_overlap(const void *area1,const void *area2, size_t size)
@@ -70,27 +75,44 @@ static inline int areas_overlap(const void *area1,const void *area2, size_t size
 	return 0;
 }
 
-int swap_buffer_init(size_t subbuffer_size, unsigned int nr_subbuffers,
-		     int (*subbuffer_full_callback)(void))
+static inline unsigned int percent_to_count(unsigned char percent,
+					     unsigned int cnt)
+{
+	return (percent * cnt) / 100;
+}
+
+int swap_buffer_init(struct buffer_init_t *buf_init)
 {
 	int result = -1;
 
 	swap_buffer_status &= ~BUFFER_WORK;
 	print_debug("status buffer stop = %d\n", swap_buffer_status);
 
+	if ((buf_init->top_threshold > 100) || (buf_init->lower_threshold > 100) ||
+	    (buf_init->top_threshold < buf_init->lower_threshold))
+		return -E_SB_WRONG_THRESHOLD;
+
+	min_writable_bufs = percent_to_count(buf_init->lower_threshold,
+					     buf_init->nr_subbuffers);
+
+	enough_writable_bufs = percent_to_count(buf_init->top_threshold,
+						buf_init->nr_subbuffers);
+
+	low_mem_cb = buf_init->low_mem_cb;
+	enough_mem_cb = buf_init->enough_mem_cb;
+
 	if ((swap_buffer_status & BUFFER_ALLOC) &&
-		(subbuffers_size == subbuffer_size) &&
-		(subbuffers_num == nr_subbuffers) &&
-		((subbuffer_callback_type)subbuffer_full_callback ==
-		 subbuffer_callback)) {
+		(subbuffers_size == buf_init->subbuffer_size) &&
+		(subbuffers_num == buf_init->nr_subbuffers) &&
+		((subbuffer_callback_type)subbuffer_callback ==
+				  buf_init->subbuffer_full_cb)) {
 		result = buffer_queue_reset();
 		goto swap_buffer_init_work;
 	}
 
-	// TODO Test if wrong function type
-	subbuffer_callback = (subbuffer_callback_type)subbuffer_full_callback;
-	subbuffers_size = subbuffer_size;
-	subbuffers_num = nr_subbuffers;
+	subbuffer_callback = buf_init->subbuffer_full_cb;
+	subbuffers_size = buf_init->subbuffer_size;
+	subbuffers_num = buf_init->nr_subbuffers;
 
 	result = buffer_queue_allocation(subbuffers_size, subbuffers_num);
 	if (result < 0)
@@ -130,6 +152,10 @@ int swap_buffer_uninit(void)
 	subbuffer_callback = NULL;
 	subbuffers_size = 0;
 	subbuffers_num = 0;
+	min_writable_bufs = 0;
+	enough_writable_bufs = 0;
+	low_mem_cb = NULL;
+	enough_mem_cb = NULL;
 
 	swap_buffer_status &= ~BUFFER_ALLOC;
 	print_debug("status buffer dealloc = %d\n", swap_buffer_status);
@@ -247,7 +273,7 @@ int swap_buffer_callback(void *buffer)
 		return -E_SB_NO_CALLBACK;
 	}
 
-	result = subbuffer_callback(buffer);
+	result = subbuffer_callback();
 	if (result < 0)
 		print_err("Callback error! Error code: %d\n", result);
 

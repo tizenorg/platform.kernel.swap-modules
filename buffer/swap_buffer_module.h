@@ -31,11 +31,26 @@
 
 struct swap_subbuffer;
 
+struct buffer_init_t {
+	size_t subbuffer_size;
+	unsigned int nr_subbuffers;
+	int (*subbuffer_full_cb)(void);
+
+	/* Lower threshold in percent. When buffers fall below this limit
+	 * low_mem_cb is called and swap_buffer is suspended. */
+	unsigned char lower_threshold;
+	int (*low_mem_cb)(void);
+
+	/* Top threshold in percent. When buffers exceed this limit
+	 * enough_mem_cb is called */
+	unsigned char top_threshold;
+	int (*enough_mem_cb)(void);
+};
+
 /* SWAP Buffer initialization function. Call it before using buffer.
  * Returns memory pages count (>0) in one subbuffer on success, or error code
  * (<0) otherwise. */
-int swap_buffer_init(size_t subbuffer_size, unsigned int nr_subbuffers,
-		     int (*subbuffer_full_callback)(void));
+int swap_buffer_init(struct buffer_init_t *buf_init);
 
 /* SWAP Buffer uninitialization function. Call it every time before removing
  * this module. 
