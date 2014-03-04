@@ -26,21 +26,25 @@ insmod swap_message_parser.ko || exit 1  # parser is loaded
 #  - they were calculated for mAs
 #  - result should be exposed in uAs
 
-# cpu idle: 76.8301 / 1
-echo 76830 > /sys/kernel/debug/swap/energy/cpu_idle/numerator &&
+# cpu idle: 62.27 / 1
+echo 62270 > /sys/kernel/debug/swap/energy/cpu_idle/numerator &&
 echo 1000000000 > /sys/kernel/debug/swap/energy/cpu_idle/denominator &&
 
-# cpu running: 253.29 / 1
-echo 253290 > /sys/kernel/debug/swap/energy/cpu_running/numerator &&
+# cpu0 running: 213.21 / 1
+echo 213210 > /sys/kernel/debug/swap/energy/cpu_running/numerator &&
 echo 1000000000 > /sys/kernel/debug/swap/energy/cpu_running/denominator &&
 
-# flash read:  106.249 / 69998585
-echo 106249 > /sys/kernel/debug/swap/energy/flash_read/numerator &&
-echo 69998585 > /sys/kernel/debug/swap/energy/flash_read/denominator &&
+# cpuN running: 97.29 / 1
+echo 97290 > /sys/kernel/debug/swap/energy/cpuN_running/numerator &&
+echo 1000000000 > /sys/kernel/debug/swap/energy/cpuN_running/denominator &&
 
-# flash write: 131.443 / 31129333
-echo 131443 > /sys/kernel/debug/swap/energy/flash_write/numerator &&
-echo 31129333 > /sys/kernel/debug/swap/energy/flash_write/denominator &&
+# flash read:  74.32 / 33154239
+echo 74320 > /sys/kernel/debug/swap/energy/flash_read/numerator &&
+echo 33154239 > /sys/kernel/debug/swap/energy/flash_read/denominator &&
+
+# flash write: 141.54 / 27920983
+echo 141540 > /sys/kernel/debug/swap/energy/flash_write/numerator &&
+echo 27920983 > /sys/kernel/debug/swap/energy/flash_write/denominator &&
 
 # LCD:
 if [ -d /sys/kernel/debug/swap/energy/lcd/ ]
