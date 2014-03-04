@@ -29,6 +29,7 @@
 #include <linux/spinlock.h>
 #include <linux/magic.h>
 #include <linux/slab.h>
+#include <linux/spinlock.h>
 #include <kprobe/dbi_kprobes.h>
 #include <ksyms/ksyms.h>
 #include <us_manager/sspt/sspt_proc.h>
@@ -44,12 +45,18 @@
  * ============================================================================
  */
 struct cpus_time {
+	spinlock_t lock; /* for concurrent access */
 	struct tm_stat tm[NR_CPUS];
 };
+
+#define cpus_time_lock(ct, flags) spin_lock_irqsave(&(ct)->lock, flags)
+#define cpus_time_unlock(ct, flags) spin_unlock_irqrestore(&(ct)->lock, flags)
 
 static void cpus_time_init(struct cpus_time *ct, u64 time)
 {
 	int cpu;
+
+	spin_lock_init(&ct->lock);
 
 	for (cpu = 0; cpu < NR_CPUS; ++cpu) {
 		tm_stat_init(&ct->tm[cpu]);
@@ -57,25 +64,55 @@ static void cpus_time_init(struct cpus_time *ct, u64 time)
 	}
 }
 
-static u64 cpus_time_get_running_all(struct cpus_time *ct)
+static inline u64 cpu_time_get_running(struct cpus_time *ct, int cpu, u64 now)
 {
-	u64 time = 0;
+	return tm_stat_current_running(&ct->tm[cpu], now);
+}
+
+static void *cpus_time_get_running_all(struct cpus_time *ct, u64 *buf, u64 now)
+{
 	int cpu;
 
 	for (cpu = 0; cpu < NR_CPUS; ++cpu)
-		time += tm_stat_running(&ct->tm[cpu]);
+		buf[cpu] = tm_stat_current_running(&ct->tm[cpu], now);
 
-	return time;
+	return buf;
+}
+
+static void *cpus_time_sum_running_all(struct cpus_time *ct, u64 *buf, u64 now)
+{
+	int cpu;
+
+	for (cpu = 0; cpu < NR_CPUS; ++cpu)
+		buf[cpu] += tm_stat_current_running(&ct->tm[cpu], now);
+
+	return buf;
 }
 
 static void cpus_time_save_entry(struct cpus_time *ct, int cpu, u64 time)
 {
+	struct tm_stat *tm = &ct->tm[cpu];
+
+	if (unlikely(tm_stat_timestamp(tm))) /* should never happen */
+		printk("XXX %s[%d/%d]: WARNING tmstamp(%p) set on cpu(%d)\n",
+		       current->comm, current->tgid, current->pid, tm, cpu);
 	tm_stat_set_timestamp(&ct->tm[cpu], time);
 }
 
-static void cpus_time_update_running(struct cpus_time *ct, int cpu, u64 time)
+static void cpus_time_update_running(struct cpus_time *ct, int cpu, u64 now,
+				     u64 start_time)
 {
-	tm_stat_update(&ct->tm[cpu], time);
+	struct tm_stat *tm = &ct->tm[cpu];
+
+	if (unlikely(tm_stat_timestamp(tm) == 0)) {
+		 /* not initialized. should happen only once per cpu/task */
+		printk("XXX %s[%d/%d]: nnitializing tmstamp(%p) on cpu(%d)\n",
+		       current->comm, current->tgid, current->pid, tm, cpu);
+		tm_stat_set_timestamp(tm, start_time);
+	}
+
+	tm_stat_update(tm, now);
+	tm_stat_set_timestamp(tm, 0); /* set timestamp to 0 */
 }
 
 
@@ -98,7 +135,10 @@ static sspt_feature_id_t feature_id = SSPT_FEATURE_ID_BAD;
 
 static void init_ed(struct energy_data *ed)
 {
-	cpus_time_init(&ed->ct, get_ntime());
+	/* instead of get_ntime(), CPU time is initialized to 0 here. Timestamp
+	 * value will be properly set when the corresponding __switch_to event
+	 * occurs */
+	cpus_time_init(&ed->ct, 0);
 	atomic64_set(&ed->bytes_read, 0);
 	atomic64_set(&ed->bytes_written, 0);
 }
@@ -215,15 +255,18 @@ static unsigned long get_arg0(struct pt_regs *regs)
 
 static struct cpus_time ct_idle;
 static struct energy_data ed_system;
+static u64 start_time;
 
 static void init_data_energy(void)
 {
+	start_time = get_ntime();
 	init_ed(&ed_system);
-	cpus_time_init(&ct_idle, get_ntime());
+	cpus_time_init(&ct_idle, 0);
 }
 
 static void uninit_data_energy(void)
 {
+	start_time = 0;
 	uninit_ed(&ed_system);
 	cpus_time_init(&ct_idle, 0);
 }
@@ -239,18 +282,24 @@ static void uninit_data_energy(void)
 static int entry_handler_switch(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	int cpu;
-	u64 time;
-	struct cpus_time* ct;
+	struct cpus_time *ct;
 	struct energy_data *ed;
+	unsigned long flags;
 
 	cpu = smp_processor_id();
-	time = get_ntime();
-	ct = current->tgid ? &ed_system.ct : &ct_idle;
-	cpus_time_update_running(ct, cpu, time);
+
+	ct = current->tgid ? &ed_system.ct: &ct_idle;
+	cpus_time_lock(ct, flags);
+	cpus_time_update_running(ct, cpu, get_ntime(), start_time);
+	cpus_time_unlock(ct, flags);
 
 	ed = get_energy_data(current);
-	if (ed)
-		cpus_time_update_running(&ed->ct, cpu, time);
+	if (ed) {
+		ct = &ed->ct;
+		cpus_time_lock(ct, flags);
+		cpus_time_update_running(ct, cpu, get_ntime(), start_time);
+		cpus_time_unlock(ct, flags);
+	}
 
 	return 0;
 }
@@ -258,18 +307,24 @@ static int entry_handler_switch(struct kretprobe_instance *ri, struct pt_regs *r
 static int ret_handler_switch(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	int cpu;
-	u64 time;
-	struct cpus_time* ct;
+	struct cpus_time *ct;
 	struct energy_data *ed;
+	unsigned long flags;
 
 	cpu = smp_processor_id();
-	time = get_ntime();
-	ct = current->tgid ? &ed_system.ct : &ct_idle;
-	cpus_time_save_entry(ct, cpu, time);
+
+	ct = current->tgid ? &ed_system.ct: &ct_idle;
+	cpus_time_lock(ct, flags);
+	cpus_time_save_entry(ct, cpu, get_ntime());
+	cpus_time_unlock(ct, flags);
 
 	ed = get_energy_data(current);
-	if (ed)
-		cpus_time_save_entry(&ed->ct, cpu, time);
+	if (ed) {
+		ct = &ed->ct;
+		cpus_time_lock(ct, flags);
+		cpus_time_save_entry(ct, cpu, get_ntime());
+		cpus_time_unlock(ct, flags);
+	}
 
 	return 0;
 }
@@ -386,7 +441,8 @@ enum parameter_type {
 
 struct cmd_pt {
 	enum parameter_type pt;
-	u64 val;
+	void *buf;
+	int sz;
 };
 
 static void callback_for_proc(struct sspt_proc *proc, void *data)
@@ -395,17 +451,21 @@ static void callback_for_proc(struct sspt_proc *proc, void *data)
 	struct energy_data *ed = (struct energy_data *)f_data;
 
 	if (ed) {
+		unsigned long flags;
 		struct cmd_pt *cmdp = (struct cmd_pt *)data;
+		u64 *val = cmdp->buf;
 
 		switch (cmdp->pt) {
 		case PT_CPU:
-			cmdp->val += cpus_time_get_running_all(&ed->ct);
+			cpus_time_lock(&ed->ct, flags);
+			cpus_time_sum_running_all(&ed->ct, val, get_ntime());
+			cpus_time_unlock(&ed->ct, flags);
 			break;
 		case PT_READ:
-			cmdp->val += atomic64_read(&ed->bytes_read);
+			*val += atomic64_read(&ed->bytes_read);
 			break;
 		case PT_WRITE:
-			cmdp->val += atomic64_read(&ed->bytes_written);
+			*val += atomic64_read(&ed->bytes_written);
 			break;
 		default:
 			break;
@@ -413,49 +473,58 @@ static void callback_for_proc(struct sspt_proc *proc, void *data)
 	}
 }
 
-static u64 current_parameter_apps(enum parameter_type pt)
+static int current_parameter_apps(enum parameter_type pt, void *buf, int sz)
 {
 	struct cmd_pt cmdp;
 
 	cmdp.pt = pt;
-	cmdp.val = 0;
+	cmdp.buf = buf;
+	cmdp.sz = sz;
 
 	on_each_proc(callback_for_proc, (void *)&cmdp);
 
-	return cmdp.val;
+	return 0;
 }
 
-u64 get_parameter_energy(enum parameter_energy pe)
+int get_parameter_energy(enum parameter_energy pe, void *buf, size_t sz)
 {
-	u64 val = 0;
+	unsigned long flags;
+	u64 *val = buf; /* currently all parameters are u64 vals */
+	int ret = 0;
 
 	switch (pe) {
 	case PE_TIME_IDLE:
-		val = cpus_time_get_running_all(&ct_idle);
+		cpus_time_lock(&ct_idle, flags);
+		/* for the moment we consider only CPU[0] idle time */
+		*val = cpu_time_get_running(&ct_idle, 0, get_ntime());
+		cpus_time_unlock(&ct_idle, flags);
 		break;
 	case PE_TIME_SYSTEM:
-		val = cpus_time_get_running_all(&ed_system.ct);
+		cpus_time_lock(&ed_system.ct, flags);
+		cpus_time_get_running_all(&ed_system.ct, val, get_ntime());
+		cpus_time_unlock(&ed_system.ct, flags);
 		break;
 	case PE_TIME_APPS:
-		val = current_parameter_apps(PT_CPU);
+		current_parameter_apps(PT_CPU, buf, sz);
 		break;
 	case PE_READ_SYSTEM:
-		val = atomic64_read(&ed_system.bytes_read);
+		*val = atomic64_read(&ed_system.bytes_read);
 		break;
 	case PE_WRITE_SYSTEM:
-		val = atomic64_read(&ed_system.bytes_written);
+		*val = atomic64_read(&ed_system.bytes_written);
 		break;
 	case PE_READ_APPS:
-		val = current_parameter_apps(PT_READ);
+		current_parameter_apps(PT_READ, buf, sz);
 		break;
 	case PE_WRITE_APPS:
-		val = current_parameter_apps(PT_WRITE);
+		current_parameter_apps(PT_WRITE, buf, sz);
 		break;
 	default:
+		ret = -EINVAL;
 		break;
 	}
 
-	return val;
+	return ret;
 }
 
 int do_set_energy(void)

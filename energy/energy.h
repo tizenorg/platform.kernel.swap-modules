@@ -46,6 +46,6 @@ void energy_uninit(void);
 int set_energy(void);
 int unset_energy(void);
 
-u64 get_parameter_energy(enum parameter_energy pe);
+int get_parameter_energy(enum parameter_energy pe, void *buf, size_t sz);
 
 #endif /* _ENERGY_H */

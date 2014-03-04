@@ -34,20 +34,34 @@
 
 
 /* CPU running */
-static DEFINE_RATIONAL(cpu_running_coef);
+static DEFINE_RATIONAL(cpu0_running_coef); /* boot core uses distinct coeff */
+static DEFINE_RATIONAL(cpuN_running_coef);
+
+static u64 __energy_cpu(enum parameter_energy pe)
+{
+	u64 times[NR_CPUS] = { 0 };
+	u64 val = 0;
+	int i;
+
+	if (get_parameter_energy(pe, times, sizeof(times)) == 0) {
+		val = div_u64(times[0] * cpu0_running_coef.num,
+			      cpu0_running_coef.denom);
+		for (i = 1; i < NR_CPUS; i++)
+			val += div_u64(times[i] * cpuN_running_coef.num,
+				       cpuN_running_coef.denom);
+	}
+
+	return val;
+}
 
 static u64 cpu_system(void)
 {
-	u64 time = get_parameter_energy(PE_TIME_SYSTEM);
-
-	return div_u64(time * cpu_running_coef.num, cpu_running_coef.denom);
+	return __energy_cpu(PE_TIME_SYSTEM);
 }
 
 static u64 cpu_apps(void)
 {
-	u64 time = get_parameter_energy(PE_TIME_APPS);
-
-	return div_u64(time * cpu_running_coef.num, cpu_running_coef.denom);
+	return __energy_cpu(PE_TIME_APPS);
 }
 
 
@@ -56,8 +70,9 @@ static DEFINE_RATIONAL(cpu_idle_coef);
 
 static u64 cpu_idle_system(void)
 {
-	u64 time = get_parameter_energy(PE_TIME_IDLE);
+	u64 time = 0;
 
+	get_parameter_energy(PE_TIME_IDLE, &time, sizeof(time));
 	return div_u64(time * cpu_idle_coef.num, cpu_idle_coef.denom);
 }
 
@@ -67,15 +82,17 @@ static DEFINE_RATIONAL(fr_coef);
 
 static u64 fr_system(void)
 {
-	u64 byte = get_parameter_energy(PE_READ_SYSTEM);
+	u64 byte = 0;
 
+	get_parameter_energy(PE_READ_SYSTEM, &byte, sizeof(byte));
 	return div_u64(byte * fr_coef.num, fr_coef.denom);
 }
 
 static u64 fr_apps(void)
 {
-	u64 byte = get_parameter_energy(PE_READ_APPS);
+	u64 byte = 0;
 
+	get_parameter_energy(PE_READ_APPS, &byte, sizeof(byte));
 	return div_u64(byte * fr_coef.num, fr_coef.denom);
 }
 
@@ -85,15 +102,17 @@ static DEFINE_RATIONAL(fw_coef);
 
 static u64 fw_system(void)
 {
-	u64 byte = get_parameter_energy(PE_WRITE_SYSTEM);
+	u64 byte = 0;
 
+	get_parameter_energy(PE_WRITE_SYSTEM, &byte, sizeof(byte));
 	return div_u64(byte * fw_coef.num, fw_coef.denom);
 }
 
 static u64 fw_apps(void)
 {
-	u64 byte = get_parameter_energy(PE_WRITE_APPS);
+	u64 byte = 0;
 
+	get_parameter_energy(PE_WRITE_APPS, &byte, sizeof(byte));
 	return div_u64(byte * fw_coef.num, fw_coef.denom);
 }
 
@@ -163,7 +182,13 @@ rm_name:
 struct param_data parameters[] = {
 	{
 		.name = "cpu_running",
-		.coef = &cpu_running_coef,
+		.coef = &cpu0_running_coef,
+		.system = cpu_system,
+		.apps = cpu_apps
+	},
+	{
+		.name = "cpuN_running",
+		.coef = &cpuN_running_coef,
 		.system = cpu_system,
 		.apps = cpu_apps
 	},
