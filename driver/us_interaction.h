@@ -26,8 +26,28 @@
 #ifndef __US_INTERACTION_H__
 #define __US_INTERACTION_H__
 
+#ifdef CONFIG_CONNECTOR
+
 int us_interaction_create(void);
 void us_interaction_destroy(void);
 int us_interaction_send_msg(const void *data, size_t size);
+
+#else /* CONFIG_CONNECTOR */
+
+static inline int us_interaction_create(void)
+{
+	return -EPERM;
+}
+
+static inline void us_interaction_destroy(void)
+{
+}
+
+static inline int us_interaction_send_msg(const void *data, size_t size)
+{
+	return -EPERM;
+}
+
+#endif /* CONFIG_CONNECTOR */
 
 #endif /* __US_INTERACTION_H__ */

@@ -43,7 +43,7 @@ static int __init swap_driver_init(void)
 
 	ret = us_interaction_create();
 	if (ret)
-		goto interact_create_fail;
+		print_err("Cannot initialize netlink socket\n");
 
 	print_msg("Driver module initialized\n");
 
@@ -51,7 +51,6 @@ static int __init swap_driver_init(void)
 
 dev_init_fail:
 	swap_debugfs_exit();
-interact_create_fail:
 	swap_device_exit();
 
 	return ret;

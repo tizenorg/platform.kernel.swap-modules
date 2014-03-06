@@ -5,5 +5,8 @@ obj-m := swap_driver.o
 swap_driver-y := swap_driver_module.o \
                      device_driver.o \
                      driver_to_buffer.o \
-                     swap_debugfs.o \
-                     us_interaction.o
+                     swap_debugfs.o
+
+ifeq ($(CONFIG_CONNECTOR),y)
+	swap_driver-y += us_interaction.o
+endif
