@@ -294,7 +294,6 @@ struct kprobe *get_ukprobe(void *addr, pid_t tgid)
  */
 void add_uprobe_table(struct kprobe *p)
 {
-	INIT_HLIST_NODE(&p->is_hlist);
 	hlist_add_head_rcu(&p->is_hlist, &uprobe_insn_slot_table[hash_ptr(p->ainsn.insn, UPROBE_HASH_BITS)]);
 }
 
@@ -513,6 +512,8 @@ int swap_register_uprobe(struct uprobe *up)
 		goto out;
 	}
 
+	INIT_HLIST_NODE(&p->is_hlist);
+
 	ret = arch_prepare_uprobe(up);
 	if (ret) {
 		DBPRINTF("goto out\n", ret);
@@ -656,6 +657,7 @@ void __swap_unregister_ujprobe(struct ujprobe *jp, int disarm)
 	 * dereference error. That is why we check whether this node
 	 * really belongs to the hlist.
 	 */
+
 	if (!(hlist_unhashed(&jp->up.kp.is_hlist))) {
 		hlist_del_rcu(&jp->up.kp.is_hlist);
 	}
