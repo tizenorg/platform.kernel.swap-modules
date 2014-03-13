@@ -531,6 +531,7 @@ out:
 	DBPRINTF("out ret = 0x%x\n", ret);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(swap_register_uprobe);
 
 /**
  * @brief Unregisters uprobe.
