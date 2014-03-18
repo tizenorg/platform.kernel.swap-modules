@@ -74,4 +74,9 @@ int error_msg(const char *fmt, ...);
 
 int raw_msg(char *buf, size_t len);
 
+int custom_entry_event(unsigned long func_addr, struct pt_regs *regs,
+		       int type, int sub_type, const char *fmt, ...);
+int custom_exit_event(unsigned long func_addr, unsigned long ret_addr,
+		      struct pt_regs *regs, const char *fmt, ...);
+
 #endif /* _SWAP_MSG_H */

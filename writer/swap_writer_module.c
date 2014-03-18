@@ -24,6 +24,7 @@
  */
 
 #include <linux/types.h>
+#include <linux/ctype.h>
 #include <linux/errno.h>
 #include <linux/sched.h>
 #include <linux/dcache.h>
@@ -1054,6 +1055,211 @@ int raw_msg(char *buf, size_t len)
 
 	return len;
 }
+
+
+
+/* ============================================================================
+ * =                              CUSTOM EVENT                                =
+ * ============================================================================
+ */
+
+static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
+{
+	enum { max_str_len = 512 };
+	const char *p;
+	char *buf_orig = buf;
+
+	for (p = fmt; *p != '\0'; p++) {
+		char ch = *p;
+
+		if (len < 1)
+			return -ENOMEM;
+
+		*buf = tolower(ch);
+		buf += 1;
+		len -= 1;
+
+		switch (ch) {
+		case 'b': /* 1 byte(bool) */
+			if (len < 1)
+				return -ENOMEM;
+			*buf = !!(char)va_arg(args, int);
+			buf += 1;
+			len -= 1;
+			break;
+		case 'c': /* 1 byte(char) */
+			if (len < 1)
+				return -ENOMEM;
+			*buf = (char)va_arg(args, int);
+			buf += 1;
+			len -= 1;
+			break;
+		case 'f': /* 4 byte(float) */
+		case 'd': /* 4 byte(int) */
+			if (len < 4)
+				return -ENOMEM;
+			*(u32 *)buf = va_arg(args, u32);
+			buf += 4;
+			len -= 4;
+			break;
+		case 'x': /* 8 byte(long) */
+		case 'w': /* 8 byte(double) */
+			if (len < 8)
+				return -ENOMEM;
+			*(u64 *)buf = va_arg(args, u64);
+			buf += 8;
+			len -= 8;
+			break;
+		case 'p': /* 8 byte(pointer) */
+			if (len < 8)
+				return -ENOMEM;
+			*(u64 *)buf = va_arg(args, unsigned long);
+			buf += 8;
+			len -= 8;
+			break;
+		case 's': /* userspace string with '\0' terminating byte */
+		{
+			const char __user *str;
+			int len_s, n;
+
+			str = va_arg(args, const char __user *);
+			/* strnlen_user includes '\0' in its return value */
+			len_s = strnlen_user(str, max_str_len);
+			if (len < len_s)
+				return -ENOMEM;
+			/* strncpy_from_user returns the length of the copied
+			 * string (without '\0') */
+			n = strncpy_from_user(buf, str, len_s - 1);
+			if (n < 0)
+				return n;
+			buf[n] = '\0';
+
+			buf += n + 1;
+			len -= n + 1;
+			break;
+		}
+		case 'S': /* kernelspace string with '\0' terminating byte */
+		{
+			const char *str;
+			int len_s;
+
+			str = va_arg(args, const char *);
+			len_s = strnlen(str, max_str_len);
+			if (len < len_s + 1) /* + '\0' */
+				return -ENOMEM;
+			strncpy(buf, str, len_s);
+			buf[len_s] = '\0';
+
+			buf += len_s + 1;
+			len -= len_s + 1;
+			break;
+		}
+		case 'a': /* userspace byte array (len + ptr) */
+		{
+			const void __user *ptr;
+			u32 len_p, n;
+
+			len_p = va_arg(args, u32);
+			if (len < sizeof(len_p) + len_p)
+				return -ENOMEM;
+			*(u32 *)buf = len_p;
+			buf += sizeof(len_p);
+			len -= sizeof(len_p);
+
+			ptr = va_arg(args, const void __user *);
+			n = copy_from_user(buf, ptr, len_p);
+			if (n < len_p)
+				return -EFAULT;
+			buf += len_p;
+			len -= len_p;
+			break;
+		}
+		case 'A': /* kernelspace byte array (len + ptr) */
+		{
+			const void *ptr;
+			u32 len_p;
+
+			/* array size */
+			len_p = va_arg(args, u32);
+			if (len < sizeof(len_p) + len_p)
+				return -ENOMEM;
+			*(u32 *)buf = len_p;
+			buf += sizeof(len_p);
+			len -= sizeof(len_p);
+
+			/* byte array */
+			ptr = va_arg(args, const void *);
+			memcpy(buf, ptr, len_p);
+			buf += len_p;
+			len -= len_p;
+			break;
+		}
+		default:
+			return -EINVAL;
+		}
+	}
+
+	return buf - buf_orig;
+}
+
+enum { max_custom_event_size = 2048 };
+
+int custom_entry_event(unsigned long func_addr, struct pt_regs *regs,
+		       int type, int sub_type, const char *fmt, ...)
+{
+	char *buf, *payload, *args, *buf_end;
+	va_list vargs;
+	int ret;
+
+	buf = get_current_buf();
+	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_ENTRY);
+	args = pack_msg_func_entry(payload, fmt, func_addr,
+				   regs, type, sub_type);
+
+	va_start(vargs, fmt);
+	ret = pack_custom_event(args, max_custom_event_size, fmt, vargs);
+	va_end(vargs);
+
+	if (ret < 0)
+		goto put_buf;
+
+	buf_end = args + ret;
+	set_len_msg(buf, buf_end);
+	ret = write_to_buffer(buf);
+
+put_buf:
+	put_current_buf();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(custom_entry_event);
+
+/* TODO currently this function is a simple wrapper. it will be refactored when
+ * protocol changes are applied */
+int custom_exit_event(unsigned long func_addr, unsigned long ret_addr,
+		      struct pt_regs *regs, const char *fmt, ...)
+{
+	char *buf, *payload, *buf_end;
+	int ret;
+
+	buf = get_current_buf();
+	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_EXIT);
+	ret = pack_msg_func_exit(payload, max_custom_event_size,
+				 fmt[0], regs, func_addr, ret_addr);
+	if (ret < 0)
+		goto put_buf;
+
+	buf_end = payload + ret;
+	set_len_msg(buf, buf_end);
+
+	ret = write_to_buffer(buf);
+
+put_buf:
+	put_current_buf();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(custom_exit_event);
 
 static int __init swap_writer_module_init(void)
 {
