@@ -102,9 +102,14 @@ unsigned int get_discarded_count(void)
 }
 EXPORT_SYMBOL_GPL(get_discarded_count);
 
-static char *get_current_buf(void)
+static inline char *get_current_buf(void)
 {
-	return cpu_buf[smp_processor_id()];
+	return cpu_buf[get_cpu()];
+}
+
+static inline void put_current_buf(void)
+{
+	put_cpu();
 }
 
 static inline u64 timespec2time(struct timespec *ts)
@@ -357,6 +362,7 @@ static char *pack_proc_info(char *payload, struct task_struct *task,
 int proc_info_msg(struct task_struct *task, struct dentry *dentry)
 {
 	char *buf, *payload, *buf_end;
+	int ret;
 
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_PROC_INFO);
@@ -364,7 +370,10 @@ int proc_info_msg(struct task_struct *task, struct dentry *dentry)
 
 	set_len_msg(buf, buf_end);
 
-	return write_to_buffer(buf);
+	ret = write_to_buffer(buf);
+	put_current_buf();
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(proc_info_msg);
 
@@ -400,6 +409,7 @@ void terminate_msg(struct task_struct *task)
 	set_len_msg(buf, buf_end);
 
 	write_to_buffer(buf);
+	put_current_buf();
 }
 EXPORT_SYMBOL_GPL(terminate_msg);
 
@@ -440,6 +450,7 @@ void pcoc_map_msg(struct vm_area_struct *vma)
 	set_len_msg(buf, buf_end);
 
 	write_to_buffer(buf);
+	put_current_buf();
 }
 EXPORT_SYMBOL_GPL(pcoc_map_msg);
 
@@ -480,6 +491,7 @@ void proc_unmap_msg(unsigned long start, unsigned long end)
 	set_len_msg(buf, buf_end);
 
 	write_to_buffer(buf);
+	put_current_buf();
 }
 EXPORT_SYMBOL_GPL(proc_unmap_msg);
 
@@ -515,6 +527,7 @@ static char *pack_sample(char *payload, struct pt_regs *regs)
 int sample_msg(struct pt_regs *regs)
 {
 	char *buf, *payload, *buf_end;
+	int ret;
 
 	if (!check_event(current))
 		return 0;
@@ -525,7 +538,10 @@ int sample_msg(struct pt_regs *regs)
 
 	set_len_msg(buf, buf_end);
 
-	return write_to_buffer(buf);
+	ret = write_to_buffer(buf);
+	put_current_buf();
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(sample_msg);
 
@@ -687,7 +703,10 @@ int entry_event(const char *fmt, unsigned long func_addr, struct pt_regs *regs,
 
 	set_len_msg(buf, buf_end);
 
-	return write_to_buffer(buf);
+	ret = write_to_buffer(buf);
+	put_current_buf();
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(entry_event);
 
@@ -834,7 +853,10 @@ int exit_event(char ret_type, struct pt_regs *regs, unsigned long func_addr,
 	buf_end = payload + ret;
 	set_len_msg(buf, buf_end);
 
-	return write_to_buffer(buf);
+	ret = write_to_buffer(buf);
+	put_current_buf();
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(exit_event);
 
@@ -870,13 +892,17 @@ static char *pack_msg_context_switch(char *payload, struct pt_regs *regs)
 static int context_switch(struct pt_regs *regs, enum MSG_ID id)
 {
 	char *buf, *payload, *buf_end;
+	int ret;
 
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, id);
 	buf_end = pack_msg_context_switch(payload, regs);
 	set_len_msg(buf, buf_end);
 
-	return write_to_buffer(buf);
+	ret = write_to_buffer(buf);
+	put_current_buf();
+
+	return ret;
 }
 
 int switch_entry(struct pt_regs *regs)
@@ -925,6 +951,7 @@ int error_msg(const char *fmt, ...)
 {
 	char *buf, *payload, *buf_end;
 	va_list args;
+	int ret;
 
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_ERROR);
@@ -935,7 +962,10 @@ int error_msg(const char *fmt, ...)
 
 	set_len_msg(buf, buf_end);
 
-	return write_to_buffer(buf);
+	ret = write_to_buffer(buf);
+	put_current_buf();
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(error_msg);
 
