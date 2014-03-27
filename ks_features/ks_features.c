@@ -451,11 +451,8 @@ static int init_syscall_features(void)
 		name = get_sys_name(i);
 		addr = swap_ksyms(name);
 		if (addr == 0) {
-			printk("%s() not found\n", name);
-			return -EFAULT;
-		}
-
-		if (ni_syscall == addr) {
+			printk("INFO: %s() not found\n", name);
+		} else if (ni_syscall == addr) {
 			printk("INFO: %s is not install\n", name);
 			addr = 0;
 		}
