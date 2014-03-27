@@ -830,7 +830,7 @@ static void dbi_unregister_kretprobe_top(struct kretprobe *rp)
 	dbi_unregister_kprobe(&rp->kp);
 
 	swap_hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
-		if (!dbi_disarm_krp_inst(ri)) {
+		if (dbi_disarm_krp_inst(ri) != 0) {
 			printk("%s (%d/%d): cannot disarm krp instance (%08lx)\n",
 					ri->task->comm, ri->task->tgid, ri->task->pid,
 					(unsigned long)rp->kp.addr);
