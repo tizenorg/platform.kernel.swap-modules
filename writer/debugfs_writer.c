@@ -37,20 +37,31 @@
  * ===                               BUFFER                                 ===
  * ============================================================================
  */
-static char *buf = NULL;
-enum { buf_size = 64*1024*1024 };
+static char *common_buf = NULL;
+enum { subbuf_size = 8*1024 };
+enum { common_buf_size = subbuf_size * NR_CPUS };
 
 static int init_buffer(void)
 {
-	buf = vmalloc(buf_size);
+	common_buf = vmalloc(common_buf_size);
 
-	return buf ? 0 : -ENOMEM;
+	return common_buf ? 0 : -ENOMEM;
 }
 
 static void exit_buffer(void)
 {
-	vfree(buf);
-	buf = NULL;
+	vfree(common_buf);
+	common_buf = NULL;
+}
+
+static void *get_current_buf(void)
+{
+	return common_buf + subbuf_size * get_cpu();
+}
+
+static void put_current_buf(void)
+{
+	put_cpu();
 }
 
 
@@ -64,13 +75,23 @@ static void exit_buffer(void)
 static ssize_t write_raw(struct file *file, const char __user *user_buf,
 			 size_t count, loff_t *ppos)
 {
-	if (count > buf_size)
+	int ret;
+	void *buf;
+
+	if (count > subbuf_size)
 		return -EINVAL;
 
-	if (copy_from_user(buf, user_buf, count))
-		return -EFAULT;
+	buf = get_current_buf();
+	if (copy_from_user(buf, user_buf, count)) {
+		ret = -EFAULT;
+		goto put_buf;
+	}
 
-	return raw_msg(buf, count);
+	ret = raw_msg(buf, count);
+
+put_buf:
+	put_current_buf();
+	return ret;
 }
 
 static const struct file_operations fops_raw = {
