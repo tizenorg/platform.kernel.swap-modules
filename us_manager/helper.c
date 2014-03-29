@@ -321,11 +321,14 @@ unregister_unmap:
 	return ret;
 }
 
-void unregister_helper(void)
+void unregister_helper_top(void)
 {
 	/* uninstall kretprobe with 'handle_mm_fault' */
 	dbi_unregister_kretprobe(&mf_kretprobe);
+}
 
+void unregister_helper_bottom(void)
+{
 	/* uninstall kretprobe with 'do_mmap_pgoff' */
 	dbi_unregister_kretprobe(&mmap_kretprobe);
 

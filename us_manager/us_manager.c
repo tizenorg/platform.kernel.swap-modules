@@ -43,8 +43,9 @@ static enum status_type status = ST_OFF;
 
 static void do_usm_stop(void)
 {
-	unregister_helper();
+	unregister_helper_top();
 	uninstall_all();
+	unregister_helper_bottom();
 	sspt_proc_free_all();
 }
 

@@ -276,7 +276,6 @@ void uninstall_proc(struct sspt_proc *proc)
 	struct task_struct *task = proc->task;
 	struct pf_group *pfg;
 	struct pl_struct *pls;
-	int i;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
 		pls = find_pl_struct(pfg, task);
@@ -287,15 +286,7 @@ void uninstall_proc(struct sspt_proc *proc)
 	}
 
 	task_lock(task);
-	for (i = 0; task->mm == NULL; ++i) {
-		task_unlock(task);
-		if (i >= 10)
-			BUG();
-
-		schedule();
-		task_lock(task);
-	}
-
+	BUG_ON(task->mm == NULL);
 	sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
 	task_unlock(task);
 

@@ -36,6 +36,7 @@ int init_helper(void);
 void uninit_helper(void);
 
 int register_helper(void);
-void unregister_helper(void);
+void unregister_helper_top(void);
+void unregister_helper_bottom(void);
 
 #endif /* _HELPER_H */
