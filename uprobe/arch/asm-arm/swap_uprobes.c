@@ -516,8 +516,8 @@ static int arch_copy_trampoline_thumb_uprobe(struct uprobe *up)
 	} else if (THUMB_INSN_MATCH(CBZ, insn)) {
 		memcpy(tramp, cbz_insn_execbuf_thumb, tramp_len);
 		*((unsigned short*)tramp + 13) = 0xdeff;
-		*((unsigned short*)tramp + 0) = insn &  (~insn & 0xf8);
-		*((unsigned short*)tramp + 0) &= 0x20;
+		*((unsigned short*)tramp + 0) = insn & (~0xf8);
+		*((unsigned short*)tramp + 0) |= 0x20;
 		addr = cbz_t16_dest(insn, vaddr);
 		*((unsigned short*)tramp + 14) = (addr & 0x0000ffff) | 0x1;
 		*((unsigned short*)tramp + 15) = addr >> 16;
