@@ -62,18 +62,43 @@ static inline void sync_init(struct sync_t *buffer_sync)
 	spin_lock_init(&buffer_sync->spinlock);
 }
 
-/* Lock spinlock */
+/* Lock spinlock with save flags */
 static inline void sync_lock(struct sync_t *buffer_sync)
 {
 	spin_lock_irqsave(&buffer_sync->spinlock, buffer_sync->flags);
 }
 
-/* Unlock spinlock */
+/* Unlock spinlock with restore flags */
 static inline void sync_unlock(struct sync_t *buffer_sync)
 {
 	spin_unlock_irqrestore(&buffer_sync->spinlock, buffer_sync->flags);
 }
 
+/* Lock spinlock */
+static inline void sync_lock_no_flags(struct sync_t *buffer_sync)
+{
+	spin_lock(&buffer_sync->spinlock);
+}
+
+/* Unlock spinlock */
+static inline void sync_unlock_no_flags(struct sync_t *buffer_sync)
+{
+	spin_unlock(&buffer_sync->spinlock);
+}
+
+/* Disable preemption and irqs */
+static inline void swap_irq_disable(unsigned long *flags)
+{
+	preempt_disable();
+	local_irq_save(*flags);
+}
+
+/* Enable preemption and irqs */
+static inline void swap_irq_enable(unsigned long *flags)
+{
+	local_irq_restore(*flags);
+	preempt_enable();
+}
 
 /* SWAP SUBBUFER */
 

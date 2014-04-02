@@ -424,7 +424,7 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 			write_queue.start_ptr->full_buffer_part += size;
 
 			/* Lock rw sync. Should be unlocked in swap_buffer_write() */
-			sync_lock(&result->buffer_sync);
+			sync_lock_no_flags(&result->buffer_sync);
 			break;
 		/* This subbuffer is not enough => it goes to read list */
 		} else {

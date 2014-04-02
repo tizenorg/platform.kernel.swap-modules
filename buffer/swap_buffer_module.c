@@ -170,6 +170,7 @@ ssize_t swap_buffer_write(void *data, size_t size)
 	int result = E_SB_SUCCESS;
 	struct swap_subbuffer *buffer_to_write = NULL;
 	void *ptr_to_write = NULL;
+	unsigned long flags = 0;
 
 	/* Size sanitization */
 	if ((size > subbuffers_size) || (size == 0))
@@ -179,10 +180,15 @@ ssize_t swap_buffer_write(void *data, size_t size)
 	if (!(swap_buffer_status & BUFFER_WORK))
 		return -E_SB_IS_STOPPED;
 
+	/* We're going to look for writable buffer, so disable irqs */
+	swap_irq_disable(&flags);
+
 	/* Get next write buffer and occupying semaphore */
 	buffer_to_write = get_from_write_list(size, &ptr_to_write);
-	if (!buffer_to_write)
+	if (!buffer_to_write) {
+		swap_irq_enable(&flags);
 		return -E_SB_NO_WRITABLE_BUFFERS;
+	}
 
 	/* Check for overlapping */
 	if (areas_overlap(ptr_to_write, data, size)) {
@@ -204,9 +210,10 @@ ssize_t swap_buffer_write(void *data, size_t size)
 			low_mem_cb();
 	}
 
-	/* Unlock sync (Locked in get_from_write_list()) */
+	/* Unlock sync (Locked in get_from_write_list()) and enable irqs */
 buf_write_sem_post:
-	sync_unlock(&buffer_to_write->buffer_sync);
+	sync_unlock_no_flags(&buffer_to_write->buffer_sync);
+	swap_irq_enable(&flags);
 
 	return result;
 }
