@@ -256,6 +256,20 @@ int dbi_register_kretprobe (struct kretprobe *rp);
 void dbi_unregister_kretprobe (struct kretprobe *rp);
 void dbi_unregister_kretprobes(struct kretprobe **rpp, size_t size);
 
+/*
+ * use:
+ *	dbi_unregister_kretprobe[s]_top();
+ *	synchronize_sched();
+ *	dbi_unregister_kretprobe[s]_bottom();
+ *
+ * rp_disarm - indicates the need for restoration of the return address
+ */
+void dbi_unregister_kretprobe_top(struct kretprobe *rp, int rp_disarm);
+void dbi_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
+				   int rp_disarm);
+void dbi_unregister_kretprobe_bottom(struct kretprobe *rp);
+void dbi_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size);
+
 void kretprobe_assert (struct kretprobe_instance *ri,
 		unsigned long orig_ret_address, unsigned long trampoline_address);
 

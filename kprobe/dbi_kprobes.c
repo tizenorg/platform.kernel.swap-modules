@@ -822,12 +822,10 @@ int dbi_register_kretprobe(struct kretprobe *rp)
 
 static int dbi_disarm_krp_inst(struct kretprobe_instance *ri);
 
-static void dbi_unregister_kretprobe_top(struct kretprobe *rp)
+static void dbi_disarm_krp(struct kretprobe *rp)
 {
 	struct kretprobe_instance *ri;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	dbi_unregister_kprobe(&rp->kp);
 
 	swap_hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
 		if (dbi_disarm_krp_inst(ri) != 0) {
@@ -838,7 +836,29 @@ static void dbi_unregister_kretprobe_top(struct kretprobe *rp)
 	}
 }
 
-static void dbi_unregister_kretprobe_bottom(struct kretprobe *rp)
+void dbi_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
+				   int rp_disarm)
+{
+	unsigned long flags;
+	const size_t end = ((size_t) 0) - 1;
+
+	spin_lock_irqsave(&kretprobe_lock, flags);
+	for (--size; size != end; --size) {
+		dbi_unregister_kprobe(&rps[size]->kp);
+		if (rp_disarm)
+			dbi_disarm_krp(rps[size]);
+	}
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+}
+EXPORT_SYMBOL_GPL(dbi_unregister_kretprobes_top);
+
+void dbi_unregister_kretprobe_top(struct kretprobe *rp, int rp_disarm)
+{
+	dbi_unregister_kretprobes_top(&rp, 1, rp_disarm);
+}
+EXPORT_SYMBOL_GPL(dbi_unregister_kretprobe_top);
+
+void dbi_unregister_kretprobe_bottom(struct kretprobe *rp)
 {
 	unsigned long flags;
 	struct kretprobe_instance *ri;
@@ -855,24 +875,25 @@ static void dbi_unregister_kretprobe_bottom(struct kretprobe *rp)
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 }
+EXPORT_SYMBOL_GPL(dbi_unregister_kretprobe_bottom);
+
+void dbi_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size)
+{
+	const size_t end = ((size_t) 0) - 1;
+
+	for (--size; size != end; --size)
+		dbi_unregister_kretprobe_bottom(rps[size]);
+}
+EXPORT_SYMBOL_GPL(dbi_unregister_kretprobes_bottom);
 
 void dbi_unregister_kretprobes(struct kretprobe **rpp, size_t size)
 {
-	size_t i;
-	unsigned long flags;
-
-	spin_lock_irqsave(&kretprobe_lock, flags);
-
-	for (i = 0; i < size; i++)
-		dbi_unregister_kretprobe_top(rpp[i]);
-
-	spin_unlock_irqrestore(&kretprobe_lock, flags);
+	dbi_unregister_kretprobes_top(rpp, size, 1);
 
 	if (!in_atomic())
 		synchronize_sched();
 
-	for (i = 0; i < size; i++)
-		dbi_unregister_kretprobe_bottom(rpp[i]);
+	dbi_unregister_kretprobes_bottom(rpp, size);
 }
 
 void dbi_unregister_kretprobe(struct kretprobe *rp)
