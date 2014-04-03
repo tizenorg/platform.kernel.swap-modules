@@ -202,6 +202,10 @@ static inline void dbi_set_arg(struct pt_regs *regs, int num, unsigned long val)
 # define MASK_THUMB_INSN_BREAK		0xFF00			// 11111111xxxxxxxx
 # define PTRN_THUMB_INSN_BREAK		0xBE00			// 10111110xxxxxxxx
 
+// CLZ
+# define MASK_ARM_INSN_CLZ		0x0FFF0FF0		// xxxx111111111111xxxx11111111xxxx
+# define PTRN_ARM_INSN_CLZ		0x016F0F10		// cccc000101101111xxxx11110001xxxx
+
 // Data processing immediate shift
 # define MASK_ARM_INSN_DPIS		0x0E000010
 # define PTRN_ARM_INSN_DPIS		0x00000000

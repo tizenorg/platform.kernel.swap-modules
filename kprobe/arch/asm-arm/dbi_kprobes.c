@@ -224,8 +224,13 @@ int arch_make_trampoline_arm(unsigned long addr, unsigned long insn,
 		return 0;
 
 	uregs = pc_dep = 0;
+	/* Rm */
+	if (ARM_INSN_MATCH(CLZ, insn)) {
+		uregs = 0xa;
+		if (ARM_INSN_REG_RM(insn) == 15)
+			pc_dep = 1;
 	/* Rn, Rm ,Rd */
-	if (ARM_INSN_MATCH(DPIS, insn) || ARM_INSN_MATCH(LRO, insn) ||
+	} else if (ARM_INSN_MATCH(DPIS, insn) || ARM_INSN_MATCH(LRO, insn) ||
 	    ARM_INSN_MATCH(SRO, insn)) {
 		uregs = 0xb;
 		if ((ARM_INSN_REG_RN(insn) == 15) ||
