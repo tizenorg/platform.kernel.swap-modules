@@ -77,6 +77,25 @@ static struct kretprobe mf_kretprobe = {
 	.data_size = sizeof(struct pf_data)
 };
 
+static int register_mf(void)
+{
+	int ret;
+
+	ret = dbi_register_kretprobe(&mf_kretprobe);
+	if (ret)
+		printk("dbi_register_kretprobe(handle_mm_fault) ret=%d!\n",
+		       ret);
+
+	return ret;
+}
+
+static void unregister_mf(void)
+{
+	dbi_unregister_kretprobe(&mf_kretprobe);
+}
+
+
+
 
 
 /*
@@ -118,6 +137,24 @@ static struct kretprobe cp_kretprobe = {
 	.handler = ret_handler_cp,
 };
 
+static int register_cp(void)
+{
+	int ret;
+
+	ret = dbi_register_kretprobe(&cp_kretprobe);
+	if (ret)
+		printk("dbi_register_kretprobe(copy_process) ret=%d!\n", ret);
+
+	return ret;
+}
+
+static void unregister_cp(void)
+{
+	dbi_unregister_kretprobe(&cp_kretprobe);
+}
+
+
+
 
 
 /*
@@ -146,6 +183,24 @@ out:
 static struct kprobe mr_kprobe = {
 	.pre_handler = mr_pre_handler
 };
+
+static int register_mr(void)
+{
+	int ret;
+
+	ret = dbi_register_kprobe(&mr_kprobe);
+	if (ret)
+		printk("dbi_register_kprobe(mm_release) ret=%d!\n", ret);
+
+	return ret;
+}
+
+static void unregister_mr(void)
+{
+	dbi_unregister_kprobe(&mr_kprobe);
+}
+
+
 
 
 
@@ -223,6 +278,24 @@ static struct kretprobe unmap_kretprobe = {
 	.data_size = sizeof(struct unmap_data)
 };
 
+static int register_unmap(void)
+{
+	int ret;
+
+	ret = dbi_register_kretprobe(&unmap_kretprobe);
+	if (ret)
+		printk("dbi_register_kprobe(do_munmap) ret=%d!\n", ret);
+
+	return ret;
+}
+
+static void unregister_unmap(void)
+{
+	dbi_unregister_kretprobe(&unmap_kretprobe);
+}
+
+
+
 
 
 /*
@@ -261,85 +334,86 @@ static struct kretprobe mmap_kretprobe = {
 	.handler = ret_handler_mmap
 };
 
+static int register_mmap(void)
+{
+	int ret;
+
+	ret = dbi_register_kretprobe(&mmap_kretprobe);
+	if (ret)
+		printk("dbi_register_kretprobe(do_mmap_pgoff) ret=%d!\n", ret);
+
+	return ret;
+}
+
+static void unregister_mmap(void)
+{
+	dbi_unregister_kretprobe(&mmap_kretprobe);
+}
+
+
+
 
 
 int register_helper(void)
 {
 	int ret = 0;
 
-	/* install kprobe on 'do_munmap' to detect when for remove user space probes */
-	ret = dbi_register_kretprobe(&unmap_kretprobe);
-	if (ret) {
-		printk("dbi_register_kprobe(do_munmap) result=%d!\n", ret);
+	/* install probe on 'do_munmap' to detect when for remove US probes */
+	ret = register_unmap();
+	if (ret)
 		return ret;
-	}
 
-	/* install kprobe on 'mm_release' to detect when for remove user space probes */
-	ret = dbi_register_kprobe(&mr_kprobe);
-	if (ret != 0) {
-		printk("dbi_register_kprobe(mm_release) result=%d!\n", ret);
-		goto unregister_unmap;
-	}
+	/* install probe on 'mm_release' to detect when for remove US probes */
+	ret = register_mr();
+	if (ret)
+		goto unreg_unmap;
 
+	/* install probe on 'copy_process' to disarm children process */
+	ret = register_cp();
+	if (ret)
+		goto unreg_mr;
 
-	/* install kretprobe on 'copy_process' */
-	ret = dbi_register_kretprobe(&cp_kretprobe);
-	if (ret) {
-		printk("dbi_register_kretprobe(copy_process) result=%d!\n", ret);
-		goto unregister_mr;
-	}
+	/* install probe on 'do_mmap_pgoff' to detect when mapping file */
+	ret = register_mmap();
+	if (ret)
+		goto unreg_cp;
 
-	/* install kretprobe on 'do_mmap_pgoff' to detect when mapping file */
-	ret = dbi_register_kretprobe(&mmap_kretprobe);
-	if (ret) {
-		printk("dbi_register_kretprobe(do_mmap_pgoff) result=%d!\n", ret);
-		goto unregister_cp;
-	}
-
-	/* install kretprobe on 'handle_mm_fault' to detect when they will be loaded */
-	ret = dbi_register_kretprobe(&mf_kretprobe);
-	if (ret) {
-		printk("dbi_register_kretprobe(do_page_fault) result=%d!\n", ret);
-		goto unregister_mmap;
-	}
+	/*
+	 * install probe on 'handle_mm_fault' to detect when US pages will be
+	 * loaded
+	 */
+	ret = register_mf();
+	if (ret)
+		goto unreg_mmap;
 
 	return ret;
 
+unreg_mmap:
+	unregister_mmap();
 
-unregister_mmap:
-	dbi_unregister_kretprobe(&mmap_kretprobe);
+unreg_cp:
+	unregister_cp();
 
-unregister_cp:
-	dbi_unregister_kretprobe(&cp_kretprobe);
+unreg_mr:
+	unregister_mr();
 
-unregister_mr:
-	dbi_unregister_kprobe(&mr_kprobe);
-
-unregister_unmap:
-	dbi_unregister_kretprobe(&unmap_kretprobe);
+unreg_unmap:
+	unregister_unmap();
 
 	return ret;
 }
 
 void unregister_helper_top(void)
 {
-	/* uninstall kretprobe with 'handle_mm_fault' */
-	dbi_unregister_kretprobe(&mf_kretprobe);
+	unregister_mf();
 }
 
 void unregister_helper_bottom(void)
 {
-	/* uninstall kretprobe with 'do_mmap_pgoff' */
-	dbi_unregister_kretprobe(&mmap_kretprobe);
-
-	/* uninstall kretprobe with 'copy_process' */
-	dbi_unregister_kretprobe(&cp_kretprobe);
-
-	/* uninstall kprobe with 'mm_release' */
-	dbi_unregister_kprobe(&mr_kprobe);
-
-	/* uninstall kretprobe with 'do_munmap' */
-	dbi_unregister_kretprobe(&unmap_kretprobe);
+	unregister_mmap();
+	unregister_cp();
+	unregister_mr();
+	unregister_unmap();
 }
 
 int init_helper(void)
