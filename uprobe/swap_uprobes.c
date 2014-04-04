@@ -655,7 +655,7 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 		orig_ret_addr = (unsigned long)ri->ret_addr;
 		recycle_urp_inst(ri);
 
-		if (orig_ret_addr != tramp_addr) {
+		if (orig_ret_addr != tramp_addr && &ri->rp->up.kp == p) {
 			/*
 			 * This is the real return address. Any other
 			 * instances associated with this task are for
