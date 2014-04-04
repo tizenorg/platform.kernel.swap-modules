@@ -56,7 +56,28 @@
 	}
 
 static LIST_HEAD(proc_probes_list);
-static DEFINE_SPINLOCK(proc_lock);
+static DEFINE_RWLOCK(sspt_proc_rwlock);
+
+void sspt_proc_read_lock(void)
+{
+	read_lock(&sspt_proc_rwlock);
+}
+
+void sspt_proc_read_unlock(void)
+{
+	read_unlock(&sspt_proc_rwlock);
+}
+
+void sspt_proc_write_lock(void)
+{
+	write_lock(&sspt_proc_rwlock);
+}
+
+void sspt_proc_write_unlock(void)
+{
+	write_unlock(&sspt_proc_rwlock);
+}
+
 
 struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
 {
@@ -83,14 +104,13 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
 	return proc;
 }
 
+/* called with sspt_proc_write_lock() */
 void sspt_proc_free(struct sspt_proc *proc)
 {
 	struct sspt_file *file, *n;
 
 	/* delete from list */
-	spin_lock(&proc_lock);
 	list_del(&proc->list);
-	spin_unlock(&proc_lock);
 
 	list_for_each_entry_safe(file, n, &proc->file_list, list) {
 		list_del(&file->list);
@@ -128,17 +148,11 @@ void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *), void *data)
 
 void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data)
 {
-	spin_lock(&proc_lock);
+	sspt_proc_read_lock();
 	on_each_proc_no_lock(func, data);
-	spin_unlock(&proc_lock);
+	sspt_proc_read_unlock();
 }
 EXPORT_SYMBOL_GPL(on_each_proc);
-
-void wait_proc_lock(void)
-{
-	spin_lock(&proc_lock);
-	spin_unlock(&proc_lock);
-}
 
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
 					       void *priv)

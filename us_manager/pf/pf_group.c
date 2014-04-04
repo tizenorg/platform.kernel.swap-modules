@@ -271,6 +271,7 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	}
 }
 
+/* called with sspt_proc_write_lock() */
 void uninstall_proc(struct sspt_proc *proc)
 {
 	struct task_struct *task = proc->task;
@@ -297,10 +298,14 @@ void call_mm_release(struct task_struct *task)
 {
 	struct sspt_proc *proc;
 
+	sspt_proc_write_lock();
+
 	proc = sspt_proc_get_by_task(task);
 	if (proc)
 		/* TODO: uninstall_proc - is not atomic context */
 		uninstall_proc(proc);
+
+	sspt_proc_write_unlock();
 }
 
 void uninstall_page(unsigned long addr)
@@ -346,8 +351,10 @@ static void on_each_uninstall_proc(struct sspt_proc *proc, void *data)
 
 void uninstall_all(void)
 {
-	wait_proc_lock();
+	sspt_proc_write_lock();
 	on_each_proc_no_lock(on_each_uninstall_proc, NULL);
+	sspt_proc_write_unlock();
+
 	clean_pfg();
 }
 

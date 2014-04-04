@@ -36,6 +36,9 @@ struct task_struct;
 
 struct task_struct *check_task(struct task_struct *task);
 
+static atomic_t stop_flag = ATOMIC_INIT(0);
+
+
 /*
  ******************************************************************************
  *                               do_page_fault()                              *
@@ -103,6 +106,7 @@ static void unregister_mf(void)
  *                              copy_process()                                *
  ******************************************************************************
  */
+static atomic_t copy_process_cnt = ATOMIC_INIT(0);
 
 static void recover_child(struct task_struct *child_task, struct sspt_proc *proc)
 {
@@ -112,10 +116,25 @@ static void recover_child(struct task_struct *child_task, struct sspt_proc *proc
 
 static void rm_uprobes_child(struct task_struct *task)
 {
-	struct sspt_proc *proc = sspt_proc_get_by_task(current);
-	if(proc) {
+	struct sspt_proc *proc;
+
+	sspt_proc_write_lock();
+
+	proc = sspt_proc_get_by_task(current);
+	if (proc)
 		recover_child(task, proc);
-	}
+
+	sspt_proc_write_unlock();
+}
+
+static int entry_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+	atomic_inc(&copy_process_cnt);
+
+	if (atomic_read(&stop_flag))
+		call_mm_release(current);
+
+	return 0;
 }
 
 /* Delete uprobs in children at fork */
@@ -130,10 +149,13 @@ static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 		rm_uprobes_child(task);
 	}
 out:
+	atomic_dec(&copy_process_cnt);
+
 	return 0;
 }
 
 static struct kretprobe cp_kretprobe = {
+	.entry_handler = entry_handler_cp,
 	.handler = ret_handler_cp,
 };
 
@@ -150,7 +172,11 @@ static int register_cp(void)
 
 static void unregister_cp(void)
 {
-	dbi_unregister_kretprobe(&cp_kretprobe);
+	dbi_unregister_kretprobe_top(&cp_kretprobe, 0);
+	do {
+		synchronize_sched();
+	} while (atomic_read(&copy_process_cnt));
+	dbi_unregister_kretprobe_bottom(&cp_kretprobe);
 }
 
 
@@ -214,7 +240,10 @@ struct unmap_data {
 	size_t len;
 };
 
-static void remove_unmap_probes(struct sspt_proc *proc, struct unmap_data *umd)
+static atomic_t unmap_cnt = ATOMIC_INIT(0);
+
+static void __remove_unmap_probes(struct sspt_proc *proc,
+				  struct unmap_data *umd)
 {
 	struct task_struct *task = proc->task;
 	unsigned long start = umd->start;
@@ -242,14 +271,33 @@ static void remove_unmap_probes(struct sspt_proc *proc, struct unmap_data *umd)
 	}
 }
 
+static void remove_unmap_probes(struct task_struct *task,
+				struct unmap_data *umd)
+{
+	struct sspt_proc *proc;
+
+	sspt_proc_write_lock();
+
+	proc = sspt_proc_get_by_task(task);
+	if (proc)
+		__remove_unmap_probes(proc, umd);
+
+	sspt_proc_write_unlock();
+}
 
 static int entry_handler_unmap(struct kretprobe_instance *ri,
 			       struct pt_regs *regs)
 {
 	struct unmap_data *data = (struct unmap_data *)ri->data;
+	struct task_struct *task = current->group_leader;
+
+	atomic_inc(&unmap_cnt);
 
 	data->start = swap_get_karg(regs, 1);
 	data->len = (size_t)swap_get_karg(regs, 2);
+
+	if (!is_kthread(task) && atomic_read(&stop_flag))
+		remove_unmap_probes(task, data);
 
 	return 0;
 }
@@ -258,16 +306,15 @@ static int ret_handler_unmap(struct kretprobe_instance *ri,
 			     struct pt_regs *regs)
 {
 	struct task_struct *task;
-	struct sspt_proc *proc;
 
 	task = current->group_leader;
 	if (is_kthread(task) ||
 	    get_regs_ret_val(regs))
 		return 0;
 
-	proc = sspt_proc_get_by_task(task);
-	if (proc)
-		remove_unmap_probes(proc, (struct unmap_data *)ri->data);
+	remove_unmap_probes(task, (struct unmap_data *)ri->data);
+
+	atomic_dec(&unmap_cnt);
 
 	return 0;
 }
@@ -291,7 +338,11 @@ static int register_unmap(void)
 
 static void unregister_unmap(void)
 {
-	dbi_unregister_kretprobe(&unmap_kretprobe);
+	dbi_unregister_kretprobe_top(&unmap_kretprobe, 0);
+	do {
+		synchronize_sched();
+	} while (atomic_read(&unmap_cnt));
+	dbi_unregister_kretprobe_bottom(&unmap_kretprobe);
 }
 
 
@@ -358,6 +409,8 @@ int register_helper(void)
 {
 	int ret = 0;
 
+	atomic_set(&stop_flag, 0);
+
 	/* install probe on 'do_munmap' to detect when for remove US probes */
 	ret = register_unmap();
 	if (ret)
@@ -406,6 +459,7 @@ unreg_unmap:
 void unregister_helper_top(void)
 {
 	unregister_mf();
+	atomic_set(&stop_flag, 1);
 }
 
 void unregister_helper_bottom(void)

@@ -54,7 +54,6 @@ void sspt_proc_free(struct sspt_proc *proc);
 void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *),
 			  void *data);
 void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data);
-void wait_proc_lock(void);
 
 struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task);
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
@@ -73,5 +72,11 @@ int sspt_proc_get_files_by_region(struct sspt_proc *proc,
 				  struct list_head *head,
 				  unsigned long start, size_t len);
 void sspt_proc_insert_files(struct sspt_proc *proc, struct list_head *head);
+
+void sspt_proc_read_lock(void);
+void sspt_proc_read_unlock(void);
+void sspt_proc_write_lock(void);
+void sspt_proc_write_unlock(void);
+
 
 #endif /* __SSPT_PROC__ */
