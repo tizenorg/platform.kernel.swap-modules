@@ -619,6 +619,7 @@ void dbi_unregister_ujprobe(struct ujprobe *jp)
 int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct uretprobe_instance *ri = NULL;
+	struct kprobe *kp;
 	struct hlist_head *head;
 	unsigned long flags, tramp_addr, orig_ret_addr = 0;
 	struct hlist_node *tmp;
@@ -648,14 +649,18 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 			continue;
 		}
 
-		if (ri->rp && ri->rp->handler) {
-			ri->rp->handler(ri, regs);
+		kp = NULL;
+		if (ri->rp) {
+			kp = up2kp(&ri->rp->up);
+
+			if (ri->rp->handler)
+				ri->rp->handler(ri, regs);
 		}
 
 		orig_ret_addr = (unsigned long)ri->ret_addr;
 		recycle_urp_inst(ri);
 
-		if (orig_ret_addr != tramp_addr && &ri->rp->up.kp == p) {
+		if ((orig_ret_addr != tramp_addr && kp == p) || kp == NULL) {
 			/*
 			 * This is the real return address. Any other
 			 * instances associated with this task are for
