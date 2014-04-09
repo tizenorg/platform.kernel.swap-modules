@@ -761,19 +761,24 @@ int dbi_register_uretprobe(struct uretprobe *rp)
 	return 0;
 }
 
-/* Called with uretprobe_lock held */
 int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task)
 {
+	unsigned long flags;
 	struct uretprobe_instance *ri;
-	struct hlist_head *head = uretprobe_inst_table_head(parent->mm);
+	struct hlist_head *head;
 	struct hlist_node *tmp;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
+	spin_lock_irqsave(&uretprobe_lock, flags);
+
+	head = uretprobe_inst_table_head(parent->mm);
 	swap_hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
 		if (parent == ri->task) {
 			arch_disarm_urp_inst(ri, task);
 		}
 	}
+
+	spin_unlock_irqrestore(&uretprobe_lock, flags);
 
 	return 0;
 }
