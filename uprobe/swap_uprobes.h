@@ -103,6 +103,7 @@ void dbi_unregister_uretprobe(struct uretprobe *rp);
 void __dbi_unregister_uretprobe(struct uretprobe *rp, int disarm);
 
 void dbi_unregister_all_uprobes(struct task_struct *task);
+void dbi_discard_pending_uretprobes(struct task_struct *task);
 
 void swap_ujprobe_return(void);
 struct kprobe *get_ukprobe(void *addr, pid_t tgid);

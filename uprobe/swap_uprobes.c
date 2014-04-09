@@ -779,6 +779,31 @@ int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct 
 }
 EXPORT_SYMBOL_GPL(dbi_disarm_urp_inst_for_task);
 
+void dbi_discard_pending_uretprobes(struct task_struct *task)
+{
+	unsigned long flags;
+	struct uretprobe_instance *ri;
+	struct hlist_head *head;
+	struct hlist_node *tmp;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
+
+	spin_lock_irqsave(&uretprobe_lock, flags);
+
+	head = uretprobe_inst_table_head(task->mm);
+	swap_hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
+		if (ri->task == task) {
+			printk("%s (%d/%d): pending urp inst: %08lx\n",
+			       task->comm, task->tgid, task->pid,
+			       (unsigned long)ri->rp->up.kp.addr);
+			arch_disarm_urp_inst(ri, task);
+			recycle_urp_inst(ri);
+		}
+	}
+
+	spin_unlock_irqrestore(&uretprobe_lock, flags);
+}
+EXPORT_SYMBOL_GPL(dbi_discard_pending_uretprobes);
+
 void __dbi_unregister_uretprobe(struct uretprobe *rp, int disarm)
 {
 	unsigned long flags;

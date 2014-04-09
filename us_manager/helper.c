@@ -198,6 +198,9 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 		goto out;
 
 	if (task->tgid != task->pid) {
+		/* if the thread is killed we need to discard pending
+		 * uretprobe instances which have not triggered yet */
+		dbi_discard_pending_uretprobes(task);
 		goto out;
 	}
 
