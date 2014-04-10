@@ -42,6 +42,7 @@ struct uretprobe_instance;
 struct arch_specific_tramp {
 	unsigned long tramp_arm[UPROBES_TRAMP_LEN];
 	unsigned long tramp_thumb[UPROBES_TRAMP_LEN];
+	void *utramp;
 };
 
 

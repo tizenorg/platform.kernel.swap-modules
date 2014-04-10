@@ -564,6 +564,12 @@ int arch_prepare_uprobe(struct uprobe *up)
 		return -EFAULT;
 	}
 
+	up->atramp.utramp = alloc_insn_slot(up->sm);
+	if (up->atramp.utramp == NULL) {
+		printk("Error: alloc_insn_slot failed (%08lx)\n", vaddr);
+		return -ENOMEM;
+	}
+
 	return 0;
 }
 
@@ -760,7 +766,7 @@ static int make_trampoline(struct uprobe *up, struct pt_regs *regs)
 		return 1;
 	}
 
-	utramp = alloc_insn_slot(up->sm);
+	utramp = up->atramp.utramp;
 
 	if (!write_proc_vm_atomic(up->task, (unsigned long)utramp, tramp,
 				  UPROBES_TRAMP_LEN * sizeof(*tramp)))
