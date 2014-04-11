@@ -255,6 +255,11 @@ static void resume_execution(struct kprobe *p, struct pt_regs *regs, unsigned lo
 				p->ainsn.boostable = 1;
 				goto no_change;
 			}
+		case 0xf3:
+			if (insns[1] == 0xc3)
+				/* repz ret special handling: no more changes */
+				goto no_change;
+			break;
 		default:
 			break;
 	}
