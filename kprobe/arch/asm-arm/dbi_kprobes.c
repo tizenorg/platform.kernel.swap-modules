@@ -514,6 +514,87 @@ void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 	*ptr_ret_addr = (unsigned long)&kretprobe_trampoline;
 }
 
+
+
+
+
+/*
+ ******************************************************************************
+ *                                   jumper                                   *
+ ******************************************************************************
+ */
+struct cb_data {
+	unsigned long ret_addr;
+	unsigned long r0;
+
+	jumper_cb_t cb;
+	char data[0];
+};
+
+static unsigned long __used get_r0(struct cb_data *data)
+{
+	return data->r0;
+}
+
+static unsigned long __used jump_handler(struct cb_data *data)
+{
+	unsigned long ret_addr = data->ret_addr;
+
+	/* call callback */
+	data->cb(data->data);
+
+	/* FIXME: potential memory leak, when process kill */
+	kfree(data);
+
+	return ret_addr;
+}
+
+/* FIXME: restore condition flags */
+void jump_trampoline(void);
+__asm(
+	"jump_trampoline:		\n"
+
+	"push	{r0 - r12}		\n"
+	"mov	r1, r0			\n"	/* data --> r1 */
+	"bl	get_r0			\n"
+	"str	r0, [sp]		\n"	/* restore r0 */
+	"mov	r0, r1			\n"	/* data --> r0 */
+	"bl	jump_handler		\n"
+	"mov	lr, r0			\n"
+	"pop	{r0 - r12}		\n"
+	"bx	lr			\n"
+);
+
+unsigned long get_jump_addr(void)
+{
+	return (unsigned long)&jump_trampoline;
+}
+EXPORT_SYMBOL_GPL(get_jump_addr);
+
+int set_jump_cb(unsigned long ret_addr, struct pt_regs *regs,
+		jumper_cb_t cb, void *data, size_t size)
+{
+	struct cb_data *cb_data;
+
+	cb_data = kmalloc(sizeof(*cb_data) + size, GFP_ATOMIC);
+
+	/* save data */
+	cb_data->ret_addr = ret_addr;
+	cb_data->cb = cb;
+	cb_data->r0 = regs->ARM_r0;
+	memcpy(cb_data->data, data, size);
+
+	/* save cb_data to r0 */
+	regs->ARM_r0 = (long)cb_data;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(set_jump_cb);
+
+
+
+
+
 void swap_register_undef_hook(struct undef_hook *hook)
 {
 	__swap_register_undef_hook(hook);
