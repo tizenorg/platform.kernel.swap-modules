@@ -32,6 +32,14 @@
 #include <us_manager/us_slot_manager.h>
 #include <writer/swap_writer_module.h>
 
+
+#ifdef CONFIG_ARM
+#define mm_read_lock(task, mm, atomic, lock)			\
+	mm = task->mm;						\
+	lock = 0
+
+#define mm_read_unlock(mm, atomic, lock)
+#else /* CONFIG_ARM */
 #define mm_read_lock(task, mm, atomic, lock)			\
 	mm = atomic ? task->active_mm : get_task_mm(task); 	\
 	if (mm == NULL) {					\
@@ -54,6 +62,8 @@
 	if (!atomic) {						\
 		mmput(mm);					\
 	}
+#endif /* CONFIG_ARM */
+
 
 static LIST_HEAD(proc_probes_list);
 static DEFINE_RWLOCK(sspt_proc_rwlock);

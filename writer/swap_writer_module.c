@@ -260,7 +260,6 @@ static struct vm_area_struct *find_vma_exe_by_dentry(struct mm_struct *mm, struc
 {
 	struct vm_area_struct *vma;
 
-	down_read(&mm->mmap_sem);
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (vma->vm_file && (vma->vm_flags & VM_EXEC) &&
 		   (vma->vm_file->f_dentry == dentry))
@@ -269,7 +268,6 @@ static struct vm_area_struct *find_vma_exe_by_dentry(struct mm_struct *mm, struc
 
 	vma = NULL;
 out:
-	up_read(&mm->mmap_sem);
 
 	return vma;
 }
@@ -301,14 +299,12 @@ static char *pack_libs(char *lib_obj, struct mm_struct *mm, u32 *lib_cnt_p)
 {
 	struct vm_area_struct *vma;
 
-	down_read(&mm->mmap_sem);
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (check_vma(vma)) {
 			lib_obj = pack_lib_obj(lib_obj, vma);
 			++(*lib_cnt_p);
 		}
 	}
-	up_read(&mm->mmap_sem);
 
 	return lib_obj;
 }
@@ -359,6 +355,7 @@ static char *pack_proc_info(char *payload, struct task_struct *task,
 	return pack_proc_info_part(end_path, task->mm);
 }
 
+/* called with down\up\_read(&task->mm->mmap_sem) */
 int proc_info_msg(struct task_struct *task, struct dentry *dentry)
 {
 	char *buf, *payload, *buf_end;

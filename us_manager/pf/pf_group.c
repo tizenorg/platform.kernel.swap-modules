@@ -263,10 +263,25 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 					 NULL;
 			}
 
+			down_read(&task->mm->mmap_sem);
 			proc_info_msg(task, dentry);
+			up_read(&task->mm->mmap_sem);
+
+#ifdef CONFIG_ARM
+			down_write(&task->mm->mmap_sem);
 			sspt_proc_install(proc);
+			up_write(&task->mm->mmap_sem);
+#else /* CONFIG_ARM */
+			sspt_proc_install(proc);
+#endif /* CONFIG_ARM */
 		} else {
+#ifdef CONFIG_ARM
+			down_write(&task->mm->mmap_sem);
 			sspt_proc_install_page(proc, page_addr);
+			up_write(&task->mm->mmap_sem);
+#else /* CONFIG_ARM */
+			sspt_proc_install_page(proc, page_addr);
+#endif /* CONFIG_ARM */
 		}
 	}
 }

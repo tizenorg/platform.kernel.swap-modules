@@ -53,10 +53,25 @@ static int entry_handler_mf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct pf_data *data = (struct pf_data *)ri->data;
 
+#ifdef CONFIG_ARM
+	data->addr = swap_get_karg(regs, 0);
+#else /* CONFIG_ARM */
 	data->addr = swap_get_karg(regs, 2);
+#endif /* CONFIG_ARM */
 
 	return 0;
 }
+
+#ifdef CONFIG_ARM
+static unsigned long cb_pf(void *data)
+{
+	unsigned long page_addr = *(unsigned long *)data;
+
+	call_page_fault(current, page_addr);
+
+	return 0;
+}
+#endif /* CONFIG_ARM */
 
 /* Detects when IPs are really loaded into phy mem and installs probes. */
 static int ret_handler_mf(struct kretprobe_instance *ri, struct pt_regs *regs)
@@ -69,7 +84,14 @@ static int ret_handler_mf(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	/* TODO: check return value */
 	page_addr = ((struct pf_data *)ri->data)->addr & PAGE_MASK;
+
+#ifdef CONFIG_ARM
+	set_jump_cb((unsigned long)ri->ret_addr, regs, cb_pf,
+		    &page_addr, sizeof(page_addr));
+	ri->ret_addr = (unsigned long *)get_jump_addr();
+#else /* CONFIG_ARM */
 	call_page_fault(task, page_addr);
+#endif /* CONFIG_ARM */
 
 	return 0;
 }
@@ -476,7 +498,13 @@ void unregister_helper_bottom(void)
 int init_helper(void)
 {
 	unsigned long addr;
+
+#ifdef CONFIG_ARM
+	addr = swap_ksyms("do_page_fault");
+#else /* CONFIG_ARM */
 	addr = swap_ksyms("handle_mm_fault");
+#endif /* CONFIG_ARM */
+
 	if (addr == 0) {
 		printk("Cannot find address for handle_mm_fault function!\n");
 		return -EINVAL;
