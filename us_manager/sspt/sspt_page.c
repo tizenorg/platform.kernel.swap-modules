@@ -124,13 +124,10 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 		ip->retprobe.up.kp.addr = (kprobe_opcode_t *)addr;
 
 		err = sspt_register_usprobe(ip);
-		if (err == -ENOEXEC) {
-			/* TODO: delete?! */
+		if (err) {
 			list_del(&ip->list);
 			free_ip(ip);
 			continue;
-		} else if (err) {
-			printk("Failed to install probe\n");
 		}
 	}
 
