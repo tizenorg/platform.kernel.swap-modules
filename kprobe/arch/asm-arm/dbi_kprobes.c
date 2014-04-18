@@ -321,9 +321,11 @@ int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 
 void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
 {
-	if (p->ss_addr) {
-		regs->ARM_pc = (unsigned long)p->ss_addr;
-		p->ss_addr = NULL;
+	int cpu = smp_processor_id();
+
+	if (p->ss_addr[cpu]) {
+		regs->ARM_pc = (unsigned long)p->ss_addr[cpu];
+		p->ss_addr[cpu] = NULL;
 	} else {
 		regs->ARM_pc = (unsigned long)p->ainsn.insn;
 	}
@@ -431,7 +433,8 @@ int setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
 
 	if (pre_entry) {
-		p->ss_addr = (void *)pre_entry (jp->priv_arg, regs);
+		p->ss_addr[smp_processor_id()] = (void *)
+						 pre_entry(jp->priv_arg, regs);
 	}
 
 	if (entry) {
@@ -512,6 +515,106 @@ void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	/* Replace the return addr with trampoline addr */
 	*ptr_ret_addr = (unsigned long)&kretprobe_trampoline;
+}
+
+
+
+
+
+/*
+ ******************************************************************************
+ *                                   kjumper                                  *
+ ******************************************************************************
+ */
+struct kj_cb_data {
+	unsigned long ret_addr;
+
+	struct pt_regs regs;
+
+	jumper_cb_t cb;
+	char data[0];
+};
+
+static struct kj_cb_data * __used kjump_handler(struct kj_cb_data *data)
+{
+	/* call callback */
+	data->cb(data->data);
+
+	return data;
+}
+
+void kjump_trampoline(void);
+__asm(
+	"kjump_trampoline:		\n"
+
+	"mov	r0, r10			\n"
+	"bl	kjump_handler		\n"
+	"nop				\n"	/* for kjump_kprobe */
+);
+
+unsigned long get_kjump_addr(void)
+{
+	return (unsigned long)&kjump_trampoline;
+}
+EXPORT_SYMBOL_GPL(get_kjump_addr);
+
+int set_kjump_cb(unsigned long ret_addr, struct pt_regs *regs,
+		 jumper_cb_t cb, void *data, size_t size)
+{
+	struct kj_cb_data *cb_data;
+
+	cb_data = kmalloc(sizeof(*cb_data) + size, GFP_ATOMIC);
+	if (cb_data == NULL)
+		return -ENOMEM;
+
+	cb_data->ret_addr = ret_addr;
+	cb_data->cb = cb;
+
+	/* save regs */
+	memcpy(&cb_data->regs, regs, sizeof(*regs));
+
+	memcpy(cb_data->data, data, size);
+
+	/* save cb_data to r10 */
+	regs->ARM_r10 = (long)cb_data;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(set_kjump_cb);
+
+static int kjump_pre_handler(struct kprobe *p, struct pt_regs *regs)
+{
+	struct kj_cb_data *data = (struct kj_cb_data *)regs->ARM_r0;
+
+	/* restore regs */
+	memcpy(regs, &data->regs, sizeof(*regs));
+	p->ss_addr[smp_processor_id()] = (void *)data->ret_addr;
+
+	/* FIXME: potential memory leak, when process kill */
+	kfree(data);
+
+	return 0;
+}
+
+static struct kprobe kjump_kprobe = {
+	.pre_handler = kjump_pre_handler,
+	.addr = (unsigned long *)&kjump_trampoline + 2,	/* nop */
+};
+
+static int kjump_init(void)
+{
+	int ret;
+
+	ret = dbi_register_kprobe(&kjump_kprobe);
+	if (ret)
+		printk("ERROR: kjump_init(), ret=%d\n", ret);
+
+	return ret;
+}
+
+static void kjump_exit(void)
+{
+	dbi_unregister_kprobe(&kjump_kprobe);
 }
 
 
@@ -618,6 +721,8 @@ static struct undef_hook undef_ho_k = {
 
 int arch_init_kprobes(void)
 {
+	int ret;
+
 	// Register hooks (kprobe_handler)
 	__swap_register_undef_hook = (void *)swap_ksyms("register_undef_hook");
 	if (__swap_register_undef_hook == NULL) {
@@ -634,11 +739,18 @@ int arch_init_kprobes(void)
 
 	swap_register_undef_hook(&undef_ho_k);
 
+	ret = kjump_init();
+	if (ret) {
+		swap_unregister_undef_hook(&undef_ho_k);
+		return ret;
+	}
+
 	return 0;
 }
 
 void arch_exit_kprobes(void)
 {
+	kjump_exit();
 	swap_unregister_undef_hook(&undef_ho_k);
 }
 

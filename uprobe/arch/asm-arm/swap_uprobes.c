@@ -687,7 +687,8 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 	entry_point_t entry = (entry_point_t)jp->entry;
 
 	if (pre_entry) {
-		p->ss_addr = (kprobe_opcode_t *)pre_entry(jp->priv_arg, regs);
+		p->ss_addr[smp_processor_id()] = (kprobe_opcode_t *)
+						 pre_entry(jp->priv_arg, regs);
 	}
 
 	if (entry) {

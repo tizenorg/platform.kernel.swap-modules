@@ -273,10 +273,11 @@ int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 
 void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 {
-	if(p->ss_addr)
-	{
-		regs->EREG (ip) = (unsigned long)p->ss_addr;
-		p->ss_addr = NULL;
+	int cpu = smp_processor_id();
+
+	if (p->ss_addr[cpu]) {
+		regs->EREG(ip) = (unsigned long)p->ss_addr[cpu];
+		p->ss_addr[cpu] = NULL;
 	}
 	else
 	{
@@ -509,7 +510,8 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	trace_hardirqs_off();
 #endif
 	if (pre_entry)
-		p->ss_addr = (kprobe_opcode_t *)pre_entry(jp->priv_arg, regs);
+		p->ss_addr[smp_processor_id()] = (kprobe_opcode_t *)
+						 pre_entry(jp->priv_arg, regs);
 
 	regs->EREG(ip) = (unsigned long)(jp->entry);
 

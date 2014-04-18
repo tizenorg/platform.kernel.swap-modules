@@ -132,7 +132,7 @@ struct kprobe
 	// if jprobe.entry should return address of function or NULL
 	// if original function should be called
 	// not supported for X86, not tested for MIPS
-	kprobe_opcode_t					*ss_addr;
+	kprobe_opcode_t					*ss_addr[NR_CPUS];
 	// safe/unsafe to use probe
 #ifdef CONFIG_ARM
 	unsigned					safe_arm:1;

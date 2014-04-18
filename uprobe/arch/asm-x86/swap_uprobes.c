@@ -115,7 +115,8 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 		panic("failed to read user space func arguments %lx!\n", regs->EREG(sp) + 4);
 
 	if (pre_entry)
-		p->ss_addr = (kprobe_opcode_t *)pre_entry(jp->priv_arg, regs);
+		p->ss_addr[smp_processor_id()] = (kprobe_opcode_t *)
+						 pre_entry(jp->priv_arg, regs);
 
 	if (entry)
 		entry(args[0], args[1], args[2], args[3], args[4], args[5]);
