@@ -1085,6 +1085,7 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 	struct mm_struct *mm;
 	struct vm_area_struct *vma;
 	void *old_buf = buf;
+	int atomic;
 
 	if (len <= 0) {
 		return -1;
@@ -1100,6 +1101,9 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 	mm = tsk->mm; /* function 'get_task_mm' is to be called */
 	if (!mm)
 		return 0;
+
+	/* FIXME: danger: write memory in atomic context */
+	atomic = in_atomic();
 
 	/* ignore errors, just check how much was successfully transferred */
 	while (len) {
@@ -1132,7 +1136,7 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 			if (bytes > PAGE_SIZE-offset)
 				bytes = PAGE_SIZE-offset;
 
-			maddr = dbi_kmap_atomic(page);
+			maddr = atomic ? dbi_kmap_atomic(page) : kmap(page);
 
 			if (write) {
 				copy_to_user_page(vma, page, addr,
@@ -1143,7 +1147,7 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 							buf, maddr + offset, bytes);
 			}
 
-			dbi_kunmap_atomic(maddr);
+			atomic ? dbi_kunmap_atomic(maddr) : kunmap(page);
 			page_cache_release(page);
 		}
 		len -= bytes;
