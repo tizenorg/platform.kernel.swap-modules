@@ -226,7 +226,7 @@ void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 	atomic = in_atomic();
 	mm_read_lock(task, mm, atomic, lock);
 
-	vma = find_vma(mm, page_addr);
+	vma = find_vma_intersection(mm, page_addr, page_addr + 1);
 	if (vma && check_vma(vma)) {
 		struct dentry *dentry = vma->vm_file->f_dentry;
 		struct sspt_file *file = sspt_proc_find_file(proc, dentry);
