@@ -771,6 +771,7 @@ static int make_trampoline(struct uprobe *up, struct pt_regs *regs)
 	if (!write_proc_vm_atomic(up->task, (unsigned long)utramp, tramp,
 				  UPROBES_TRAMP_LEN * sizeof(*tramp)))
 		panic("failed to write memory %p!\n", utramp);
+	flush_insns(utramp, UPROBES_TRAMP_LEN * sizeof(*tramp));
 
 	p->ainsn.insn = utramp;
 
