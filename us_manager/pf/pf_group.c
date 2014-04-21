@@ -236,6 +236,18 @@ int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 }
 EXPORT_SYMBOL_GPL(pf_unregister_probe);
 
+int check_task_on_filters(struct task_struct *task)
+{
+	struct pf_group *pfg;
+
+	list_for_each_entry(pfg, &pfg_list, list) {
+		if (check_task_f(pfg->filter, task))
+			return 1;
+	}
+
+	return 0;
+}
+
 void call_page_fault(struct task_struct *task, unsigned long page_addr)
 {
 	struct pf_group *pfg, *pfg_first = NULL;
@@ -246,9 +258,13 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 			continue;
 
 		proc = get_proc_by_pfg(pfg, task);
-		if (proc == NULL && task->tgid == task->pid) {
+		if (proc)
+			break;
+
+		if (task->tgid == task->pid) {
 			proc = new_proc_by_pfg(pfg, task);
 			pfg_first = pfg;
+			break;
 		}
 	}
 
@@ -280,6 +296,7 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 			sspt_proc_install_page(proc, page_addr);
 			up_write(&task->mm->mmap_sem);
 #else /* CONFIG_ARM */
+		if (page_addr)
 			sspt_proc_install_page(proc, page_addr);
 #endif /* CONFIG_ARM */
 		}
@@ -330,6 +347,7 @@ void uninstall_page(unsigned long addr)
 
 void install_all(void)
 {
+#if !defined(CONFIG_ARM)
 	struct task_struct *task;
 	int tmp_oops_in_progress;
 
@@ -347,6 +365,7 @@ void install_all(void)
 	}
 	rcu_read_unlock();
 	oops_in_progress = tmp_oops_in_progress;
+#endif /* CONFIG_ARM */
 }
 
 static void clean_pfg(void)

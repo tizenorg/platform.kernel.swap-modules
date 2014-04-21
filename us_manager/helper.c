@@ -123,6 +123,60 @@ static void unregister_mf(void)
 
 
 
+#ifdef CONFIG_ARM
+/*
+ ******************************************************************************
+ *                       workaround for already running                       *
+ ******************************************************************************
+ */
+static int ctx_task_pre_handler(struct kprobe *p, struct pt_regs *regs)
+{
+	struct sspt_proc *proc;
+	unsigned long page_addr;
+	struct task_struct *task = current;
+
+	if (is_kthread(task) || check_task_on_filters(task) == 0)
+		return 0;
+
+	proc = sspt_proc_get_by_task(task);
+	if (proc && proc->first_install)
+		return 0;
+
+	page_addr = 0;
+	set_kjump_cb((unsigned long)p->ainsn.insn, regs, cb_pf,
+		     &page_addr, sizeof(page_addr));
+
+	/* set kjumper */
+	p->ss_addr[smp_processor_id()] = (unsigned long *)get_kjump_addr();
+
+	return 0;
+}
+
+static struct kprobe ctx_task_kprobe = {
+	.pre_handler = ctx_task_pre_handler,
+};
+
+static int register_ctx_task(void)
+{
+	int ret = 0;
+
+	ret = dbi_register_kprobe(&ctx_task_kprobe);
+	if (ret)
+		printk("dbi_register_kprobe(workaround) ret=%d!\n", ret);
+
+	return ret;
+}
+
+static void unregister_ctx_task(void)
+{
+	dbi_unregister_kprobe(&ctx_task_kprobe);
+}
+#endif /* CONFIG_ARM */
+
+
+
+
+
 /*
  ******************************************************************************
  *                              copy_process()                                *
@@ -464,7 +518,19 @@ int register_helper(void)
 	if (ret)
 		goto unreg_mmap;
 
+#ifdef CONFIG_ARM
+	/* install probe to detect already running process */
+	ret = register_ctx_task();
+	if (ret)
+		goto unreg_mf;
+#endif /* CONFIG_ARM */
+
 	return ret;
+
+#ifdef CONFIG_ARM
+unreg_mf:
+	unregister_mf();
+#endif /* CONFIG_ARM */
 
 unreg_mmap:
 	unregister_mmap();
@@ -483,6 +549,9 @@ unreg_unmap:
 
 void unregister_helper_top(void)
 {
+#ifdef CONFIG_ARM
+	unregister_ctx_task();
+#endif /* CONFIG_ARM */
 	unregister_mf();
 	atomic_set(&stop_flag, 1);
 }
@@ -538,6 +607,15 @@ int init_helper(void)
 		return -EINVAL;
 	}
 	mmap_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
+
+#ifdef CONFIG_ARM
+	addr = swap_ksyms("ret_to_user");
+	if (addr == 0) {
+		printk("Cannot find address for ret_to_user function!\n");
+		return -EINVAL;
+	}
+	ctx_task_kprobe.addr = (kprobe_opcode_t *)addr;
+#endif /* CONFIG_ARM */
 
 	return 0;
 }
