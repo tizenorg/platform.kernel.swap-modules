@@ -19,4 +19,5 @@ obj-m := master/ \
          preload/ \
          fbiprobe/ \
          wsp/ \
-         nsp/
+         nsp/ \
+         task_ctx/

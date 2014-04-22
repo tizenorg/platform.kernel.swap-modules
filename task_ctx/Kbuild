@@ -1,0 +1,5 @@
+EXTRA_CFLAGS := $(extra_cflags)
+KBUILD_EXTRA_SYMBOLS = $(src)/../kprobe/Module.symvers
+
+obj-m := swap_taskctx.o
+swap_taskctx-y := task_ctx.o
