@@ -25,6 +25,8 @@
 
 #include <linux/module.h>
 #include <linux/vmalloc.h>
+#include <linux/cpumask.h>
+#include <linux/cpu.h>
 #include <asm/uaccess.h>
 
 #include "parser_defs.h"
@@ -33,6 +35,7 @@
 
 #include <driver/driver_to_msg.h>
 #include <driver/swap_ioctl.h>
+#include <ksyms/ksyms.h>
 
 enum MSG_ID {
 	MSG_KEEP_ALIVE		= 0x0001,
@@ -47,6 +50,82 @@ struct basic_msg_fmt {
 	u32 msg_id;
 	u32 len;
 } __attribute__((packed));
+
+static void (*swap_cpu_maps_update_begin)(void);
+static void (*swap_cpu_maps_update_done)(void);
+static int (*swap_cpu_down)(unsigned int, int);
+static int (*swap_cpu_up)(unsigned int, int);
+
+static int init_cpu_deps(void)
+{
+	const char *sym = "cpu_maps_update_begin";
+
+	swap_cpu_maps_update_begin = (void *)swap_ksyms(sym);
+	if (!swap_cpu_maps_update_begin)
+		goto not_found;
+
+	sym = "cpu_maps_update_done";
+	swap_cpu_maps_update_done = (void *)swap_ksyms(sym);
+	if (!swap_cpu_maps_update_done)
+		goto not_found;
+
+	sym = "_cpu_up";
+	swap_cpu_up = (void *)swap_ksyms(sym);
+	if (!swap_cpu_up)
+		goto not_found;
+
+	sym = "_cpu_down";
+	swap_cpu_down = (void *)swap_ksyms(sym);
+	if (!swap_cpu_down)
+		goto not_found;
+
+	return 0;
+
+not_found:
+	printk("ERROR: symbol %s(...) not found\n", sym);
+	return -ESRCH;
+}
+
+static int swap_disable_nonboot_cpus_lock(struct cpumask *mask)
+{
+	int boot_cpu, cpu;
+	int ret = 0;
+
+	swap_cpu_maps_update_begin();
+	cpumask_clear(mask);
+
+	boot_cpu = cpumask_first(cpu_online_mask);
+
+	for_each_online_cpu(cpu) {
+		if (cpu == boot_cpu)
+			continue;
+		ret = swap_cpu_down(cpu, 0);
+		if (ret == 0)
+			cpumask_set_cpu(cpu, mask);
+		printk("===> SWAP CPU[%d] down(%d)\n", cpu, ret);
+	}
+
+	WARN_ON(num_online_cpus() > 1);
+	return ret;
+}
+
+static int swap_enable_nonboot_cpus_unlock(struct cpumask *mask)
+{
+	int cpu, ret = 0;
+
+	if (cpumask_empty(mask))
+		goto out;
+
+	for_each_cpu(cpu, mask) {
+		ret = swap_cpu_up(cpu, 0);
+		printk("===> SWAP CPU[%d] up(%d)\n", cpu, ret);
+	}
+
+	swap_cpu_maps_update_done();
+
+out:
+	return ret;
+}
 
 static int msg_handler(void __user *msg)
 {
@@ -89,10 +168,17 @@ static int msg_handler(void __user *msg)
 		print_parse_debug("MSG_START. size=%d\n", size);
 		ret = msg_start(&mb);
 		break;
-	case MSG_STOP:
+	case MSG_STOP: {
+		struct cpumask mask;
+
 		print_parse_debug("MSG_STOP. size=%d\n", size);
+
+		swap_disable_nonboot_cpus_lock(&mask);
 		ret = msg_stop(&mb);
+		swap_enable_nonboot_cpus_unlock(&mask);
+
 		break;
+	}
 	case MSG_CONFIG:
 		print_parse_debug("MSG_CONFIG. size=%d\n", size);
 		ret = msg_config(&mb);
@@ -129,10 +215,16 @@ static void unregister_msg_handler(void)
 static int __init swap_parser_init(void)
 {
 	int ret;
+
+	ret = init_cpu_deps();
+	if (ret)
+		goto out;
+
 	register_msg_handler();
 
 	ret = init_cmd();
 
+out:
 	return ret;
 }
 
