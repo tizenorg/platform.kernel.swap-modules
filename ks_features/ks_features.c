@@ -39,6 +39,7 @@
 #include "ks_features.h"
 #include "syscall_list.h"
 #include "features_data.c"
+#include "file_ops.h"
 
 /**
  * @struct ks_probe
@@ -456,16 +457,22 @@ static struct feature *get_feature(enum feature_id id)
 int set_feature(enum feature_id id)
 {
 	struct feature *f;
+	int ret;
 
-	if (id == FID_SWITCH) {
-		return register_switch_context();
+	switch (id) {
+	case FID_FILE:
+		ret = file_ops_init();
+		break;
+	case FID_SWITCH:
+		ret = register_switch_context();
+		break;
+	default:
+		f = get_feature(id);
+		ret = f ? install_features(f): -EINVAL;
+		break;
 	}
 
-	f = get_feature(id);
-	if (f == NULL)
-		return -EINVAL;
-
-	return install_features(f);
+	return ret;
 }
 EXPORT_SYMBOL_GPL(set_feature);
 
@@ -478,16 +485,22 @@ EXPORT_SYMBOL_GPL(set_feature);
 int unset_feature(enum feature_id id)
 {
 	struct feature *f;
+	int ret = 0;
 
-	if (id == FID_SWITCH) {
-		return unregister_switch_context();
+	switch (id) {
+	case FID_FILE:
+		file_ops_exit();
+		break;
+	case FID_SWITCH:
+		ret = unregister_switch_context();
+		break;
+	default:
+		f = get_feature(id);
+		ret = f ? uninstall_features(f): -EINVAL;
+		break;
 	}
 
-	f = get_feature(id);
-	if (f == NULL)
-		return -EINVAL;
-
-	return uninstall_features(f);
+	return ret;
 }
 EXPORT_SYMBOL_GPL(unset_feature);
 
