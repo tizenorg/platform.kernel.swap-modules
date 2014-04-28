@@ -3,4 +3,5 @@ KBUILD_EXTRA_SYMBOLS = $(src)/../kprobe/Module.symvers \
                        $(src)/../writer/Module.symvers
 
 obj-m := swap_ks_features.o
-swap_ks_features-y := ks_features.o
+swap_ks_features-y := ks_features.o \
+                      ks_map.o
