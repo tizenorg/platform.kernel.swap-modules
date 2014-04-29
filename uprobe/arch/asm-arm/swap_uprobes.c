@@ -557,10 +557,6 @@ int arch_prepare_uprobe(struct uprobe *up)
 		       "arch_copy_trampoline_*_uprobe() (both) "
 		       "[tgid=%u, addr=%lx, data=%lx]\n",
 		       __FILE__, __LINE__, task->tgid, vaddr, insn);
-
-		if (!write_proc_vm_atomic(task, vaddr, &insn, sizeof(insn)))
-			panic("Failed to write memory %p!\n", p->addr);
-
 		return -EFAULT;
 	}
 
