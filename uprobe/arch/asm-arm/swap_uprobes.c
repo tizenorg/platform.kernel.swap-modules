@@ -136,7 +136,6 @@ static int arch_check_insn_thumb(unsigned long insn)
 	    (THUMB2_INSN_MATCH(LDRHW, insn) && THUMB2_INSN_REG_RN(insn) == 15) ||
 	    /* skip STRDx/LDRDx Rt, Rt2, [Rd, ...] */
 	    (THUMB2_INSN_MATCH(LDRD, insn) || THUMB2_INSN_MATCH(LDRD1, insn) || THUMB2_INSN_MATCH(STRD, insn))) {
-		printk("Bad insn arch_check_insn_thumb: %lx\n", insn);
 		ret = -EFAULT;
 	}
 

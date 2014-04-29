@@ -154,7 +154,6 @@ static int arch_check_insn_arm(unsigned long insn)
 	return 0;
 
 bad_insn:
-	printk("Bad insn arch_check_insn_arm: %lx\n", insn);
 	return -EFAULT;
 }
 
