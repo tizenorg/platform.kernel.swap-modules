@@ -599,6 +599,8 @@ void arch_prepare_uretprobe(struct uretprobe_instance *ri,
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 			 struct task_struct *task)
 {
+	struct pt_regs *uregs = task_pt_regs(ri->task);
+	unsigned long ra = dbi_get_ret_addr(uregs);
 	unsigned long *tramp;
 	unsigned long *sp = (unsigned long *)((long)ri->sp & ~1);
 	unsigned long *stack = sp - RETPROBE_STACK_DEPTH + 1;
@@ -615,6 +617,7 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 					  UPROBES_TRAMP_RET_BREAK_IDX);
 	}
 
+	/* check stack */
 	retval = read_proc_vm_atomic(task, (unsigned long)stack,
 				     buf, sizeof(buf));
 	if (retval != sizeof(buf)) {
@@ -622,7 +625,7 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 		       task->comm, task->tgid, task->pid,
 		       (unsigned long)stack);
 		retval = -EFAULT;
-		goto out;
+		goto check_lr;
 	}
 
 	/* search the stack from the bottom */
@@ -633,43 +636,42 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 		}
 	}
 
-	if (found) {
-		printk("---> %s (%d/%d): trampoline found at "
-		       "%08lx (%08lx /%+d) - %p\n",
-		       task->comm, task->tgid, task->pid,
-		       (unsigned long)found, (unsigned long)sp,
-		       found - sp, ri->rp->up.kp.addr);
-		retval = write_proc_vm_atomic(task, (unsigned long)found,
-					      &ri->ret_addr,
-					      sizeof(ri->ret_addr));
-		if (retval != sizeof(ri->ret_addr)) {
-			printk("---> %s (%d/%d): failed to write value "
-			       "to %08lx",
-			       task->comm, task->tgid, task->pid, (unsigned long)found);
-			retval = -EFAULT;
-		} else {
-			retval = 0;
-		}
-	} else {
-		struct pt_regs *uregs = task_pt_regs(ri->task);
-		unsigned long ra = dbi_get_ret_addr(uregs);
-		if (ra == (unsigned long)tramp) {
-			printk("---> %s (%d/%d): trampoline found at "
-			       "lr = %08lx - %p\n",
-			       task->comm, task->tgid, task->pid,
-			       ra, ri->rp->up.kp.addr);
-			dbi_set_ret_addr(uregs, (unsigned long)ri->ret_addr);
-			retval = 0;
-		} else {
-			printk("---> %s (%d/%d): trampoline NOT found at "
-			       "sp = %08lx, lr = %08lx - %p\n",
-			       task->comm, task->tgid, task->pid,
-			       (unsigned long)sp, ra, ri->rp->up.kp.addr);
-			retval = -ENOENT;
-		}
+	if (!found) {
+		retval = -ESRCH;
+		goto check_lr;
 	}
 
-out:
+	printk("---> %s (%d/%d): trampoline found at "
+	       "%08lx (%08lx /%+d) - %p\n",
+	       task->comm, task->tgid, task->pid,
+	       (unsigned long)found, (unsigned long)sp,
+	       found - sp, ri->rp->up.kp.addr);
+	retval = write_proc_vm_atomic(task, (unsigned long)found,
+				      &ri->ret_addr,
+				      sizeof(ri->ret_addr));
+	if (retval != sizeof(ri->ret_addr)) {
+		printk("---> %s (%d/%d): failed to write value to %08lx",
+		       task->comm, task->tgid, task->pid, (unsigned long)found);
+		retval = -EFAULT;
+	} else {
+		retval = 0;
+	}
+
+check_lr: /* check lr anyway */
+	if (ra == (unsigned long)tramp) {
+		printk("---> %s (%d/%d): trampoline found at "
+		       "lr = %08lx - %p\n",
+		       task->comm, task->tgid, task->pid,
+		       ra, ri->rp->up.kp.addr);
+		dbi_set_ret_addr(uregs, (unsigned long)ri->ret_addr);
+		retval = 0;
+	} else if (retval) {
+		printk("---> %s (%d/%d): trampoline NOT found at "
+		       "sp = %08lx, lr = %08lx - %p\n",
+		       task->comm, task->tgid, task->pid,
+		       (unsigned long)sp, ra, ri->rp->up.kp.addr);
+	}
+
 	return retval;
 }
 
