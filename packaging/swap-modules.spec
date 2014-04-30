@@ -29,13 +29,34 @@ Profiler. Add more words.
 
 %install
 mkdir -p %{buildroot}/opt/swap/sdk
-find . -name "*.ko" -exec install -m 777 -t %{buildroot}/opt/swap/sdk {} \;
-strip -x -g %{buildroot}/opt/swap/sdk/swap.ko
+install -m 666 buffer/swap_buffer.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 ksyms/swap_ksyms.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 driver/swap_driver.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 writer/swap_writer.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 kprobe/swap_kprobe.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 ks_manager/swap_ks_manager.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 uprobe/swap_uprobe.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 us_manager/swap_us_manager.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 ks_features/swap_ks_features.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 sampler/swap_sampler.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 energy/swap_energy.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 parser/swap_message_parser.ko -t %{buildroot}/opt/swap/sdk
 install -m 755 start.sh %{buildroot}/opt/swap/sdk
 install -m 755 stop.sh %{buildroot}/opt/swap/sdk
 
 %files
 %defattr(-,root,root)
-/opt/swap/sdk/swap.ko
+/opt/swap/sdk/swap_buffer.ko
+/opt/swap/sdk/swap_ksyms.ko
+/opt/swap/sdk/swap_driver.ko
+/opt/swap/sdk/swap_writer.ko
+/opt/swap/sdk/swap_kprobe.ko
+/opt/swap/sdk/swap_ks_manager.ko
+/opt/swap/sdk/swap_uprobe.ko
+/opt/swap/sdk/swap_us_manager.ko
+/opt/swap/sdk/swap_ks_features.ko
+/opt/swap/sdk/swap_sampler.ko
+/opt/swap/sdk/swap_energy.ko
+/opt/swap/sdk/swap_message_parser.ko
 /opt/swap/sdk/start.sh
 /opt/swap/sdk/stop.sh
