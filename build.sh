@@ -72,6 +72,7 @@ ${energy_dir}/${energy_module_name} \
 ${parser_dir}/${parser_module_name} \
 ${ksyms_dir}/${ksyms_module_name}"
 
-# for m in ${modules} ; do
+for m in ${modules} ; do
+	${cross_compile}strip -x -g $m
 # 	sdb -e push $m ${install_dir}
-# done
+done
