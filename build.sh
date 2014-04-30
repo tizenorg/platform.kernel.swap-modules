@@ -46,6 +46,7 @@ ks_features_module_name=swap_ks_features.ko
 sampler_module_name=swap_sampler.ko
 energy_module_name=swap_energy.ko
 parser_module_name=swap_message_parser.ko
+ksyms_module_name=swap_ksyms.ko
 
 install_dir="/opt/swap/sdk"
 
@@ -68,7 +69,8 @@ ${us_manager_dir}/${us_manager_module_name} \
 ${ks_features_dir}/${ks_features_module_name} \
 ${sampler_dir}/${sampler_module_name} \
 ${energy_dir}/${energy_module_name} \
-${parser_dir}/${parser_module_name}"
+${parser_dir}/${parser_module_name} \
+${ksyms_dir}/${ksyms_module_name}"
 
 # for m in ${modules} ; do
 # 	sdb -e push $m ${install_dir}
