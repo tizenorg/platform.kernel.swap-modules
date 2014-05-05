@@ -12,4 +12,5 @@ swap_message_parser-y := swap_msg_parser.o \
                          msg_buf.o \
                          msg_cmd.o \
                          features.o \
-                         us_inst.o
+                         us_inst.o \
+                         cpu_ctrl.o
