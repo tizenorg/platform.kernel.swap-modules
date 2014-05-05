@@ -217,7 +217,6 @@ struct kretprobe_instance
 };
 
 
-extern void show_registers (struct pt_regs *regs);
 extern void kprobes_inc_nmissed_count (struct kprobe *p);
 
 //

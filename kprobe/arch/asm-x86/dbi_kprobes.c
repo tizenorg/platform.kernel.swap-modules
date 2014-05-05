@@ -60,40 +60,11 @@ extern struct kprobe * per_cpu__current_kprobe;
 extern struct kprobe * per_cpu__current_kprobe;
 extern struct kprobe * current_kprobe;
 
-DECLARE_MOD_FUNC_DEP(module_alloc, void *, unsigned long size);
-DECLARE_MOD_FUNC_DEP(module_free, void, struct module *mod, void *module_region);
-DECLARE_MOD_FUNC_DEP(fixup_exception, int, struct pt_regs * regs);
 
-DECLARE_MOD_FUNC_DEP(freeze_processes, int, void);
-DECLARE_MOD_FUNC_DEP(thaw_processes, void, void);
+static int (*swap_fixup_exception)(struct pt_regs * regs);
+static void *(*swap_text_poke)(void *addr, const void *opcode, size_t len);
+static void (*swap_show_registers)(struct pt_regs * regs);
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26))
-DECLARE_MOD_FUNC_DEP(text_poke, void, void *addr, unsigned char *opcode, int len);
-#else
-DECLARE_MOD_FUNC_DEP(text_poke, void *, void *addr, const void *opcode, size_t len);
-#endif
-DECLARE_MOD_FUNC_DEP(show_registers, void, struct pt_regs * regs);
-
-DECLARE_MOD_DEP_WRAPPER (module_alloc, void *, unsigned long size)
-IMP_MOD_DEP_WRAPPER (module_alloc, size)
-
-DECLARE_MOD_DEP_WRAPPER (module_free, void, struct module *mod, void *module_region)
-IMP_MOD_DEP_WRAPPER (module_free, mod, module_region)
-
-DECLARE_MOD_DEP_WRAPPER (fixup_exception, int, struct pt_regs * regs)
-IMP_MOD_DEP_WRAPPER (fixup_exception, regs)
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26))
-DECLARE_MOD_DEP_WRAPPER(text_poke, \
-			void, void *addr, unsigned char *opcode, int len)
-#else
-DECLARE_MOD_DEP_WRAPPER(text_poke, \
-			void *, void *addr, const void *opcode, size_t len)
-#endif
-IMP_MOD_DEP_WRAPPER(text_poke, addr, opcode, len)
-
-DECLARE_MOD_DEP_WRAPPER(show_registers, void, struct pt_regs * regs)
-IMP_MOD_DEP_WRAPPER(show_registers, regs)
 
 #define stack_addr(regs) ((unsigned long *)kernel_stack_pointer(regs))
 
@@ -726,7 +697,7 @@ int kprobe_fault_handler (struct pt_regs *regs, int trapnr)
 			 * In case the user-specified fault handler returned
 			 * zero, try to fix up.
 			 */
-			if (fixup_exception (regs))
+			if (swap_fixup_exception(regs))
 				return 1;
 
 			/*
@@ -805,9 +776,9 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 			printk("current esp %p does not match saved esp %p\n",
 			       stack_addr(regs), kcb->jprobe_saved_esp);
 			printk ("Saved registers for jprobe %p\n", jp);
-			show_registers (saved_regs);
+			swap_show_registers(saved_regs);
 			printk ("Current registers\n");
-			show_registers (regs);
+			swap_show_registers(regs);
 			panic("BUG");
 			//BUG ();
 		}
@@ -822,13 +793,13 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 
 void arch_arm_kprobe (struct kprobe *p)
 {
-	text_poke (p->addr, ((unsigned char[])
-				{BREAKPOINT_INSTRUCTION}), 1);
+	swap_text_poke(p->addr,
+		       ((unsigned char[]){BREAKPOINT_INSTRUCTION}), 1);
 }
 
 void arch_disarm_kprobe (struct kprobe *p)
 {
-	text_poke (p->addr, &p->opcode, 1);
+	swap_text_poke(p->addr, &p->opcode, 1);
 }
 
 static __used void *trampoline_probe_handler_x86(struct pt_regs *regs)
@@ -857,21 +828,28 @@ void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 int arch_init_module_deps()
 {
-	INIT_MOD_DEP_VAR(module_alloc, module_alloc);
-	INIT_MOD_DEP_VAR(module_free, module_free);
-	INIT_MOD_DEP_VAR(fixup_exception, fixup_exception);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
-# error this kernel version has no text_poke function which is necessaryf for x86 ach!!!
-#else
-	INIT_MOD_DEP_VAR(text_poke, text_poke);
-#endif
-	INIT_MOD_DEP_VAR(show_registers, show_registers);
-#if defined(CONFIG_PREEMPT) && defined(CONFIG_PM)
-	INIT_MOD_DEP_VAR(freeze_processes, freeze_processes);
-	INIT_MOD_DEP_VAR(thaw_processes, thaw_processes);
-#endif
+	const char *sym;
+
+	sym = "fixup_exception";
+	swap_fixup_exception = (void *)swap_ksyms(sym);
+	if (swap_fixup_exception == NULL)
+		goto not_found;
+
+	sym = "text_poke";
+	swap_text_poke = (void *)swap_ksyms(sym);
+	if (swap_text_poke == NULL)
+		goto not_found;
+
+	sym = "show_registers";
+	swap_show_registers = (void *)swap_ksyms(sym);
+	if (swap_show_registers == NULL)
+		goto not_found;
 
 	return 0;
+
+not_found:
+	printk("ERROR: symbol %s(...) not found\n", sym);
+	return -ESRCH;
 }
 
 int arch_init_kprobes(void)

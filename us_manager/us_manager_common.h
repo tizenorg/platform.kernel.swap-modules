@@ -35,9 +35,10 @@ static inline unsigned long swap_do_mmap(struct file *filp, unsigned long addr,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 	unsigned long populate;
 
-	return do_mmap_pgoff(filp, addr, len, prot, flag, offset, &populate);
+	return swap_do_mmap_pgoff(filp, addr, len, prot,
+				  flag, offset, &populate);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-	return do_mmap_pgoff(filp, addr, len, prot, flag, offset);
+	return swap_do_mmap_pgoff(filp, addr, len, prot, flag, offset);
 #else
 	return do_mmap(filp, addr, len, prot, flag, offset);
 #endif
