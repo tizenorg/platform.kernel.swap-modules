@@ -51,6 +51,7 @@ int check_event(struct task_struct *task)
 {
 	return filter_current->filter(task);
 }
+EXPORT_SYMBOL_GPL(check_event);
 
 static struct ev_filter *event_filter_find(const char *name)
 {
