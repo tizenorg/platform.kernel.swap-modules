@@ -35,6 +35,7 @@
 #include <ksyms/ksyms.h>
 #include <kprobe/swap_kprobes.h>
 #include <writer/swap_writer_module.h>
+#include <writer/event_filter.h>
 #include "ks_features.h"
 #include "syscall_list.h"
 #include "features_data.c"
@@ -117,7 +118,7 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct kretprobe *rp = ri->rp;
 
-	if (rp) {
+	if (rp && check_event(current)) {
 		struct ks_probe *ksp = container_of(rp, struct ks_probe, rp);
 		const char *fmt = ksp->args;
 		unsigned long addr = (unsigned long)ksp->rp.kp.addr;
@@ -133,7 +134,7 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct kretprobe *rp = ri->rp;
 
-	if (rp) {
+	if (rp && check_event(current)) {
 		unsigned long func_addr = (unsigned long)rp->kp.addr;
 		unsigned long ret_addr = (unsigned long)ri->ret_addr;
 
@@ -150,14 +151,16 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 /* ====================== SWITCH_CONTEXT ======================= */
 static int switch_entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	switch_entry(regs);
+	if (check_event(current))
+		switch_entry(regs);
 
 	return 0;
 }
 
 static int switch_ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	switch_exit(regs);
+	if (check_event(current))
+		switch_exit(regs);
 
 	return 0;
 }

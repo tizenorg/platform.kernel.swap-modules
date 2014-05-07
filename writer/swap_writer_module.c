@@ -707,9 +707,6 @@ int sample_msg(struct pt_regs *regs)
 	char *buf, *payload, *buf_end;
 	int ret;
 
-	if (!check_event(current))
-		return 0;
-
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_SAMPLE);
 	buf_end = pack_sample(payload, regs);
@@ -875,9 +872,6 @@ int entry_event(const char *fmt, unsigned long func_addr, struct pt_regs *regs,
 {
 	char *buf, *payload, *args, *buf_end;
 	int ret;
-
-	if (pt == PT_KS && !check_event(current))
-		return 0;
 
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_ENTRY);
@@ -1046,9 +1040,6 @@ int exit_event(char ret_type, struct pt_regs *regs, unsigned long func_addr,
 	char *buf, *payload, *buf_end;
 	int ret;
 
-	if (!check_event(current))
-		return 0;
-
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_EXIT);
 	/* FIXME: len=1024 */
@@ -1126,9 +1117,6 @@ static int context_switch(struct pt_regs *regs, enum MSG_ID id)
  */
 int switch_entry(struct pt_regs *regs)
 {
-	if (!check_event(current))
-		return 0;
-
 	return context_switch(regs, MSG_CONTEXT_SWITCH_ENTRY);
 }
 EXPORT_SYMBOL_GPL(switch_entry);
@@ -1141,9 +1129,6 @@ EXPORT_SYMBOL_GPL(switch_entry);
  */
 int switch_exit(struct pt_regs *regs)
 {
-	if (!check_event(current))
-		return 0;
-
 	return context_switch(regs, MSG_CONTEXT_SWITCH_EXIT);
 }
 EXPORT_SYMBOL_GPL(switch_exit);

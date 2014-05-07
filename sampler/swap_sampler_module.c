@@ -36,6 +36,7 @@
 #include <linux/module.h>
 
 #include <writer/swap_writer_module.h>
+#include <writer/event_filter.h>
 
 #include "swap_sampler_module.h"
 #include "swap_sampler_errors.h"
@@ -47,7 +48,7 @@ static BLOCKING_NOTIFIER_HEAD(swap_sampler_notifier_list);
 
 static restart_ret swap_timer_restart(swap_timer *timer)
 {
-	if (current)
+	if (check_event(current))
 		sample_msg(task_pt_regs(current));
 
 	return sampler_timers_restart(timer);
