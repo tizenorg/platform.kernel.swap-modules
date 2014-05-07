@@ -230,13 +230,10 @@ extern void kprobes_inc_nmissed_count (struct kprobe *p);
 
 /* Get the kprobe at this addr (if any) - called with preemption disabled */
 struct kprobe *get_kprobe(void *addr);
-struct hlist_head *kretprobe_inst_table_head (void *hash_key);
 
 
 int dbi_register_kprobe (struct kprobe *p);
 void dbi_unregister_kprobe(struct kprobe *p);
-
-int register_aggr_kprobe (struct kprobe *old_p, struct kprobe *p);
 
 int setjmp_pre_handler (struct kprobe *, struct pt_regs *);
 int longjmp_break_handler (struct kprobe *, struct pt_regs *);
@@ -244,13 +241,8 @@ int longjmp_break_handler (struct kprobe *, struct pt_regs *);
 int dbi_register_jprobe (struct jprobe *p);
 void dbi_unregister_jprobe (struct jprobe *p);
 void dbi_jprobe_return (void);
-void dbi_jprobe_return_end (void);
-
-struct kretprobe * clone_kretprobe (struct kretprobe *rp);
-struct kretprobe_instance * get_used_rp_inst (struct kretprobe *rp);
 
 
-int alloc_nodes_kretprobe(struct kretprobe *rp);
 int dbi_register_kretprobe (struct kretprobe *rp);
 void dbi_unregister_kretprobe (struct kretprobe *rp);
 void dbi_unregister_kretprobes(struct kretprobe **rpp, size_t size);
@@ -269,23 +261,11 @@ void dbi_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
 void dbi_unregister_kretprobe_bottom(struct kretprobe *rp);
 void dbi_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size);
 
-void kretprobe_assert (struct kretprobe_instance *ri,
-		unsigned long orig_ret_address, unsigned long trampoline_address);
 
-
-struct kretprobe_instance *get_free_rp_inst (struct kretprobe *rp);
-struct kretprobe_instance *get_free_rp_inst_no_alloc (struct kretprobe *rp);
-void free_rp_inst (struct kretprobe *rp);
-void add_rp_inst (struct kretprobe_instance *ri);
-void recycle_rp_inst (struct kretprobe_instance *ri);
 int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task);
 
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 
-#ifdef KPROBES_PROFILE
-int pre_handler_kretprobe (struct kprobe *p, struct pt_regs *regs, struct vm_area_struct **vma, struct page **page, unsigned long **kaddr);
-void set_normalized_timeval (struct timeval *tv, time_t sec, suseconds_t usec);
-#endif
 
 extern DEFINE_PER_CPU (struct kprobe *, current_kprobe);
 extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];

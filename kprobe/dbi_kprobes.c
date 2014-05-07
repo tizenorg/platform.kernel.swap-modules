@@ -121,7 +121,9 @@ static void exit_sm(void)
 	/* FIXME: free */
 }
 
-void kretprobe_assert(struct kretprobe_instance *ri, unsigned long orig_ret_address, unsigned long trampoline_address)
+static void kretprobe_assert(struct kretprobe_instance *ri,
+			     unsigned long orig_ret_address,
+			     unsigned long trampoline_address)
 {
 	if (!orig_ret_address || (orig_ret_address == trampoline_address)) {
 		struct task_struct *task;
@@ -274,8 +276,10 @@ void kprobes_inc_nmissed_count(struct kprobe *p)
 	}
 }
 
+static int alloc_nodes_kretprobe(struct kretprobe *rp);
+
 /* Called with kretprobe_lock held */
-struct kretprobe_instance *get_free_rp_inst(struct kretprobe *rp)
+static struct kretprobe_instance *get_free_rp_inst(struct kretprobe *rp)
 {
 	struct kretprobe_instance *ri;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
@@ -292,10 +296,10 @@ struct kretprobe_instance *get_free_rp_inst(struct kretprobe *rp)
 
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(get_free_rp_inst);
 
 /* Called with kretprobe_lock held */
-struct kretprobe_instance *get_free_rp_inst_no_alloc(struct kretprobe *rp)
+static struct kretprobe_instance *
+get_free_rp_inst_no_alloc(struct kretprobe *rp)
 {
 	struct kretprobe_instance *ri;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
@@ -308,7 +312,7 @@ struct kretprobe_instance *get_free_rp_inst_no_alloc(struct kretprobe *rp)
 }
 
 /* Called with kretprobe_lock held */
-struct kretprobe_instance *get_used_rp_inst(struct kretprobe *rp)
+static struct kretprobe_instance *get_used_rp_inst(struct kretprobe *rp)
 {
 	struct kretprobe_instance *ri;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
@@ -319,10 +323,9 @@ struct kretprobe_instance *get_used_rp_inst(struct kretprobe *rp)
 
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(get_used_rp_inst);
 
 /* Called with kretprobe_lock held */
-void add_rp_inst (struct kretprobe_instance *ri)
+static void add_rp_inst(struct kretprobe_instance *ri)
 {
 	/*
 	 * Remove rp inst off the free list -
@@ -339,10 +342,9 @@ void add_rp_inst (struct kretprobe_instance *ri)
 	INIT_HLIST_NODE(&ri->uflist);
 	hlist_add_head(&ri->uflist, &ri->rp->used_instances);
 }
-EXPORT_SYMBOL_GPL(add_rp_inst);
 
 /* Called with kretprobe_lock held */
-void recycle_rp_inst(struct kretprobe_instance *ri)
+static void recycle_rp_inst(struct kretprobe_instance *ri)
 {
 	if (ri->rp) {
 		hlist_del(&ri->hlist);
@@ -353,15 +355,13 @@ void recycle_rp_inst(struct kretprobe_instance *ri)
 		hlist_add_head(&ri->uflist, &ri->rp->free_instances);
 	}
 }
-EXPORT_SYMBOL_GPL(recycle_rp_inst);
 
-struct hlist_head *kretprobe_inst_table_head(void *hash_key)
+static struct hlist_head *kretprobe_inst_table_head(void *hash_key)
 {
 	return &kretprobe_inst_table[hash_ptr(hash_key, KPROBE_HASH_BITS)];
 }
-EXPORT_SYMBOL_GPL(kretprobe_inst_table_head);
 
-void free_rp_inst(struct kretprobe *rp)
+static void free_rp_inst(struct kretprobe *rp)
 {
 	struct kretprobe_instance *ri;
 	while ((ri = get_free_rp_inst_no_alloc(rp)) != NULL) {
@@ -369,7 +369,6 @@ void free_rp_inst(struct kretprobe *rp)
 		kfree(ri);
 	}
 }
-EXPORT_SYMBOL_GPL(free_rp_inst);
 
 /*
  * Keep all fields in the kprobe consistent
@@ -454,7 +453,7 @@ static inline void add_aggr_kprobe(struct kprobe *ap, struct kprobe *p)
  * This is the second or subsequent kprobe at the address - handle
  * the intricacies
  */
-int register_aggr_kprobe(struct kprobe *old_p, struct kprobe *p)
+static int register_aggr_kprobe(struct kprobe *old_p, struct kprobe *p)
 {
 	int ret = 0;
 	struct kprobe *ap;
@@ -485,7 +484,6 @@ int register_aggr_kprobe(struct kprobe *old_p, struct kprobe *p)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(register_aggr_kprobe);
 
 static void remove_kprobe(struct kprobe *p)
 {
@@ -730,7 +728,7 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 #define SCHED_RP_NR 200
 #define COMMON_RP_NR 10
 
-int alloc_nodes_kretprobe(struct kretprobe *rp)
+static int alloc_nodes_kretprobe(struct kretprobe *rp)
 {
 	int alloc_nodes;
 	struct kretprobe_instance *inst;
@@ -899,36 +897,6 @@ void dbi_unregister_kretprobe(struct kretprobe *rp)
 {
 	dbi_unregister_kretprobes(&rp, 1);
 }
-
-struct kretprobe *clone_kretprobe(struct kretprobe *rp)
-{
-	struct kprobe *old_p;
-	struct kretprobe *clone = NULL;
-	int ret;
-
-	clone = kmalloc(sizeof(struct kretprobe), GFP_KERNEL);
-	if (!clone) {
-		DBPRINTF ("failed to alloc memory for clone probe %p!", rp->kp.addr);
-		return NULL;
-	}
-	memcpy(clone, rp, sizeof(struct kretprobe));
-	clone->kp.pre_handler = pre_handler_kretprobe;
-	clone->kp.post_handler = NULL;
-	clone->kp.fault_handler = NULL;
-	clone->kp.break_handler = NULL;
-	old_p = get_kprobe(rp->kp.addr);
-	if (old_p) {
-		ret = register_aggr_kprobe(old_p, &clone->kp);
-		if (ret) {
-			kfree(clone);
-			return NULL;
-		}
-		atomic_inc(&kprobe_count);
-	}
-
-	return clone;
-}
-EXPORT_SYMBOL_GPL(clone_kretprobe);
 
 static void inline rm_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri)
 {

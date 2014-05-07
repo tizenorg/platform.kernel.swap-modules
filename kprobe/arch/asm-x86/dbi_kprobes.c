@@ -489,6 +489,8 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	return 1;
 }
 
+void dbi_jprobe_return_end(void);
+
 void dbi_jprobe_return (void)
 {
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
