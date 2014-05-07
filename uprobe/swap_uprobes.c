@@ -33,7 +33,7 @@
 #include <linux/hash.h>
 #include <linux/mempolicy.h>
 #include <linux/module.h>
-#include <kprobe/dbi_insn_slots.h>
+#include <kprobe/swap_slots.h>
 #include <kprobe/dbi_kprobes_deps.h>
 
 enum {
@@ -325,7 +325,7 @@ static void remove_uprobe(struct uprobe *up)
 {
 	struct kprobe *p = up2kp(up);
 
-	free_insn_slot(up->sm, p->ainsn.insn);
+	swap_slot_free(up->sm, p->ainsn.insn);
 }
 
 static struct hlist_head *uretprobe_inst_table_head(void *hash_key)

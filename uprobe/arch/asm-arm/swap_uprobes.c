@@ -30,7 +30,7 @@
 #include <asm/traps.h>
 #include <uprobe/swap_uprobes.h>
 #include <uprobe/arch/asm/swap_uprobes.h>
-#include <kprobe/dbi_insn_slots.h>
+#include <kprobe/swap_slots.h>
 #include <kprobe/dbi_kprobes_deps.h>
 #include "trampoline_thumb.h"
 
@@ -559,9 +559,9 @@ int arch_prepare_uprobe(struct uprobe *up)
 		return -EFAULT;
 	}
 
-	up->atramp.utramp = alloc_insn_slot(up->sm);
+	up->atramp.utramp = swap_slot_alloc(up->sm);
 	if (up->atramp.utramp == NULL) {
-		printk("Error: alloc_insn_slot failed (%08lx)\n", vaddr);
+		printk("Error: swap_slot_alloc failed (%08lx)\n", vaddr);
 		return -ENOMEM;
 	}
 

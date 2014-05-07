@@ -29,7 +29,7 @@
 #include <linux/mm.h>
 #include <linux/mman.h>
 #include <linux/list.h>
-#include <kprobe/dbi_insn_slots.h>
+#include <kprobe/swap_slots.h>
 #include <kprobe/arch/asm/dbi_kprobes.h>
 #include "us_manager_common.h"
 

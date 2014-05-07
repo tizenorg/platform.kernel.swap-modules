@@ -37,7 +37,7 @@
 #include <kprobe/dbi_kprobes.h>
 
 #include <kprobe/dbi_kdebug.h>
-#include <kprobe/dbi_insn_slots.h>
+#include <kprobe/swap_slots.h>
 #include <kprobe/dbi_kprobes_deps.h>
 #include <ksyms/ksyms.h>
 
@@ -300,13 +300,13 @@ int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 	unsigned long *tramp;
 	int ret;
 
-	tramp = alloc_insn_slot(sm);
+	tramp = swap_slot_alloc(sm);
 	if (tramp == NULL)
 		return -ENOMEM;
 
 	ret = arch_make_trampoline_arm(addr, insn, tramp);
 	if (ret) {
-		free_insn_slot(sm, tramp);
+		swap_slot_free(sm, tramp);
 		return ret;
 	}
 

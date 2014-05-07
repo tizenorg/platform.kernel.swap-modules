@@ -52,7 +52,7 @@
 #include <kprobe/dbi_kprobes.h>
 
 #include <kprobe/dbi_kdebug.h>
-#include <kprobe/dbi_insn_slots.h>
+#include <kprobe/swap_slots.h>
 #include <kprobe/dbi_kprobes_deps.h>
 #define SUPRESS_BUG_MESSAGES
 
@@ -230,7 +230,7 @@ static int is_IF_modifier (kprobe_opcode_t opcode)
 int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 {
 	/* insn: must be on special executable page on i386. */
-	p->ainsn.insn = alloc_insn_slot(sm);
+	p->ainsn.insn = swap_slot_alloc(sm);
 	if (p->ainsn.insn == NULL)
 		return -ENOMEM;
 

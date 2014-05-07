@@ -1,5 +1,5 @@
-#ifndef _DBI_INSNS_SLOTS_H
-#define _DBI_INSNS_SLOTS_H
+#ifndef _SWAP_SLOTS_H
+#define _SWAP_SLOTS_H
 
 /*
  *  Kernel Probes (KProbes)
@@ -24,7 +24,7 @@
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/dbi_insn_slots.h
+ *  modules/kprobe/swap_slots.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -58,7 +58,7 @@ struct slot_manager {
 	void *data;
 };
 
-void *alloc_insn_slot(struct slot_manager *sm);
-void free_insn_slot(struct slot_manager *sm, void *slot);
+void *swap_slot_alloc(struct slot_manager *sm);
+void swap_slot_free(struct slot_manager *sm, void *slot);
 
-#endif /* _DBI_INSNS_SLOTS_H */
+#endif /* _SWAP_SLOTS_H */

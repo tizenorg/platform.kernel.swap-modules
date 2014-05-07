@@ -51,7 +51,7 @@
 
 #include "dbi_kdebug.h"
 #include "dbi_kprobes_deps.h"
-#include "dbi_insn_slots.h"
+#include "swap_slots.h"
 #include <ksyms/ksyms.h>
 
 #include <linux/version.h>
@@ -490,7 +490,7 @@ EXPORT_SYMBOL_GPL(register_aggr_kprobe);
 static void remove_kprobe(struct kprobe *p)
 {
 	/* TODO: check boostable for x86 and MIPS */
-	free_insn_slot(&sm, p->ainsn.insn);
+	swap_slot_free(&sm, p->ainsn.insn);
 }
 
 int dbi_register_kprobe(struct kprobe *p)

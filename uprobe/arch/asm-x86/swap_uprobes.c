@@ -28,7 +28,7 @@
 #include <kprobe/arch/asm/dbi_kprobes.h>
 #include <uprobe/swap_uprobes.h>
 #include <uprobe/arch/asm/swap_uprobes.h>
-#include <kprobe/dbi_insn_slots.h>
+#include <kprobe/swap_slots.h>
 
 struct uprobe_ctlblk {
         unsigned long flags;
@@ -293,7 +293,7 @@ static int make_trampoline(struct uprobe *up)
 	struct task_struct *task = up->task;
 	void *tramp;
 
-	tramp = alloc_insn_slot(up->sm);
+	tramp = swap_slot_alloc(up->sm);
 	if (tramp == 0) {
 		printk("trampoline out of memory\n");
 		return -ENOMEM;
@@ -302,7 +302,7 @@ static int make_trampoline(struct uprobe *up)
 	if (!write_proc_vm_atomic(task, (unsigned long)tramp,
 				  up->atramp.tramp,
 				  sizeof(up->atramp.tramp))) {
-		free_insn_slot(up->sm, tramp);
+		swap_slot_free(up->sm, tramp);
 		panic("failed to write memory %p!\n", tramp);
 		return -EINVAL;
 	}

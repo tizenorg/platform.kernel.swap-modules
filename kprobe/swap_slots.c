@@ -21,7 +21,7 @@
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/dbi_insn_slots.c
+ *  modules/kprobe/swap_slots.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,12 +45,15 @@
  * 2012-2013    Vyacheslav Cherkashin <v.cherkashin@samsung.com> new memory allocator for slots
  */
 
-#include "dbi_insn_slots.h"
+
 #include <linux/module.h>
 #include <linux/rculist.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
-#include <kprobe/dbi_kprobes_deps.h>
+
+#include "swap_slots.h"
+#include "dbi_kprobes_deps.h"
+
 
 struct chunk {
 	unsigned long *data;
@@ -164,7 +167,7 @@ static void free_fixed_alloc(struct slot_manager *sm, struct fixed_alloc *fa)
 }
 
 
-void *alloc_insn_slot(struct slot_manager *sm)
+void *swap_slot_alloc(struct slot_manager *sm)
 {
 	void *free_slot;
 	struct fixed_alloc *fa;
@@ -185,9 +188,9 @@ void *alloc_insn_slot(struct slot_manager *sm)
 
 	return chunk_allocate(&fa->chunk, sm->slot_size);
 }
-EXPORT_SYMBOL_GPL(alloc_insn_slot);
+EXPORT_SYMBOL_GPL(swap_slot_alloc);
 
-void free_insn_slot(struct slot_manager *sm, void *slot)
+void swap_slot_free(struct slot_manager *sm, void *slot)
 {
 	struct fixed_alloc *fa;
 	DECLARE_NODE_PTR_FOR_HLIST(pos);
@@ -209,6 +212,6 @@ void free_insn_slot(struct slot_manager *sm, void *slot)
 		return;
 	}
 
-	panic("free_insn_slot: slot=%p is not data base\n", slot);
+	panic("%s: slot=%p is not data base\n", __func__, slot);
 }
-EXPORT_SYMBOL_GPL(free_insn_slot);
+EXPORT_SYMBOL_GPL(swap_slot_free);
