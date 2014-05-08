@@ -53,14 +53,14 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	ip->retprobe.up.task = ip->page->file->proc->task;
 	ip->retprobe.up.sm = ip->page->file->proc->sm;
 
-	ret = dbi_register_uretprobe(&ip->retprobe);
+	ret = swap_register_uretprobe(&ip->retprobe);
 	if (ret) {
 		struct sspt_file *file = ip->page->file;
 		char *name = file->dentry->d_iname;
 		unsigned long addr = (unsigned long)ip->retprobe.up.kp.addr;
 		unsigned long offset = addr - file->vm_start;
 
-		printk("dbi_register_uretprobe() failure %d (%s:%lx|%lx)\n",
+		printk("swap_register_uretprobe() failure %d (%s:%lx|%lx)\n",
 		       ret, name, offset, (unsigned long)ip->retprobe.up.kp.opcode);
 	}
 
@@ -69,7 +69,7 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 
 static inline int do_unregister_usprobe(struct us_ip *ip, int disarm)
 {
-	__dbi_unregister_uretprobe(&ip->retprobe, disarm);
+	__swap_unregister_uretprobe(&ip->retprobe, disarm);
 
 	return 0;
 }

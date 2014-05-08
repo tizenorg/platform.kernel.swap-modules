@@ -23,8 +23,8 @@
  */
 
 
-#include <kprobe/dbi_kprobes.h>
-#include <kprobe/dbi_kprobes_deps.h>
+#include <kprobe/swap_kprobes.h>
+#include <kprobe/swap_kprobes_deps.h>
 #include <ksyms/ksyms.h>
 #include <writer/kernel_operations.h>
 #include <writer/swap_writer_module.h>
@@ -106,9 +106,9 @@ static int register_mf(void)
 {
 	int ret;
 
-	ret = dbi_register_kretprobe(&mf_kretprobe);
+	ret = swap_register_kretprobe(&mf_kretprobe);
 	if (ret)
-		printk("dbi_register_kretprobe(handle_mm_fault) ret=%d!\n",
+		printk("swap_register_kretprobe(handle_mm_fault) ret=%d!\n",
 		       ret);
 
 	return ret;
@@ -116,7 +116,7 @@ static int register_mf(void)
 
 static void unregister_mf(void)
 {
-	dbi_unregister_kretprobe(&mf_kretprobe);
+	swap_unregister_kretprobe(&mf_kretprobe);
 }
 
 
@@ -160,16 +160,16 @@ static int register_ctx_task(void)
 {
 	int ret = 0;
 
-	ret = dbi_register_kprobe(&ctx_task_kprobe);
+	ret = swap_register_kprobe(&ctx_task_kprobe);
 	if (ret)
-		printk("dbi_register_kprobe(workaround) ret=%d!\n", ret);
+		printk("swap_register_kprobe(workaround) ret=%d!\n", ret);
 
 	return ret;
 }
 
 static void unregister_ctx_task(void)
 {
-	dbi_unregister_kprobe(&ctx_task_kprobe);
+	swap_unregister_kprobe(&ctx_task_kprobe);
 }
 #endif /* CONFIG_ARM */
 
@@ -187,7 +187,7 @@ static atomic_t copy_process_cnt = ATOMIC_INIT(0);
 static void recover_child(struct task_struct *child_task, struct sspt_proc *proc)
 {
 	sspt_proc_uninstall(proc, child_task, US_DISARM);
-	dbi_disarm_urp_inst_for_task(current, child_task);
+	swap_disarm_urp_inst_for_task(current, child_task);
 }
 
 static void rm_uprobes_child(struct task_struct *task)
@@ -239,20 +239,20 @@ static int register_cp(void)
 {
 	int ret;
 
-	ret = dbi_register_kretprobe(&cp_kretprobe);
+	ret = swap_register_kretprobe(&cp_kretprobe);
 	if (ret)
-		printk("dbi_register_kretprobe(copy_process) ret=%d!\n", ret);
+		printk("swap_register_kretprobe(copy_process) ret=%d!\n", ret);
 
 	return ret;
 }
 
 static void unregister_cp(void)
 {
-	dbi_unregister_kretprobe_top(&cp_kretprobe, 0);
+	swap_unregister_kretprobe_top(&cp_kretprobe, 0);
 	do {
 		synchronize_sched();
 	} while (atomic_read(&copy_process_cnt));
-	dbi_unregister_kretprobe_bottom(&cp_kretprobe);
+	swap_unregister_kretprobe_bottom(&cp_kretprobe);
 }
 
 
@@ -276,7 +276,7 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	if (task->tgid != task->pid) {
 		/* if the thread is killed we need to discard pending
 		 * uretprobe instances which have not triggered yet */
-		dbi_discard_pending_uretprobes(task);
+		swap_discard_pending_uretprobes(task);
 		goto out;
 	}
 
@@ -293,16 +293,16 @@ static int register_mr(void)
 {
 	int ret;
 
-	ret = dbi_register_kprobe(&mr_kprobe);
+	ret = swap_register_kprobe(&mr_kprobe);
 	if (ret)
-		printk("dbi_register_kprobe(mm_release) ret=%d!\n", ret);
+		printk("swap_register_kprobe(mm_release) ret=%d!\n", ret);
 
 	return ret;
 }
 
 static void unregister_mr(void)
 {
-	dbi_unregister_kprobe(&mr_kprobe);
+	swap_unregister_kprobe(&mr_kprobe);
 }
 
 
@@ -408,20 +408,20 @@ static int register_unmap(void)
 {
 	int ret;
 
-	ret = dbi_register_kretprobe(&unmap_kretprobe);
+	ret = swap_register_kretprobe(&unmap_kretprobe);
 	if (ret)
-		printk("dbi_register_kprobe(do_munmap) ret=%d!\n", ret);
+		printk("swap_register_kprobe(do_munmap) ret=%d!\n", ret);
 
 	return ret;
 }
 
 static void unregister_unmap(void)
 {
-	dbi_unregister_kretprobe_top(&unmap_kretprobe, 0);
+	swap_unregister_kretprobe_top(&unmap_kretprobe, 0);
 	do {
 		synchronize_sched();
 	} while (atomic_read(&unmap_cnt));
-	dbi_unregister_kretprobe_bottom(&unmap_kretprobe);
+	swap_unregister_kretprobe_bottom(&unmap_kretprobe);
 }
 
 
@@ -468,16 +468,16 @@ static int register_mmap(void)
 {
 	int ret;
 
-	ret = dbi_register_kretprobe(&mmap_kretprobe);
+	ret = swap_register_kretprobe(&mmap_kretprobe);
 	if (ret)
-		printk("dbi_register_kretprobe(do_mmap_pgoff) ret=%d!\n", ret);
+		printk("swap_register_kretprobe(do_mmap_pgoff) ret=%d!\n", ret);
 
 	return ret;
 }
 
 static void unregister_mmap(void)
 {
-	dbi_unregister_kretprobe(&mmap_kretprobe);
+	swap_unregister_kretprobe(&mmap_kretprobe);
 }
 
 

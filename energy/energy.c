@@ -30,7 +30,7 @@
 #include <linux/magic.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
-#include <kprobe/dbi_kprobes.h>
+#include <kprobe/swap_kprobes.h>
 #include <ksyms/ksyms.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include <us_manager/sspt/sspt_feature.h>
@@ -533,21 +533,22 @@ int do_set_energy(void)
 
 	init_data_energy();
 
-	ret = dbi_register_kretprobe(&sys_read_krp);
+	ret = swap_register_kretprobe(&sys_read_krp);
 	if (ret) {
-		printk("dbi_register_kretprobe(sys_read) result=%d!\n", ret);
+		printk("swap_register_kretprobe(sys_read) result=%d!\n", ret);
 		return ret;
 	}
 
-	ret = dbi_register_kretprobe(&sys_write_krp);
+	ret = swap_register_kretprobe(&sys_write_krp);
 	if (ret != 0) {
-		printk("dbi_register_kretprobe(sys_write) result=%d!\n", ret);
+		printk("swap_register_kretprobe(sys_write) result=%d!\n", ret);
 		goto unregister_sys_read;
 	}
 
-	ret = dbi_register_kretprobe(&switch_to_krp);
+	ret = swap_register_kretprobe(&switch_to_krp);
 	if (ret) {
-		printk("dbi_register_kretprobe(__switch_to) result=%d!\n", ret);
+		printk("swap_register_kretprobe(__switch_to) result=%d!\n",
+		       ret);
 		goto unregister_sys_write;
 	}
 
@@ -557,10 +558,10 @@ int do_set_energy(void)
 	return ret;
 
 unregister_sys_read:
-	dbi_unregister_kretprobe(&sys_read_krp);
+	swap_unregister_kretprobe(&sys_read_krp);
 
 unregister_sys_write:
-	dbi_unregister_kretprobe(&sys_write_krp);
+	swap_unregister_kretprobe(&sys_write_krp);
 
 	return ret;
 }
@@ -569,9 +570,9 @@ void do_unset_energy(void)
 {
 	lcd_unset_energy();
 
-	dbi_unregister_kretprobe(&switch_to_krp);
-	dbi_unregister_kretprobe(&sys_write_krp);
-	dbi_unregister_kretprobe(&sys_read_krp);
+	swap_unregister_kretprobe(&switch_to_krp);
+	swap_unregister_kretprobe(&sys_write_krp);
+	swap_unregister_kretprobe(&sys_read_krp);
 
 	uninit_data_energy();
 }

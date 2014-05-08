@@ -1,8 +1,8 @@
 EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_kprobe.o
-swap_kprobe-y := dbi_kprobes.o \
-                 dbi_kprobes_deps.o \
-                 arch/asm/dbi_kprobes.o \
+swap_kprobe-y := swap_kprobes.o \
+                 swap_kprobes_deps.o \
+                 arch/asm/swap_kprobes.o \
                  swap_slots.o
 swap_kprobe-$(CONFIG_ARM) += arch/asm/trampoline_arm.o

@@ -1,9 +1,9 @@
-#ifndef _DBI_KPROBE_DEBUG_H
-#define _DBI_KPROBE_DEBUG_H
+#ifndef _SWAP_KPROBE_DEBUG_H
+#define _SWAP_KPROBE_DEBUG_H
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/dbi_kdebug.h
+ *  modules/kprobe/swap_kdebug.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,4 +42,4 @@
 #endif
 
 
-#endif /* _DBI_KPROBE_DEBUG_H */
+#endif /* _SWAP_KPROBE_DEBUG_H */

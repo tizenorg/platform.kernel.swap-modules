@@ -29,8 +29,8 @@
 
 
 static unsigned long sampler_timer_quantum = 0;
-static DEFINE_PER_CPU(struct timer_list, dbi_timer);
-static int dbi_timer_running;
+static DEFINE_PER_CPU(struct timer_list, swap_timer);
+static int swap_timer_running;
 
 
 restart_ret sampler_timers_restart(swap_timer *timer)
@@ -47,21 +47,21 @@ restart_ret sampler_timers_restart(swap_timer *timer)
 
 void sampler_timers_set_run(void)
 {
-	dbi_timer_running = 1;
+	swap_timer_running = 1;
 }
 
 
 void sampler_timers_set_stop(void)
 {
-	dbi_timer_running = 0;
+	swap_timer_running = 0;
 }
 
 
 void sampler_timers_start(void *restart_func)
 {
-	struct timer_list *timer = &__get_cpu_var(dbi_timer);
+	struct timer_list *timer = &__get_cpu_var(swap_timer);
 
-	if (!dbi_timer_running)
+	if (!swap_timer_running)
 		return;
 
 	init_timer(timer);
@@ -74,9 +74,9 @@ void sampler_timers_start(void *restart_func)
 
 void sampler_timers_stop(int cpu)
 {
-	struct timer_list *timer = &per_cpu(dbi_timer, cpu);
+	struct timer_list *timer = &per_cpu(swap_timer, cpu);
 
-	if (!dbi_timer_running)
+	if (!swap_timer_running)
 		return;
 	del_timer_sync(timer);
 }

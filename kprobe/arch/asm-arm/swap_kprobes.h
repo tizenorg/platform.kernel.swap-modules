@@ -1,9 +1,9 @@
-#ifndef _DBI_ASM_ARM_KPROBES_H
-#define _DBI_ASM_ARM_KPROBES_H
+#ifndef _SWAP_ASM_ARM_KPROBES_H
+#define _SWAP_ASM_ARM_KPROBES_H
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/arch/asm-arm/dbi_kprobes.h
+ *  modules/kprobe/arch/asm-arm/swap_kprobes.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -80,42 +80,43 @@ static inline void arch_set_task_pc(struct task_struct *p, unsigned long val)
 	task_thread_info(p)->cpu_context.pc = val;
 }
 
-static inline struct pt_regs *dbi_get_syscall_uregs(unsigned long sp)
+static inline struct pt_regs *swap_get_syscall_uregs(unsigned long sp)
 {
 	return (struct pt_regs *)(sp + UREGS_OFFSET);
 }
 
-static inline unsigned long dbi_get_stack_ptr(struct pt_regs *regs)
+static inline unsigned long swap_get_stack_ptr(struct pt_regs *regs)
 {
 	return regs->ARM_sp;
 }
 
-static inline unsigned long dbi_get_instr_ptr(struct pt_regs *regs)
+static inline unsigned long swap_get_instr_ptr(struct pt_regs *regs)
 {
 	return regs->ARM_pc;
 }
 
-static inline void dbi_set_instr_ptr(struct pt_regs *regs, unsigned long val)
+static inline void swap_set_instr_ptr(struct pt_regs *regs, unsigned long val)
 {
 	regs->ARM_pc = val;
 }
 
-static inline unsigned long dbi_get_ret_addr(struct pt_regs *regs)
+static inline unsigned long swap_get_ret_addr(struct pt_regs *regs)
 {
 	return regs->ARM_lr;
 }
 
-static inline void dbi_set_ret_addr(struct pt_regs *regs, unsigned long val)
+static inline void swap_set_ret_addr(struct pt_regs *regs, unsigned long val)
 {
 	regs->ARM_lr = val;
 }
 
-static inline unsigned long dbi_get_arg(struct pt_regs *regs, int num)
+static inline unsigned long swap_get_arg(struct pt_regs *regs, int num)
 {
 	return regs->uregs[num];
 }
 
-static inline void dbi_set_arg(struct pt_regs *regs, int num, unsigned long val)
+static inline void swap_set_arg(struct pt_regs *regs, int num,
+				unsigned long val)
 {
 	regs->uregs[num] = val;
 }
@@ -549,4 +550,4 @@ void arch_exit_kprobes(void);
 //void gen_insn_execbuf_holder (void);
 //void pc_dep_insn_execbuf_holder (void);
 
-#endif /* _DBI_ASM_ARM_KPROBES_H */
+#endif /* _SWAP_ASM_ARM_KPROBES_H */

@@ -34,7 +34,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <asm/uaccess.h>
-#include <kprobe/arch/asm/dbi_kprobes.h>
+#include <kprobe/arch/asm/swap_kprobes.h>
 #include <uprobe/arch/asm/swap_uprobes.h>
 
 #include <buffer/swap_buffer_module.h>

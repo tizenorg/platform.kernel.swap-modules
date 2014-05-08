@@ -21,7 +21,7 @@
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/dbi_kprobes.h
+ *  modules/kprobe/swap_kprobes.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,13 +46,6 @@
  *
  */
 
-#include "dbi_kprobes.h"
-#include <kprobe/arch/asm/dbi_kprobes.h>
-
-#include "dbi_kdebug.h"
-#include "dbi_kprobes_deps.h"
-#include "swap_slots.h"
-#include <ksyms/ksyms.h>
 
 #include <linux/version.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
@@ -63,6 +56,15 @@
 #include <linux/module.h>
 #include <linux/mm.h>
 #include <linux/pagemap.h>
+
+#include <ksyms/ksyms.h>
+#include <kprobe/arch/asm/swap_kprobes.h>
+
+#include "swap_slots.h"
+#include "swap_kdebug.h"
+#include "swap_kprobes.h"
+#include "swap_kprobes_deps.h"
+
 
 unsigned long sched_addr;
 static unsigned long exit_addr;
@@ -289,7 +291,8 @@ static struct kretprobe_instance *get_free_rp_inst(struct kretprobe *rp)
 	}
 
 	if (!alloc_nodes_kretprobe(rp)) {
-		swap_hlist_for_each_entry(ri, node, &rp->free_instances, uflist) {
+		swap_hlist_for_each_entry(ri, node, &rp->free_instances,
+					  uflist) {
 			return ri;
 		}
 	}
@@ -414,7 +417,8 @@ static int add_new_kprobe(struct kprobe *old_p, struct kprobe *p)
  *
  * The @old entry will be replaced with the @new entry atomically.
  */
-inline void dbi_hlist_replace_rcu(struct hlist_node *old, struct hlist_node *new)
+inline void swap_hlist_replace_rcu(struct hlist_node *old,
+				   struct hlist_node *new)
 {
 	struct hlist_node *next = old->next;
 
@@ -446,7 +450,7 @@ static inline void add_aggr_kprobe(struct kprobe *ap, struct kprobe *p)
 	INIT_LIST_HEAD(&ap->list);
 	list_add_rcu(&p->list, &ap->list);
 
-	dbi_hlist_replace_rcu(&p->hlist, &ap->hlist);
+	swap_hlist_replace_rcu(&p->hlist, &ap->hlist);
 }
 
 /*
@@ -491,7 +495,7 @@ static void remove_kprobe(struct kprobe *p)
 	swap_slot_free(&sm, p->ainsn.insn);
 }
 
-int dbi_register_kprobe(struct kprobe *p)
+int swap_register_kprobe(struct kprobe *p)
 {
 	struct kprobe *old_p;
 	int ret = 0;
@@ -541,8 +545,9 @@ out:
 	DBPRINTF ("out ret = 0x%x\n", ret);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(swap_register_kprobe);
 
-static void dbi_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
+static void swap_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
 {
 	struct kprobe *list_p;
 
@@ -573,7 +578,7 @@ static void dbi_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
 		p->addr = NULL;
 }
 
-void dbi_unregister_kprobe(struct kprobe *kp)
+void swap_unregister_kprobe(struct kprobe *kp)
 {
 	struct kprobe *old_p, *list_p;
 
@@ -585,26 +590,29 @@ void dbi_unregister_kprobe(struct kprobe *kp)
 		list_for_each_entry_rcu(list_p, &old_p->list, list)
 			if (list_p == kp)
 				/* kprobe p is a valid probe */
-				dbi_unregister_valid_kprobe(kp, old_p);
+				swap_unregister_valid_kprobe(kp, old_p);
 		return;
 	}
 
-	dbi_unregister_valid_kprobe(kp, old_p);
+	swap_unregister_valid_kprobe(kp, old_p);
 }
+EXPORT_SYMBOL_GPL(swap_unregister_kprobe);
 
-int dbi_register_jprobe(struct jprobe *jp)
+int swap_register_jprobe(struct jprobe *jp)
 {
 	/* Todo: Verify probepoint is a function entry point */
 	jp->kp.pre_handler = setjmp_pre_handler;
 	jp->kp.break_handler = longjmp_break_handler;
 
-	return dbi_register_kprobe(&jp->kp);
+	return swap_register_kprobe(&jp->kp);
 }
+EXPORT_SYMBOL_GPL(swap_register_jprobe);
 
-void dbi_unregister_jprobe(struct jprobe *jp)
+void swap_unregister_jprobe(struct jprobe *jp)
 {
-	dbi_unregister_kprobe(&jp->kp);
+	swap_unregister_kprobe(&jp->kp);
 }
+EXPORT_SYMBOL_GPL(swap_unregister_jprobe);
 
 /*
  * This kprobe pre_handler is registered with every kretprobe. When probe
@@ -762,7 +770,7 @@ static int alloc_nodes_kretprobe(struct kretprobe *rp)
 	return 0;
 }
 
-int dbi_register_kretprobe(struct kretprobe *rp)
+int swap_register_kretprobe(struct kretprobe *rp)
 {
 	int ret = 0;
 	struct kretprobe_instance *inst;
@@ -809,23 +817,24 @@ int dbi_register_kretprobe(struct kretprobe *rp)
 	DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
 	rp->nmissed = 0;
 	/* Establish function entry probe point */
-	if ((ret = dbi_register_kprobe(&rp->kp)) != 0)
+	if ((ret = swap_register_kprobe(&rp->kp)) != 0)
 		free_rp_inst(rp);
 
 	DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(swap_register_kretprobe);
 
-static int dbi_disarm_krp_inst(struct kretprobe_instance *ri);
+static int swap_disarm_krp_inst(struct kretprobe_instance *ri);
 
-static void dbi_disarm_krp(struct kretprobe *rp)
+static void swap_disarm_krp(struct kretprobe *rp)
 {
 	struct kretprobe_instance *ri;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	swap_hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
-		if (dbi_disarm_krp_inst(ri) != 0) {
+		if (swap_disarm_krp_inst(ri) != 0) {
 			printk("%s (%d/%d): cannot disarm krp instance (%08lx)\n",
 					ri->task->comm, ri->task->tgid, ri->task->pid,
 					(unsigned long)rp->kp.addr);
@@ -833,7 +842,7 @@ static void dbi_disarm_krp(struct kretprobe *rp)
 	}
 }
 
-void dbi_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
+void swap_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
 				   int rp_disarm)
 {
 	unsigned long flags;
@@ -841,21 +850,21 @@ void dbi_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
 
 	spin_lock_irqsave(&kretprobe_lock, flags);
 	for (--size; size != end; --size) {
-		dbi_unregister_kprobe(&rps[size]->kp);
+		swap_unregister_kprobe(&rps[size]->kp);
 		if (rp_disarm)
-			dbi_disarm_krp(rps[size]);
+			swap_disarm_krp(rps[size]);
 	}
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 }
-EXPORT_SYMBOL_GPL(dbi_unregister_kretprobes_top);
+EXPORT_SYMBOL_GPL(swap_unregister_kretprobes_top);
 
-void dbi_unregister_kretprobe_top(struct kretprobe *rp, int rp_disarm)
+void swap_unregister_kretprobe_top(struct kretprobe *rp, int rp_disarm)
 {
-	dbi_unregister_kretprobes_top(&rp, 1, rp_disarm);
+	swap_unregister_kretprobes_top(&rp, 1, rp_disarm);
 }
-EXPORT_SYMBOL_GPL(dbi_unregister_kretprobe_top);
+EXPORT_SYMBOL_GPL(swap_unregister_kretprobe_top);
 
-void dbi_unregister_kretprobe_bottom(struct kretprobe *rp)
+void swap_unregister_kretprobe_bottom(struct kretprobe *rp)
 {
 	unsigned long flags;
 	struct kretprobe_instance *ri;
@@ -872,38 +881,40 @@ void dbi_unregister_kretprobe_bottom(struct kretprobe *rp)
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 }
-EXPORT_SYMBOL_GPL(dbi_unregister_kretprobe_bottom);
+EXPORT_SYMBOL_GPL(swap_unregister_kretprobe_bottom);
 
-void dbi_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size)
+void swap_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size)
 {
 	const size_t end = ((size_t) 0) - 1;
 
 	for (--size; size != end; --size)
-		dbi_unregister_kretprobe_bottom(rps[size]);
+		swap_unregister_kretprobe_bottom(rps[size]);
 }
-EXPORT_SYMBOL_GPL(dbi_unregister_kretprobes_bottom);
+EXPORT_SYMBOL_GPL(swap_unregister_kretprobes_bottom);
 
-void dbi_unregister_kretprobes(struct kretprobe **rpp, size_t size)
+void swap_unregister_kretprobes(struct kretprobe **rpp, size_t size)
 {
-	dbi_unregister_kretprobes_top(rpp, size, 1);
+	swap_unregister_kretprobes_top(rpp, size, 1);
 
 	if (!in_atomic())
 		synchronize_sched();
 
-	dbi_unregister_kretprobes_bottom(rpp, size);
+	swap_unregister_kretprobes_bottom(rpp, size);
 }
+EXPORT_SYMBOL_GPL(swap_unregister_kretprobes);
 
-void dbi_unregister_kretprobe(struct kretprobe *rp)
+void swap_unregister_kretprobe(struct kretprobe *rp)
 {
-	dbi_unregister_kretprobes(&rp, 1);
+	swap_unregister_kretprobes(&rp, 1);
 }
+EXPORT_SYMBOL_GPL(swap_unregister_kretprobe);
 
 static void inline rm_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri)
 {
 	arch_set_task_pc(p, (unsigned long)ri->ret_addr);
 }
 
-static int dbi_disarm_krp_inst(struct kretprobe_instance *ri)
+static int swap_disarm_krp_inst(struct kretprobe_instance *ri)
 {
 	unsigned long *tramp = (unsigned long *)&kretprobe_trampoline;
 	unsigned long *sp = ri->sp;
@@ -1028,14 +1039,5 @@ static void __exit exit_kprobes(void)
 
 module_init(init_kprobes);
 module_exit(exit_kprobes);
-
-EXPORT_SYMBOL_GPL(dbi_register_kprobe);
-EXPORT_SYMBOL_GPL(dbi_unregister_kprobe);
-EXPORT_SYMBOL_GPL(dbi_register_jprobe);
-EXPORT_SYMBOL_GPL(dbi_unregister_jprobe);
-EXPORT_SYMBOL_GPL(dbi_jprobe_return);
-EXPORT_SYMBOL_GPL(dbi_register_kretprobe);
-EXPORT_SYMBOL_GPL(dbi_unregister_kretprobes);
-EXPORT_SYMBOL_GPL(dbi_unregister_kretprobe);
 
 MODULE_LICENSE("Dual BSD/GPL");

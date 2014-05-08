@@ -23,7 +23,7 @@
  */
 
 
-#include <kprobe/dbi_kprobes.h>
+#include <kprobe/swap_kprobes.h>
 #include <linux/backlight.h>
 #include "lcd_base.h"
 
@@ -99,12 +99,12 @@ static struct kretprobe set_backlight_krp = {
 
 static int maru_set(struct lcd_ops *ops)
 {
-	return dbi_register_kretprobe(&set_backlight_krp);
+	return swap_register_kretprobe(&set_backlight_krp);
 }
 
 static int maru_unset(struct lcd_ops *ops)
 {
-	dbi_unregister_kretprobe(&set_backlight_krp);
+	swap_unregister_kretprobe(&set_backlight_krp);
 	return 0;
 }
 

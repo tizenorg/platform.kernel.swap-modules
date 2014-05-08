@@ -21,7 +21,7 @@
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/arch/asm-x86/dbi_kprobes.c
+ *  modules/kprobe/arch/asm-x86/swap_kprobes.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -48,12 +48,12 @@
 #include<linux/module.h>
 #include <linux/kdebug.h>
 
-#include "dbi_kprobes.h"
-#include <kprobe/dbi_kprobes.h>
+#include "swap_kprobes.h"
+#include <kprobe/swap_kprobes.h>
 
-#include <kprobe/dbi_kdebug.h>
+#include <kprobe/swap_kdebug.h>
 #include <kprobe/swap_slots.h>
-#include <kprobe/dbi_kprobes_deps.h>
+#include <kprobe/swap_kprobes_deps.h>
 #define SUPRESS_BUG_MESSAGES
 
 extern struct kprobe * per_cpu__current_kprobe;
@@ -489,18 +489,19 @@ int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
 	return 1;
 }
 
-void dbi_jprobe_return_end(void);
+void swap_jprobe_return_end(void);
 
-void dbi_jprobe_return (void)
+void swap_jprobe_return(void)
 {
 	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
 
 	asm volatile("       xchgl   %%ebx,%%esp     \n"
 			"       int3			\n"
-			"       .globl dbi_jprobe_return_end	\n"
-			"       dbi_jprobe_return_end:	\n"
+			"       .globl swap_jprobe_return_end	\n"
+			"       swap_jprobe_return_end:	\n"
 			"       nop			\n"::"b" (kcb->jprobe_saved_esp):"memory");
 }
+EXPORT_SYMBOL_GPL(swap_jprobe_return);
 
 void arch_ujprobe_return(void)
 {
@@ -771,8 +772,8 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 
 	DBPRINTF ("p = %p\n", p);
 
-	if ((addr > (u8 *) dbi_jprobe_return) && (addr < (u8 *) dbi_jprobe_return_end))
-	{
+	if ((addr > (u8 *)swap_jprobe_return) && 
+	    (addr < (u8 *)swap_jprobe_return_end)) {
 		if (stack_addr(regs) != kcb->jprobe_saved_esp) {
 			struct pt_regs *saved_regs = &kcb->jprobe_saved_regs;
 			printk("current esp %p does not match saved esp %p\n",

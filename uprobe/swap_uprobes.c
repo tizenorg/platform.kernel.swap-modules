@@ -26,7 +26,7 @@
 
 
 #include "swap_uprobes.h"
-#include <kprobe/dbi_kdebug.h>
+#include <kprobe/swap_kdebug.h>
 
 #include <uprobe/arch/asm/swap_uprobes.h>
 
@@ -34,7 +34,7 @@
 #include <linux/mempolicy.h>
 #include <linux/module.h>
 #include <kprobe/swap_slots.h>
-#include <kprobe/dbi_kprobes_deps.h>
+#include <kprobe/swap_kprobes_deps.h>
 
 enum {
 	UPROBE_HASH_BITS  = 10,
@@ -448,7 +448,7 @@ static struct uretprobe_instance *get_free_urp_inst(struct uretprobe *rp)
 }
 // ===================================================================
 
-int dbi_register_uprobe(struct uprobe *up)
+int swap_register_uprobe(struct uprobe *up)
 {
 	int ret = 0;
 	struct kprobe *p, *old_p;
@@ -508,7 +508,7 @@ out:
 	return ret;
 }
 
-void __dbi_unregister_uprobe(struct uprobe *up, int disarm)
+void __swap_unregister_uprobe(struct uprobe *up, int disarm)
 {
 	struct kprobe *p, *old_p, *list_p;
 	int cleanup_p;
@@ -574,14 +574,14 @@ valid_p:
 		}
 	}
 }
-EXPORT_SYMBOL_GPL(__dbi_unregister_uprobe);
+EXPORT_SYMBOL_GPL(__swap_unregister_uprobe);
 
-void dbi_unregister_uprobe(struct uprobe *up)
+void swap_unregister_uprobe(struct uprobe *up)
 {
-	__dbi_unregister_uprobe(up, 1);
+	__swap_unregister_uprobe(up, 1);
 }
 
-int dbi_register_ujprobe(struct ujprobe *jp)
+int swap_register_ujprobe(struct ujprobe *jp)
 {
 	int ret = 0;
 
@@ -589,14 +589,15 @@ int dbi_register_ujprobe(struct ujprobe *jp)
 	jp->up.kp.pre_handler = setjmp_upre_handler;
 	jp->up.kp.break_handler = longjmp_break_uhandler;
 
-	ret = dbi_register_uprobe(&jp->up);
+	ret = swap_register_uprobe(&jp->up);
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(swap_register_ujprobe);
 
-void __dbi_unregister_ujprobe(struct ujprobe *jp, int disarm)
+void __swap_unregister_ujprobe(struct ujprobe *jp, int disarm)
 {
-	__dbi_unregister_uprobe(&jp->up, disarm);
+	__swap_unregister_uprobe(&jp->up, disarm);
 	/*
 	 * Here is an attempt to unregister even those probes that have not been
 	 * installed (hence not added to the hlist).
@@ -608,12 +609,13 @@ void __dbi_unregister_ujprobe(struct ujprobe *jp, int disarm)
 		hlist_del_rcu(&jp->up.kp.is_hlist);
 	}
 }
-EXPORT_SYMBOL_GPL(__dbi_unregister_ujprobe);
+EXPORT_SYMBOL_GPL(__swap_unregister_ujprobe);
 
-void dbi_unregister_ujprobe(struct ujprobe *jp)
+void swap_unregister_ujprobe(struct ujprobe *jp)
 {
-	__dbi_unregister_ujprobe(jp, 1);
+	__swap_unregister_ujprobe(jp, 1);
 }
+EXPORT_SYMBOL_GPL(swap_unregister_ujprobe);
 
 int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 {
@@ -713,7 +715,7 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-int dbi_register_uretprobe(struct uretprobe *rp)
+int swap_register_uretprobe(struct uretprobe *rp)
 {
 	int i, ret = 0;
 	struct uretprobe_instance *inst;
@@ -751,7 +753,7 @@ int dbi_register_uretprobe(struct uretprobe *rp)
 	rp->nmissed = 0;
 
 	/* Establish function entry probe point */
-	ret = dbi_register_uprobe(&rp->up);
+	ret = swap_register_uprobe(&rp->up);
 	if (ret)
 		return ret;
 
@@ -759,8 +761,9 @@ int dbi_register_uretprobe(struct uretprobe *rp)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(swap_register_uretprobe);
 
-int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task)
+int swap_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task)
 {
 	unsigned long flags;
 	struct uretprobe_instance *ri;
@@ -781,9 +784,9 @@ int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct 
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(dbi_disarm_urp_inst_for_task);
+EXPORT_SYMBOL_GPL(swap_disarm_urp_inst_for_task);
 
-void dbi_discard_pending_uretprobes(struct task_struct *task)
+void swap_discard_pending_uretprobes(struct task_struct *task)
 {
 	unsigned long flags;
 	struct uretprobe_instance *ri;
@@ -806,14 +809,14 @@ void dbi_discard_pending_uretprobes(struct task_struct *task)
 
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
 }
-EXPORT_SYMBOL_GPL(dbi_discard_pending_uretprobes);
+EXPORT_SYMBOL_GPL(swap_discard_pending_uretprobes);
 
-void __dbi_unregister_uretprobe(struct uretprobe *rp, int disarm)
+void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 {
 	unsigned long flags;
 	struct uretprobe_instance *ri;
 
-	__dbi_unregister_uprobe(&rp->up, disarm);
+	__swap_unregister_uprobe(&rp->up, disarm);
 	spin_lock_irqsave (&uretprobe_lock, flags);
 
 	while ((ri = get_used_urp_inst(rp)) != NULL) {
@@ -840,14 +843,15 @@ void __dbi_unregister_uretprobe(struct uretprobe *rp, int disarm)
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
 	free_urp_inst(rp);
 }
-EXPORT_SYMBOL_GPL(__dbi_unregister_uretprobe);
+EXPORT_SYMBOL_GPL(__swap_unregister_uretprobe);
 
-void dbi_unregister_uretprobe(struct uretprobe *rp)
+void swap_unregister_uretprobe(struct uretprobe *rp)
 {
-	__dbi_unregister_uretprobe(rp, 1);
+	__swap_unregister_uretprobe(rp, 1);
 }
+EXPORT_SYMBOL_GPL(swap_unregister_uretprobe);
 
-void dbi_unregister_all_uprobes(struct task_struct *task)
+void swap_unregister_all_uprobes(struct task_struct *task)
 {
 	struct hlist_head *head;
 	struct kprobe *p;
@@ -860,13 +864,16 @@ void dbi_unregister_all_uprobes(struct task_struct *task)
 		swap_hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
 			if (kp2up(p)->task->tgid == task->tgid) {
 				struct uprobe *up = container_of(p, struct uprobe, kp);
-				printk("dbi_unregister_all_uprobes: delete uprobe at %p[%lx] for %s/%d\n",
-						p->addr, (unsigned long)p->opcode, task->comm, task->pid);
-				dbi_unregister_uprobe(up);
+				printk("%s: delete uprobe at %p[%lx] for "
+				       "%s/%d\n", __func__, p->addr,
+				       (unsigned long)p->opcode,
+				       task->comm, task->pid);
+				swap_unregister_uprobe(up);
 			}
 		}
 	}
 }
+EXPORT_SYMBOL_GPL(swap_unregister_all_uprobes);
 
 void swap_ujprobe_return(void)
 {
@@ -887,12 +894,6 @@ static void __exit exit_uprobes(void)
 {
 	swap_arch_exit_uprobes();
 }
-
-EXPORT_SYMBOL_GPL(dbi_register_ujprobe);
-EXPORT_SYMBOL_GPL(dbi_unregister_ujprobe);
-EXPORT_SYMBOL_GPL(dbi_register_uretprobe);
-EXPORT_SYMBOL_GPL(dbi_unregister_uretprobe);
-EXPORT_SYMBOL_GPL(dbi_unregister_all_uprobes);
 
 module_init(init_uprobes);
 module_exit(exit_uprobes);

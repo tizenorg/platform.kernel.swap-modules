@@ -25,7 +25,6 @@
  */
 
 #include <linux/kdebug.h>
-#include <kprobe/arch/asm/dbi_kprobes.h>
 #include <uprobe/swap_uprobes.h>
 #include <uprobe/arch/asm/swap_uprobes.h>
 #include <kprobe/swap_slots.h>

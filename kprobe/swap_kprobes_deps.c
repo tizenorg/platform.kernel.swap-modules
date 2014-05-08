@@ -1,6 +1,6 @@
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/dbi_kprobes_deps.h
+ *  modules/kprobe/swap_kprobes_deps.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,8 +29,8 @@
 
 #include <asm/pgtable.h>
 
-#include "dbi_kprobes_deps.h"
-#include "dbi_kdebug.h"
+#include "swap_kprobes_deps.h"
+#include "swap_kdebug.h"
 
 
 #include <linux/slab.h>
@@ -51,21 +51,21 @@ static unsigned long swap_zero_pfn = 0;
 #endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)) */
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36)
-static inline void *dbi_kmap_atomic(struct page *page)
+static inline void *swap_kmap_atomic(struct page *page)
 {
 	return kmap_atomic(page);
 }
-static inline void dbi_kunmap_atomic(void *kvaddr)
+static inline void swap_kunmap_atomic(void *kvaddr)
 {
 	kunmap_atomic(kvaddr);
 }
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36) */
-static inline void *dbi_kmap_atomic(struct page *page)
+static inline void *swap_kmap_atomic(struct page *page)
 {
 	return kmap_atomic(page, KM_USER0);
 }
 
-static inline void dbi_kunmap_atomic(void *kvaddr)
+static inline void swap_kunmap_atomic(void *kvaddr)
 {
 	kunmap_atomic(kvaddr, KM_USER0);
 }
@@ -227,7 +227,7 @@ DECLARE_MOD_DEP_WRAPPER(swap_follow_hugetlb_page,
 #define swap_follow_hugetlb_page follow_hugetlb_page
 #endif /* CONFIG_HUGETLB_PAGE */
 
-static inline int dbi_in_gate_area(struct task_struct *task, unsigned long addr)
+static inline int swap_in_gate_area(struct task_struct *task, unsigned long addr)
 {
 #ifdef __HAVE_ARCH_GATE_AREA
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
@@ -250,7 +250,7 @@ DECLARE_MOD_DEP_WRAPPER(swap_in_gate_area_no_task, int, unsigned long addr)
 IMP_MOD_DEP_WRAPPER(in_gate_area_no_task, addr)
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
-static inline int dbi_in_gate_area_no_xxx(unsigned long addr)
+static inline int swap_in_gate_area_no_xxx(unsigned long addr)
 {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 	return swap_in_gate_area_no_mm(addr);
@@ -454,7 +454,7 @@ long __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		struct vm_area_struct *vma;
 
 		vma = swap_find_extend_vma(mm, start);
-		if (!vma && dbi_in_gate_area(tsk, start)) {
+		if (!vma && swap_in_gate_area(tsk, start)) {
 			unsigned long pg = start & PAGE_MASK;
 			pgd_t *pgd;
 			pud_t *pud;
@@ -649,7 +649,7 @@ static int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm
 		struct vm_area_struct *vma;
 
 		vma = swap_find_extend_vma(mm, start);
-		if (!vma && dbi_in_gate_area_no_xxx(start)) {
+		if (!vma && swap_in_gate_area_no_xxx(start)) {
 			unsigned long pg = start & PAGE_MASK;
 			pgd_t *pgd;
 			pud_t *pud;
@@ -845,7 +845,7 @@ static int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm
 		unsigned int foll_flags;
 
 		vma = find_vma(mm, start);
-		if (!vma && dbi_in_gate_area(tsk, start)) {
+		if (!vma && swap_in_gate_area(tsk, start)) {
 			unsigned long pg = start & PAGE_MASK;
 			struct vm_area_struct *gate_vma = swap_get_gate_vma(tsk);
 			pgd_t *pgd;
@@ -1152,7 +1152,7 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 			if (bytes > PAGE_SIZE-offset)
 				bytes = PAGE_SIZE-offset;
 
-			maddr = atomic ? dbi_kmap_atomic(page) : kmap(page);
+			maddr = atomic ? swap_kmap_atomic(page) : kmap(page);
 
 			if (write) {
 				swap_copy_to_user_page(vma, page, addr,
@@ -1163,7 +1163,7 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 							buf, maddr + offset, bytes);
 			}
 
-			atomic ? dbi_kunmap_atomic(maddr) : kunmap(page);
+			atomic ? swap_kunmap_atomic(maddr) : kunmap(page);
 			page_cache_release(page);
 		}
 		len -= bytes;

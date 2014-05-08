@@ -1,6 +1,6 @@
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/arch/asm-arm/dbi_kprobes.c
+ *  modules/kprobe/arch/asm-arm/swap_kprobes.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,13 +32,13 @@
 #include <linux/module.h>
 #include <linux/mm.h>
 
-#include "dbi_kprobes.h"
+#include "swap_kprobes.h"
 #include "trampoline_arm.h"
-#include <kprobe/dbi_kprobes.h>
+#include <kprobe/swap_kprobes.h>
 
-#include <kprobe/dbi_kdebug.h>
+#include <kprobe/swap_kdebug.h>
 #include <kprobe/swap_slots.h>
-#include <kprobe/dbi_kprobes_deps.h>
+#include <kprobe/swap_kprobes_deps.h>
 #include <ksyms/ksyms.h>
 
 #include <asm/cacheflush.h>
@@ -440,15 +440,16 @@ int setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 		entry(regs->ARM_r0, regs->ARM_r1, regs->ARM_r2,
 		      regs->ARM_r3, regs->ARM_r4, regs->ARM_r5);
 	} else {
-		dbi_jprobe_return();
+		swap_jprobe_return();
 	}
 
 	return 0;
 }
 
-void dbi_jprobe_return (void)
+void swap_jprobe_return(void)
 {
 }
+EXPORT_SYMBOL_GPL(swap_jprobe_return);
 
 int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 {
@@ -604,7 +605,7 @@ static int kjump_init(void)
 {
 	int ret;
 
-	ret = dbi_register_kprobe(&kjump_kprobe);
+	ret = swap_register_kprobe(&kjump_kprobe);
 	if (ret)
 		printk("ERROR: kjump_init(), ret=%d\n", ret);
 
@@ -613,7 +614,7 @@ static int kjump_init(void)
 
 static void kjump_exit(void)
 {
-	dbi_unregister_kprobe(&kjump_kprobe);
+	swap_unregister_kprobe(&kjump_kprobe);
 }
 
 

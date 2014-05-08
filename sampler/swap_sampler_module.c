@@ -40,7 +40,7 @@
 
 static BLOCKING_NOTIFIER_HEAD(swap_sampler_notifier_list);
 
-static restart_ret dbi_timer_restart(swap_timer *timer)
+static restart_ret swap_timer_restart(swap_timer *timer)
 {
 	if (current)
 		sample_msg(task_pt_regs(current));
@@ -48,18 +48,18 @@ static restart_ret dbi_timer_restart(swap_timer *timer)
 	return sampler_timers_restart(timer);
 }
 
-static int dbi_timer_start(void)
+static int swap_timer_start(void)
 {
 	get_online_cpus();
 	sampler_timers_set_run();
 
-	on_each_cpu(sampler_timers_start, dbi_timer_restart, 1);
+	on_each_cpu(sampler_timers_start, swap_timer_restart, 1);
 	put_online_cpus();
 
 	return E_SS_SUCCESS;
 }
 
-static void dbi_timer_stop(void)
+static void swap_timer_stop(void)
 {
 	int cpu;
 
@@ -71,7 +71,7 @@ static void dbi_timer_stop(void)
 	put_online_cpus();
 }
 
-static int __cpuinit dbi_cpu_notify(struct notifier_block *self,
+static int __cpuinit swap_cpu_notify(struct notifier_block *self,
 				    unsigned long action, void *hcpu)
 {
 	long cpu = (long) hcpu;
@@ -80,7 +80,7 @@ static int __cpuinit dbi_cpu_notify(struct notifier_block *self,
 	case CPU_ONLINE:
 	case CPU_ONLINE_FROZEN:
 		smp_call_function_single(cpu, sampler_timers_start,
-				 dbi_timer_restart, 1);
+				 swap_timer_restart, 1);
 		break;
 	case CPU_DEAD:
 	case CPU_DEAD_FROZEN:
@@ -91,8 +91,8 @@ static int __cpuinit dbi_cpu_notify(struct notifier_block *self,
 	return NOTIFY_OK;
 }
 
-static struct notifier_block __refdata dbi_cpu_notifier = {
-	.notifier_call = dbi_cpu_notify,
+static struct notifier_block __refdata swap_cpu_notifier = {
+	.notifier_call = swap_cpu_notify,
 };
 
 static int do_swap_sampler_start(unsigned int timer_quantum)
@@ -101,14 +101,14 @@ static int do_swap_sampler_start(unsigned int timer_quantum)
 		return -EINVAL;
 
 	sampler_timers_set_quantum(timer_quantum);
-	dbi_timer_start();
+	swap_timer_start();
 
 	return 0;
 }
 
 static void do_swap_sampler_stop(void)
 {
-	dbi_timer_stop();
+	swap_timer_stop();
 }
 
 static DEFINE_MUTEX(mutex_run);
@@ -160,7 +160,7 @@ static int __init sampler_init(void)
 {
 	int retval;
 
-	retval = register_hotcpu_notifier(&dbi_cpu_notifier);
+	retval = register_hotcpu_notifier(&swap_cpu_notifier);
 	if (retval) {
 		print_err("Error of register_hotcpu_notifier()\n");
 		return retval;
@@ -176,7 +176,7 @@ static void __exit sampler_exit(void)
 	if (sampler_run)
 		do_swap_sampler_stop();
 
-	unregister_hotcpu_notifier(&dbi_cpu_notifier);
+	unregister_hotcpu_notifier(&swap_cpu_notifier);
 
 	print_msg("Sampler uninitialized\n");
 }

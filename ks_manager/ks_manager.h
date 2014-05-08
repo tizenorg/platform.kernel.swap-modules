@@ -25,7 +25,7 @@
  *
  */
 
-#include <kprobe/dbi_kprobes.h>
+#include <kprobe/swap_kprobes.h>
 
 struct kern_probe {
 	struct jprobe jp;

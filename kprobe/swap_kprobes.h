@@ -1,5 +1,5 @@
-#ifndef _DBI_KPROBES_H
-#define _DBI_KPROBES_H
+#ifndef _SWAP_KPROBES_H
+#define _SWAP_KPROBES_H
 
 /*
  *  Kernel Probes (KProbes)
@@ -24,7 +24,7 @@
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/dbi_kprobes.h
+ *  modules/kprobe/swap_kprobes.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -58,7 +58,7 @@
 #include <linux/sched.h>
 #include <linux/pagemap.h>
 
-#include <kprobe/arch/asm/dbi_kprobes.h>
+#include <kprobe/arch/asm/swap_kprobes.h>
 
 
 #ifdef CONFIG_ARM
@@ -232,37 +232,37 @@ extern void kprobes_inc_nmissed_count (struct kprobe *p);
 struct kprobe *get_kprobe(void *addr);
 
 
-int dbi_register_kprobe (struct kprobe *p);
-void dbi_unregister_kprobe(struct kprobe *p);
+int swap_register_kprobe(struct kprobe *p);
+void swap_unregister_kprobe(struct kprobe *p);
 
 int setjmp_pre_handler (struct kprobe *, struct pt_regs *);
 int longjmp_break_handler (struct kprobe *, struct pt_regs *);
 
-int dbi_register_jprobe (struct jprobe *p);
-void dbi_unregister_jprobe (struct jprobe *p);
-void dbi_jprobe_return (void);
+int swap_register_jprobe(struct jprobe *p);
+void swap_unregister_jprobe(struct jprobe *p);
+void swap_jprobe_return(void);
 
 
-int dbi_register_kretprobe (struct kretprobe *rp);
-void dbi_unregister_kretprobe (struct kretprobe *rp);
-void dbi_unregister_kretprobes(struct kretprobe **rpp, size_t size);
+int swap_register_kretprobe(struct kretprobe *rp);
+void swap_unregister_kretprobe(struct kretprobe *rp);
+void swap_unregister_kretprobes(struct kretprobe **rpp, size_t size);
 
 /*
  * use:
- *	dbi_unregister_kretprobe[s]_top();
+ *	swap_unregister_kretprobe[s]_top();
  *	synchronize_sched();
- *	dbi_unregister_kretprobe[s]_bottom();
+ *	swap_unregister_kretprobe[s]_bottom();
  *
  * rp_disarm - indicates the need for restoration of the return address
  */
-void dbi_unregister_kretprobe_top(struct kretprobe *rp, int rp_disarm);
-void dbi_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
+void swap_unregister_kretprobe_top(struct kretprobe *rp, int rp_disarm);
+void swap_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
 				   int rp_disarm);
-void dbi_unregister_kretprobe_bottom(struct kretprobe *rp);
-void dbi_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size);
+void swap_unregister_kretprobe_bottom(struct kretprobe *rp);
+void swap_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size);
 
 
-int dbi_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task);
+int swap_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task);
 
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 
@@ -279,5 +279,5 @@ struct kprobe_ctlblk *get_kprobe_ctlblk (void);
 
 void prepare_singlestep(struct kprobe *p, struct pt_regs *regs);
 
-#endif /* _DBI_KPROBES_H */
+#endif /* _SWAP_KPROBES_H */
 

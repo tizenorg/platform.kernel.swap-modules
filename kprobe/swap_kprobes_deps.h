@@ -1,9 +1,9 @@
-#ifndef _DBI_KPROBES_DEPS_H
-#define _DBI_KPROBES_DEPS_H
+#ifndef _SWAP_KPROBES_DEPS_H
+#define _SWAP_KPROBES_DEPS_H
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/dbi_kprobes_deps.h
+ *  modules/kprobe/swap_kprobes_deps.h
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -97,4 +97,4 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 int page_present (struct mm_struct *mm, unsigned long addr);
 
 
-#endif /* _DBI_KPROBES_DEPS_H */
+#endif /* _SWAP_KPROBES_DEPS_H */

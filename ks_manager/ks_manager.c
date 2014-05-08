@@ -24,8 +24,8 @@
 
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <kprobe/dbi_kprobes.h>
-#include <kprobe/dbi_kprobes_deps.h>
+#include <kprobe/swap_kprobes.h>
+#include <kprobe/swap_kprobes_deps.h>
 #include "ks_manager.h"
 
 struct probe {
@@ -87,11 +87,11 @@ int ksm_register_probe(unsigned long addr, void *pre_handler,
 	if (!p)
 		return -ENOMEM;
 
-	ret = dbi_register_jprobe(&p->p.jp);
+	ret = swap_register_jprobe(&p->p.jp);
 	if (ret)
 		goto free;
 
-	ret = dbi_register_kretprobe(&p->p.rp);
+	ret = swap_register_kretprobe(&p->p.rp);
 	if (ret)
 		goto unregister_jprobe;
 
@@ -99,7 +99,7 @@ int ksm_register_probe(unsigned long addr, void *pre_handler,
 	return 0;
 
 unregister_jprobe:
-	dbi_unregister_jprobe(&p->p.jp);
+	swap_unregister_jprobe(&p->p.jp);
 free:
 	free_probe(p);
 	return ret;
@@ -109,8 +109,8 @@ EXPORT_SYMBOL_GPL(ksm_register_probe);
 static void do_ksm_unregister_probe(struct probe *p)
 {
 	remove_probe_to_list(p);
-	dbi_unregister_kretprobe(&p->p.rp);
-	dbi_unregister_jprobe(&p->p.jp);
+	swap_unregister_kretprobe(&p->p.rp);
+	swap_unregister_jprobe(&p->p.jp);
 	free_probe(p);
 }
 

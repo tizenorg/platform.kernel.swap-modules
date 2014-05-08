@@ -52,7 +52,7 @@
 #include <linux/spinlock.h>
 
 #include "swap_slots.h"
-#include "dbi_kprobes_deps.h"
+#include "swap_kprobes_deps.h"
 
 
 struct chunk {

@@ -28,7 +28,7 @@
 
 #include <asm/errno.h>
 #include <ksyms/ksyms.h>
-#include <kprobe/dbi_kprobes.h>
+#include <kprobe/swap_kprobes.h>
 #include <writer/swap_writer_module.h>
 #include "ks_features.h"
 #include "syscall_list.h"
@@ -167,7 +167,7 @@ int init_switch_context(void)
 void exit_switch_context(void)
 {
 	if (sc_enable)
-		dbi_unregister_kretprobe(&switch_rp);
+		swap_unregister_kretprobe(&switch_rp);
 }
 
 static int register_switch_context(void)
@@ -180,7 +180,7 @@ static int register_switch_context(void)
 		goto unlock;
 	}
 
-	ret = dbi_register_kretprobe(&switch_rp);
+	ret = swap_register_kretprobe(&switch_rp);
 	if (ret == 0)
 		sc_enable = 1;
 
@@ -201,7 +201,7 @@ static int unregister_switch_context(void)
 		goto unlock;
 	}
 
-	dbi_unregister_kretprobe(&switch_rp);
+	swap_unregister_kretprobe(&switch_rp);
 
 	sc_enable = 0;
 unlock:
@@ -226,7 +226,7 @@ static int register_syscall(size_t id)
 	ksp[id].rp.entry_handler = entry_handler;
 	ksp[id].rp.handler = ret_handler;
 
-	ret = dbi_register_kretprobe(&ksp[id].rp);
+	ret = swap_register_kretprobe(&ksp[id].rp);
 
 	return ret;
 }
@@ -239,7 +239,7 @@ static int unregister_syscall(size_t id)
 	if (ksp[id].rp.kp.addr == NULL)
 		return 0;
 
-	dbi_unregister_kretprobe(&ksp[id].rp);
+	swap_unregister_kretprobe(&ksp[id].rp);
 
 	return 0;
 }
@@ -274,7 +274,7 @@ static int unregister_multiple_syscalls(size_t *id_p, size_t cnt)
 		}
 	}
 
-	dbi_unregister_kretprobes(rpp, i);
+	swap_unregister_kretprobes(rpp, i);
 	kfree(rpp);
 
 	return 0;

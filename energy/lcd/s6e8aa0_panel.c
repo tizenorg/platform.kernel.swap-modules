@@ -1,4 +1,4 @@
-#include <kprobe/dbi_kprobes.h>
+#include <kprobe/swap_kprobes.h>
 #include <linux/backlight.h>
 #include "lcd_base.h"
 
@@ -81,21 +81,21 @@ int s6e8aa0_set(struct lcd_ops *ops)
 {
 	int ret;
 
-	ret = dbi_register_kretprobe(&set_power_krp);
+	ret = swap_register_kretprobe(&set_power_krp);
 	if (ret)
 		return ret;
 
-	ret = dbi_register_kretprobe(&set_backlight_krp);
+	ret = swap_register_kretprobe(&set_backlight_krp);
 	if (ret)
-		dbi_unregister_kretprobe(&set_power_krp);
+		swap_unregister_kretprobe(&set_power_krp);
 
 	return ret;
 }
 
 int s6e8aa0_unset(struct lcd_ops *ops)
 {
-	dbi_unregister_kretprobe(&set_backlight_krp);
-	dbi_unregister_kretprobe(&set_power_krp);
+	swap_unregister_kretprobe(&set_backlight_krp);
+	swap_unregister_kretprobe(&set_power_krp);
 
 	return 0;
 }

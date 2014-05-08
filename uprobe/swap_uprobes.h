@@ -1,5 +1,5 @@
-#ifndef _DBI_UPROBES_H
-#define _DBI_UPROBES_H
+#ifndef _SWAP_UPROBES_H
+#define _SWAP_UPROBES_H
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
@@ -27,7 +27,7 @@
  *
  */
 
-#include <kprobe/dbi_kprobes.h>
+#include <kprobe/swap_kprobes.h>
 #include <uprobe/arch/asm/swap_uprobes.h>
 
 
@@ -90,20 +90,20 @@ struct uretprobe_instance {
 	struct task_struct *task;
 };
 
-int dbi_register_uprobe(struct uprobe *p);
-void dbi_unregister_uprobe(struct uprobe *p);
-void __dbi_unregister_uprobe(struct uprobe *up, int disarm);
+int swap_register_uprobe(struct uprobe *p);
+void swap_unregister_uprobe(struct uprobe *p);
+void __swap_unregister_uprobe(struct uprobe *up, int disarm);
 
-int dbi_register_ujprobe(struct ujprobe *jp);
-void dbi_unregister_ujprobe(struct ujprobe *jp);
-void __dbi_unregister_ujprobe(struct ujprobe *jp, int disarm);
+int swap_register_ujprobe(struct ujprobe *jp);
+void swap_unregister_ujprobe(struct ujprobe *jp);
+void __swap_unregister_ujprobe(struct ujprobe *jp, int disarm);
 
-int dbi_register_uretprobe(struct uretprobe *rp);
-void dbi_unregister_uretprobe(struct uretprobe *rp);
-void __dbi_unregister_uretprobe(struct uretprobe *rp, int disarm);
+int swap_register_uretprobe(struct uretprobe *rp);
+void swap_unregister_uretprobe(struct uretprobe *rp);
+void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm);
 
-void dbi_unregister_all_uprobes(struct task_struct *task);
-void dbi_discard_pending_uretprobes(struct task_struct *task);
+void swap_unregister_all_uprobes(struct task_struct *task);
+void swap_discard_pending_uretprobes(struct task_struct *task);
 
 void swap_ujprobe_return(void);
 struct kprobe *get_ukprobe(void *addr, pid_t tgid);
@@ -125,4 +125,4 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs);
 
 void add_uprobe_table(struct kprobe *p);
 
-#endif /*  _DBI_UPROBES_H */
+#endif /*  _SWAP_UPROBES_H */

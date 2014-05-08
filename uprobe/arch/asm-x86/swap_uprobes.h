@@ -24,11 +24,8 @@
  *
  */
 
-#ifndef _ARM_SWAP_UPROBES_H
-#define _ARM_SWAP_UPROBES_H
-
-
-#include <kprobe/arch/asm/dbi_kprobes.h>
+#ifndef _X86_SWAP_UPROBES_H
+#define _X86_SWAP_UPROBES_H
 
 
 struct uprobe;
@@ -96,4 +93,4 @@ static inline unsigned long swap_get_uarg(struct pt_regs *regs, unsigned long n)
 int swap_arch_init_uprobes(void);
 void swap_arch_exit_uprobes(void);
 
-#endif /* _ARM_SWAP_UPROBES_H */
+#endif /* _X86_SWAP_UPROBES_H */

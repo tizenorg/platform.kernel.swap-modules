@@ -24,18 +24,18 @@
  *
  */
 
-#include <kprobe/dbi_kprobes.h>
-#include <kprobe/arch/asm/dbi_kprobes.h>
+#include <kprobe/swap_kprobes.h>
+#include <kprobe/arch/asm/swap_kprobes.h>
 #include <kprobe/arch/asm/trampoline_arm.h>
 #include <asm/traps.h>
 #include <uprobe/swap_uprobes.h>
 #include <uprobe/arch/asm/swap_uprobes.h>
 #include <kprobe/swap_slots.h>
-#include <kprobe/dbi_kprobes_deps.h>
+#include <kprobe/swap_kprobes_deps.h>
 #include "trampoline_thumb.h"
 
 // FIXME:
-#include <kprobe/dbi_kdebug.h>
+#include <kprobe/swap_kdebug.h>
 
 
 #define flush_insns(addr, size)					\
@@ -600,7 +600,7 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 			 struct task_struct *task)
 {
 	struct pt_regs *uregs = task_pt_regs(ri->task);
-	unsigned long ra = dbi_get_ret_addr(uregs);
+	unsigned long ra = swap_get_ret_addr(uregs);
 	unsigned long *tramp;
 	unsigned long *sp = (unsigned long *)((long)ri->sp & ~1);
 	unsigned long *stack = sp - RETPROBE_STACK_DEPTH + 1;
@@ -663,7 +663,7 @@ check_lr: /* check lr anyway */
 		       "lr = %08lx - %p\n",
 		       task->comm, task->tgid, task->pid,
 		       ra, ri->rp->up.kp.addr);
-		dbi_set_ret_addr(uregs, (unsigned long)ri->ret_addr);
+		swap_set_ret_addr(uregs, (unsigned long)ri->ret_addr);
 		retval = 0;
 	} else if (retval) {
 		printk("---> %s (%d/%d): trampoline NOT found at "

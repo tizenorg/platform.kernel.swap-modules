@@ -1,5 +1,5 @@
-#ifndef _SRC_ASM_X86_KPROBES_H
-#define _SRC_ASM_X86_KPROBES_H
+#ifndef _SWAP_ASM_X86_KPROBES_H
+#define _SWAP_ASM_X86_KPROBES_H
 
 /*
  *  Kernel Probes (KProbes)
@@ -24,7 +24,7 @@
 
 /*
  *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/arch/asm-x86/dbi_kprobes.c
+ *  modules/kprobe/arch/asm-x86/swap_kprobes.c
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@
  */
 
 #include <linux/version.h>
-#include <kprobe/dbi_kprobes_deps.h>
+#include <kprobe/swap_kprobes_deps.h>
 
 typedef u8 kprobe_opcode_t;
 
@@ -103,39 +103,39 @@ static inline void arch_set_task_pc(struct task_struct *p, unsigned long val)
 	/* FIXME: Not implemented yet */
 }
 
-static inline struct pt_regs *dbi_get_syscall_uregs(unsigned long sp)
+static inline struct pt_regs *swap_get_syscall_uregs(unsigned long sp)
 {
 	return NULL; //FIXME currently not implemented for x86
 }
 
-static inline unsigned long dbi_get_stack_ptr(struct pt_regs *regs)
+static inline unsigned long swap_get_stack_ptr(struct pt_regs *regs)
 {
 	return regs->EREG(sp);
 }
 
-static inline unsigned long dbi_get_instr_ptr(struct pt_regs *regs)
+static inline unsigned long swap_get_instr_ptr(struct pt_regs *regs)
 {
 	return regs->EREG(ip);
 }
 
-static inline void dbi_set_instr_ptr(struct pt_regs *regs, unsigned long val)
+static inline void swap_set_instr_ptr(struct pt_regs *regs, unsigned long val)
 {
 	regs->EREG(ip) = val;
 }
 
-static inline unsigned long dbi_get_ret_addr(struct pt_regs *regs)
+static inline unsigned long swap_get_ret_addr(struct pt_regs *regs)
 {
 	unsigned long addr = 0;
 	read_proc_vm_atomic(current, regs->EREG(sp), &addr, sizeof(addr));
 	return addr;
 }
 
-static inline void dbi_set_ret_addr(struct pt_regs *regs, unsigned long val)
+static inline void swap_set_ret_addr(struct pt_regs *regs, unsigned long val)
 {
 	write_proc_vm_atomic(current, regs->EREG(sp), &val, sizeof(val));
 }
 
-static inline unsigned long dbi_get_arg(struct pt_regs *regs, int num)
+static inline unsigned long swap_get_arg(struct pt_regs *regs, int num)
 {
 	unsigned long arg = 0;
 	read_proc_vm_atomic(current, regs->EREG(sp) + (1 + num) * 4,
@@ -143,14 +143,15 @@ static inline unsigned long dbi_get_arg(struct pt_regs *regs, int num)
 	return arg;
 }
 
-static inline void dbi_set_arg(struct pt_regs *regs, int num, unsigned long val)
+static inline void swap_set_arg(struct pt_regs *regs, int num,
+				unsigned long val)
 {
 	write_proc_vm_atomic(current, regs->EREG(sp) + (1 + num) * 4,
 			&val, sizeof(val));
 }
 
-static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
-		int max_cnt)
+static inline int swap_fp_backtrace(struct task_struct *task,
+				    unsigned long *buf, int max_cnt)
 {
 	int i = 0;
 	struct pt_regs *regs;
@@ -163,7 +164,7 @@ static inline int dbi_fp_backtrace(struct task_struct *task, unsigned long *buf,
 
 	regs = task_pt_regs(task);
 	frame.next = regs->EREG(bp);
-	frame.raddr = dbi_get_ret_addr(regs);
+	frame.raddr = swap_get_ret_addr(regs);
 
 	while (frame.next && i < max_cnt) {
 		if (read_proc_vm_atomic(task, frame.next, &frame, sizeof(frame))
@@ -256,4 +257,4 @@ static inline unsigned long swap_get_sarg(struct pt_regs *regs, unsigned long n)
 int arch_init_kprobes(void);
 void arch_exit_kprobes(void);
 
-#endif /* _SRC_ASM_X86_KPROBES_H */
+#endif /* _SWAP_ASM_X86_KPROBES_H */

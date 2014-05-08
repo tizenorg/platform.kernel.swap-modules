@@ -29,9 +29,6 @@
 #define _ARM_SWAP_UPROBES_H
 
 
-#include <kprobe/arch/asm/dbi_kprobes.h>
-
-
 struct kprobe;
 struct task_struct;
 struct uprobe;
