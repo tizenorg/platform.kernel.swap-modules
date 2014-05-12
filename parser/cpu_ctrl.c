@@ -43,9 +43,9 @@ int swap_enable_nonboot_cpus_unlock(struct cpumask *mask)
 		printk("===> SWAP CPU[%d] up(%d)\n", cpu, ret);
 	}
 
+out:
 	swap_cpu_maps_update_done();
 
-out:
 	return ret;
 }
 
