@@ -57,7 +57,8 @@ enum MSG_ID {
 	MSG_CONTEXT_SWITCH_ENTRY	= 0x0010,
 	MSG_CONTEXT_SWITCH_EXIT		= 0x0011,
 	MSG_PROC_MAP			= 0x0012,
-	MSG_PROC_UNMAP			= 0x0013
+	MSG_PROC_UNMAP			= 0x0013,
+	MSG_PROC_COMM			= 0x0014
 };
 
 static char *cpu_buf[NR_CPUS];
@@ -195,8 +196,12 @@ static char* pack_basic_msg_fmt(char *buf, enum MSG_ID id)
  * ============================================================================
  */
 
-struct proc_info {
+struct proc_info_top {
 	u32 pid;
+	char comm[0];
+} __attribute__((packed));
+
+struct proc_info_bottom {
 	u32 ppid;
 	u32 start_sec;
 	u32 start_nsec;
@@ -326,10 +331,26 @@ static char *pack_proc_info_part(char *end_path, struct mm_struct *mm)
 	return lib_obj;
 }
 
-static char *pack_proc_info(char *payload, struct task_struct *task,
-			    struct dentry *dentry)
+static char *pack_comm(char *buf, struct task_struct *task)
 {
-	struct proc_info *pi = (struct proc_info *)payload;
+	get_task_comm(buf, task);
+
+	return buf + strlen(buf) + 1;
+}
+
+static char *pack_proc_info_top(char *data, struct task_struct *task)
+{
+	struct proc_info_top *pit = (struct proc_info_top *)data;
+
+	pit->pid = task->tgid;
+
+	return pack_comm(pit->comm, task);
+}
+
+static char *pack_proc_info_bottom(char *data, struct task_struct *task,
+				   struct dentry *dentry)
+{
+	struct proc_info_bottom *pib = (struct proc_info_bottom *)data;
 	struct vm_area_struct *vma = find_vma_exe_by_dentry(task->mm, dentry);
 	struct timespec boot_time;
 	struct timespec start_time;
@@ -338,21 +359,27 @@ static char *pack_proc_info(char *payload, struct task_struct *task,
 	getboottime(&boot_time);
 	start_time = timespec_add(boot_time, task->real_start_time);
 
-	pi->pid = task->tgid;
-	pi->ppid = task->real_parent->tgid;
-	pi->start_sec = (u32)start_time.tv_sec;
-	pi->start_nsec = (u32)start_time.tv_nsec;
+	pib->ppid = task->real_parent->tgid;
+	pib->start_sec = (u32)start_time.tv_sec;
+	pib->start_nsec = (u32)start_time.tv_nsec;
 
 	if (vma) {
-		pi->low_addr = vma->vm_start;
-		pi->high_addr = vma->vm_end;
-		end_path = pack_path(pi->bin_path, vma->vm_file);
+		pib->low_addr = vma->vm_start;
+		pib->high_addr = vma->vm_end;
+		end_path = pack_path(pib->bin_path, vma->vm_file);
 	} else {
-		pi->low_addr = 0;
-		pi->high_addr = 0;
-		end_path = pack_path(pi->bin_path, NULL);
+		pib->low_addr = 0;
+		pib->high_addr = 0;
+		end_path = pack_path(pib->bin_path, NULL);
 	}
 	return pack_proc_info_part(end_path, task->mm);
+}
+
+static char *pack_proc_info(char *payload, struct task_struct *task,
+			    struct dentry *dentry)
+{
+	payload = pack_proc_info_top(payload, task);
+	return pack_proc_info_bottom(payload, task, dentry);
 }
 
 /* called with down\up\_read(&task->mm->mmap_sem) */
@@ -491,6 +518,43 @@ void proc_unmap_msg(unsigned long start, unsigned long end)
 	put_current_buf();
 }
 EXPORT_SYMBOL_GPL(proc_unmap_msg);
+
+
+
+
+
+/* ============================================================================
+ * =                              PROCESS COMM                                =
+ * ============================================================================
+ */
+struct proc_comm {
+	u32 pid;
+	char comm[0];
+} __attribute__((packed));
+
+static char *pack_proc_comm(char *data, struct task_struct *task)
+{
+	struct proc_comm *pcomm= (struct proc_comm *)data;
+
+	pcomm->pid = task->tgid;
+
+	return pack_comm(pcomm->comm, task);
+}
+
+void proc_comm_msg(struct task_struct *task)
+{
+	char *buf, *payload, *buf_end;
+
+	buf = get_current_buf();
+	payload = pack_basic_msg_fmt(buf, MSG_PROC_COMM);
+	buf_end = pack_proc_comm(payload, task);
+
+	set_len_msg(buf, buf_end);
+
+	write_to_buffer(buf);
+	put_current_buf();
+}
+EXPORT_SYMBOL_GPL(proc_comm_msg);
 
 
 

@@ -484,16 +484,85 @@ static void unregister_mmap(void)
 
 
 
+/*
+ ******************************************************************************
+ *                               set_task_comm()                              *
+ ******************************************************************************
+ */
+struct comm_data {
+	struct task_struct *task;
+};
+
+static int entry_handler_comm(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct comm_data *data = (struct comm_data *)ri->data;
+
+	data->task = (struct task_struct *)swap_get_karg(regs, 0);
+
+	return 0;
+}
+
+static int ret_handler_comm(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct task_struct *task;
+
+	if (is_kthread(current))
+		return 0;
+
+	task = ((struct comm_data *)ri->data)->task;
+	if (sspt_proc_get_by_task(task) == NULL)
+		return 0;
+
+	proc_comm_msg(task);
+
+	return 0;
+}
+
+static struct kretprobe comm_kretprobe = {
+	.entry_handler = entry_handler_comm,
+	.handler = ret_handler_comm,
+	.data_size = sizeof(struct comm_data)
+};
+
+static int register_comm(void)
+{
+	int ret;
+
+	ret = swap_register_kretprobe(&comm_kretprobe);
+	if (ret)
+		printk("swap_register_kretprobe(set_task_comm) ret=%d!\n",
+		       ret);
+
+	return ret;
+}
+
+static void unregister_comm(void)
+{
+	swap_unregister_kretprobe(&comm_kretprobe);
+}
+
+
+
+
+
 int register_helper(void)
 {
 	int ret = 0;
 
 	atomic_set(&stop_flag, 0);
 
+	/*
+	 * install probe on 'set_task_comm' to detect when field comm struct
+	 * task_struct changes
+	 */
+	ret = register_comm();
+	if (ret)
+		return ret;
+
 	/* install probe on 'do_munmap' to detect when for remove US probes */
 	ret = register_unmap();
 	if (ret)
-		return ret;
+		goto unreg_comm;
 
 	/* install probe on 'mm_release' to detect when for remove US probes */
 	ret = register_mr();
@@ -544,6 +613,9 @@ unreg_mr:
 unreg_unmap:
 	unregister_unmap();
 
+unreg_comm:
+	unregister_comm();
+
 	return ret;
 }
 
@@ -562,6 +634,7 @@ void unregister_helper_bottom(void)
 	unregister_cp();
 	unregister_mr();
 	unregister_unmap();
+	unregister_comm();
 }
 
 int init_helper(void)
@@ -607,6 +680,13 @@ int init_helper(void)
 		return -EINVAL;
 	}
 	mmap_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
+
+	addr = swap_ksyms("set_task_comm");
+	if (addr == 0) {
+		printk("Cannot find address for set_task_comm function!\n");
+		return -EINVAL;
+	}
+	comm_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
 
 #ifdef CONFIG_ARM
 	addr = swap_ksyms("ret_to_user");

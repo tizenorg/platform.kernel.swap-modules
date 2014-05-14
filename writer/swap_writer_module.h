@@ -59,6 +59,7 @@ int proc_info_msg(struct task_struct *task, struct dentry *dentry);
 void terminate_msg(struct task_struct *task);
 void pcoc_map_msg(struct vm_area_struct *vma);
 void proc_unmap_msg(unsigned long start, unsigned long end);
+void proc_comm_msg(struct task_struct *task);
 int sample_msg(struct pt_regs *regs);
 
 int entry_event(const char *fmt, unsigned long func_addr, struct pt_regs *regs,
