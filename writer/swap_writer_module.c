@@ -758,7 +758,7 @@ int entry_event(const char *fmt, unsigned long func_addr, struct pt_regs *regs,
 	ret = pack_args(args, 1024, fmt, regs);
 	if (ret < 0) {
 		printk("ERROR: !!!!!\n");
-		return ret;
+		goto put_buf;
 	}
 
 	buf_end = args + ret;
@@ -766,6 +766,8 @@ int entry_event(const char *fmt, unsigned long func_addr, struct pt_regs *regs,
 	set_len_msg(buf, buf_end);
 
 	ret = write_to_buffer(buf);
+
+put_buf:
 	put_current_buf();
 
 	return ret;
@@ -910,12 +912,14 @@ int exit_event(char ret_type, struct pt_regs *regs, unsigned long func_addr,
 	ret = pack_msg_func_exit(payload, 1024, ret_type, regs,
 				 func_addr, ret_addr);
 	if (ret < 0)
-		return ret;
+		goto put_buf;
 
 	buf_end = payload + ret;
 	set_len_msg(buf, buf_end);
 
 	ret = write_to_buffer(buf);
+
+put_buf:
 	put_current_buf();
 
 	return ret;
