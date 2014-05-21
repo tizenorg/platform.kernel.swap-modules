@@ -6,25 +6,36 @@ Summary: Linux profiler
 Group: System Environment/Kernel
 Vendor: Samsung
 Source: swap-modules-3.0.tar.gz
-BuildRequires: linux-glibc-devel
-BuildRequires: linux-kernel-devel
+
+%ifarch i586
+%define target_arm 0
+%endif
+%ifarch armv7l
+%define target_arm 1
+%endif
+
 BuildRequires: perl
 BuildRequires: python
+%if %{target_arm}
+BuildRequires: kernel-devel
+%else
+BuildRequires: emulator-kernel-devel
+%endif
 Provides: swap-modules
 %description
-Profiler. Add more words.
+Kernel modules for SWAP
 
 %prep
 %setup -q
 
 %build
 
-%ifarch i686
-./build.sh /usr/src/linux-kernel-build-3.10.33-tizen_defconfig.1 i386
+%ifarch i586
+./build.sh /usr/src/linux-kernel-build-3.4.0-i386_tizen_emul_defconfig.1 i386
 %endif
 
 %ifarch armv7l
-./build.sh /usr/src/linux-kernel-build-3.10.33-tizen_defconfig.1 arm
+./build.sh /var/tmp/kernel/kernel-tizen_b2 arm
 %endif
 
 %install
