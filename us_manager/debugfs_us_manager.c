@@ -34,13 +34,11 @@ static void on_each_proc_callback(struct sspt_proc *proc, void *data)
 	if (rbuf->end - rbuf->ptr < len + 2)
 		return;
 
-	if (rbuf->ptr != rbuf->begin) {
-		*rbuf->ptr = ' ';
-		++rbuf->ptr;
-	}
-
 	memcpy(rbuf->ptr, pid_str, len);
 	rbuf->ptr += len;
+
+	*rbuf->ptr = ' ';
+	++rbuf->ptr;
 }
 
 static ssize_t read_tasks(struct file *file, char __user *user_buf,
@@ -55,8 +53,9 @@ static ssize_t read_tasks(struct file *file, char __user *user_buf,
 
 	on_each_proc_no_lock(on_each_proc_callback, (void *)&rbuf);
 
-	if (rbuf.ptr < rbuf.end)
-		++rbuf.ptr;
+	if (rbuf.ptr != rbuf.begin)
+		rbuf.ptr--;
+
 	*rbuf.ptr = '\n';
 
 	return simple_read_from_buffer(user_buf, count, ppos, rbuf.begin,
@@ -65,7 +64,8 @@ static ssize_t read_tasks(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_tasks = {
 	.owner = THIS_MODULE,
-	.read = read_tasks
+	.read = read_tasks,
+	.llseek = default_llseek
 };
 
 /* ============================================================================
