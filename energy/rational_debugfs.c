@@ -25,7 +25,7 @@
 
 #include <linux/dcache.h>
 #include <linux/debugfs.h>
-#include <linux/export.h>
+#include <linux/module.h>
 #include "rational_debugfs.h"
 
 

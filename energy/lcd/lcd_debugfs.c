@@ -24,7 +24,7 @@
 
 
 #include <linux/debugfs.h>
-#include <linux/export.h>
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <energy/lcd/lcd_base.h>
 #include <energy/rational_debugfs.h>
