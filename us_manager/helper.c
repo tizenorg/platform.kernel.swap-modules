@@ -143,11 +143,7 @@ static int ctx_task_pre_handler(struct kprobe *p, struct pt_regs *regs)
 		return 0;
 
 	page_addr = 0;
-	set_kjump_cb((unsigned long)p->ainsn.insn, regs, cb_pf,
-		     &page_addr, sizeof(page_addr));
-
-	/* set kjumper */
-	p->ss_addr[smp_processor_id()] = (unsigned long *)get_kjump_addr();
+	set_kjump_cb(regs, cb_pf, &page_addr, sizeof(page_addr));
 
 	return 0;
 }

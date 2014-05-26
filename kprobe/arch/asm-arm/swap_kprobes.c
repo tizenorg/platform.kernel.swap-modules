@@ -658,36 +658,27 @@ __asm(
 );
 
 /**
- * @brief Gets kjump address.
- *
- * @return Kjump address.
- */
-unsigned long get_kjump_addr(void)
-{
-	return (unsigned long)&kjump_trampoline;
-}
-EXPORT_SYMBOL_GPL(get_kjump_addr);
-
-/**
  * @brief Registers callback for kjump probes.
  *
- * @param ret_addr Kjump probe return address.
  * @param regs Pointer to CPU registers data.
  * @param cb Kjump probe callback of jumper_cb_t type.
  * @param data Pointer to data that should be saved in kj_cb_data.
  * @param size Size of the data.
  * @return 0.
  */
-int set_kjump_cb(unsigned long ret_addr, struct pt_regs *regs,
-		 jumper_cb_t cb, void *data, size_t size)
+int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb, void *data, size_t size)
 {
+	struct kprobe *p;
 	struct kj_cb_data *cb_data;
 
 	cb_data = kmalloc(sizeof(*cb_data) + size, GFP_ATOMIC);
 	if (cb_data == NULL)
 		return -ENOMEM;
 
-	cb_data->ret_addr = ret_addr;
+	p = swap_kprobe_running();
+	p->ss_addr[smp_processor_id()] = (kprobe_opcode_t *)&kjump_trampoline;
+
+	cb_data->ret_addr = (unsigned long)p->ainsn.insn;
 	cb_data->cb = cb;
 
 	/* save regs */
