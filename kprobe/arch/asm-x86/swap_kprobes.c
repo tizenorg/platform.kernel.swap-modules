@@ -321,37 +321,42 @@ void set_current_kprobe (struct kprobe *p, struct pt_regs *regs, struct kprobe_c
 		kcb->kprobe_saved_eflags &= ~IF_MASK;
 }
 
-/**
- * @brief Kprobe handler.
- *
- * @param regs Pointer to CPU register data.
- * @return 1 on success.
- */
-int kprobe_handler (struct pt_regs *regs)
+static int setup_singlestep(struct kprobe *p, struct pt_regs *regs,
+			    struct kprobe_ctlblk *kcb)
+{
+#if !defined(CONFIG_PREEMPT) || defined(CONFIG_PM)
+	if (p->ainsn.boostable == 1 && !p->post_handler) {
+		/* Boost up -- we can execute copied instructions directly */
+		swap_reset_current_kprobe();
+		regs->ip = (unsigned long)p->ainsn.insn;
+		preempt_enable_no_resched();
+
+		return 1;
+	}
+#endif // !CONFIG_PREEMPT
+
+	prepare_singlestep(p, regs);
+	kcb->kprobe_status = KPROBE_HIT_SS;
+
+	return 1;
+}
+
+static int __kprobe_handler(struct pt_regs *regs)
 {
 	struct kprobe *p = 0;
 	int ret = 0, reenter = 0;
 	kprobe_opcode_t *addr = NULL;
 	struct kprobe_ctlblk *kcb;
-#ifdef SUPRESS_BUG_MESSAGES
-	int swap_oops_in_progress;
-#endif
 
-	/* We're in an interrupt, but this is clear and BUG()-safe. */
 	addr = (kprobe_opcode_t *) (regs->EREG (ip) - sizeof (kprobe_opcode_t));
-	DBPRINTF ("KPROBE: regs->eip = 0x%lx addr = 0x%p\n", regs->EREG (ip), addr);
-#ifdef SUPRESS_BUG_MESSAGES
-	// oops_in_progress used to avoid BUG() messages that slow down kprobe_handler() execution
-	swap_oops_in_progress = oops_in_progress;
-	oops_in_progress = 1;
-#endif
+
 	preempt_disable ();
 
 	kcb = swap_get_kprobe_ctlblk();
+	p = swap_get_kprobe(addr);
 
 	/* Check we're not actually recursing */
 	if (swap_kprobe_running()) {
-		p = swap_get_kprobe(addr);
 		if (p) {
 			if (kcb->kprobe_status == KPROBE_HIT_SS && *p->ainsn.insn == BREAKPOINT_INSTRUCTION) {
 				regs->EREG(flags) &= ~TF_MASK;
@@ -371,11 +376,7 @@ int kprobe_handler (struct pt_regs *regs)
 			swap_kprobes_inc_nmissed_count(p);
 			prepare_singlestep (p, regs);
 			kcb->kprobe_status = KPROBE_REENTER;
-			// FIXME should we enable preemption here??...
-			//preempt_enable_no_resched ();
-#ifdef SUPRESS_BUG_MESSAGES
-			oops_in_progress = swap_oops_in_progress;
-#endif
+
 			return 1;
 		} else {
 			if (*addr != BREAKPOINT_INSTRUCTION) {
@@ -395,9 +396,6 @@ int kprobe_handler (struct pt_regs *regs)
 			goto no_kprobe;
 		}
 	}
-
-	if (!p)
-		p = swap_get_kprobe(addr);
 
 	if (!p) {
 		if (*addr != BREAKPOINT_INSTRUCTION) {
@@ -426,59 +424,42 @@ int kprobe_handler (struct pt_regs *regs)
 	if(!reenter)
 		kcb->kprobe_status = KPROBE_HIT_ACTIVE;
 
-	if (p->pre_handler)
+	if (p->pre_handler) {
 		ret = p->pre_handler(p, regs);
-
-	if (ret)
-	{
-		if (ret == 2) { // we have alreadyc called the handler, so just single step the instruction
-			DBPRINTF ("p->pre_handler[] 2");
-			goto ss_probe;
-		}
-		DBPRINTF ("p->pre_handler[] 1");
-		// FIXME should we enable preemption here??...
-		//preempt_enable_no_resched ();
-#ifdef SUPRESS_BUG_MESSAGES
-		oops_in_progress = swap_oops_in_progress;
-#endif
-		/* handler has already set things up, so skip ss setup */
-		prepare_singlestep(p, regs);
-		return 1;
+		if (ret)
+			return ret;
 	}
-	DBPRINTF ("p->pre_handler[] 0");
 
 ss_probe:
-	DBPRINTF ("p = %p\n", p);
-	DBPRINTF ("p->opcode = 0x%lx *p->addr = 0x%lx p->addr = 0x%p\n", (unsigned long) p->opcode, p->tgid ? 0 : (unsigned long) (*p->addr), p->addr);
+	setup_singlestep(p, regs, kcb);
 
-#if !defined(CONFIG_PREEMPT) || defined(CONFIG_PM)
-	if (p->ainsn.boostable == 1 && !p->post_handler)
-	{
-		/* Boost up -- we can execute copied instructions directly */
-		swap_reset_current_kprobe();
-		regs->EREG (ip) = (unsigned long) p->ainsn.insn;
-		preempt_enable_no_resched ();
-#ifdef SUPRESS_BUG_MESSAGES
-		oops_in_progress = swap_oops_in_progress;
-#endif
-		return 1;
-	}
-#endif // !CONFIG_PREEMPT
-	prepare_singlestep (p, regs);
-	kcb->kprobe_status = KPROBE_HIT_SS;
-	// FIXME should we enable preemption here??...
-	//preempt_enable_no_resched ();
-#ifdef SUPRESS_BUG_MESSAGES
-	oops_in_progress = swap_oops_in_progress;
-#endif
 	return 1;
 
 no_kprobe:
-
 	preempt_enable_no_resched ();
+
+	return ret;
+}
+
+static int kprobe_handler(struct pt_regs *regs)
+{
+	int ret;
+#ifdef SUPRESS_BUG_MESSAGES
+	int swap_oops_in_progress;
+	/*
+	 * oops_in_progress used to avoid BUG() messages
+	 * that slow down kprobe_handler() execution
+	 */
+	swap_oops_in_progress = oops_in_progress;
+	oops_in_progress = 1;
+#endif
+
+	ret = __kprobe_handler(regs);
+
 #ifdef SUPRESS_BUG_MESSAGES
 	oops_in_progress = swap_oops_in_progress;
 #endif
+
 	return ret;
 }
 
@@ -904,6 +885,116 @@ void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
 	*ptr_ret_addr = (unsigned long)&swap_kretprobe_trampoline;
 }
 
+
+
+
+
+/*
+ ******************************************************************************
+ *                                   kjumper                                  *
+ ******************************************************************************
+ */
+struct kj_cb_data {
+	struct pt_regs regs;
+	struct kprobe *p;
+
+	jumper_cb_t cb;
+	char data[0];
+};
+
+static struct kj_cb_data * __used kjump_handler(struct kj_cb_data *data)
+{
+	/* call callback */
+	data->cb(data->data);
+
+	return data;
+}
+
+void kjump_trampoline(void);
+void kjump_trampoline_int3(void);
+__asm(
+	"kjump_trampoline:		\n"
+	"call	kjump_handler		\n"
+	"kjump_trampoline_int3:		\n"
+	"nop				\n"	/* for restore_regs_kp */
+);
+
+int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb, void *data, size_t size)
+{
+	struct kj_cb_data *cb_data;
+
+	cb_data = kmalloc(sizeof(*cb_data) + size, GFP_ATOMIC);
+	if (cb_data == NULL)
+		return -ENOMEM;
+
+	/* save regs */
+	cb_data->regs = *regs;
+
+	cb_data->p = swap_kprobe_running();
+	cb_data->cb = cb;
+
+	/* save data */
+	if (size)
+		memcpy(cb_data->data, data, size);
+
+	/* save pointer cb_data at ax */
+	regs->ax = (long)cb_data;
+
+	/* jump to kjump_trampoline */
+	regs->ip = (unsigned long)&kjump_trampoline;
+
+	swap_reset_current_kprobe();
+	preempt_enable_no_resched();
+
+	return 1;
+}
+EXPORT_SYMBOL_GPL(set_kjump_cb);
+
+static int restore_regs_pre_handler(struct kprobe *p, struct pt_regs *regs)
+{
+	struct kj_cb_data *data = (struct kj_cb_data *)regs->ax;
+	struct kprobe *kp = data->p;
+	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
+
+	/* restore regs */
+	*regs = data->regs;
+
+	/* FIXME: potential memory leak, when process kill */
+	kfree(data);
+
+	kcb = swap_get_kprobe_ctlblk();
+
+	set_current_kprobe(kp, regs, kcb);
+	setup_singlestep(kp, regs, kcb);
+
+	return 1;
+}
+
+static struct kprobe restore_regs_kp = {
+	.pre_handler = restore_regs_pre_handler,
+	.addr = (kprobe_opcode_t *)&kjump_trampoline_int3,	/* nop */
+};
+
+static int kjump_init(void)
+{
+	int ret;
+
+	ret = swap_register_kprobe(&restore_regs_kp);
+	if (ret)
+		printk("ERROR: kjump_init(), ret=%d\n", ret);
+
+	return ret;
+}
+
+static void kjump_exit(void)
+{
+	swap_unregister_kprobe(&restore_regs_kp);
+}
+
+
+
+
+
 /**
  * @brief Initializes x86 module deps.
  *
@@ -946,7 +1037,17 @@ not_found:
  */
 int swap_arch_init_kprobes(void)
 {
-	return register_die_notifier (&kprobe_exceptions_nb);
+	int ret;
+
+	ret = register_die_notifier(&kprobe_exceptions_nb);
+	if (ret)
+		return ret;
+
+	ret = kjump_init();
+	if (ret)
+		unregister_die_notifier(&kprobe_exceptions_nb);
+
+	return ret;
 }
 
 /**
@@ -956,5 +1057,6 @@ int swap_arch_init_kprobes(void)
  */
 void swap_arch_exit_kprobes(void)
 {
+	kjump_exit();
 	unregister_die_notifier (&kprobe_exceptions_nb);
 }

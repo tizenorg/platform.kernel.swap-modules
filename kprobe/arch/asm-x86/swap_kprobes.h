@@ -260,6 +260,12 @@ static inline unsigned long swap_get_sarg(struct pt_regs *regs, unsigned long n)
 	return *((unsigned long *)kernel_stack_pointer(regs) + n + 1);
 }
 
+/* jumper */
+typedef unsigned long (*jumper_cb_t)(void *);
+
+int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb,
+		 void *data, size_t size);
+
 int swap_arch_init_kprobes(void);
 void swap_arch_exit_kprobes(void);
 
