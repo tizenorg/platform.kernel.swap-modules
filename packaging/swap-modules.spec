@@ -17,7 +17,7 @@ Source: swap-modules-3.0.tar.gz
 BuildRequires: perl
 BuildRequires: python
 %if %{target_arm}
-BuildRequires: kernel-devel
+BuildRequires: linux-kernel-devel
 %else
 BuildRequires: emulator-kernel-devel
 %endif
@@ -35,7 +35,7 @@ Kernel modules for SWAP
 %endif
 
 %ifarch armv7l
-./build.sh /var/tmp/kernel/kernel-tizen_b2 arm
+./build.sh /usr/src/linux-kernel-build-3.0.15-tizen_defconfig.1 arm
 %endif
 
 %install
