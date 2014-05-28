@@ -1000,6 +1000,89 @@ static void kjump_exit(void)
 
 
 
+/*
+ ******************************************************************************
+ *                                   jumper                                   *
+ ******************************************************************************
+ */
+struct cb_data {
+	unsigned long ret_addr;
+	unsigned long bx;
+
+	jumper_cb_t cb;
+	char data[0];
+};
+
+static unsigned long __used get_bx(struct cb_data *data)
+{
+	return data->bx;
+}
+
+static unsigned long __used jump_handler(struct cb_data *data)
+{
+	unsigned long ret_addr = data->ret_addr;
+
+	/* call callback */
+	data->cb(data->data);
+
+	/* FIXME: potential memory leak, when process kill */
+	kfree(data);
+
+	return ret_addr;
+}
+
+void jump_trampoline(void);
+__asm(
+	"jump_trampoline:		\n"
+	"pushf				\n"
+	SWAP_SAVE_REGS_STRING
+	"movl	%ebx, %eax		\n"	/* data --> ax */
+	"call	get_bx			\n"
+	"movl	%eax, (%esp)		\n"	/* restore bx */
+	"movl	%ebx, %eax		\n"	/* data --> ax */
+	"call	jump_handler		\n"
+	/* move flags to cs */
+	"movl 56(%esp), %edx		\n"
+	"movl %edx, 52(%esp)		\n"
+	/* replace saved flags with true return address. */
+	"movl %eax, 56(%esp)		\n"
+	SWAP_RESTORE_REGS_STRING
+	"popf\n"
+	"ret\n"
+);
+
+unsigned long get_jump_addr(void)
+{
+	return (unsigned long)&jump_trampoline;
+}
+EXPORT_SYMBOL_GPL(get_jump_addr);
+
+int set_jump_cb(unsigned long ret_addr, struct pt_regs *regs,
+		jumper_cb_t cb, void *data, size_t size)
+{
+	struct cb_data *cb_data;
+
+	cb_data = kmalloc(sizeof(*cb_data) + size, GFP_ATOMIC);
+	if (cb_data == NULL)
+		return -ENOMEM;
+
+	/* save data */
+	cb_data->ret_addr = ret_addr;
+	cb_data->cb = cb;
+	cb_data->bx = regs->bx;
+	memcpy(cb_data->data, data, size);
+
+	/* save cb_data to bx */
+	regs->bx = (long)cb_data;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(set_jump_cb);
+
+
+
+
+
 /**
  * @brief Initializes x86 module deps.
  *

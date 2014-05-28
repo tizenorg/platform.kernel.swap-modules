@@ -266,6 +266,10 @@ typedef unsigned long (*jumper_cb_t)(void *);
 int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb,
 		 void *data, size_t size);
 
+unsigned long get_jump_addr(void);
+int set_jump_cb(unsigned long ret_addr, struct pt_regs *regs,
+		jumper_cb_t cb, void *data, size_t size);
+
 int swap_arch_init_kprobes(void);
 void swap_arch_exit_kprobes(void);
 
