@@ -54,50 +54,55 @@ static void (*swap_show_registers)(struct pt_regs * regs);
 /** Stack address. */
 #define stack_addr(regs) ((unsigned long *)kernel_stack_pointer(regs))
 
+
+#define SWAP_SAVE_REGS_STRING			\
+	/* Skip cs, ip, orig_ax and gs. */	\
+	"subl $16, %esp\n"			\
+	"pushl %fs\n"				\
+	"pushl %es\n"				\
+	"pushl %ds\n"				\
+	"pushl %eax\n"				\
+	"pushl %ebp\n"				\
+	"pushl %edi\n"				\
+	"pushl %esi\n"				\
+	"pushl %edx\n"				\
+	"pushl %ecx\n"				\
+	"pushl %ebx\n"
+#define SWAP_RESTORE_REGS_STRING		\
+	"popl %ebx\n"				\
+	"popl %ecx\n"				\
+	"popl %edx\n"				\
+	"popl %esi\n"				\
+	"popl %edi\n"				\
+	"popl %ebp\n"				\
+	"popl %eax\n"				\
+	/* Skip ds, es, fs, gs, orig_ax, and ip. Note: don't pop cs here*/\
+	"addl $24, %esp\n"
+
+
 /*
  * Function return probe trampoline:
  *      - init_kprobes() establishes a probepoint here
  *      - When the probed function returns, this probe
  *        causes the handlers to fire
  */
-static __used void swap_kretprobe_trampoline_holder(void)
-{
-	asm volatile(".global swap_kretprobe_trampoline\n"
-			"swap_kretprobe_trampoline:\n"
-			"	pushf\n"
-			/* skip cs, ip, orig_ax and gs. */
-			"	subl $16, %esp\n"
-			"	pushl %fs\n"
-			"	pushl %es\n"
-			"	pushl %ds\n"
-			"	pushl %eax\n"
-			"	pushl %ebp\n"
-			"	pushl %edi\n"
-			"	pushl %esi\n"
-			"	pushl %edx\n"
-			"	pushl %ecx\n"
-			"	pushl %ebx\n"
-			"	movl %esp, %eax\n"
-			"	call trampoline_probe_handler_x86\n"
-			/* move eflags to cs */
-			"	movl 56(%esp), %edx\n"
-			"	movl %edx, 52(%esp)\n"
-			/* replace saved flags with true return address. */
-			"	movl %eax, 56(%esp)\n"
-			"	popl %ebx\n" ""
-			"	popl %ecx\n"
-			"	popl %edx\n"
-			"	popl %esi\n"
-			"	popl %edi\n"
-			"	popl %ebp\n"
-			"	popl %eax\n"
-			/* skip ds, es, fs, gs, orig_ax, and ip. Note: don't pop cs here*/
-			"	addl $24, %esp\n"
-			"	popf\n"
-			"	ret\n");
-}
-
 void swap_kretprobe_trampoline(void);
+__asm(
+	".global swap_kretprobe_trampoline	\n"
+	"swap_kretprobe_trampoline:		\n"
+	"pushf					\n"
+	SWAP_SAVE_REGS_STRING
+	"movl %esp, %eax			\n"
+	"call trampoline_probe_handler_x86	\n"
+	/* move eflags to cs */
+	"movl 56(%esp), %edx			\n"
+	"movl %edx, 52(%esp)			\n"
+	/* replace saved flags with true return address. */
+	"movl %eax, 56(%esp)			\n"
+	SWAP_RESTORE_REGS_STRING
+	"popf					\n"
+	"ret					\n"
+);
 
 /* insert a jmp code */
 static __always_inline void set_jmp_op (void *from, void *to)
