@@ -293,7 +293,7 @@ int arch_make_trampoline_arm(unsigned long addr, unsigned long insn,
 }
 EXPORT_SYMBOL_GPL(arch_make_trampoline_arm);
 
-int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
+int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 {
 	unsigned long addr = (unsigned long)p->addr;
 	unsigned long insn = p->opcode = *p->addr;
@@ -333,19 +333,19 @@ EXPORT_SYMBOL_GPL(prepare_singlestep);
 
 void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *p_run)
 {
-	kcb->prev_kprobe.kp = kprobe_running();
+	kcb->prev_kprobe.kp = swap_kprobe_running();
 	kcb->prev_kprobe.status = kcb->kprobe_status;
 }
 
 void restore_previous_kprobe(struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var(current_kprobe) = kcb->prev_kprobe.kp;
+	__get_cpu_var(swap_current_kprobe) = kcb->prev_kprobe.kp;
 	kcb->kprobe_status = kcb->prev_kprobe.status;
 }
 
 void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var(current_kprobe) = p;
+	__get_cpu_var(swap_current_kprobe) = p;
 	DBPRINTF ("set_current_kprobe: p=%p addr=%p\n", p, p->addr);
 }
 
@@ -354,9 +354,9 @@ static int kprobe_handler(struct pt_regs *regs)
 	struct kprobe *p, *cur;
 	struct kprobe_ctlblk *kcb;
 
-	kcb = get_kprobe_ctlblk();
-	cur = kprobe_running();
-	p = get_kprobe((void *)regs->ARM_pc);
+	kcb = swap_get_kprobe_ctlblk();
+	cur = swap_kprobe_running();
+	p = swap_get_kprobe((void *)regs->ARM_pc);
 
 	if (p) {
 		if (cur) {
@@ -365,7 +365,7 @@ static int kprobe_handler(struct pt_regs *regs)
 			case KPROBE_HIT_ACTIVE:
 			case KPROBE_HIT_SSDONE:
 				/* A pre- or post-handler probe got us here. */
-				kprobes_inc_nmissed_count(p);
+				swap_kprobes_inc_nmissed_count(p);
 				save_previous_kprobe(kcb, NULL);
 				set_current_kprobe(p, 0, 0);
 				kcb->kprobe_status = KPROBE_REENTER;
@@ -383,7 +383,7 @@ static int kprobe_handler(struct pt_regs *regs)
 			if (!p->pre_handler || !p->pre_handler(p, regs)) {
 				kcb->kprobe_status = KPROBE_HIT_SS;
 				prepare_singlestep(p, regs);
-				reset_current_kprobe();
+				swap_reset_current_kprobe();
 			}
 		}
 	} else {
@@ -424,7 +424,7 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 	return ret;
 }
 
-int setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
+int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct jprobe *jp = container_of(p, struct jprobe, kp);
 	kprobe_pre_entry_handler_t pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
@@ -451,17 +451,17 @@ void swap_jprobe_return(void)
 }
 EXPORT_SYMBOL_GPL(swap_jprobe_return);
 
-int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
+int swap_longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 {
 	return 0;
 }
-EXPORT_SYMBOL_GPL(longjmp_break_handler);
+EXPORT_SYMBOL_GPL(swap_longjmp_break_handler);
 
 #ifdef CONFIG_STRICT_MEMORY_RWX
 extern void mem_text_write_kernel_word(unsigned long *addr, unsigned long word);
 #endif
 
-void arch_arm_kprobe(struct kprobe *p)
+void swap_arch_arm_kprobe(struct kprobe *p)
 {
 #ifdef CONFIG_STRICT_MEMORY_RWX
 	mem_text_write_kernel_word(p->addr, BREAKPOINT_INSTRUCTION);
@@ -471,7 +471,7 @@ void arch_arm_kprobe(struct kprobe *p)
 #endif
 }
 
-void arch_disarm_kprobe(struct kprobe *p)
+void swap_arch_disarm_kprobe(struct kprobe *p)
 {
 #ifdef CONFIG_STRICT_MEMORY_RWX
 	mem_text_write_kernel_word(p->addr, p->opcode);
@@ -481,7 +481,7 @@ void arch_disarm_kprobe(struct kprobe *p)
 #endif
 }
 
-void __naked kretprobe_trampoline(void)
+void __naked swap_kretprobe_trampoline(void)
 {
 	__asm__ __volatile__ (
 		"stmdb	sp!, {r0 - r11}		\n\t"
@@ -494,7 +494,8 @@ void __naked kretprobe_trampoline(void)
 		: : : "memory");
 }
 
-void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
+void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
+				 struct pt_regs *regs)
 {
 	unsigned long *ptr_ret_addr;
 
@@ -514,7 +515,7 @@ void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 	ri->ret_addr = (unsigned long *)*ptr_ret_addr;
 
 	/* Replace the return addr with trampoline addr */
-	*ptr_ret_addr = (unsigned long)&kretprobe_trampoline;
+	*ptr_ret_addr = (unsigned long)&swap_kretprobe_trampoline;
 }
 
 
@@ -719,7 +720,7 @@ static struct undef_hook undef_ho_k = {
 	.fn		= kprobe_trap_handler
 };
 
-int arch_init_kprobes(void)
+int swap_arch_init_kprobes(void)
 {
 	int ret;
 
@@ -748,7 +749,7 @@ int arch_init_kprobes(void)
 	return 0;
 }
 
-void arch_exit_kprobes(void)
+void swap_arch_exit_kprobes(void)
 {
 	kjump_exit();
 	swap_unregister_undef_hook(&undef_ho_k);

@@ -177,8 +177,6 @@ static inline int swap_fp_backtrace(struct task_struct *task,
 	return i;
 }
 
-extern int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, void *data);
-
 struct prev_kprobe {
 	struct kprobe *kp;
 	unsigned long status;
@@ -195,8 +193,6 @@ struct kprobe_ctlblk {
 	kprobe_opcode_t jprobes_stack[MAX_STACK_SIZE];
 };
 
-
-int kprobe_fault_handler (struct pt_regs *regs, int trapnr);
 
 /* Architecture specific copy of original instruction */
 struct arch_specific_insn {
@@ -216,14 +212,15 @@ int arch_init_module_deps(void);
 struct slot_manager;
 struct kretprobe_instance;
 
-int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm);
-void arch_arm_kprobe(struct kprobe *p);
-void arch_disarm_kprobe(struct kprobe *p);
-void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs);
-void kretprobe_trampoline(void);
+int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm);
+void swap_arch_arm_kprobe(struct kprobe *p);
+void swap_arch_disarm_kprobe(struct kprobe *p);
+void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
+				 struct pt_regs *regs);
+void swap_kretprobe_trampoline(void);
 
 void restore_previous_kprobe(struct kprobe_ctlblk *kcb);
-int can_boost(kprobe_opcode_t *opcodes);
+int swap_can_boost(kprobe_opcode_t *opcodes);
 static inline int arch_check_insn(struct arch_specific_insn *ainsn)
 {
 	return 0;
@@ -254,7 +251,7 @@ static inline unsigned long swap_get_sarg(struct pt_regs *regs, unsigned long n)
 	return *((unsigned long *)kernel_stack_pointer(regs) + n + 1);
 }
 
-int arch_init_kprobes(void);
-void arch_exit_kprobes(void);
+int swap_arch_init_kprobes(void);
+void swap_arch_exit_kprobes(void);
 
 #endif /* _SWAP_ASM_X86_KPROBES_H */

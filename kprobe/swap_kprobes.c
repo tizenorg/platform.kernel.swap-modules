@@ -74,7 +74,7 @@ static unsigned long sys_exit_addr;
 
 struct slot_manager sm;
 
-DEFINE_PER_CPU(struct kprobe *, current_kprobe) = NULL;
+DEFINE_PER_CPU(struct kprobe *, swap_current_kprobe) = NULL;
 static DEFINE_PER_CPU(struct kprobe_ctlblk, kprobe_ctlblk);
 
 static DEFINE_SPINLOCK(kretprobe_lock);	/* Protects kretprobe_inst_table */
@@ -159,18 +159,18 @@ static inline void reset_kprobe_instance(void)
 	__get_cpu_var(kprobe_instance) = NULL;
 }
 
-/* kprobe_running() will just return the current_kprobe on this CPU */
-struct kprobe *kprobe_running(void)
+/* swap_kprobe_running() will just return the current_kprobe on this CPU */
+struct kprobe *swap_kprobe_running(void)
 {
-	return __get_cpu_var(current_kprobe);
+	return __get_cpu_var(swap_current_kprobe);
 }
 
-void reset_current_kprobe(void)
+void swap_reset_current_kprobe(void)
 {
-	__get_cpu_var(current_kprobe) = NULL;
+	__get_cpu_var(swap_current_kprobe) = NULL;
 }
 
-struct kprobe_ctlblk *get_kprobe_ctlblk(void)
+struct kprobe_ctlblk *swap_get_kprobe_ctlblk(void)
 {
 	return &__get_cpu_var(kprobe_ctlblk);
 }
@@ -181,7 +181,7 @@ struct kprobe_ctlblk *get_kprobe_ctlblk(void)
  * 				OR
  * 	- with preemption disabled - from arch/xxx/kernel/kprobes.c
  */
-struct kprobe *get_kprobe(void *addr)
+struct kprobe *swap_get_kprobe(void *addr)
 {
 	struct hlist_head *head;
 	struct kprobe *p;
@@ -266,7 +266,7 @@ static int aggr_break_handler(struct kprobe *p, struct pt_regs *regs)
 }
 
 /* Walks the list and increments nmissed count for multiprobe case */
-void kprobes_inc_nmissed_count(struct kprobe *p)
+void swap_kprobes_inc_nmissed_count(struct kprobe *p)
 {
 	struct kprobe *kp;
 	if (p->pre_handler != aggr_pre_handler) {
@@ -525,7 +525,7 @@ int swap_register_kprobe(struct kprobe *p)
 	p->nmissed = 0;
 	INIT_LIST_HEAD(&p->list);
 
-	old_p = get_kprobe(p->addr);
+	old_p = swap_get_kprobe(p->addr);
 	if (old_p) {
 		ret = register_aggr_kprobe(old_p, p);
 		if (!ret)
@@ -533,13 +533,13 @@ int swap_register_kprobe(struct kprobe *p)
 		goto out;
 	}
 
-	if ((ret = arch_prepare_kprobe(p, &sm)) != 0)
+	if ((ret = swap_arch_prepare_kprobe(p, &sm)) != 0)
 		goto out;
 
 	DBPRINTF ("before out ret = 0x%x\n", ret);
 	INIT_HLIST_NODE(&p->hlist);
 	hlist_add_head_rcu(&p->hlist, &kprobe_table[hash_ptr(p->addr, KPROBE_HASH_BITS)]);
-	arch_arm_kprobe(p);
+	swap_arch_arm_kprobe(p);
 
 out:
 	DBPRINTF ("out ret = 0x%x\n", ret);
@@ -554,7 +554,7 @@ static void swap_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
 	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_handler) &&
 	    (p->list.next == &old_p->list) && (p->list.prev == &old_p->list))) {
 		/* Only probe on the hash list */
-		arch_disarm_kprobe(p);
+		swap_arch_disarm_kprobe(p);
 		hlist_del_rcu(&old_p->hlist);
 
 		if (p != old_p)
@@ -582,7 +582,7 @@ void swap_unregister_kprobe(struct kprobe *kp)
 {
 	struct kprobe *old_p, *list_p;
 
-	old_p = get_kprobe(kp->addr);
+	old_p = swap_get_kprobe(kp->addr);
 	if (unlikely (!old_p))
 		return;
 
@@ -601,8 +601,8 @@ EXPORT_SYMBOL_GPL(swap_unregister_kprobe);
 int swap_register_jprobe(struct jprobe *jp)
 {
 	/* Todo: Verify probepoint is a function entry point */
-	jp->kp.pre_handler = setjmp_pre_handler;
-	jp->kp.break_handler = longjmp_break_handler;
+	jp->kp.pre_handler = swap_setjmp_pre_handler;
+	jp->kp.break_handler = swap_longjmp_break_handler;
 
 	return swap_register_kprobe(&jp->kp);
 }
@@ -636,7 +636,7 @@ static int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
 			rp->entry_handler(ri, regs);
 		}
 
-		arch_prepare_kretprobe(ri, regs);
+		swap_arch_prepare_kretprobe(ri, regs);
 
 		add_rp_inst(ri);
 	} else {
@@ -653,15 +653,17 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	struct kretprobe_instance *ri = NULL;
 	struct hlist_head *head;
 	unsigned long flags, orig_ret_address = 0;
-	unsigned long trampoline_address = (unsigned long)&kretprobe_trampoline;
+	unsigned long trampoline_address;
 
 	struct kprobe_ctlblk *kcb;
 
 	struct hlist_node *tmp;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
+	trampoline_address = (unsigned long)&swap_kretprobe_trampoline;
+
 	preempt_disable();
-	kcb = get_kprobe_ctlblk();
+	kcb = swap_get_kprobe_ctlblk();
 
 	spin_lock_irqsave(&kretprobe_lock, flags);
 
@@ -697,10 +699,10 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 			/* another task is sharing our hash bucket */
 			continue;
 		if (ri->rp && ri->rp->handler) {
-			__get_cpu_var(current_kprobe) = &ri->rp->kp;
-			get_kprobe_ctlblk()->kprobe_status = KPROBE_HIT_ACTIVE;
+			__get_cpu_var(swap_current_kprobe) = &ri->rp->kp;
+			swap_get_kprobe_ctlblk()->kprobe_status = KPROBE_HIT_ACTIVE;
 			ri->rp->handler(ri, regs);
-			__get_cpu_var(current_kprobe) = NULL;
+			__get_cpu_var(swap_current_kprobe) = NULL;
 		}
 
 		orig_ret_address = (unsigned long)ri->ret_addr;
@@ -718,7 +720,7 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	if (kcb->kprobe_status == KPROBE_REENTER) {
 		restore_previous_kprobe(kcb);
 	} else {
-		reset_current_kprobe();
+		swap_reset_current_kprobe();
 	}
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
@@ -916,7 +918,7 @@ static void inline rm_task_trampoline(struct task_struct *p, struct kretprobe_in
 
 static int swap_disarm_krp_inst(struct kretprobe_instance *ri)
 {
-	unsigned long *tramp = (unsigned long *)&kretprobe_trampoline;
+	unsigned long *tramp = (unsigned long *)&swap_kretprobe_trampoline;
 	unsigned long *sp = ri->sp;
 	unsigned long *found = NULL;
 	int retval = -ENOENT;
@@ -1024,16 +1026,14 @@ static int __init init_kprobes(void)
 		return err;
 	}
 
-	err = arch_init_kprobes();
-
-	DBPRINTF ("init_kprobes: arch_init_kprobes - %d", err);
+	err = swap_arch_init_kprobes();
 
 	return err;
 }
 
 static void __exit exit_kprobes(void)
 {
-	arch_exit_kprobes();
+	swap_arch_exit_kprobes();
 	exit_sm();
 }
 

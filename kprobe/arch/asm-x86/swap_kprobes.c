@@ -58,7 +58,7 @@
 
 extern struct kprobe * per_cpu__current_kprobe;
 extern struct kprobe * per_cpu__current_kprobe;
-extern struct kprobe * current_kprobe;
+extern struct kprobe *swap_current_kprobe;
 
 
 static int (*swap_fixup_exception)(struct pt_regs * regs);
@@ -74,10 +74,10 @@ static void (*swap_show_registers)(struct pt_regs * regs);
  *      - When the probed function returns, this probe
  *        causes the handlers to fire
  */
-static __used void kretprobe_trampoline_holder(void)
+static __used void swap_kretprobe_trampoline_holder(void)
 {
-	asm volatile(".global kretprobe_trampoline\n"
-			"kretprobe_trampoline:\n"
+	asm volatile(".global swap_kretprobe_trampoline\n"
+			"swap_kretprobe_trampoline:\n"
 			"	pushf\n"
 			/* skip cs, ip, orig_ax and gs. */
 			"	subl $16, %esp\n"
@@ -111,7 +111,7 @@ static __used void kretprobe_trampoline_holder(void)
 			"	ret\n");
 }
 
-void kretprobe_trampoline(void);
+void swap_kretprobe_trampoline(void);
 
 /* insert a jmp code */
 static __always_inline void set_jmp_op (void *from, void *to)
@@ -129,7 +129,7 @@ static __always_inline void set_jmp_op (void *from, void *to)
 /*
  * returns non-zero if opcodes can be boosted.
  */
-int can_boost(kprobe_opcode_t *opcodes)
+int swap_can_boost(kprobe_opcode_t *opcodes)
 {
 #define W(row,b0,b1,b2,b3,b4,b5,b6,b7,b8,b9,ba,bb,bc,bd,be,bf)		      \
 	(((b0##UL << 0x0)|(b1##UL << 0x1)|(b2##UL << 0x2)|(b3##UL << 0x3) |   \
@@ -209,7 +209,7 @@ retry:
 			return (opcode != 0x2e && opcode != 0x9a);
 	}
 }
-EXPORT_SYMBOL_GPL(can_boost);
+EXPORT_SYMBOL_GPL(swap_can_boost);
 
 /*
  * returns non-zero if opcode modifies the interrupt flag.
@@ -227,7 +227,7 @@ static int is_IF_modifier (kprobe_opcode_t opcode)
 	return 0;
 }
 
-int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
+int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 {
 	/* insn: must be on special executable page on i386. */
 	p->ainsn.insn = swap_slot_alloc(sm);
@@ -237,7 +237,7 @@ int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 	memcpy(p->ainsn.insn, p->addr, MAX_INSN_SIZE);
 
 	p->opcode = *p->addr;
-	p->ainsn.boostable = can_boost(p->addr) ? 0 : -1;
+	p->ainsn.boostable = swap_can_boost(p->addr) ? 0 : -1;
 
 	return 0;
 }
@@ -271,18 +271,18 @@ void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
 	{
 		panic("no space to save new probe[]: task = %d/%s, prev %p, current %p, new %p,",
 				current->pid, current->comm, kcb->prev_kprobe.kp->addr,
-				kprobe_running()->addr, cur_p->addr);
+				swap_kprobe_running()->addr, cur_p->addr);
 	}
 
 
-	kcb->prev_kprobe.kp = kprobe_running();
+	kcb->prev_kprobe.kp = swap_kprobe_running();
 	kcb->prev_kprobe.status = kcb->kprobe_status;
 
 }
 
 void restore_previous_kprobe (struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var (current_kprobe) = kcb->prev_kprobe.kp;
+	__get_cpu_var(swap_current_kprobe) = kcb->prev_kprobe.kp;
 	kcb->kprobe_status = kcb->prev_kprobe.status;
 	kcb->prev_kprobe.kp = NULL;
 	kcb->prev_kprobe.status = 0;
@@ -290,7 +290,7 @@ void restore_previous_kprobe (struct kprobe_ctlblk *kcb)
 
 void set_current_kprobe (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var (current_kprobe) = p;
+	__get_cpu_var(swap_current_kprobe) = p;
 	DBPRINTF ("set_current_kprobe[]: p=%p addr=%p\n", p, p->addr);
 	kcb->kprobe_saved_eflags = kcb->kprobe_old_eflags = (regs->EREG (flags) & (TF_MASK | IF_MASK));
 	if (is_IF_modifier (p->opcode))
@@ -317,11 +317,11 @@ int kprobe_handler (struct pt_regs *regs)
 #endif
 	preempt_disable ();
 
-	kcb = get_kprobe_ctlblk ();
+	kcb = swap_get_kprobe_ctlblk();
 
 	/* Check we're not actually recursing */
-	if (kprobe_running()) {
-		p = get_kprobe(addr);
+	if (swap_kprobe_running()) {
+		p = swap_get_kprobe(addr);
 		if (p) {
 			if (kcb->kprobe_status == KPROBE_HIT_SS && *p->ainsn.insn == BREAKPOINT_INSTRUCTION) {
 				regs->EREG(flags) &= ~TF_MASK;
@@ -338,7 +338,7 @@ int kprobe_handler (struct pt_regs *regs)
 			 */
 			save_previous_kprobe (kcb, p);
 			set_current_kprobe (p, regs, kcb);
-			kprobes_inc_nmissed_count (p);
+			swap_kprobes_inc_nmissed_count(p);
 			prepare_singlestep (p, regs);
 			kcb->kprobe_status = KPROBE_REENTER;
 			// FIXME should we enable preemption here??...
@@ -358,7 +358,7 @@ int kprobe_handler (struct pt_regs *regs)
 				goto no_kprobe;
 			}
 
-			p = __get_cpu_var(current_kprobe);
+			p = __get_cpu_var(swap_current_kprobe);
 			if (p->break_handler && p->break_handler(p, regs))
 				goto ss_probe;
 
@@ -366,9 +366,8 @@ int kprobe_handler (struct pt_regs *regs)
 		}
 	}
 
-	DBPRINTF ("get_kprobe %p", addr);
 	if (!p)
-		p = get_kprobe(addr);
+		p = swap_get_kprobe(addr);
 
 	if (!p) {
 		if (*addr != BREAKPOINT_INSTRUCTION) {
@@ -426,7 +425,7 @@ ss_probe:
 	if (p->ainsn.boostable == 1 && !p->post_handler)
 	{
 		/* Boost up -- we can execute copied instructions directly */
-		reset_current_kprobe ();
+		swap_reset_current_kprobe();
 		regs->EREG (ip) = (unsigned long) p->ainsn.insn;
 		preempt_enable_no_resched ();
 #ifdef SUPRESS_BUG_MESSAGES
@@ -453,16 +452,15 @@ no_kprobe:
 	return ret;
 }
 
-int setjmp_pre_handler (struct kprobe *p, struct pt_regs *regs)
+int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct jprobe *jp = container_of (p, struct jprobe, kp);
 	kprobe_pre_entry_handler_t pre_entry;
 	entry_point_t entry;
 
 	unsigned long addr;
-	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
+	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
 
-	DBPRINTF ("setjmp_pre_handler %p:%d", p->addr, p->tgid);
 	pre_entry = (kprobe_pre_entry_handler_t) jp->pre_entry;
 	entry = (entry_point_t) jp->entry;
 
@@ -493,7 +491,7 @@ void swap_jprobe_return_end(void);
 
 void swap_jprobe_return(void)
 {
-	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
+	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
 
 	asm volatile("       xchgl   %%ebx,%%esp     \n"
 			"       int3			\n"
@@ -616,8 +614,8 @@ no_change:
  */
 static int post_kprobe_handler (struct pt_regs *regs)
 {
-	struct kprobe *cur = kprobe_running ();
-	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
+	struct kprobe *cur = swap_kprobe_running();
+	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
 
 	if (!cur)
 		return 0;
@@ -638,7 +636,7 @@ static int post_kprobe_handler (struct pt_regs *regs)
 		restore_previous_kprobe (kcb);
 		goto out;
 	}
-	reset_current_kprobe ();
+	swap_reset_current_kprobe();
 out:
 	preempt_enable_no_resched ();
 
@@ -653,10 +651,10 @@ out:
 	return 1;
 }
 
-int kprobe_fault_handler (struct pt_regs *regs, int trapnr)
+static int kprobe_fault_handler(struct pt_regs *regs, int trapnr)
 {
-	struct kprobe *cur = kprobe_running ();
-	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
+	struct kprobe *cur = swap_kprobe_running();
+	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
 
 	switch (kcb->kprobe_status)
 	{
@@ -674,7 +672,7 @@ int kprobe_fault_handler (struct pt_regs *regs, int trapnr)
 			if (kcb->kprobe_status == KPROBE_REENTER)
 				restore_previous_kprobe (kcb);
 			else
-				reset_current_kprobe ();
+				swap_reset_current_kprobe();
 			preempt_enable_no_resched ();
 			break;
 		case KPROBE_HIT_ACTIVE:
@@ -684,7 +682,7 @@ int kprobe_fault_handler (struct pt_regs *regs, int trapnr)
 			 * we can also use npre/npostfault count for accouting
 			 * these specific fault cases.
 			 */
-			kprobes_inc_nmissed_count (cur);
+			swap_kprobes_inc_nmissed_count(cur);
 
 			/*
 			 * We come here because instructions in the pre/post
@@ -714,7 +712,8 @@ int kprobe_fault_handler (struct pt_regs *regs, int trapnr)
 	return 0;
 }
 
-int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, void *data)
+static int kprobe_exceptions_notify(struct notifier_block *self,
+				    unsigned long val, void *data)
 {
 	struct die_args *args = (struct die_args *) data;
 	int ret = NOTIFY_DONE;
@@ -742,9 +741,10 @@ int kprobe_exceptions_notify (struct notifier_block *self, unsigned long val, vo
 				ret = NOTIFY_STOP;
 			break;
 		case DIE_GPF:
-			// kprobe_running() needs smp_processor_id()
+			/* swap_kprobe_running() needs smp_processor_id() */
 			preempt_disable ();
-			if (kprobe_running () && kprobe_fault_handler (args->regs, args->trapnr))
+			if (swap_kprobe_running() &&
+			    kprobe_fault_handler(args->regs, args->trapnr))
 				ret = NOTIFY_STOP;
 			preempt_enable ();
 			break;
@@ -763,9 +763,9 @@ static struct notifier_block kprobe_exceptions_nb = {
 	.priority = INT_MAX
 };
 
-int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
+int swap_longjmp_break_handler(struct kprobe *p, struct pt_regs *regs)
 {
-	struct kprobe_ctlblk *kcb = get_kprobe_ctlblk ();
+	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
 	u8 *addr = (u8 *) (regs->EREG (ip) - 1);
 	unsigned long stack_addr = (unsigned long) (kcb->jprobe_saved_esp);
 	struct jprobe *jp = container_of (p, struct jprobe, kp);
@@ -794,13 +794,13 @@ int longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-void arch_arm_kprobe (struct kprobe *p)
+void swap_arch_arm_kprobe(struct kprobe *p)
 {
 	swap_text_poke(p->addr,
 		       ((unsigned char[]){BREAKPOINT_INSTRUCTION}), 1);
 }
 
-void arch_disarm_kprobe (struct kprobe *p)
+void swap_arch_disarm_kprobe(struct kprobe *p)
 {
 	swap_text_poke(p->addr, &p->opcode, 1);
 }
@@ -810,7 +810,8 @@ static __used void *trampoline_probe_handler_x86(struct pt_regs *regs)
 	return (void *)trampoline_probe_handler(NULL, regs);
 }
 
-void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
+void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
+				 struct pt_regs *regs)
 {
 	unsigned long *ptr_ret_addr = stack_addr(regs);
 
@@ -826,7 +827,7 @@ void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs)
 	ri->ret_addr = (unsigned long *)*ptr_ret_addr;
 
 	/* Replace the return addr with trampoline addr */
-	*ptr_ret_addr = (unsigned long)&kretprobe_trampoline;
+	*ptr_ret_addr = (unsigned long)&swap_kretprobe_trampoline;
 }
 
 int arch_init_module_deps()
@@ -855,12 +856,12 @@ not_found:
 	return -ESRCH;
 }
 
-int arch_init_kprobes(void)
+int swap_arch_init_kprobes(void)
 {
 	return register_die_notifier (&kprobe_exceptions_nb);
 }
 
-void arch_exit_kprobes(void)
+void swap_arch_exit_kprobes(void)
 {
 	unregister_die_notifier (&kprobe_exceptions_nb);
 }

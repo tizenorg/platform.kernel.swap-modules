@@ -90,7 +90,7 @@ int arch_prepare_uprobe(struct uprobe *up)
 	/* TODO: remove dual info */
 	p->opcode = tramp[0];
 
-	p->ainsn.boostable = can_boost(tramp) ? 0 : -1;
+	p->ainsn.boostable = swap_can_boost(tramp) ? 0 : -1;
 
 	return ret;
 }

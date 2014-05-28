@@ -495,20 +495,21 @@ int arch_make_trampoline_arm(unsigned long addr, unsigned long insn,
 struct slot_manager;
 struct kretprobe;
 struct kretprobe_instance;
-int arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm);
-void arch_prepare_kretprobe(struct kretprobe_instance *ri, struct pt_regs *regs);
+int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm);
+void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
+				 struct pt_regs *regs);
 
-void arch_arm_kprobe(struct kprobe *p);
-void arch_disarm_kprobe(struct kprobe *p);
+void swap_arch_arm_kprobe(struct kprobe *p);
+void swap_arch_disarm_kprobe(struct kprobe *p);
 
-int setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs);
-int longjmp_break_handler(struct kprobe *p, struct pt_regs *regs);
+int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs);
+int swap_longjmp_break_handler(struct kprobe *p, struct pt_regs *regs);
 
 void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *cur_p);
 void restore_previous_kprobe(struct kprobe_ctlblk *kcb);
 void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb);
 
-void __naked kretprobe_trampoline(void);
+void __naked swap_kretprobe_trampoline(void);
 
 static inline unsigned long swap_get_karg(struct pt_regs *regs, unsigned long n)
 {
@@ -542,8 +543,8 @@ unsigned long get_jump_addr(void);
 int set_jump_cb(unsigned long ret_addr, struct pt_regs *regs,
 		jumper_cb_t cb, void *data, size_t size);
 
-int arch_init_kprobes(void);
-void arch_exit_kprobes(void);
+int swap_arch_init_kprobes(void);
+void swap_arch_exit_kprobes(void);
 
 //void gen_insn_execbuf (void);
 //void pc_dep_insn_execbuf (void);

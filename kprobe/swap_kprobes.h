@@ -217,7 +217,7 @@ struct kretprobe_instance
 };
 
 
-extern void kprobes_inc_nmissed_count (struct kprobe *p);
+extern void swap_kprobes_inc_nmissed_count(struct kprobe *p);
 
 //
 // Large value for fast but memory consuming implementation
@@ -229,14 +229,14 @@ extern void kprobes_inc_nmissed_count (struct kprobe *p);
 
 
 /* Get the kprobe at this addr (if any) - called with preemption disabled */
-struct kprobe *get_kprobe(void *addr);
+struct kprobe *swap_get_kprobe(void *addr);
 
 
 int swap_register_kprobe(struct kprobe *p);
 void swap_unregister_kprobe(struct kprobe *p);
 
-int setjmp_pre_handler (struct kprobe *, struct pt_regs *);
-int longjmp_break_handler (struct kprobe *, struct pt_regs *);
+int swap_setjmp_pre_handler(struct kprobe *, struct pt_regs *);
+int swap_longjmp_break_handler(struct kprobe *, struct pt_regs *);
 
 int swap_register_jprobe(struct jprobe *p);
 void swap_unregister_jprobe(struct jprobe *p);
@@ -267,15 +267,15 @@ int swap_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 
 
-extern DEFINE_PER_CPU (struct kprobe *, current_kprobe);
+extern DEFINE_PER_CPU(struct kprobe *, swap_current_kprobe);
 extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 //extern struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 extern atomic_t kprobe_count;
 extern unsigned long sched_addr;
 
-struct kprobe *kprobe_running (void);
-void reset_current_kprobe (void);
-struct kprobe_ctlblk *get_kprobe_ctlblk (void);
+struct kprobe *swap_kprobe_running(void);
+void swap_reset_current_kprobe(void);
+struct kprobe_ctlblk *swap_get_kprobe_ctlblk(void);
 
 void prepare_singlestep(struct kprobe *p, struct pt_regs *regs);
 
