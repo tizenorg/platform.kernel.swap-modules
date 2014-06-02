@@ -27,6 +27,8 @@
 #include "img_file.h"
 #include <linux/slab.h>
 
+static void img_del_file_by_list(struct img_file *file);
+
 struct img_proc *create_img_proc(void)
 {
 	struct img_proc *proc;
@@ -39,7 +41,14 @@ struct img_proc *create_img_proc(void)
 
 void free_img_proc(struct img_proc *ip)
 {
-	/* FIXME: */
+	struct img_file *file, *tmp;
+
+	list_for_each_entry_safe(file, tmp, &ip->file_list, list) {
+		img_del_file_by_list(file);
+		free_img_file(file);
+	}
+
+	kfree(ip);
 }
 
 static void img_add_file_by_list(struct img_proc *proc, struct img_file *file)

@@ -28,6 +28,9 @@
 #include <linux/slab.h>
 #include <linux/dcache.h>
 
+
+static void img_del_ip_by_list(struct img_ip *ip);
+
 struct img_file *create_img_file(struct dentry *dentry)
 {
 	struct img_file *file;
@@ -42,7 +45,14 @@ struct img_file *create_img_file(struct dentry *dentry)
 
 void free_img_file(struct img_file *file)
 {
-	/* FIXME: */
+	struct img_ip *ip, *tmp;
+
+	list_for_each_entry_safe(ip, tmp, &file->ip_list, list) {
+		img_del_ip_by_list(ip);
+		free_img_ip(ip);
+	}
+
+	kfree(file);
 }
 
 static void img_add_ip_by_list(struct img_file *file, struct img_ip *ip)
