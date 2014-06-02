@@ -92,6 +92,7 @@ struct uretprobe {
 	/** Tracks the number of times the probed function's return was
 	 * ignored, due to maxactive being too low. */
 	int nmissed;
+	size_t data_size;                   /**< Instance data size */
 	struct hlist_head free_instances;   /**< Free instances list */
 	struct hlist_head used_instances;   /**< Used instances list */
 
@@ -113,6 +114,7 @@ struct uretprobe_instance {
 	kprobe_opcode_t *ret_addr;          /**< Return address */
 	kprobe_opcode_t *sp;                /**< Pointer to stack */
 	struct task_struct *task;           /**< Pointer to the task struct */
+	char data[0];                       /**< Custom data */
 };
 
 int swap_register_uprobe(struct uprobe *p);
