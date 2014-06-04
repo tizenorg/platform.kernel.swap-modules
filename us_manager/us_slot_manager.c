@@ -80,5 +80,14 @@ struct slot_manager *create_sm_us(struct task_struct *task)
 
 void free_sm_us(struct slot_manager *sm)
 {
-	/* FIXME: free */
+	if (sm == NULL)
+		return;
+
+	if (!hlist_empty(&sm->page_list)) {
+		printk(KERN_WARNING "SWAP US_MANAGER: Error! Slot manager is "
+				    "not empty!\n");
+		return;
+	}
+
+	kfree(sm);
 }
