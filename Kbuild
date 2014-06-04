@@ -14,4 +14,5 @@ obj-m := buffer/ \
          parser/ \
          retprobe/ \
          webprobe/ \
-         task_data/
+         task_data/ \
+         preload/

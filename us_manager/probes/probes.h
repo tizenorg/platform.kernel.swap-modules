@@ -28,6 +28,7 @@
 
 #include <linux/types.h>
 
+#include <preload/preload_probe.h>   /* TODO Remove */
 #include <retprobe/retprobe.h>       /* TODO Remove */
 
 
@@ -37,7 +38,10 @@
  */
 enum probe_t {
 	SWAP_RETPROBE = 0,          /* Retprobe */
+	SWAP_PRELOAD_PROBE = 2,     /* Preload probe */
 	SWAP_WEBPROBE = 3,          /* Webprobe */
+	SWAP_GET_CALLER = 4,        /* Get caller probe. Supports preload */
+	SWAP_GET_CALL_TYPE = 5,     /* Get call type probe. Supports preload */
 	SWAP_PROBE_MAX_VAL          /* Probes max value. */
 };
 
@@ -48,6 +52,9 @@ struct probe_info {
 	/* Union of all SWAP supported probe types */
 	union {
 		struct retprobe_info rp_i;
+		struct preload_info pl_i;
+		struct get_caller_info gc_i;
+		struct get_call_type_info gct_i;
 	};
 };
 

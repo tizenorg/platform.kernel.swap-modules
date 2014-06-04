@@ -1,0 +1,11 @@
+EXTRA_CFLAGS := $(extra_cflags)
+
+obj-m := swap_preload.o
+swap_preload-y := preload_module.o \
+                  preload_debugfs.o \
+                  preload_storage.o \
+                  preload_probe.o \
+                  preload_control.o \
+                  preload_threads.o \
+                  preload_patcher.o \
+                  preload_pd.o

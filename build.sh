@@ -37,6 +37,7 @@ parser_dir=${modules_dir}/parser
 retprobe_dir=${modules_dir}/retprobe
 webprobe_dir=${modules_dir}/webprobe
 task_data_dir=${modules_dir}/task_data
+preload_dir=${modules_dir}/preload
 
 buffer_module_name=swap_buffer.ko
 driver_module_name=swap_driver.ko
@@ -53,6 +54,7 @@ ksyms_module_name=swap_ksyms.ko
 retprobe_module_name=swap_retprobe.ko
 webprobe_module_name=swap_webprobe.ko
 task_data_module_name=swap_task_data.ko
+preload_module_name=swap_preload.ko
 
 install_dir="/opt/swap/sdk"
 
@@ -77,9 +79,11 @@ ${energy_dir}/${energy_module_name} \
 ${parser_dir}/${parser_module_name} \
 ${ksyms_dir}/${ksyms_module_name} \
 ${retprobe_dir}/${retprobe_module_name} \
-${webprobe_dir}/${webprobe_module_name}"
+${webprobe_dir}/${webprobe_module_name} \
+${task_data_dir}/${task_data_module_name} \
+${preload_dir}/${preload_module_name}"
 
 for m in ${modules} ; do
 	${cross_compile}strip -x -g $m
-# 	sdb -e push $m ${install_dir}
+#	sdb -e push $m ${install_dir}
 done

@@ -329,6 +329,97 @@ void put_retprobe(struct probe_info *pi)
 	put_string(pi->rp_i.args);
 }
 
+/**
+ * @brief Gets preload data and puts it to the probe_info struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @param pi Pointer to the probe_info struct.
+ * @return 0 on success, error code on error.
+ */
+int get_preload_probe(struct msg_buf *mb, struct probe_info *pi)
+{
+	u64 handler;
+	u8 type;
+
+	print_parse_debug("funct handler:");
+	if (get_u64(mb, &handler)) {
+		print_err("failed to read function handler\n");
+		return -EINVAL;
+	}
+
+	print_parse_debug("collect events type:");
+	if (get_u8(mb, &type)) {
+		print_err("failed to read collect events type\n");
+		return -EINVAL;
+	}
+
+	pi->probe_type = SWAP_PRELOAD_PROBE;
+	pi->size = sizeof(pi->pl_i) + sizeof(pi->probe_type) + sizeof(pi->size);
+	pi->pl_i.handler = handler;
+	pi->pl_i.type = type;
+
+	return 0;
+}
+
+/**
+ * @brief Preload probe data cleanup.
+ *
+ * @param pi Pointer to the probe_info comprising retprobe.
+ * @return Void.
+ */
+void put_preload_probe(struct probe_info *pi)
+{
+}
+
+/**
+ * @brief Gets preload get_caller and puts it to the probe_info struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @param pi Pointer to the probe_info struct.
+ * @return 0 on success, error code on error.
+ */
+int get_get_caller_probe(struct msg_buf *mb, struct probe_info *pi)
+{
+	pi->probe_type = SWAP_GET_CALLER;
+	pi->size = sizeof(pi->gc_i);
+
+	return 0;
+}
+
+/**
+ * @brief Preload get_caller probe data cleanup.
+ *
+ * @param pi Pointer to the probe_info comprising retprobe.
+ * @return Void.
+ */
+void put_get_caller_probe(struct probe_info *pi)
+{
+}
+
+/**
+ * @brief Gets preload get_call_type and puts it to the probe_info struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @param pi Pointer to the probe_info struct.
+ * @return 0 on success, error code on error.
+ */
+int get_get_call_type_probe(struct msg_buf *mb, struct probe_info *pi)
+{
+	pi->probe_type = SWAP_GET_CALL_TYPE;
+	pi->size = sizeof(pi->gct_i);
+
+	return 0;
+}
+
+/**
+ * @brief Preload get_call type probe data cleanup.
+ *
+ * @param pi Pointer to the probe_info comprising retprobe.
+ * @return Void.
+ */
+void put_get_call_type_probe(struct probe_info *pi)
+{
+}
 
 
 
@@ -380,6 +471,18 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 		if (get_webprobe(mb, &(fi->probe_i)) != 0)
 			goto free_func_inst;
 		break;
+	case SWAP_PRELOAD_PROBE:
+		if (get_preload_probe(mb, &(fi->probe_i)) != 0)
+			goto free_func_inst;
+		break;
+	case SWAP_GET_CALLER:
+		if (get_get_caller_probe(mb, &(fi->probe_i)) != 0)
+			goto free_func_inst;
+		break;
+	case SWAP_GET_CALL_TYPE:
+		if (get_get_call_type_probe(mb, &(fi->probe_i)) != 0)
+			goto free_func_inst;
+		break;
 	default:
 		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n", type);
 		goto free_func_inst;
@@ -406,6 +509,15 @@ void destroy_func_inst_data(struct func_inst_data *fi)
 		put_retprobe(&(fi->probe_i));
 		break;
 	case SWAP_WEBPROBE:
+		break;
+	case SWAP_PRELOAD_PROBE:
+		put_preload_probe(&(fi->probe_i));
+		break;
+	case SWAP_GET_CALLER:
+		put_get_caller_probe(&(fi->probe_i));
+		break;
+	case SWAP_GET_CALL_TYPE:
+		put_get_call_type_probe(&(fi->probe_i));
 		break;
 	default:
 		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n",
