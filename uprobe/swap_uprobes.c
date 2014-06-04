@@ -740,7 +740,10 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
-	arch_set_orig_ret_addr(orig_ret_addr, regs);
+	/* orig_ret_addr is NULL when there is no need to restore anything
+	 * (all the magic is performed inside handler) */
+	if (likely(orig_ret_addr))
+		arch_set_orig_ret_addr(orig_ret_addr, regs);
 
 	return 1;
 }
