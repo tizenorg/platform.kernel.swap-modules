@@ -180,6 +180,13 @@ void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
 	regs->EREG(ip) = orig_ret_addr;
 }
 
+void arch_remove_uprobe(struct uprobe *up)
+{
+	struct kprobe *p = up2kp(up);
+
+	swap_slot_free(up->sm, p->ainsn.insn);
+}
+
 static void set_user_jmp_op(void *from, void *to)
 {
 	struct __arch_jmp_op

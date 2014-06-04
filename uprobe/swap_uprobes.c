@@ -323,9 +323,7 @@ struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *
 
 static void remove_uprobe(struct uprobe *up)
 {
-	struct kprobe *p = up2kp(up);
-
-	swap_slot_free(up->sm, p->ainsn.insn);
+	arch_remove_uprobe(up);
 }
 
 static struct hlist_head *uretprobe_inst_table_head(void *hash_key)

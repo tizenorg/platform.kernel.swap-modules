@@ -716,6 +716,11 @@ void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
 		regs->ARM_cpsr &= ~PSR_T_BIT;
 }
 
+void arch_remove_uprobe(struct uprobe *up)
+{
+	swap_slot_free(up->sm, up->atramp.utramp);
+}
+
 static void restore_opcode_for_thumb(struct kprobe *p, struct pt_regs *regs)
 {
 	if (thumb_mode(regs) && !is_thumb2(p->opcode)) {

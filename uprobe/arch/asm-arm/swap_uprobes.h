@@ -73,6 +73,7 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 
 unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs);
 void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs);
+void arch_remove_uprobe(struct uprobe *up);
 
 static inline unsigned long swap_get_uarg(struct pt_regs *regs, unsigned long n)
 {
