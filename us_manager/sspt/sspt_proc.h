@@ -51,6 +51,7 @@ struct sspt_proc {
 	struct list_head filter_list;	/**< Filter list */
 	unsigned first_install:1;	/**< Install flag */
 	struct sspt_feature *feature;	/**< Ptr to the feature */
+	void *private_data;		/**< Process private data */
 };
 
 

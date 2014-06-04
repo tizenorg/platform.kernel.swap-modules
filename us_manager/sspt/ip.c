@@ -29,10 +29,10 @@
 #include "sspt_file.h"
 #include <us_manager/probes/use_probes.h>
 
-
 /**
  * @brief Create us_ip struct
  *
+ * @param page User page
  * @param offset Function offset from the beginning of the page
  * @param probe_i Pointer to the probe data.
  * @return Pointer to the created us_ip struct

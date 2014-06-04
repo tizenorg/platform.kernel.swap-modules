@@ -103,6 +103,7 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
 		proc->task = task->group_leader;
 		proc->sm = create_sm_us(task);
 		proc->first_install = 0;
+		proc->private_data = NULL;
 		INIT_LIST_HEAD(&proc->file_list);
 		INIT_LIST_HEAD(&proc->filter_list);
 
