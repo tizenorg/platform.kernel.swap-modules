@@ -23,10 +23,12 @@
  */
 
 #include <linux/slab.h>
+#include <linux/module.h>
 #include "ip.h"
 #include "sspt_page.h"
 #include "sspt_file.h"
 #include <us_manager/probes/use_probes.h>
+
 
 /**
  * @brief Create us_ip struct
