@@ -208,7 +208,7 @@ struct pf_group *get_pf_group_dumb(void *priv)
 			return pfg;
 	}
 
-	filter = create_pf_dumb(pfg->filter);
+	filter = create_pf_dumb(priv);
 	pfg = create_pfg(filter);
 
 	add_pfg_by_list(pfg);
