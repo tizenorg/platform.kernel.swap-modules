@@ -37,7 +37,7 @@
 struct pf_group {
 	struct list_head list;
 	struct img_proc *i_proc;
-	struct proc_filter *filter;
+	struct proc_filter filter;
 
 	/* TODO: proc_list*/
 	struct list_head proc_list;
@@ -122,7 +122,7 @@ static struct sspt_proc *new_proc_by_pfg(struct pf_group *pfg,
 	struct pl_struct *pls;
 	struct sspt_proc *proc;
 
-	proc = sspt_proc_get_by_task_or_new(task, pfg->filter->priv);
+	proc = sspt_proc_get_by_task_or_new(task, pfg->filter.priv);
 	copy_proc_form_img_to_sspt(pfg->i_proc, proc);
 
 	pls = create_pl_struct(proc);
@@ -132,12 +132,12 @@ static struct sspt_proc *new_proc_by_pfg(struct pf_group *pfg,
 }
 /* struct pl_struct */
 
-static struct pf_group *create_pfg(struct proc_filter *filter)
+static struct pf_group *create_pfg(void)
 {
 	struct pf_group *pfg = kmalloc(sizeof(*pfg), GFP_KERNEL);
 
 	INIT_LIST_HEAD(&pfg->list);
-	pfg->filter = filter;
+	memset(&pfg->filter, 0, sizeof(pfg->filter));
 	pfg->i_proc = create_img_proc();
 	INIT_LIST_HEAD(&pfg->proc_list);
 
@@ -163,15 +163,14 @@ static void del_pfg_by_list(struct pf_group *pfg)
 struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv)
 {
 	struct pf_group *pfg;
-	struct proc_filter *filter;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_pf_by_dentry(pfg->filter, dentry))
+		if (check_pf_by_dentry(&pfg->filter, dentry))
 			return pfg;
 	}
 
-	filter = create_pf_by_dentry(dentry, priv);
-	pfg = create_pfg(filter);
+	pfg = create_pfg();
+	set_pf_by_dentry(&pfg->filter, dentry, priv);
 
 	add_pfg_by_list(pfg);
 
@@ -182,15 +181,14 @@ EXPORT_SYMBOL_GPL(get_pf_group_by_dentry);
 struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv)
 {
 	struct pf_group *pfg;
-	struct proc_filter *filter;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_pf_by_tgid(pfg->filter, tgid))
+		if (check_pf_by_tgid(&pfg->filter, tgid))
 			return pfg;
 	}
 
-	filter = create_pf_by_tgid(tgid, priv);
-	pfg = create_pfg(filter);
+	pfg = create_pfg();
+	set_pf_by_tgid(&pfg->filter, tgid, priv);
 
 	add_pfg_by_list(pfg);
 
@@ -201,15 +199,14 @@ EXPORT_SYMBOL_GPL(get_pf_group_by_tgid);
 struct pf_group *get_pf_group_dumb(void *priv)
 {
 	struct pf_group *pfg;
-	struct proc_filter *filter;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_pf_dumb(pfg->filter))
+		if (check_pf_dumb(&pfg->filter))
 			return pfg;
 	}
 
-	filter = create_pf_dumb(priv);
-	pfg = create_pfg(filter);
+	pfg = create_pfg();
+	set_pf_dumb(&pfg->filter, priv);
 
 	add_pfg_by_list(pfg);
 
@@ -241,7 +238,7 @@ int check_task_on_filters(struct task_struct *task)
 	struct pf_group *pfg;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_task_f(pfg->filter, task))
+		if (check_task_f(&pfg->filter, task))
 			return 1;
 	}
 
@@ -254,7 +251,7 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	struct sspt_proc *proc = NULL;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_task_f(pfg->filter, task) == NULL)
+		if (check_task_f(&pfg->filter, task) == NULL)
 			continue;
 
 		proc = get_proc_by_pfg(pfg, task);
@@ -272,7 +269,7 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 		if (pfg_first) {
 			struct dentry *dentry;
 
-			dentry = get_dentry_by_pf(pfg_first->filter);
+			dentry = get_dentry_by_pf(&pfg_first->filter);
 			if (dentry == NULL) {
 				dentry = task->mm->exe_file ?
 					 task->mm->exe_file->f_dentry :

@@ -38,12 +38,13 @@ struct proc_filter {
 	void *priv;
 };
 
-#define check_task_f(filter, task) filter->call(filter, task)
+#define check_task_f(filter, task) (filter)->call(filter, task)
 
-struct proc_filter *create_pf_by_dentry(struct dentry *dentry, void *priv);
-struct proc_filter *create_pf_by_tgid(pid_t tgid, void *priv);
-struct proc_filter *create_pf_dumb(void *priv);
-void free_pf(struct proc_filter *pf);
+void set_pf_by_dentry(struct proc_filter *pf, struct dentry *dentry,
+		      void *priv);
+void set_pf_by_tgid(struct proc_filter *pf, pid_t tgid, void *priv);
+void set_pf_dumb(struct proc_filter *pf, void *priv);
+
 
 int check_pf_by_dentry(struct proc_filter *filter, struct dentry *dentry);
 int check_pf_by_tgid(struct proc_filter *filter, pid_t tgid);
