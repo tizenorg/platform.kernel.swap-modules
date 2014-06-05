@@ -101,6 +101,11 @@ static inline unsigned long swap_get_stack_ptr(struct pt_regs *regs)
 	return regs->EREG(sp);
 }
 
+static inline void swap_set_stack_ptr(struct pt_regs *regs, unsigned long sp)
+{
+	regs->EREG(sp) = sp;
+}
+
 static inline unsigned long swap_get_instr_ptr(struct pt_regs *regs)
 {
 	return regs->EREG(ip);

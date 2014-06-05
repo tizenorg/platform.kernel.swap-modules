@@ -142,6 +142,18 @@ static inline unsigned long swap_get_stack_ptr(struct pt_regs *regs)
 }
 
 /**
+ * @brief Sets stack pointer.
+ *
+ * @param regs Pointer to CPU registers data.
+ * @param sp New stack pointer value.
+ * @return Void
+ */
+static inline void swap_set_stack_ptr(struct pt_regs *regs, unsigned long sp)
+{
+	regs->ARM_sp = sp;
+}
+
+/**
  * @brief Gets instruction pointer.
  *
  * @param regs Pointer to CPU registers data.
