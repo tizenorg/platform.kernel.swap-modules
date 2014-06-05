@@ -136,17 +136,29 @@ static struct pf_group *create_pfg(void)
 {
 	struct pf_group *pfg = kmalloc(sizeof(*pfg), GFP_KERNEL);
 
+	if (pfg == NULL)
+		return NULL;
+
+	pfg->i_proc = create_img_proc();
+	if (pfg->i_proc == NULL)
+		goto create_pfg_fail;
+
 	INIT_LIST_HEAD(&pfg->list);
 	memset(&pfg->filter, 0, sizeof(pfg->filter));
-	pfg->i_proc = create_img_proc();
 	INIT_LIST_HEAD(&pfg->proc_list);
 
 	return pfg;
+
+create_pfg_fail:
+
+	kfree(pfg);
+
+	return NULL;
 }
 
 static void free_pfg(struct pf_group *pfg)
 {
-	/* FIXME: */
+	free_img_proc(pfg->i_proc);
 	kfree(pfg);
 }
 
@@ -170,6 +182,9 @@ struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv)
 	}
 
 	pfg = create_pfg();
+	if (pfg == NULL)
+		return NULL;
+
 	set_pf_by_dentry(&pfg->filter, dentry, priv);
 
 	add_pfg_by_list(pfg);
@@ -188,6 +203,9 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv)
 	}
 
 	pfg = create_pfg();
+	if (pfg == NULL)
+		return NULL;
+
 	set_pf_by_tgid(&pfg->filter, tgid, priv);
 
 	add_pfg_by_list(pfg);
@@ -206,6 +224,9 @@ struct pf_group *get_pf_group_dumb(void *priv)
 	}
 
 	pfg = create_pfg();
+	if (pfg == NULL)
+		return NULL;
+
 	set_pf_dumb(&pfg->filter, priv);
 
 	add_pfg_by_list(pfg);
