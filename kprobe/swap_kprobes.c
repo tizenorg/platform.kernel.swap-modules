@@ -557,8 +557,10 @@ static void swap_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
 		swap_arch_disarm_kprobe(p);
 		hlist_del_rcu(&old_p->hlist);
 
-		if (p != old_p)
+		if (p != old_p) {
+			list_del_rcu(&old_p->list);
 			kfree(old_p);
+		}
 		/* Synchronize and remove probe in bottom */
 	} else {
 		list_del_rcu(&p->list);
@@ -589,11 +591,12 @@ void swap_unregister_kprobe(struct kprobe *kp)
 	if (kp != old_p) {
 		list_for_each_entry_rcu(list_p, &old_p->list, list)
 			if (list_p == kp)
-				/* kprobe p is a valid probe */
-				swap_unregister_valid_kprobe(kp, old_p);
+				goto unreg_valid_kprobe;
+		/* kprobe invalid */
 		return;
 	}
 
+unreg_valid_kprobe:
 	swap_unregister_valid_kprobe(kp, old_p);
 }
 EXPORT_SYMBOL_GPL(swap_unregister_kprobe);
