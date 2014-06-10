@@ -914,6 +914,8 @@ EXPORT_SYMBOL_GPL(entry_event);
 struct msg_func_exit {
 	u32 pid;                /**< PID */
 	u32 tid;                /**< TID */
+	u16 probe_type;         /**< Probe type */
+	u16 probe_sub_type;     /**< Probe subtype */
 	u64 pc_addr;            /**< Instruction pointer */
 	u64 caller_pc_addr;     /**< Return address */
 	u32 cpu_num;            /**< CPU number */
@@ -1003,8 +1005,8 @@ static int pack_msg_ret_val(char *buf, int len, char ret_type,
 
 
 static int pack_msg_func_exit(char *buf, int len, char ret_type,
-			      struct pt_regs *regs, unsigned long func_addr,
-			      unsigned long ret_addr)
+			      struct pt_regs *regs, int pt, int sub_type,
+			      unsigned long func_addr, unsigned long ret_addr)
 {
 	struct msg_func_exit *mfe = (struct msg_func_exit *)buf;
 	struct task_struct *task = current;
@@ -1012,6 +1014,8 @@ static int pack_msg_func_exit(char *buf, int len, char ret_type,
 
 	mfe->pid = task->tgid;
 	mfe->tid = task->pid;
+	mfe->probe_type = pt;
+	mfe->probe_sub_type = sub_type;
 	mfe->cpu_num = smp_processor_id();
 	mfe->pc_addr = func_addr;
 	mfe->caller_pc_addr = ret_addr;
@@ -1030,12 +1034,13 @@ static int pack_msg_func_exit(char *buf, int len, char ret_type,
  *
  * @param ret_type Return value type.
  * @param regs CPU register data.
+ * @param sub_type Event subtype.
  * @param func_addr Function address.
  * @param ret_addr Return address.
  * @return Written data size on success, negative error code on error.
  */
-int exit_event(char ret_type, struct pt_regs *regs, unsigned long func_addr,
-	       unsigned long ret_addr)
+int exit_event(char ret_type, struct pt_regs *regs, int pt, int sub_type,
+	       unsigned long func_addr, unsigned long ret_addr)
 {
 	char *buf, *payload, *buf_end;
 	int ret;
@@ -1043,7 +1048,7 @@ int exit_event(char ret_type, struct pt_regs *regs, unsigned long func_addr,
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_EXIT);
 	/* FIXME: len=1024 */
-	ret = pack_msg_func_exit(payload, 1024, ret_type, regs,
+	ret = pack_msg_func_exit(payload, 1024, ret_type, regs, pt, sub_type,
 				 func_addr, ret_addr);
 	if (ret < 0)
 		goto put_buf;
@@ -1380,7 +1385,7 @@ enum { max_custom_event_size = 2048 };
  * @return Written data size on success, negative error code on error.
  */
 int custom_entry_event(unsigned long func_addr, struct pt_regs *regs,
-		       int type, int sub_type, const char *fmt, ...)
+		       int pt, int sub_type, const char *fmt, ...)
 {
 	char *buf, *payload, *args, *buf_end;
 	va_list vargs;
@@ -1389,7 +1394,7 @@ int custom_entry_event(unsigned long func_addr, struct pt_regs *regs,
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_ENTRY);
 	args = pack_msg_func_entry(payload, fmt, func_addr,
-				   regs, type, sub_type);
+				   regs, pt, sub_type);
 
 	va_start(vargs, fmt);
 	ret = pack_custom_event(args, max_custom_event_size, fmt, vargs);
@@ -1422,7 +1427,8 @@ EXPORT_SYMBOL_GPL(custom_entry_event);
  * @return Written data size on success, negative error code on error.
  */
 int custom_exit_event(unsigned long func_addr, unsigned long ret_addr,
-		      struct pt_regs *regs, const char *fmt, ...)
+		      struct pt_regs *regs, int pt, int sub_type,
+		      const char *fmt, ...)
 {
 	char *buf, *payload, *buf_end;
 	int ret;
@@ -1430,7 +1436,8 @@ int custom_exit_event(unsigned long func_addr, unsigned long ret_addr,
 	buf = get_current_buf();
 	payload = pack_basic_msg_fmt(buf, MSG_FUNCTION_EXIT);
 	ret = pack_msg_func_exit(payload, max_custom_event_size,
-				 fmt[0], regs, func_addr, ret_addr);
+				 fmt[0], regs, pt, sub_type,
+				 func_addr, ret_addr);
 	if (ret < 0)
 		goto put_buf;
 

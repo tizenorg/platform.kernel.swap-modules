@@ -54,7 +54,7 @@ static int ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 		unsigned long addr = (unsigned long)ip->orig_addr;
 		unsigned long ret_addr = (unsigned long)ri->ret_addr;
 
-		exit_event(ip->ret_type, regs, addr, ret_addr);
+		exit_event(ip->ret_type, regs, PT_US, PST_NONE, addr, ret_addr);
 	}
 
 	return 0;

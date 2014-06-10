@@ -77,8 +77,8 @@ int sample_msg(struct pt_regs *regs);
 
 int entry_event(const char *fmt, unsigned long func_addr, struct pt_regs *regs,
 		enum PROBE_TYPE pt, int sub_type);
-int exit_event(char ret_type, struct pt_regs *regs, unsigned long func_addr,
-	       unsigned long ret_addr);
+int exit_event(char ret_type, struct pt_regs *regs, int pt, int sub_type,
+	       unsigned long func_addr, unsigned long ret_addr);
 
 int switch_entry(struct pt_regs *regs);
 int switch_exit(struct pt_regs *regs);
@@ -88,8 +88,9 @@ int error_msg(const char *fmt, ...);
 int raw_msg(char *buf, size_t len);
 
 int custom_entry_event(unsigned long func_addr, struct pt_regs *regs,
-		       int type, int sub_type, const char *fmt, ...);
+		       int pt, int sub_type, const char *fmt, ...);
 int custom_exit_event(unsigned long func_addr, unsigned long ret_addr,
-		      struct pt_regs *regs, const char *fmt, ...);
+		      struct pt_regs *regs, int pt, int sub_type,
+		      const char *fmt, ...);
 
 #endif /* _SWAP_MSG_H */

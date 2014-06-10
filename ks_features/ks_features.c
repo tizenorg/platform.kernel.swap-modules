@@ -135,10 +135,12 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	struct kretprobe *rp = ri->rp;
 
 	if (rp && check_event(current)) {
+		struct ks_probe *ksp = container_of(rp, struct ks_probe, rp);
 		unsigned long func_addr = (unsigned long)rp->kp.addr;
 		unsigned long ret_addr = (unsigned long)ri->ret_addr;
+		int sub_type = ksp->sub_type;
 
-		exit_event('x', regs, func_addr, ret_addr);
+		exit_event('x', regs, PT_KS, sub_type, func_addr, ret_addr);
 	}
 
 	return 0;
