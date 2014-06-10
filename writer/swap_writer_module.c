@@ -733,12 +733,12 @@ EXPORT_SYMBOL_GPL(sample_msg);
  * @brief Entry event info.
  */
 struct msg_func_entry {
-	u64 pc_addr;            /**< Instruction pointer address. */
-	u64 caller_pc_addr;     /**< Return address */
-	u16 probe_type;         /**< Probe type */
-	u16 probe_sub_type;     /**< Probe subtype */
 	u32 pid;                /**< Process ID */
 	u32 tid;                /**< Thread ID */
+	u16 probe_type;         /**< Probe type */
+	u16 probe_sub_type;     /**< Probe subtype */
+	u64 pc_addr;            /**< Instruction pointer address. */
+	u64 caller_pc_addr;     /**< Return address */
 	u32 cpu_num;            /**< CPU number */
 	u32 cnt_args;           /**< Count of args */
 	char args[0];           /**< Args format string */
