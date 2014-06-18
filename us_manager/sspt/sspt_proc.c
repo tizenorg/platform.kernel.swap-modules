@@ -26,6 +26,7 @@
 #include "sspt_proc.h"
 #include "sspt_page.h"
 #include "sspt_feature.h"
+#include "sspt_filter.h"
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/list.h>
@@ -67,6 +68,8 @@
 
 static LIST_HEAD(proc_probes_list);
 static DEFINE_RWLOCK(sspt_proc_rwlock);
+
+void sspt_proc_del_all_filters(struct sspt_proc *proc);
 
 /**
  * @brief Global read lock for sspt_proc
@@ -133,6 +136,7 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
 		proc->sm = create_sm_us(task);
 		proc->first_install = 0;
 		INIT_LIST_HEAD(&proc->file_list);
+		INIT_LIST_HEAD(&proc->filter_list);
 
 		/* add to list */
 		list_add(&proc->list, &proc_probes_list);
@@ -246,6 +250,7 @@ void sspt_proc_free_all(void)
 {
 	struct sspt_proc *proc, *n;
 	list_for_each_entry_safe(proc, n, &proc_probes_list, list) {
+		sspt_proc_del_all_filters(proc);
 		sspt_proc_free(proc);
 	}
 }
@@ -440,4 +445,75 @@ int sspt_proc_get_files_by_region(struct sspt_proc *proc,
 void sspt_proc_insert_files(struct sspt_proc *proc, struct list_head *head)
 {
 	list_splice(head, &proc->file_list);
+}
+
+/**
+ * @brief Add sspt_filter to sspt_proc list
+ *
+ * @param proc Pointer to sspt_proc struct
+ * @param pfg Pointer to pf_group struct
+ * @return Void
+ */
+void sspt_proc_add_filter(struct sspt_proc *proc, struct pf_group *pfg)
+{
+	struct sspt_filter *fl;
+
+	fl = sspt_filter_create(pfg);
+	if (fl == NULL)
+		return;
+
+	list_add(&fl->list, &proc->filter_list);
+}
+
+/**
+ * @brief Remove sspt_filter from sspt_proc list
+ *
+ * @param proc Pointer to sspt_proc struct
+ * @param pfg Pointer to pf_group struct
+ * @return Void
+ */
+void sspt_proc_del_filter(struct sspt_proc *proc, struct pf_group *pfg)
+{
+	struct sspt_filter *fl, *tmp;
+
+	list_for_each_entry_safe(fl, tmp, &proc->filter_list, list) {
+		if (fl->pfg == pfg) {
+			list_del(&fl->list);
+			sspt_filter_free(fl);
+		}
+	}
+}
+
+/**
+ * @brief Remove all sspt_filters from sspt_proc list
+ *
+ * @param proc Pointer to sspt_proc struct
+ * @return Void
+ */
+void sspt_proc_del_all_filters(struct sspt_proc *proc)
+{
+	struct sspt_filter *fl, *tmp;
+
+	list_for_each_entry_safe(fl, tmp, &proc->filter_list, list) {
+		list_del(&fl->list);
+		sspt_filter_free(fl);
+	}
+}
+
+/**
+ * @brief Check if sspt_filter is already in sspt_proc list
+ *
+ * @param proc Pointer to sspt_proc struct
+ * @param pfg Pointer to pf_group struct
+ * @return Boolean
+ */
+int sspt_proc_is_filter_new(struct sspt_proc *proc, struct pf_group *pfg)
+{
+	struct sspt_filter *fl;
+
+	list_for_each_entry(fl, &proc->filter_list, list)
+		if (fl->pfg == pfg)
+			return 0;
+
+	return 1;
 }

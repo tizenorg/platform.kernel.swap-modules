@@ -29,6 +29,7 @@
 
 struct slot_manager;
 struct task_struct;
+struct pf_group;
 
 /** Flags for sspt_*_uninstall() */
 enum US_FLAGS {
@@ -47,6 +48,7 @@ struct sspt_proc {
 	struct task_struct *task;	/**< Ptr to the task */
 	struct slot_manager *sm;	/**< Ptr to the manager slot */
 	struct list_head file_list;	/**< For sspt_file */
+	struct list_head filter_list;	/**< Filter list */
 	unsigned first_install:1;	/**< Install flag */
 	struct sspt_feature *feature;	/**< Ptr to the feature */
 };
@@ -82,5 +84,9 @@ void sspt_proc_read_unlock(void);
 void sspt_proc_write_lock(void);
 void sspt_proc_write_unlock(void);
 
+void sspt_proc_add_filter(struct sspt_proc *proc, struct pf_group *pfg);
+void sspt_proc_del_filter(struct sspt_proc *proc, struct pf_group *pfg);
+void sspt_proc_del_all_filters(struct sspt_proc *proc);
+int sspt_proc_is_filter_new(struct sspt_proc *proc, struct pf_group *pfg);
 
 #endif /* __SSPT_PROC__ */

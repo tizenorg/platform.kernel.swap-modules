@@ -124,6 +124,7 @@ static struct sspt_proc *new_proc_by_pfg(struct pf_group *pfg,
 
 	proc = sspt_proc_get_by_task_or_new(task, pfg->filter.priv);
 	copy_proc_form_img_to_sspt(pfg->i_proc, proc);
+	sspt_proc_add_filter(proc, pfg);
 
 	pls = create_pl_struct(proc);
 	add_pl_struct(pfg, pls);
@@ -158,7 +159,11 @@ create_pfg_fail:
 
 static void free_pfg(struct pf_group *pfg)
 {
+	struct pl_struct *pl;
+
 	free_img_proc(pfg->i_proc);
+	list_for_each_entry(pl, &pfg->proc_list, list)
+		sspt_proc_del_filter(pl->proc, pfg);
 	kfree(pfg);
 }
 
@@ -335,8 +340,13 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 			continue;
 
 		proc = get_proc_by_pfg(pfg, task);
-		if (proc)
+		if (proc) {
+			if (sspt_proc_is_filter_new(proc, pfg)) {
+				copy_proc_form_img_to_sspt(pfg->i_proc, proc);
+				sspt_proc_add_filter(proc, pfg);
+			}
 			break;
+		}
 
 		if (task->tgid == task->pid) {
 			proc = new_proc_by_pfg(pfg, task);
@@ -407,6 +417,7 @@ void uninstall_proc(struct sspt_proc *proc)
 	sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
 	task_unlock(task);
 
+	sspt_proc_del_all_filters(proc);
 	sspt_proc_free(proc);
 }
 
