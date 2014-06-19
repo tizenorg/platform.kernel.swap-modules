@@ -54,12 +54,18 @@ struct proc_filter {
 void set_pf_by_dentry(struct proc_filter *pf, struct dentry *dentry,
 		      void *priv);
 void set_pf_by_tgid(struct proc_filter *pf, pid_t tgid, void *priv);
+void set_pf_by_comm(struct proc_filter *pf, char *comm, void *priv);
 void set_pf_dumb(struct proc_filter *pf, void *priv);
 
 
 int check_pf_by_dentry(struct proc_filter *filter, struct dentry *dentry);
 int check_pf_by_tgid(struct proc_filter *filter, pid_t tgid);
+int check_pf_by_comm(struct proc_filter *filter, char *comm);
 int check_pf_dumb(struct proc_filter *filter);
 struct dentry *get_dentry_by_pf(struct proc_filter *filter);
+
+void free_pf(struct proc_filter *filter);
+
+int ignore_pf(struct proc_filter *filter);
 
 #endif /* _PROC_FILTERS_H */

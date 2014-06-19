@@ -26,6 +26,7 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/mm_types.h>
+#include <linux/string.h>
 #include <linux/fs.h>
 #include "proc_filters.h"
 #include <us_manager/sspt/sspt.h>
@@ -59,6 +60,11 @@ static struct task_struct *call_by_dentry(struct proc_filter *self,
 	return NULL;
 }
 
+static inline void free_by_dentry(struct proc_filter *self)
+{
+	return;
+}
+
 static struct task_struct *call_by_tgid(struct proc_filter *self,
 				       struct task_struct *task)
 {
@@ -68,6 +74,28 @@ static struct task_struct *call_by_tgid(struct proc_filter *self,
 		return task;
 
 	return NULL;
+}
+
+static inline void free_by_tgid(struct proc_filter *self)
+{
+	return;
+}
+
+static struct task_struct *call_by_comm(struct proc_filter *self,
+				       struct task_struct *task)
+{
+	char *comm = (char *)self->data;
+	size_t len = strnlen(comm, TASK_COMM_LEN);
+
+	if (!strncmp(comm, task->comm, len))
+		return task;
+
+	return NULL;
+}
+
+static inline void free_by_comm(struct proc_filter *self)
+{
+	kfree(self->data);
 }
 
 /* Dumb call. Each task is exactly what we are looking for :) */
@@ -108,6 +136,25 @@ void set_pf_by_tgid(struct proc_filter *pf, pid_t tgid, void *priv)
 }
 
 /**
+ * @brief Fill proc_filter struct for given comm
+ *
+ * @param pf Pointer to the proc_filter struct
+ * @param comm Task comm
+ * @param priv Private data
+ * @return Void
+ */
+void set_pf_by_comm(struct proc_filter *pf, char *comm, void *priv)
+{
+	size_t len = strnlen(comm, TASK_COMM_LEN);
+
+	pf->call = &call_by_comm;
+	pf->data = kmalloc(len, GFP_KERNEL);
+	memset(pf->data, 0, len);
+	memcpy(pf->data, comm, len - 1);
+	pf->priv = priv;
+}
+
+/**
  * @brief Filling pf_group struct for each process
  *
  * @param pf Pointer to the proc_filter struct
@@ -119,6 +166,22 @@ void set_pf_dumb(struct proc_filter *pf, void *priv)
 	pf->call = &call_dumb;
 	pf->data = NULL;
 	pf->priv = priv;
+}
+
+/**
+ * @brief Free proc_filter struct
+ *
+ * @param filter Pointer to the proc_filter struct
+ * @return Void
+ */
+void free_pf(struct proc_filter *filter)
+{
+	if (filter->call == &call_by_dentry)
+		free_by_dentry(filter);
+	else if (filter->call == &call_by_tgid)
+		free_by_tgid(filter);
+	else if (filter->call == &call_by_comm)
+		free_by_comm(filter);
 }
 
 /**
@@ -151,6 +214,21 @@ int check_pf_by_tgid(struct proc_filter *filter, pid_t tgid)
 }
 
 /**
+ * @brief Check proc_filter struct by comm
+ *
+ * @param filter Pointer to the proc_filter struct
+ * @param comm Task comm
+ * @return
+ *       - 0 - false
+ *       - 1 - true
+ */
+int check_pf_by_comm(struct proc_filter *filter, char *comm)
+{
+	return ((filter->call == &call_by_comm) && (filter->data != NULL) &&
+		(!strncmp(filter->data, comm, TASK_COMM_LEN)));
+}
+
+/**
  * @brief Dumb check always true if filter is a dumb one
  *
  * @param filter Pointer to the proc_filter struct
@@ -175,4 +253,14 @@ struct dentry *get_dentry_by_pf(struct proc_filter *filter)
 		return (struct dentry *)filter->data;
 
 	return NULL;
+}
+
+/* Check function for call_page_fault() and other frequently called
+filter-check functions. It is used to call event-oriented and long-term filters
+only on specified events, but not every time memory map is changed. When
+iteraiting over the filters list, call this function on each step passing here
+pointer on filter. If it returns 1 then the filter should not be called. */
+int ignore_pf(struct proc_filter *filter)
+{
+	return filter->call == &call_by_comm;
 }

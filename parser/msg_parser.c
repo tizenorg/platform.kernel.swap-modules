@@ -133,9 +133,8 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 	}
 
 	ai->app_type = (enum APP_TYPE)app_type;
+	ai->app_id = ta_id;
 	ai->exec_path = exec_path;
-
-	put_string(ta_id);
 
 	return ai;
 
@@ -160,6 +159,7 @@ free_ta_id:
 void destroy_app_info(struct app_info_data *ai)
 {
 	put_string(ai->exec_path);
+	put_string(ai->app_id);
 	kfree(ai);
 }
 

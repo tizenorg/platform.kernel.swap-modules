@@ -61,6 +61,7 @@ enum {
 struct app_info_data {
 	enum APP_TYPE app_type;     /**< Application type. */
 	pid_t tgid;                 /**< Application PID. */
+	char *app_id;               /**< Application ID */
 	char *exec_path;            /**< Application execution path. */
 };
 

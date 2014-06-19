@@ -162,6 +162,7 @@ static void free_pfg(struct pf_group *pfg)
 	struct pl_struct *pl;
 
 	free_img_proc(pfg->i_proc);
+	free_pf(&pfg->filter);
 	list_for_each_entry(pl, &pfg->proc_list, list)
 		sspt_proc_del_filter(pl->proc, pfg);
 	kfree(pfg);
@@ -271,6 +272,34 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv)
 	return pfg;
 }
 EXPORT_SYMBOL_GPL(get_pf_group_by_tgid);
+
+/**
+ * @brief Get pf_group struct by comm
+ *
+ * @param comm Task comm
+ * @param priv Private data
+ * @return Pointer on pf_group struct
+ */
+struct pf_group *get_pf_group_by_comm(char *comm, void *priv)
+{
+	struct pf_group *pfg;
+
+	list_for_each_entry(pfg, &pfg_list, list) {
+		if (check_pf_by_comm(&pfg->filter, comm))
+			return pfg;
+	}
+
+	pfg = create_pfg();
+	if (pfg == NULL)
+		return NULL;
+
+	set_pf_by_comm(&pfg->filter, comm, priv);
+
+	add_pfg_by_list(pfg);
+
+	return pfg;
+}
+EXPORT_SYMBOL_GPL(get_pf_group_by_comm);
 
 /**
  * @brief Get pf_group struct for each process
@@ -414,7 +443,8 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	struct sspt_proc *proc = NULL;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_task_f(&pfg->filter, task) == NULL)
+		if (ignore_pf(&pfg->filter) ||
+		    (check_task_f(&pfg->filter, task) == NULL))
 			continue;
 
 		proc = get_proc_by_pfg(pfg, task);

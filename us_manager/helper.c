@@ -511,10 +511,8 @@ static int ret_handler_comm(struct kretprobe_instance *ri, struct pt_regs *regs)
 		return 0;
 
 	task = ((struct comm_data *)ri->data)->task;
-	if (sspt_proc_get_by_task(task) == NULL)
-		return 0;
 
-	proc_comm_msg(task);
+	check_task_and_install(task);
 
 	return 0;
 }
