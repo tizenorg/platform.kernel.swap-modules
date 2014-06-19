@@ -1,0 +1,4 @@
+EXTRA_CFLAGS := $(extra_cflags)
+
+obj-m := swap_task_data.o
+swap_task_data-y := task_data.o

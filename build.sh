@@ -36,6 +36,7 @@ energy_dir=${modules_dir}/energy
 parser_dir=${modules_dir}/parser
 retprobe_dir=${modules_dir}/retprobe
 webprobe_dir=${modules_dir}/webprobe
+task_data_dir=${modules_dir}/task_data
 
 buffer_module_name=swap_buffer.ko
 driver_module_name=swap_driver.ko
@@ -51,6 +52,7 @@ parser_module_name=swap_message_parser.ko
 ksyms_module_name=swap_ksyms.ko
 retprobe_module_name=swap_retprobe.ko
 webprobe_module_name=swap_webprobe.ko
+task_data_module_name=swap_task_data.ko
 
 install_dir="/opt/swap/sdk"
 
