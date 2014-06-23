@@ -177,6 +177,45 @@ static void del_pfg_by_list(struct pf_group *pfg)
 	list_del(&pfg->list);
 }
 
+static void first_install(struct task_struct *task, struct sspt_proc *proc,
+			  struct pf_group *pfg)
+{
+	struct dentry *dentry;
+
+	dentry = get_dentry_by_pf(&pfg->filter);
+	if (dentry == NULL) {
+		dentry = task->mm->exe_file ?
+			 task->mm->exe_file->f_dentry :
+			 NULL;
+	}
+
+	down_read(&task->mm->mmap_sem);
+	proc_info_msg(task, dentry);
+	up_read(&task->mm->mmap_sem);
+
+#ifdef CONFIG_ARM
+	down_write(&task->mm->mmap_sem);
+	sspt_proc_install(proc);
+	up_write(&task->mm->mmap_sem);
+#else /* CONFIG_ARM */
+	sspt_proc_install(proc);
+#endif /* CONFIG_ARM */
+}
+
+static void subsequent_install(struct task_struct *task,
+			       struct sspt_proc *proc, unsigned long page_addr)
+{
+	if (!page_addr)
+		return;
+#ifdef CONFIG_ARM
+	down_write(&task->mm->mmap_sem);
+	sspt_proc_install_page(proc, page_addr);
+	up_write(&task->mm->mmap_sem);
+#else /* CONFIG_ARM */
+	sspt_proc_install_page(proc, page_addr);
+#endif /* CONFIG_ARM */
+}
+
 /**
  * @brief Get pf_group struct by dentry
  *
@@ -327,6 +366,45 @@ int check_task_on_filters(struct task_struct *task)
  * @brief Check task and install probes on demand
  *
  * @prarm task Pointer on the task_struct struct
+ * @return Void
+ */
+void check_task_and_install(struct task_struct *task)
+{
+	struct pf_group *pfg;
+	struct sspt_proc *proc = NULL;
+
+	list_for_each_entry(pfg, &pfg_list, list) {
+		if (check_task_f(&pfg->filter, task) == NULL)
+			continue;
+
+		proc = get_proc_by_pfg(pfg, task);
+		if (proc) {
+			if (sspt_proc_is_filter_new(proc, pfg)) {
+				copy_proc_form_img_to_sspt(pfg->i_proc, proc);
+				sspt_proc_add_filter(proc, pfg);
+			} else {
+				printk(KERN_ERR "SWAP US_MANAGER: Error! Trying"
+						" to first install filter that "
+						"already exists in proc!\n");
+				return;
+			}
+			break;
+		}
+
+		if (task->tgid == task->pid) {
+			proc = new_proc_by_pfg(pfg, task);
+			break;
+		}
+	}
+
+	if (proc)
+		first_install(task, proc, pfg);
+}
+
+/**
+ * @brief Check task and install probes on demand
+ *
+ * @prarm task Pointer on the task_struct struct
  * @param page_addr Page fault address
  * @return Void
  */
@@ -357,35 +435,9 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 
 	if (proc) {
 		if (pfg_first) {
-			struct dentry *dentry;
-
-			dentry = get_dentry_by_pf(&pfg_first->filter);
-			if (dentry == NULL) {
-				dentry = task->mm->exe_file ?
-					 task->mm->exe_file->f_dentry :
-					 NULL;
-			}
-
-			down_read(&task->mm->mmap_sem);
-			proc_info_msg(task, dentry);
-			up_read(&task->mm->mmap_sem);
-
-#ifdef CONFIG_ARM
-			down_write(&task->mm->mmap_sem);
-			sspt_proc_install(proc);
-			up_write(&task->mm->mmap_sem);
-#else /* CONFIG_ARM */
-			sspt_proc_install(proc);
-#endif /* CONFIG_ARM */
+			first_install(task, proc, pfg_first);
 		} else {
-#ifdef CONFIG_ARM
-			down_write(&task->mm->mmap_sem);
-			sspt_proc_install_page(proc, page_addr);
-			up_write(&task->mm->mmap_sem);
-#else /* CONFIG_ARM */
-		if (page_addr)
-			sspt_proc_install_page(proc, page_addr);
-#endif /* CONFIG_ARM */
+			subsequent_install(task, proc, page_addr);
 		}
 	}
 }
@@ -473,7 +525,7 @@ void install_all(void)
 		if (is_kthread(task))
 			continue;
 
-		call_page_fault(task, 0xba00baab);
+		check_task_and_install(task);
 	}
 	rcu_read_unlock();
 	oops_in_progress = tmp_oops_in_progress;
