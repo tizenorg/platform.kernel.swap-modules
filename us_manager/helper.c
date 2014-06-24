@@ -389,10 +389,11 @@ static int ret_handler_unmap(struct kretprobe_instance *ri,
 	task = current->group_leader;
 	if (is_kthread(task) ||
 	    get_regs_ret_val(regs))
-		return 0;
+		goto out;
 
 	remove_unmap_probes(task, (struct unmap_data *)ri->data);
 
+out:
 	atomic_dec(&unmap_cnt);
 
 	return 0;
