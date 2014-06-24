@@ -31,7 +31,7 @@ Kernel modules for SWAP
 %build
 
 %ifarch i586
-./build.sh /usr/src/linux-kernel-build-3.4.0-i386_tizen_emul_defconfig.1 i386
+./build.sh /usr/src/linux-kernel-build-3.12.18-i386_tizen_emul_defconfig.1 i386
 %endif
 
 %ifarch armv7l
