@@ -26,6 +26,12 @@
 #include <linux/mm.h>
 #include <linux/version.h>
 
+/*
+ * TODO: move declaration and definition swap_do_mmap_pgoff()
+ *       from swap_kprobe.ko to swap_us_manager.ko
+ */
+#include <kprobe/swap_kprobes_deps.h>
+
 
 static inline unsigned long swap_do_mmap(struct file *filp, unsigned long addr,
 					 unsigned long len, unsigned long prot,

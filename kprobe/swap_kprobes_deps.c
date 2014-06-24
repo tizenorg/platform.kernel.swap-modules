@@ -80,7 +80,7 @@ DECLARE_MOD_DEP_WRAPPER(swap_do_mmap_pgoff,
 			unsigned long flags, unsigned long pgoff,
 			unsigned long *populate)
 IMP_MOD_DEP_WRAPPER(do_mmap_pgoff, file, addr, len, prot, flags, pgoff, populate)
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 DECLARE_MOD_FUNC_DEP(do_mmap_pgoff, unsigned long, struct file *file, unsigned long addr, unsigned long len, unsigned long prot, unsigned long flags, unsigned long pgoff);
 DECLARE_MOD_DEP_WRAPPER(swap_do_mmap_pgoff,
 			unsigned long,
@@ -88,7 +88,7 @@ DECLARE_MOD_DEP_WRAPPER(swap_do_mmap_pgoff,
 			unsigned long len, unsigned long prot,
 			unsigned long flags, unsigned long pgoff)
 IMP_MOD_DEP_WRAPPER(do_mmap_pgoff, file, addr, len, prot, flags, pgoff)
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) */
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 EXPORT_SYMBOL_GPL(swap_do_mmap_pgoff);
@@ -123,13 +123,6 @@ static DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *, struct mm_str
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 static DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *, struct task_struct *tsk);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-
-#ifdef CONFIG_HUGETLB_PAGE
-DECLARE_MOD_FUNC_DEP(follow_hugetlb_page, int, struct mm_struct *mm, \
-		struct vm_area_struct *vma, struct page **pages, \
-		struct vm_area_struct **vmas, unsigned long *position, int *length, \
-		int i, int write);
-#endif
 
 #ifdef __HAVE_ARCH_GATE_AREA
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
@@ -216,13 +209,39 @@ IMP_MOD_DEP_WRAPPER (get_gate_vma, tsk)
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
 #ifdef CONFIG_HUGETLB_PAGE
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
+DECLARE_MOD_FUNC_DEP(follow_hugetlb_page,					\
+		     int,							\
+		     struct mm_struct *mm, struct vm_area_struct *vma,		\
+		     struct page **pages, struct vm_area_struct **vmas,		\
+		     unsigned long *position, int *length, int i,		\
+		     unsigned int flags);
 DECLARE_MOD_DEP_WRAPPER(swap_follow_hugetlb_page,
 			int,
 			struct mm_struct *mm, struct vm_area_struct *vma,
 			struct page **pages, struct vm_area_struct **vmas,
 			unsigned long *position, int *length, int i,
-			unsigned int write)
-	IMP_MOD_DEP_WRAPPER (follow_hugetlb_page, mm, vma, pages, vmas, position, length, i, write)
+			unsigned int flags)
+IMP_MOD_DEP_WRAPPER(follow_hugetlb_page,					\
+		    mm, vma, pages, vmas, position, length, i, flags)
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0) */
+DECLARE_MOD_FUNC_DEP(follow_hugetlb_page,					\
+		     long,							\
+		     struct mm_struct *mm, struct vm_area_struct *vma,		\
+		     struct page **pages, struct vm_area_struct **vmas,		\
+		     unsigned long *position, unsigned long *nr_pages,		\
+		     long i, unsigned int flags);
+DECLARE_MOD_DEP_WRAPPER(swap_follow_hugetlb_page,
+			long,
+			struct mm_struct *mm, struct vm_area_struct *vma,
+			struct page **pages, struct vm_area_struct **vmas,
+			unsigned long *position, unsigned long *nr_pages,
+			long i, unsigned int flags)
+IMP_MOD_DEP_WRAPPER(follow_hugetlb_page,					\
+		    mm, vma, pages, vmas, position, nr_pages, i, flags)
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0) */
+
 #else /* CONFIG_HUGETLB_PAGE */
 #define swap_follow_hugetlb_page follow_hugetlb_page
 #endif /* CONFIG_HUGETLB_PAGE */

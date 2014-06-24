@@ -96,5 +96,16 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 #define write_proc_vm_atomic(tsk, addr, buf, len)	access_process_vm_atomic (tsk, addr, buf, len, 1)
 int page_present (struct mm_struct *mm, unsigned long addr);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+unsigned long swap_do_mmap_pgoff(struct file *file, unsigned long addr,
+				 unsigned long len, unsigned long prot,
+				 unsigned long flags, unsigned long pgoff,
+				 unsigned long *populate);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+unsigned long swap_do_mmap_pgoff(struct file *file, unsigned long addr,
+				 unsigned long len, unsigned long prot,
+				 unsigned long flags, unsigned long pgoff);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) */
+
 
 #endif /* _SWAP_KPROBES_DEPS_H */

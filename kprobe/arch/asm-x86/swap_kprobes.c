@@ -844,7 +844,11 @@ int arch_init_module_deps()
 	if (swap_text_poke == NULL)
 		goto not_found;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
 	sym = "show_registers";
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0) */
+	sym = "show_regs";
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0) */
 	swap_show_registers = (void *)swap_ksyms(sym);
 	if (swap_show_registers == NULL)
 		goto not_found;
