@@ -90,9 +90,9 @@ DECLARE_MOD_DEP_WRAPPER(swap_do_mmap_pgoff,
 IMP_MOD_DEP_WRAPPER(do_mmap_pgoff, file, addr, len, prot, flags, pgoff)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 EXPORT_SYMBOL_GPL(swap_do_mmap_pgoff);
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) */
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) */
 
 /* copy_to_user_page */
 #ifndef copy_to_user_page
@@ -359,9 +359,9 @@ int init_module_dependencies(void)
 #else /*2.6.16 */
 	INIT_MOD_DEP_VAR(put_task_struct, __put_task_struct_cb);
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 	INIT_MOD_DEP_VAR(do_mmap_pgoff, do_mmap_pgoff);
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) */
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) */
 
 	return 0;
 }
