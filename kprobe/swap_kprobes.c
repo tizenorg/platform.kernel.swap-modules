@@ -556,6 +556,7 @@ static void swap_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
 		/* Only probe on the hash list */
 		swap_arch_disarm_kprobe(p);
 		hlist_del_rcu(&old_p->hlist);
+		remove_kprobe(old_p);
 
 		if (p != old_p) {
 			list_del_rcu(&old_p->list);
@@ -873,9 +874,6 @@ void swap_unregister_kretprobe_bottom(struct kretprobe *rp)
 {
 	unsigned long flags;
 	struct kretprobe_instance *ri;
-
-	if (list_empty(&rp->kp.list))
-		remove_kprobe(&rp->kp);
 
 	spin_lock_irqsave(&kretprobe_lock, flags);
 
