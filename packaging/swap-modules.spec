@@ -10,7 +10,7 @@ Source: swap-modules-3.0.tar.gz
 BuildRequires: perl
 BuildRequires: python
 %ifarch %{arm}
-BuildRequires: linux-kernel-devel
+BuildRequires: kernel-devel-tizen-dev
 %else
 BuildRequires: emulator-kernel-devel
 %endif
@@ -24,7 +24,7 @@ Kernel modules for SWAP
 %build
 
 %ifarch %{arm}
-./build.sh /usr/src/linux-kernel-build-3.0.15-tizen_defconfig.1 arm
+./build.sh /var/tmp/kernel/devel/kernel-devel-tizen_kiran_2g arm
 %else
 ./build.sh /usr/src/linux-kernel-build-3.12.18-i386_tizen_emul_defconfig.1 i386
 %endif
