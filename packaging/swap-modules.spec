@@ -7,16 +7,9 @@ Group: System Environment/Kernel
 Vendor: Samsung
 Source: swap-modules-3.0.tar.gz
 
-%ifarch i586
-%define target_arm 0
-%endif
-%ifarch armv7l
-%define target_arm 1
-%endif
-
 BuildRequires: perl
 BuildRequires: python
-%if %{target_arm}
+%ifarch %{arm}
 BuildRequires: linux-kernel-devel
 %else
 BuildRequires: emulator-kernel-devel
@@ -30,12 +23,10 @@ Kernel modules for SWAP
 
 %build
 
-%ifarch i586
-./build.sh /usr/src/linux-kernel-build-3.12.18-i386_tizen_emul_defconfig.1 i386
-%endif
-
-%ifarch armv7l
+%ifarch %{arm}
 ./build.sh /usr/src/linux-kernel-build-3.0.15-tizen_defconfig.1 arm
+%else
+./build.sh /usr/src/linux-kernel-build-3.12.18-i386_tizen_emul_defconfig.1 i386
 %endif
 
 %install
