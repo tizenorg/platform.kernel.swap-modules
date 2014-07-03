@@ -26,7 +26,7 @@ Kernel modules for SWAP
 %ifarch %{arm}
 ./build.sh /var/tmp/kernel/devel/kernel-devel-tizen_kiran_2g arm
 %else
-./build.sh /usr/src/linux-kernel-build-3.12.18-i386_tizen_emul_defconfig.1 i386
+./build.sh /usr/src/linux-kernel-build-3.12.18 i386
 %endif
 
 %install
