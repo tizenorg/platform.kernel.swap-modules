@@ -1,9 +1,10 @@
-#ifndef _SWAP_KPROBES_DEPS_H
-#define _SWAP_KPROBES_DEPS_H
-
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/swap_kprobes_deps.h
+/**
+ * @file kprobe/swap_kprobes_deps.h
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial implementation;
+ * Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,13 +20,17 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2006-2010
  *
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @section DESCRIPTION
  *
+ * SWAP kprobe kernel-dependent dependencies.
  */
+
+#ifndef _SWAP_KPROBES_DEPS_H
+#define _SWAP_KPROBES_DEPS_H
 
 #include <linux/version.h>	// LINUX_VERSION_CODE, KERNEL_VERSION()
 #include <linux/hugetlb.h>

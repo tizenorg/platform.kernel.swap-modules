@@ -1,6 +1,10 @@
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/swap_kprobes_deps.h
+/**
+ * kprobe/swap_kprobes_deps.c
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial implementation;
+ * Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +20,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2006-2010
  *
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @section DESCRIPTION
  *
+ * SWAP kprobe kernel-dependent dependencies.
  */
 
 #include <linux/module.h>
@@ -304,7 +309,11 @@ IMP_MOD_DEP_WRAPPER (vm_normal_page, vma, addr, pte)
 
 
 
-
+/**
+ * @brief Initializes module dependencies.
+ *
+ * @return 0.
+ */
 int init_module_dependencies(void)
 {
 
@@ -432,6 +441,19 @@ static inline int stack_guard_page(struct vm_area_struct *vma, unsigned long add
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 
+/**
+ * @brief Gets user pages uprobe.
+ *
+ * @param tsk Pointer to the task_struct.
+ * @param mm Pointer to the mm_struct.
+ * @param start Starting address.
+ * @param nr_pages Pages number.
+ * @param gup_flags Flags.
+ * @param pages Pointer to the array of pointers to the target page structs.
+ * @param vmas Pointer to the array of pointers to the target vm_area_struct.
+ * @param nonblocking Pointer to int.
+ * @return negative error code on error, positive result otherwise.
+ */
 long __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, unsigned long nr_pages,
 		unsigned int gup_flags, struct page **pages,
@@ -1015,6 +1037,19 @@ static int __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm
 #endif
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
+/**
+ * @brief Gets user pages uprobe.
+ *
+ * @param tsk Pointer to the task_struct.
+ * @param mm Pointer to the mm_struct.
+ * @param start Starting address.
+ * @param len Length.
+ * @param write Write flag.
+ * @param force Force flag.
+ * @param pages Pointer to the array of pointers to the target page structs.
+ * @param vmas Pointer to the array of pointers to the target vm_area_struct.
+ * @return negative error code on error, positive result otherwise.
+ */
 int get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 		unsigned long start, int len, int write, int force,
 		struct page **pages, struct vm_area_struct **vmas)
@@ -1115,6 +1150,16 @@ static void write_data_current(unsigned long addr, void *buf, int len)
 }
 #endif
 
+/**
+ * @brief Read-write task memory.
+ *
+ * @param tsk Pointer to the target task task_struct.
+ * @param addr Address to read-write.
+ * @param buf Pointer to buffer where to put-get data.
+ * @param len Buffer length.
+ * @param write Write flag. If 0 - reading, if 1 - writing.
+ * @return Read-write size, error code on error.
+ */
 int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write)
 {
 	struct mm_struct *mm;
@@ -1193,6 +1238,12 @@ int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *
 	return buf - old_buf;
 }
 
+/**
+ * @brief Page present.
+ *
+ * @param mm Pointer to the target mm_struct.
+ * @param address Address.
+ */
 int page_present (struct mm_struct *mm, unsigned long address)
 {
 	pgd_t *pgd;

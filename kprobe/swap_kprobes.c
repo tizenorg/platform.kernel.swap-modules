@@ -1,6 +1,11 @@
-/*
- *  Kernel Probes (KProbes)
- *  kernel/kprobes.c
+/**
+ * kprobe/swap_kprobes.c
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM and MIPS
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial implementation;
+ * Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,37 +20,16 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ * @section COPYRIGHT
  *
  * Copyright (C) IBM Corporation, 2002, 2004
- */
-
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/swap_kprobes.h
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- *
  * Copyright (C) Samsung Electronics, 2006-2010
  *
- * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM and MIPS
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @section DESCRIPTION
  *
+ * SWAP kprobe implementation. Dynamic kernel functions instrumentation.
  */
-
 
 #include <linux/version.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
@@ -65,13 +49,21 @@
 #include "swap_kprobes.h"
 #include "swap_kprobes_deps.h"
 
-
+/**
+ * @var sched_addr
+ * @brief Scheduler address.
+ */
 unsigned long sched_addr;
 static unsigned long exit_addr;
 static unsigned long do_group_exit_addr;
 static unsigned long sys_exit_group_addr;
 static unsigned long sys_exit_addr;
 
+/**
+ * @var sm
+ * @brief Current slot manager. Slots are the places where trampolines are
+ * located.
+ */
 struct slot_manager sm;
 
 DEFINE_PER_CPU(struct kprobe *, swap_current_kprobe) = NULL;
@@ -83,6 +75,10 @@ static DEFINE_PER_CPU(struct kprobe *, kprobe_instance) = NULL;
 struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 static struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 
+/**
+ * @var kprobe_count
+ * @brief Count of kprobes.
+ */
 atomic_t kprobe_count;
 EXPORT_SYMBOL_GPL(kprobe_count);
 
@@ -159,17 +155,31 @@ static inline void reset_kprobe_instance(void)
 	__get_cpu_var(kprobe_instance) = NULL;
 }
 
-/* swap_kprobe_running() will just return the current_kprobe on this CPU */
+/**
+ * @brief Gets the current kprobe on this CPU.
+ *
+ * @return Pointer to the current kprobe.
+ */
 struct kprobe *swap_kprobe_running(void)
 {
 	return __get_cpu_var(swap_current_kprobe);
 }
 
+/**
+ * @brief Sets the current kprobe to NULL.
+ *
+ * @return Void.
+ */
 void swap_reset_current_kprobe(void)
 {
 	__get_cpu_var(swap_current_kprobe) = NULL;
 }
 
+/**
+ * @brief Gets kprobe_ctlblk for the current CPU.
+ *
+ * @return Current CPU struct kprobe_ctlblk.
+ */
 struct kprobe_ctlblk *swap_get_kprobe_ctlblk(void)
 {
 	return &__get_cpu_var(kprobe_ctlblk);
@@ -180,6 +190,13 @@ struct kprobe_ctlblk *swap_get_kprobe_ctlblk(void)
  * 	- under the kprobe_mutex - during kprobe_[un]register()
  * 				OR
  * 	- with preemption disabled - from arch/xxx/kernel/kprobes.c
+ */
+
+/**
+ * @brief Gets kprobe.
+ *
+ * @param addr Probe address.
+ * @return Kprobe for addr.
  */
 struct kprobe *swap_get_kprobe(void *addr)
 {
@@ -265,7 +282,12 @@ static int aggr_break_handler(struct kprobe *p, struct pt_regs *regs)
 	return ret;
 }
 
-/* Walks the list and increments nmissed count for multiprobe case */
+/**
+ * @brief Walks the list and increments nmissed count for multiprobe case.
+ *
+ * @param p Pointer to the missed kprobe.
+ * @return Void.
+ */
 void swap_kprobes_inc_nmissed_count(struct kprobe *p)
 {
 	struct kprobe *kp;
@@ -495,6 +517,12 @@ static void remove_kprobe(struct kprobe *p)
 	swap_slot_free(&sm, p->ainsn.insn);
 }
 
+/**
+ * @brief Registers kprobe.
+ *
+ * @param p Pointer to the target kprobe.
+ * @return 0 on success, error code on error.
+ */
 int swap_register_kprobe(struct kprobe *p)
 {
 	struct kprobe *old_p;
@@ -581,6 +609,12 @@ static void swap_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
 		p->addr = NULL;
 }
 
+/**
+ * @brief Unregistes kprobe.
+ *
+ * @param kp Pointer to the target kprobe.
+ * @return Void.
+ */
 void swap_unregister_kprobe(struct kprobe *kp)
 {
 	struct kprobe *old_p, *list_p;
@@ -602,6 +636,12 @@ unreg_valid_kprobe:
 }
 EXPORT_SYMBOL_GPL(swap_unregister_kprobe);
 
+/**
+ * @brief Registers jprobe.
+ *
+ * @param jp Pointer to the target jprobe.
+ * @return swap_register_kprobe result.
+ */
 int swap_register_jprobe(struct jprobe *jp)
 {
 	/* Todo: Verify probepoint is a function entry point */
@@ -612,6 +652,12 @@ int swap_register_jprobe(struct jprobe *jp)
 }
 EXPORT_SYMBOL_GPL(swap_register_jprobe);
 
+/**
+ * @brief Unregisters jprobe.
+ *
+ * @param jp Pointer to the target jprobe.
+ * @return Void.
+ */
 void swap_unregister_jprobe(struct jprobe *jp)
 {
 	swap_unregister_kprobe(&jp->kp);
@@ -652,6 +698,13 @@ static int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
+/**
+ * @brief Trampoline probe handler.
+ *
+ * @param p Pointer to the fired kprobe.
+ * @param regs Pointer to CPU registers data.
+ * @return orig_ret_address
+ */
 int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct kretprobe_instance *ri = NULL;
@@ -776,6 +829,12 @@ static int alloc_nodes_kretprobe(struct kretprobe *rp)
 	return 0;
 }
 
+/**
+ * @brief Registers kretprobes.
+ *
+ * @param rp Pointer to the target kretprobe.
+ * @return 0 on success, error code on error.
+ */
 int swap_register_kretprobe(struct kretprobe *rp)
 {
 	int ret = 0;
@@ -848,6 +907,14 @@ static void swap_disarm_krp(struct kretprobe *rp)
 	}
 }
 
+/**
+ * @brief Kretprobes unregister top. Unregisters kprobes.
+ *
+ * @param rps Pointer to the array of pointers to the target kretprobes.
+ * @param size Size of rps array.
+ * @param rp_disarm Disarm flag. If set kretprobe is disarmed.
+ * @return Void.
+ */
 void swap_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
 				   int rp_disarm)
 {
@@ -864,12 +931,25 @@ void swap_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
 }
 EXPORT_SYMBOL_GPL(swap_unregister_kretprobes_top);
 
+/**
+ * @brief swap_unregister_kretprobes_top wrapper for a single kretprobe.
+ *
+ * @param rp Pointer to the target kretprobe.
+ * @param rp_disarm Disarm flag.
+ * @return Void.
+ */
 void swap_unregister_kretprobe_top(struct kretprobe *rp, int rp_disarm)
 {
 	swap_unregister_kretprobes_top(&rp, 1, rp_disarm);
 }
 EXPORT_SYMBOL_GPL(swap_unregister_kretprobe_top);
 
+/**
+ * @brief Kretprobe unregister bottom. Here is kretprobe memory is released.
+ *
+ * @param rp Pointer to the target kretprobe.
+ * @return Void.
+ */
 void swap_unregister_kretprobe_bottom(struct kretprobe *rp)
 {
 	unsigned long flags;
@@ -886,6 +966,13 @@ void swap_unregister_kretprobe_bottom(struct kretprobe *rp)
 }
 EXPORT_SYMBOL_GPL(swap_unregister_kretprobe_bottom);
 
+/**
+ * @brief swap_unregister_kretprobe_bottom wrapper for several kretprobes.
+ *
+ * @param rps Pointer to the array of the target kretprobes pointers.
+ * @param size Size of rps array.
+ * @return Void.
+ */
 void swap_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size)
 {
 	const size_t end = ((size_t) 0) - 1;
@@ -895,6 +982,13 @@ void swap_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size)
 }
 EXPORT_SYMBOL_GPL(swap_unregister_kretprobes_bottom);
 
+/**
+ * @brief Unregisters kretprobes.
+ *
+ * @param rpp Pointer to the array of the target kretprobes pointers.
+ * @param size Size of rpp array.
+ * @return Void.
+ */
 void swap_unregister_kretprobes(struct kretprobe **rpp, size_t size)
 {
 	swap_unregister_kretprobes_top(rpp, size, 1);
@@ -906,6 +1000,12 @@ void swap_unregister_kretprobes(struct kretprobe **rpp, size_t size)
 }
 EXPORT_SYMBOL_GPL(swap_unregister_kretprobes);
 
+/**
+ * @brief swap_unregister_kretprobes wrapper for a single kretprobe.
+ *
+ * @param rp Pointer to the target kretprobe.
+ * @return Void.
+ */
 void swap_unregister_kretprobe(struct kretprobe *rp)
 {
 	swap_unregister_kretprobes(&rp, 1);

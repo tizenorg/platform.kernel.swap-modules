@@ -1,57 +1,45 @@
+/**
+ * @file kprobe/arch/asm-x86/swap_kprobes.h
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial implementation;
+ * Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ *
+ * @section LICENSE
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ * @section COPYRIGHT
+ *
+ * Copyright (C) IBM Corporation, 2002, 2004
+ * Copyright (C) Samsung Electronics, 2006-2010
+ *
+ * @section DESCRIPTION
+ *
+ * Arch-dependent kprobes interface for x86 arch.
+ */
+
 #ifndef _SWAP_ASM_X86_KPROBES_H
 #define _SWAP_ASM_X86_KPROBES_H
 
-/*
- *  Kernel Probes (KProbes)
- *  include/linux/kprobes.h
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- *
- * Copyright (C) IBM Corporation, 2002, 2004
- */
-
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/arch/asm-x86/swap_kprobes.c
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- *
- * Copyright (C) Samsung Electronics, 2006-2010
- *
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
- *
-
- */
 
 #include <linux/version.h>
 #include <kprobe/swap_kprobes_deps.h>
 
+/**
+ * @brief Opcode type.
+ */
 typedef u8 kprobe_opcode_t;
 
 #define BREAKPOINT_INSTRUCTION          0xcc
@@ -177,12 +165,27 @@ static inline int swap_fp_backtrace(struct task_struct *task,
 	return i;
 }
 
+/**
+ * @struct prev_kprobe
+ * @brief Stores previous kprobe.
+ * @var prev_kprobe::kp
+ * Pointer to kprobe struct.
+ * @var prev_kprobe::status
+ * Kprobe status.
+ */
 struct prev_kprobe {
 	struct kprobe *kp;
 	unsigned long status;
 };
 
-/* per-cpu kprobe control block */
+/**
+ * @struct kprobe_ctlblk
+ * @brief Per-cpu kprobe control block.
+ * @var kprobe_ctlblk::kprobe_status
+ * Kprobe status.
+ * @var kprobe_ctlblk::prev_kprobe
+ * Previous kprobe.
+ */
 struct kprobe_ctlblk {
 	unsigned long kprobe_status;
 	struct prev_kprobe prev_kprobe;
@@ -194,17 +197,23 @@ struct kprobe_ctlblk {
 };
 
 
-/* Architecture specific copy of original instruction */
+/**
+ * @struct arch_specific_insn
+ * @brief Architecture specific copy of original instruction.
+ * @var arch_specific_insn::insn
+ * Copy of the original instruction.
+ * @var arch_specific_insn::boostable
+ * If this flag is not 0, this kprobe can be boost when its
+ * post_handler and break_handler is not set.
+ */
 struct arch_specific_insn {
-	/* copy of the original instruction */
 	kprobe_opcode_t *insn;
-	/*
-	 * If this flag is not 0, this kprobe can be boost when its
-	 * post_handler and break_handler is not set.
-	 */
 	int boostable;
 };
 
+/**
+ * @brief Entry point.
+ */
 typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long);
 
 int arch_init_module_deps(void);

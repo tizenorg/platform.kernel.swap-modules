@@ -1,9 +1,11 @@
-#ifndef _SWAP_ASM_ARM_KPROBES_H
-#define _SWAP_ASM_ARM_KPROBES_H
-
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/arch/asm-arm/swap_kprobes.h
+/**
+ * @file kprobe/arch/asm-arm/swap_kprobes.h
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM/MIPS
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @author Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,15 +21,18 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2006-2010
  *
- * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM/MIPS
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @section DESCRIPTION
  *
- * 2010-2011    Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
+ * ARM arch-dependent kprobes interface declaration.
  */
+
+
+#ifndef _SWAP_ASM_ARM_KPROBES_H
+#define _SWAP_ASM_ARM_KPROBES_H
 
 #include <linux/sched.h>
 #include <linux/compiler.h>
@@ -35,86 +40,173 @@
 typedef unsigned long kprobe_opcode_t;
 
 #ifdef CONFIG_CPU_S3C2443
+/** Breakpoint instruction */
 #define BREAKPOINT_INSTRUCTION          0xe1200070
 #else
+/** Breakpoint instruction */
 #define BREAKPOINT_INSTRUCTION          0xffffdeff
 #endif /* CONFIG_CPU_S3C2443 */
 
 #ifndef KPROBES_RET_PROBE_TRAMP
 
 #ifdef CONFIG_CPU_S3C2443
+/** Undefined instruction */
 #define UNDEF_INSTRUCTION               0xe1200071
 #else
+/** Undefined instruction */
 #define UNDEF_INSTRUCTION               0xfffffffe
 #endif /* CONFIG_CPU_S3C2443 */
 
 #endif /* KPROBES_RET_PROBE_TRAMP */
 
+/** Maximum insn size */
 #define MAX_INSN_SIZE                   1
 
+/** Uprobes trampoline length */
 #define UPROBES_TRAMP_LEN              9 * 4
-# define UPROBES_TRAMP_INSN_IDX         2
-# define UPROBES_TRAMP_SS_BREAK_IDX     4
-# define UPROBES_TRAMP_RET_BREAK_IDX    5
+/** Uprobes trampoline insn idx */
+#define UPROBES_TRAMP_INSN_IDX         2
+/** Uprobes trampoline ss break idx */
+#define UPROBES_TRAMP_SS_BREAK_IDX     4
+/** Uprobes trampoline ret break idx */
+#define UPROBES_TRAMP_RET_BREAK_IDX    5
+/** Kprobes trampoline length */
 #define KPROBES_TRAMP_LEN              9 * 4
+/** Kprobes trampoline insn idx */
 # define KPROBES_TRAMP_INSN_IDX         UPROBES_TRAMP_INSN_IDX
+/** Kprobes trampoline ss break idx */
 # define KPROBES_TRAMP_SS_BREAK_IDX     UPROBES_TRAMP_SS_BREAK_IDX
 
 /* TODO: remove (not needed for kprobe) */
 # define KPROBES_TRAMP_RET_BREAK_IDX	UPROBES_TRAMP_RET_BREAK_IDX
 
+/** User register offset */
 #define UREGS_OFFSET 8
 
+/**
+ * @struct prev_kprobe
+ * @brief Stores previous kprobe.
+ * @var prev_kprobe::kp
+ * Pointer to kprobe struct.
+ * @var prev_kprobe::status
+ * Kprobe status.
+ */
 struct prev_kprobe {
 	struct kprobe *kp;
 	unsigned long status;
 };
 
+/**
+ * @brief Gets task pc.
+ *
+ * @param p Pointer to task_struct 
+ * @return Value in pc.
+ */
 static inline unsigned long arch_get_task_pc(struct task_struct *p)
 {
 	return task_thread_info(p)->cpu_context.pc;
 }
 
+/**
+ * @brief Sets task pc.
+ *
+ * @param p Pointer to task_struct.
+ * @param val Value that should be set.
+ * @return Void.
+ */
 static inline void arch_set_task_pc(struct task_struct *p, unsigned long val)
 {
 	task_thread_info(p)->cpu_context.pc = val;
 }
 
+/**
+ * @brief Gets syscall registers.
+ *
+ * @param sp Pointer to stack.
+ * @return Pointer to CPU regs data.
+ */
 static inline struct pt_regs *swap_get_syscall_uregs(unsigned long sp)
 {
 	return (struct pt_regs *)(sp + UREGS_OFFSET);
 }
 
+/**
+ * @brief Gets stack pointer.
+ *
+ * @param regs Pointer to CPU registers data.
+ * @return Stack address.
+ */
 static inline unsigned long swap_get_stack_ptr(struct pt_regs *regs)
 {
 	return regs->ARM_sp;
 }
 
+/**
+ * @brief Gets instruction pointer.
+ *
+ * @param regs Pointer to CPU registers data.
+ * @return Pointer to pc.
+ */
 static inline unsigned long swap_get_instr_ptr(struct pt_regs *regs)
 {
 	return regs->ARM_pc;
 }
 
+/**
+ * @brief Sets instruction pointer.
+ *
+ * @param regs Pointer to CPU registers data.
+ * @param val Address that should be stored in pc.
+ * @return Void.
+ */
 static inline void swap_set_instr_ptr(struct pt_regs *regs, unsigned long val)
 {
 	regs->ARM_pc = val;
 }
 
+/**
+ * @brief Gets return address.
+ *
+ * @param regs Pointer to CPU registers data.
+ * @return Return address.
+ */
 static inline unsigned long swap_get_ret_addr(struct pt_regs *regs)
 {
 	return regs->ARM_lr;
 }
 
+/**
+ * @brief Sets return address.
+ *
+ * @param regs Pointer to CPU registers data.
+ * @param val New return address.
+ * @return Void.
+ */
 static inline void swap_set_ret_addr(struct pt_regs *regs, unsigned long val)
 {
 	regs->ARM_lr = val;
 }
 
+/**
+ * @brief Gets specified argument.
+ *
+ * @param regs Pointer to CPU registers data.
+ * @param num Number of the argument.
+ * @return Argument value.
+ */
 static inline unsigned long swap_get_arg(struct pt_regs *regs, int num)
 {
 	return regs->uregs[num];
 }
 
+/**
+ * @brief Sets specified argument.
+ *
+ * @param regs Pointer to CPU registers data.
+ * @param num Number of the argument.
+ * @param val New argument value.
+ * @return Void.
+ */
 static inline void swap_set_arg(struct pt_regs *regs, int num,
 				unsigned long val)
 {
@@ -465,15 +557,28 @@ static inline void swap_set_arg(struct pt_regs *regs, int num,
 # define THUMB2_INSN_REG_RM(insn)		((insn & 0x000f0000) >> 16)
 
 
-/* per-cpu kprobe control block */
+
+
+/**
+ * @struct kprobe_ctlblk
+ * @brief Per-cpu kprobe control block.
+ * @var kprobe_ctlblk::kprobe_status
+ * Kprobe status.
+ * @var kprobe_ctlblk::prev_kprobe
+ * Previous kprobe.
+ */
 struct kprobe_ctlblk {
 	unsigned long kprobe_status;
 	struct prev_kprobe prev_kprobe;
 };
 
-/* Architecture specific copy of original instruction */
+/**
+ * @struct arch_specific_insn
+ * @brief Architecture specific copy of original instruction.
+ * @var arch_specific_insn::insn
+ * Copy of the original instruction.
+ */
 struct arch_specific_insn {
-	/* copy of the original instruction */
 	kprobe_opcode_t *insn;
 };
 
@@ -484,6 +589,11 @@ struct undef_hook;
 void swap_register_undef_hook(struct undef_hook *hook);
 void swap_unregister_undef_hook(struct undef_hook *hook);
 
+/**
+ * @brief Arch-dependend module deps initialization stub.
+ *
+ * @return 0.
+ */
 static inline int arch_init_module_deps(void)
 {
 	return 0;
@@ -511,6 +621,13 @@ void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ct
 
 void __naked swap_kretprobe_trampoline(void);
 
+/**
+ * @brief Gets arguments of kernel functions.
+ *
+ * @param regs Pointer to CPU registers data.
+ * @param n Number of the argument.
+ * @return Argument value.
+ */
 static inline unsigned long swap_get_karg(struct pt_regs *regs, unsigned long n)
 {
 	switch (n) {
@@ -527,6 +644,13 @@ static inline unsigned long swap_get_karg(struct pt_regs *regs, unsigned long n)
 	return *((unsigned long *)regs->ARM_sp + n - 4);
 }
 
+/**
+ * @brief swap_get_karg wrapper.
+ *
+ * @param regs Pointer to CPU registers data.
+ * @param n Number of the argument.
+ * @return Argument value.
+ */
 static inline unsigned long swap_get_sarg(struct pt_regs *regs, unsigned long n)
 {
 	return swap_get_karg(regs, n);

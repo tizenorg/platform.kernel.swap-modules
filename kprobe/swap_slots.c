@@ -1,6 +1,11 @@
-/*
- *  Kernel Probes (KProbes)
- *  kernel/kprobes.c
+/**
+ * kprobe/swap_slots.c
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial implementation;
+ * Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com> new memory allocator for slots
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,34 +20,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ * @section COPYRIGHT
  *
  * Copyright (C) IBM Corporation, 2002, 2004
- */
-
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/swap_slots.c
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- *
  * Copyright (C) Samsung Electronics, 2006-2012
  *
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
- * 2012-2013    Vyacheslav Cherkashin <v.cherkashin@samsung.com> new memory allocator for slots
+ * @section DESCRIPTION
+ *
+ * SWAP slots implementation.
  */
 
 
@@ -55,6 +41,22 @@
 #include "swap_kprobes_deps.h"
 
 
+/**
+ * @struct chunk
+ * @brief Chunk of memory for trampolines.
+ * @var chunk::data
+ * Chunk data.
+ * @var chunk::first_available
+ * Index of the first available block.
+ * @var chunk::count_available
+ * Count of the blocks.
+ * @var chunk::lock
+ * Chunk's lock.
+ * @var chunk::size
+ * Count of the blocks in chunk.
+ * @var chunk::index
+ * Pointer to allocated memory.
+ */
 struct chunk {
 	unsigned long *data;
 	unsigned long first_available;
@@ -65,6 +67,14 @@ struct chunk {
 	unsigned long *index;
 };
 
+/**
+ * @struct fixed_alloc
+ * @brief Item of fixed allocs list.
+ * @var fixed_alloc::hlist
+ * Fixed alloc hash list node.
+ * @var fixed_alloc::chunk
+ * Chunk.
+ */
 struct fixed_alloc
 {
 	struct hlist_node hlist;
@@ -167,6 +177,12 @@ static void free_fixed_alloc(struct slot_manager *sm, struct fixed_alloc *fa)
 }
 
 
+/**
+ * @brief Allocates slot for slot manager.
+ *
+ * @param[in,out] sm Slot manager that should be filled.
+ * @return Pointer to allocated slot.
+ */
 void *swap_slot_alloc(struct slot_manager *sm)
 {
 	void *free_slot;
@@ -190,6 +206,13 @@ void *swap_slot_alloc(struct slot_manager *sm)
 }
 EXPORT_SYMBOL_GPL(swap_slot_alloc);
 
+/**
+ * @brief Releases allocated slot.
+ *
+ * @param sm Pointer to the target slot manager.
+ * @param slot Pointer to the target slot.
+ * @return Void.
+ */
 void swap_slot_free(struct slot_manager *sm, void *slot)
 {
 	struct fixed_alloc *fa;

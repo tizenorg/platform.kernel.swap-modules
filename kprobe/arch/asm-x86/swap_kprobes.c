@@ -1,6 +1,11 @@
-/*
- *  Kernel Probes (KProbes)
- *  arch/x86/kernel/kprobes.c
+/**
+ * arch/asm-x86/swap_kprobes.c
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial implementation;
+ * Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @author Stanislav Andreev <s.andreev@samsung.com>: added time debug profiling support; BUG() message fix
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,34 +20,14 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ * @section COPYRIGHT
  *
  * Copyright (C) IBM Corporation, 2002, 2004
- */
-
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/kprobe/arch/asm-x86/swap_kprobes.c
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * @section DESCRIPTION
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- *
- * Copyright (C) Samsung Electronics, 2006-2010
- *
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
- * 2012         Stanislav Andreev <s.andreev@samsung.com>: added time debug profiling support; BUG() message fix
+ * SWAP krpobes arch-dependend part for x86.
  */
 
 #include<linux/module.h>
@@ -54,7 +39,7 @@
 #include <kprobe/swap_kdebug.h>
 #include <kprobe/swap_slots.h>
 #include <kprobe/swap_kprobes_deps.h>
-#define SUPRESS_BUG_MESSAGES
+#define SUPRESS_BUG_MESSAGES                    /**< Debug-off definition. */
 
 extern struct kprobe * per_cpu__current_kprobe;
 extern struct kprobe * per_cpu__current_kprobe;
@@ -66,6 +51,7 @@ static void *(*swap_text_poke)(void *addr, const void *opcode, size_t len);
 static void (*swap_show_registers)(struct pt_regs * regs);
 
 
+/** Stack address. */
 #define stack_addr(regs) ((unsigned long *)kernel_stack_pointer(regs))
 
 /*
@@ -126,8 +112,11 @@ static __always_inline void set_jmp_op (void *from, void *to)
 	jop->op = RELATIVEJUMP_INSTRUCTION;
 }
 
-/*
- * returns non-zero if opcodes can be boosted.
+/**
+ * @brief Check if opcode can be boosted.
+ *
+ * @param opcodes Opcode to check.
+ * @return Non-zero if opcode can be boosted.
  */
 int swap_can_boost(kprobe_opcode_t *opcodes)
 {
@@ -227,6 +216,13 @@ static int is_IF_modifier (kprobe_opcode_t opcode)
 	return 0;
 }
 
+/**
+ * @brief Creates trampoline for kprobe.
+ *
+ * @param p Pointer to kprobe.
+ * @param sm Pointer to slot manager
+ * @return 0 on success, error code on error.
+ */
 int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 {
 	/* insn: must be on special executable page on i386. */
@@ -242,6 +238,13 @@ int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 	return 0;
 }
 
+/**
+ * @brief Prepares singlestep for current CPU.
+ *
+ * @param p Pointer to kprobe.
+ * @param regs Pointer to CPU registers data.
+ * @return Void.
+ */
 void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
@@ -265,6 +268,13 @@ void prepare_singlestep (struct kprobe *p, struct pt_regs *regs)
 }
 EXPORT_SYMBOL_GPL(prepare_singlestep);
 
+/**
+ * @brief Saves previous kprobe.
+ *
+ * @param kcb Pointer to kprobe_ctlblk struct whereto save current kprobe.
+ * @param p_run Pointer to kprobe.
+ * @return Void.
+ */
 void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
 {
 	if (kcb->prev_kprobe.kp != NULL)
@@ -280,6 +290,12 @@ void save_previous_kprobe (struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
 
 }
 
+/**
+ * @brief Restores previous kprobe.
+ *
+ * @param kcb Pointer to kprobe_ctlblk which contains previous kprobe.
+ * @return Void.
+ */
 void restore_previous_kprobe (struct kprobe_ctlblk *kcb)
 {
 	__get_cpu_var(swap_current_kprobe) = kcb->prev_kprobe.kp;
@@ -288,6 +304,14 @@ void restore_previous_kprobe (struct kprobe_ctlblk *kcb)
 	kcb->prev_kprobe.status = 0;
 }
 
+/**
+ * @brief Sets currently running kprobe.
+ *
+ * @param p Pointer to currently running kprobe.
+ * @param regs Pointer to CPU registers data.
+ * @param kcb Pointer to kprobe_ctlblk.
+ * @return Void.
+ */
 void set_current_kprobe (struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
 {
 	__get_cpu_var(swap_current_kprobe) = p;
@@ -297,6 +321,12 @@ void set_current_kprobe (struct kprobe *p, struct pt_regs *regs, struct kprobe_c
 		kcb->kprobe_saved_eflags &= ~IF_MASK;
 }
 
+/**
+ * @brief Kprobe handler.
+ *
+ * @param regs Pointer to CPU register data.
+ * @return 1 on success.
+ */
 int kprobe_handler (struct pt_regs *regs)
 {
 	struct kprobe *p = 0;
@@ -452,6 +482,13 @@ no_kprobe:
 	return ret;
 }
 
+/**
+ * @brief Probe pre handler.
+ *
+ * @param p Pointer to fired kprobe.
+ * @param regs Pointer to CPU registers data.
+ * @return 0.
+ */
 int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct jprobe *jp = container_of (p, struct jprobe, kp);
@@ -487,8 +524,18 @@ int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	return 1;
 }
 
+/**
+ * @brief Jprobe return end.
+ *
+ * @return Void.
+ */
 void swap_jprobe_return_end(void);
 
+/**
+ * @brief Jprobe return code.
+ *
+ * @return Void.
+ */
 void swap_jprobe_return(void)
 {
 	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
@@ -763,6 +810,13 @@ static struct notifier_block kprobe_exceptions_nb = {
 	.priority = INT_MAX
 };
 
+/**
+ * @brief Longjump break handler.
+ *
+ * @param p Pointer to fired kprobe.
+ * @param regs Pointer to CPU registers data.
+ * @return 0 on success.
+ */
 int swap_longjmp_break_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
@@ -794,12 +848,24 @@ int swap_longjmp_break_handler(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
+/**
+ * @brief Arms kprobe.
+ *
+ * @param p Pointer to target kprobe.
+ * @return Void.
+ */
 void swap_arch_arm_kprobe(struct kprobe *p)
 {
 	swap_text_poke(p->addr,
 		       ((unsigned char[]){BREAKPOINT_INSTRUCTION}), 1);
 }
 
+/**
+ * @brief Disarms kprobe.
+ *
+ * @param p Pointer to target kprobe.
+ * @return Void.
+ */
 void swap_arch_disarm_kprobe(struct kprobe *p)
 {
 	swap_text_poke(p->addr, &p->opcode, 1);
@@ -810,6 +876,14 @@ static __used void *trampoline_probe_handler_x86(struct pt_regs *regs)
 	return (void *)trampoline_probe_handler(NULL, regs);
 }
 
+/**
+ * @brief Prepares kretprobes, saves ret address, makes function return to
+ * trampoline.
+ *
+ * @param ri Pointer to kretprobe_instance.
+ * @param regs Pointer to CPU registers data.
+ * @return Void.
+ */
 void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
 				 struct pt_regs *regs)
 {
@@ -830,6 +904,11 @@ void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
 	*ptr_ret_addr = (unsigned long)&swap_kretprobe_trampoline;
 }
 
+/**
+ * @brief Initializes x86 module deps.
+ *
+ * @return 0 on success, negative error code on error.
+ */
 int arch_init_module_deps()
 {
 	const char *sym;
@@ -860,11 +939,21 @@ not_found:
 	return -ESRCH;
 }
 
+/**
+ * @brief Initializes kprobes module for ARM arch.
+ *
+ * @return 0 on success, error code on error.
+ */
 int swap_arch_init_kprobes(void)
 {
 	return register_die_notifier (&kprobe_exceptions_nb);
 }
 
+/**
+ * @brief Uninitializes kprobe module.
+ *
+ * @return Void.
+ */
 void swap_arch_exit_kprobes(void)
 {
 	unregister_die_notifier (&kprobe_exceptions_nb);
