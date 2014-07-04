@@ -1,10 +1,11 @@
 #ifndef _LCD_BASE_H
 #define _LCD_BASE_H
 
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  energy/lcd/lcd_base.h
+/**
+ * @file energy/lcd/lcd_base.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
+ * @section LICENSE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -19,10 +20,11 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
- *
+ * @section DESCRIPTION
+ * Description of the interface for interacting with LСD
  */
 
 
@@ -30,43 +32,74 @@
 #include <energy/rational_debugfs.h>
 
 
+/** Description of actions */
 enum lcd_action_type {
-	LAT_BRIGHTNESS,
-	LAT_POWER
+	LAT_BRIGHTNESS,		/**< LCD brightness */
+	LAT_POWER		/**< LCD power */
 };
 
-enum lcd_parameter_type {
-	LPD_MIN_BRIGHTNESS,
-	LPD_MAX_BRIGHTNESS,
-	LPD_BRIGHTNESS,
 
-	LPD_POWER
+/** Description of parameters */
+enum lcd_parameter_type {
+	LPD_MIN_BRIGHTNESS,	/**< minimum brightness value */
+	LPD_MAX_BRIGHTNESS,	/**< maximum brightness value */
+	LPD_BRIGHTNESS,		/**< current brightness value */
+
+	LPD_POWER		/**< current power value */
 };
 
 struct lcd_ops;
 
+/**
+ * @brief LCD callback type
+ *
+ * @param ops LCD operations
+ * @return Error code
+ */
 typedef int (*call_lcd)(struct lcd_ops *ops);
+
+/**
+ * @brief LCD notifier type
+ *
+ * @param ops LCD operations
+ * @param action Event type
+ * @param data Date
+ * @return Error code
+ */
 typedef int (*notifier_lcd)(struct lcd_ops *ops, enum lcd_action_type action,
 			    void *data);
+
+/**
+ * @brief LCD parameter type
+ *
+ * @param ops LCD operations
+ * @param type Requested parameter type
+ * @return Requested parameter value
+ *
+ */
 typedef unsigned long (*get_parameter_lcd)(struct lcd_ops *ops,
 					   enum lcd_parameter_type type);
 
 
+/**
+ * @struct lcd_ops
+ * @breaf set of operations available for LСD
+ */
 struct lcd_ops {
-	char *name;
-	notifier_lcd notifier;
-	get_parameter_lcd get;
+	char *name;			/**< LCD driver name */
+	notifier_lcd notifier;		/**< Notifier */
+	get_parameter_lcd get;		/**< Method to obtain the parameters */
 
-	call_lcd check;
-	call_lcd set;
-	call_lcd unset;
+	call_lcd check;			/**< LCD check on device */
+	call_lcd set;			/**< LCD initialization */
+	call_lcd unset;			/**< LCD deinitialization */
 
 	/* for debugfs */
-	struct dentry *dentry;
-	struct rational min_coef;
-	struct rational max_coef;
+	struct dentry *dentry;		/**< Dentry of debugfs for this LCD */
+	struct rational min_coef;	/**< Minimum coefficient */
+	struct rational max_coef;	/**< Maximum coefficient */
 
-	void *priv;
+	void *priv;			/**< Private data */
 };
 
 size_t get_lcd_size_array(struct lcd_ops *ops);

@@ -33,6 +33,12 @@
 #include "lcd_debugfs.h"
 
 
+/**
+ * @brief Read the number of file
+ *
+ * @param path of the file
+ * @return Value or error(when negative)
+ */
 int read_val(const char *path)
 {
 	int ret;
@@ -253,6 +259,12 @@ static int func_notifier_lcd(struct lcd_ops *ops, enum lcd_action_type action,
 	return 0;
 }
 
+/**
+ * @brief Get the array size of LCD
+ *
+ * @param ops LCD operations
+ * @return Array size
+ */
 size_t get_lcd_size_array(struct lcd_ops *ops)
 {
 	struct lcd_priv_data *lcd = get_lcd_priv(ops);
@@ -260,6 +272,13 @@ size_t get_lcd_size_array(struct lcd_ops *ops)
 	return lcd->tms_brt_cnt;
 }
 
+/**
+ * @brief Get an array of times
+ *
+ * @param ops LCD operations
+ * @param array_time[out] Array of times
+ * @return Void
+ */
 void get_lcd_array_time(struct lcd_ops *ops, u64 *array_time)
 {
 	struct lcd_priv_data *lcd = get_lcd_priv(ops);
@@ -349,6 +368,11 @@ static void do_lcd_exit(void)
 	mutex_unlock(&lcd_lock);
 }
 
+/**
+ * @brief LCD deinitialization
+ *
+ * @return Void
+ */
 void lcd_exit(void)
 {
 	do_lcd_exit();
@@ -387,6 +411,11 @@ static int do_lcd_init(void)
 	return count ? 0 : -EPERM;
 }
 
+/**
+ * @brief LCD initialization
+ *
+ * @return Error code
+ */
 int lcd_init(void)
 {
 	int ret;
@@ -417,6 +446,12 @@ int lcd_init(void)
  * ===                     LCD_SET_ENERGY/LCD_UNSET_ENERGY                  ===
  * ============================================================================
  */
+
+/**
+ * @brief Start measuring the energy consumption of LСD
+ *
+ * @return Error code
+ */
 int lcd_set_energy(void)
 {
 	int i, ret, count = 0;
@@ -444,6 +479,11 @@ int lcd_set_energy(void)
 	return count ? 0 : -EPERM;
 }
 
+/**
+ * @brief Stop measuring the energy consumption of LСD
+ *
+ * @return Void
+ */
 void lcd_unset_energy(void)
 {
 	int i, ret;

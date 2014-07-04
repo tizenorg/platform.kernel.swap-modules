@@ -226,11 +226,21 @@ enum {
  */
 static struct dentry *energy_dir = NULL;
 
+/**
+ * @brief Destroy debugfs for LCD
+ *
+ * @return Dentry of energy debugfs
+ */
 struct dentry *get_energy_dir(void)
 {
 	return energy_dir;
 }
 
+/**
+ * @brief Destroy debugfs for energy
+ *
+ * @return Void
+ */
 void exit_debugfs_energy(void)
 {
 	if (energy_dir)
@@ -239,6 +249,11 @@ void exit_debugfs_energy(void)
 	energy_dir = NULL;
 }
 
+/**
+ * @brief Create debugfs for energy
+ *
+ * @return Error code
+ */
 int init_debugfs_energy(void)
 {
 	int i;

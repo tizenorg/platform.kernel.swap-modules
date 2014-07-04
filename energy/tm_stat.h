@@ -1,10 +1,11 @@
 #ifndef _TM_STAT_H
 #define _TM_STAT_H
 
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  energy/tm_stat.h
+/**
+ * @file energy/tm_stat.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
+ * @section LICENSE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -19,9 +20,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYFIGHT
  * Copyright (C) Samsung Electronics, 2013
- *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
  */
 
@@ -30,12 +30,19 @@
 #include <linux/time.h>
 
 
+/**
+ * @struct tm_stat
+ * @brief Description of statistic time
+ */
 struct tm_stat {
-	u64 timestamp;
-	u64 running;
+	u64 timestamp;		/**< Time stamp */
+	u64 running;		/**< Running time */
 };
 
-
+/**
+ * @def DEFINE_TM_STAT
+ * Initialize of tm_stat struct @hideinitializer
+ */
 #define DEFINE_TM_STAT(tm_name)		\
 	struct tm_stat tm_name = {	\
 		.timestamp = 0,		\

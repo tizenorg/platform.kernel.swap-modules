@@ -1,10 +1,11 @@
 #ifndef _ENERGY_H
 #define _ENERGY_H
 
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  energy/energy.h
+/**
+ * @file energy/energy.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
+ * @section LICENCE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -19,9 +20,10 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ * @section DESCRIPTION
  *
  */
 
@@ -29,14 +31,15 @@
 #include <linux/types.h>
 
 
+/** Description of parameters */
 enum parameter_energy {
-	PE_TIME_IDLE,
-	PE_TIME_SYSTEM,
-	PE_TIME_APPS,
-	PE_READ_SYSTEM,
-	PE_WRITE_SYSTEM,
-	PE_READ_APPS,
-	PE_WRITE_APPS
+	PE_TIME_IDLE,		/**< IDLE working time */
+	PE_TIME_SYSTEM,		/**< system working time */
+	PE_TIME_APPS,		/**< apps working time */
+	PE_READ_SYSTEM,		/**< number of bytes are read by system */
+	PE_WRITE_SYSTEM,	/**< number of bytes are write by system */
+	PE_READ_APPS,		/**< number of bytes are read by apps */
+	PE_WRITE_APPS		/**< number of bytes are write by apps*/
 };
 
 

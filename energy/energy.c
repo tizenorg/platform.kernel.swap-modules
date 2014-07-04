@@ -486,6 +486,14 @@ static int current_parameter_apps(enum parameter_type pt, void *buf, int sz)
 	return 0;
 }
 
+/**
+ * @brief Get energy parameter
+ *
+ * @param pe Type of energy parameter
+ * @param buf Buffer
+ * @param sz Buffer size
+ * @return Error code
+ */
 int get_parameter_energy(enum parameter_energy pe, void *buf, size_t sz)
 {
 	unsigned long flags;
@@ -580,6 +588,11 @@ void do_unset_energy(void)
 static DEFINE_MUTEX(mutex_enable);
 static int energy_enable = 0;
 
+/**
+ * @brief Start measuring the energy consumption
+ *
+ * @return Error code
+ */
 int set_energy(void)
 {
 	int ret = -EINVAL;
@@ -601,6 +614,11 @@ unlock:
 }
 EXPORT_SYMBOL_GPL(set_energy);
 
+/**
+ * @brief Stop measuring the energy consumption
+ *
+ * @return Error code
+ */
 int unset_energy(void)
 {
 	int ret = 0;
@@ -622,6 +640,12 @@ unlock:
 }
 EXPORT_SYMBOL_GPL(unset_energy);
 
+
+/**
+ * @brief Initialization energy
+ *
+ * @return Error code
+ */
 int energy_init(void)
 {
 	int ret;
@@ -661,6 +685,11 @@ int energy_init(void)
 	return 0;
 }
 
+/**
+ * @brief Deinitialization energy
+ *
+ * @return Void
+ */
 void energy_uninit(void)
 {
 	lcd_exit();

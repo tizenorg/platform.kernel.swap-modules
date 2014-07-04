@@ -69,6 +69,12 @@ DEFINE_SIMPLE_ATTRIBUTE(fops_get_system, get_system, NULL, "%llu\n");
 
 static struct dentry *lcd_dir = NULL;
 
+/**
+ * @brief Register LCD in debugfs
+ *
+ * @param ops LCD operations
+ * @return Error code
+ */
 int register_lcd_debugfs(struct lcd_ops *ops)
 {
 	int ret;
@@ -104,11 +110,22 @@ fail:
 	return -ENOMEM;
 }
 
+/**
+ * @brief Unregister LCD in debugfs
+ *
+ * @param ops LCD operations
+ * @return Void
+ */
 void unregister_lcd_debugfs(struct lcd_ops *ops)
 {
 	debugfs_remove_recursive(ops->dentry);
 }
 
+/**
+ * @brief Destroy debugfs for LCD
+ *
+ * @return Void
+ */
 void exit_lcd_debugfs(void)
 {
 	if (lcd_dir)
@@ -117,6 +134,12 @@ void exit_lcd_debugfs(void)
 	lcd_dir = NULL;
 }
 
+/**
+ * @brief Create debugfs for LCD
+ *
+ * @param dentry Dentry
+ * @return Error code
+ */
 int init_lcd_debugfs(struct dentry *energy_dir)
 {
 	lcd_dir = debugfs_create_dir("lcd", energy_dir);

@@ -46,6 +46,15 @@ static int denom_get(void *data, u64 *val)
 
 DEFINE_SIMPLE_ATTRIBUTE(fops_denom, denom_get, denom_set, "%llu\n");
 
+/**
+ * @brief Create file in debugfs for rational struct
+ *
+ * @param parent Dentry parent
+ * @param r Pointer to the rational struct
+ * @param num_name File name of numerator
+ * @param denom_name File name of denominator
+ * @return Error code
+ */
 int create_rational_files(struct dentry *parent, struct rational *r,
 			  const char *num_name, const char *denom_name)
 {
