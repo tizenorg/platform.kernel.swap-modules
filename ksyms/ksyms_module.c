@@ -1,6 +1,8 @@
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/ksyms/ksyms_module.c
+/**
+ * @file ksyms/ksyms_module.c
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,16 +18,24 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2014
  *
- * 2014         Alexander Aksenov <a.aksenov@samsung.com>
+ * @section DESCRIPTION
  *
+ * SWAP symbols searching module initialization implementation.
  */
 
 #include "ksyms_init.h"
 
 #include <linux/module.h>
 
+/**
+ * @brief Init ksyms module.
+ *
+ * @return 0 on success.
+ */
 int __init swap_ksyms_init(void)
 {
 	int ret = ksyms_init();
@@ -35,6 +45,11 @@ int __init swap_ksyms_init(void)
 	return ret;
 }
 
+/**
+ * @brief Exit ksyms module.
+ *
+ * @return Void.
+ */
 void __exit swap_ksyms_exit(void)
 {
 	ksyms_exit();

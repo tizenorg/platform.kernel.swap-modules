@@ -1,6 +1,9 @@
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/ksyms/ksyms.c
+/**
+ * @file ksyms/ksyms.c
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +19,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2014
  *
- * 2014         Alexander Aksenov <a.aksenov@samsung.com>
+ * @section DESCRIPTION
  *
+ * SWAP ksyms module.
  */
 
 
@@ -29,6 +35,16 @@
 #include <linux/module.h>
 #include <linux/percpu.h>
 
+/**
+ * @struct symbol_data
+ * @brief Stores symbols data.
+ * @var symbol_data::name
+ * Pointer to symbol name string.
+ * @var symbol_data::len
+ * Symbol name length.
+ * @var symbol_data::addr
+ * Symbol address.
+ */
 struct symbol_data {
 	const char *name;
 	size_t len;
@@ -51,6 +67,12 @@ static int symbol_cb(void *data, const char *sym, struct module *mod,
 	return 0;
 }
 
+/**
+ * @brief Search of symbol address based on substring.
+ *
+ * @param name Pointer to the substring.
+ * @return Symbol address.
+ */
 unsigned long swap_ksyms_substr(const char *name)
 {
 	struct symbol_data sym_data = {

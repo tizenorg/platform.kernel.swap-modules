@@ -1,6 +1,8 @@
-/*
- *  SWAP kernel features
- *  modules/ks_features/features_data.c
+/**
+ * ks_features/features_data.c
+ * @author Vyacheslav Cherkashin: SWAP ks_features implement
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,16 +18,31 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP ks_features implement
+ * @section DESCRIPTION
  *
+ * SWAP kernel features
  */
 
 
 #include "syscall_list.h"
 #include <linux/mutex.h>
 
+/**
+ * @struct feature
+ * Feature description.
+ * @var feature::cnt
+ * Syscalls count.
+ * @var feature::feature_list
+ * Pointer to feature's syscall list.
+ * @var feature::sub_type
+ * Featue subtype.
+ * @var feature::enable
+ * Is feature enable.
+ */
 struct feature {
 	size_t cnt;
 	enum syscall_id *feature_list;
@@ -34,7 +51,15 @@ struct feature {
 	unsigned enable:1;
 };
 
+/**
+ * @def X
+ * X-macros for syscall list.
+ */
 #define X(name, args) id_##name
+/**
+ * @enum syscall_id
+ * Syscall list
+ */
 enum syscall_id {
 	SYSCALL_LIST
 };
@@ -256,6 +281,10 @@ static enum syscall_id id_desc[] = {
 	id_sys_setns
 };
 
+/**
+ * @def CREATE_FEATURE
+ * Feature initialization.
+ */
 #define CREATE_FEATURE(x, subtype) 				\
 { 								\
 	.cnt = sizeof(x) / sizeof(enum syscall_id),		\
@@ -274,6 +303,10 @@ static struct feature features[] = {
 	CREATE_FEATURE(id_desc, PST_KS_DESC)
 };
 
+/**
+ * @enum
+ * Defines feature_cnt.
+ */
 enum {
 	feature_cnt = sizeof(features) / sizeof(struct feature)
 };

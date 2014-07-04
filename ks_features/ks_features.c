@@ -1,6 +1,8 @@
-/*
- *  SWAP kernel features
- *  modules/ks_features/ks_features.c
+/**
+ * ks_features/ks_features.c
+ * @author Vyacheslav Cherkashin: SWAP ks_features implement
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP ks_features implement
+ * @section DESCRIPTION
  *
+ *  SWAP kernel features
  */
 
 
@@ -34,6 +39,18 @@
 #include "syscall_list.h"
 #include "features_data.c"
 
+/**
+ * @struct ks_probe
+ * @brief Kernel-space probe. Struct used as a container of syscall probes.
+ * @var ks_probe::rp
+ * Pointer to kretprobe.
+ * @var ks_probe::counter
+ * Installed probes counter.
+ * @var ks_probe::args
+ * Pointer to args format string.
+ * @var ks_probe::sub_type
+ * Probe sub type.
+ */
 struct ks_probe {
 	struct kretprobe rp;
 	int counter;
@@ -53,6 +70,10 @@ static const char *const syscall_name[] = {
 };
 #undef X
 
+/**
+ * @enum
+ * Syscall name count defenition
+ */
 enum {
 	syscall_name_cnt = sizeof(syscall_name) / sizeof(char *)
 };
@@ -141,6 +162,10 @@ static int switch_ret_handler(struct kretprobe_instance *ri, struct pt_regs *reg
 	return 0;
 }
 
+/**
+ * @var switch_rp
+ * Kretprobe for scheduler.
+ */
 struct kretprobe switch_rp = {
 	.entry_handler = switch_entry_handler,
 	.handler = switch_ret_handler
@@ -149,6 +174,11 @@ struct kretprobe switch_rp = {
 static DEFINE_MUTEX(mutex_sc_enable);
 static int sc_enable = 0;
 
+/**
+ * @brief Get scheduler address.
+ *
+ * @return 0 on success, negative error code on error.
+ */
 int init_switch_context(void)
 {
 	unsigned long addr;
@@ -164,6 +194,11 @@ int init_switch_context(void)
 	return 0;
 }
 
+/**
+ * @brief Unregisters probe on context switching.
+ *
+ * @return Void.
+ */
 void exit_switch_context(void)
 {
 	if (sc_enable)
@@ -407,6 +442,12 @@ static struct feature *get_feature(enum feature_id id)
 	return &features[id];
 }
 
+/**
+ * @brief Sets probes related to specified feature.
+ *
+ * @param id Feature id.
+ * @return 0 on success, negative error code on error.
+ */
 int set_feature(enum feature_id id)
 {
 	struct feature *f;
@@ -423,6 +464,12 @@ int set_feature(enum feature_id id)
 }
 EXPORT_SYMBOL_GPL(set_feature);
 
+/**
+ * @brief Unsets probes related to specified feature.
+ *
+ * @param id Feature id.
+ * @return 0 on success, negative error code on error.
+ */
 int unset_feature(enum feature_id id)
 {
 	struct feature *f;
@@ -509,6 +556,11 @@ static void print_feature(struct feature *f)
 	}
 }
 
+/**
+ * @brief Prints features.
+ *
+ * @return Void.
+ */
 void print_features(void)
 {
 	int i;
@@ -520,6 +572,11 @@ void print_features(void)
 	}
 }
 
+/**
+ * @brief Prints all syscalls.
+ *
+ * @return Void.
+ */
 void print_all_syscall(void)
 {
 	int i;

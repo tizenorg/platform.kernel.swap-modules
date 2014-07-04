@@ -1,6 +1,8 @@
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/ksyms/no_ksyms.c
+/**
+ * @file ksyms/no_ksyms.c
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ * @section DESCRIPTION
  *
+ * SWAP symbols searching implementation.
  */
 
 #include "ksyms.h"
@@ -31,7 +36,10 @@
 #include <linux/slab.h>
 #include <asm/fcntl.h>
 
-
+/**
+ * @def KSYMS_ERR
+ * Error message define.
+ */
 #define KSYMS_ERR(format, args...) \
 	do { \
 		char *f = __FILE__; \
@@ -39,7 +47,16 @@
 		printk("%s:%u \'%s\' ERROR: " format "\n" , (n) ? n+1 : f, __LINE__, __FUNCTION__, ##args); \
 	} while(0)
 
-
+/**
+ * @struct sys_map_item
+ * @brief System map list item info.
+ * @var sys_map_item::list
+ * List pointer.
+ * @var sys_map_item::addr
+ * Symbol address.
+ * @var sys_map_item::name
+ * Symbol name.
+ */
 struct sys_map_item {
 	struct list_head list;
 
@@ -50,10 +67,19 @@ struct sys_map_item {
 static char* sm_path = NULL;
 module_param(sm_path, charp, 0);
 
+/**
+ * @var smi_list
+ * List of sys_map_item.
+ */
 LIST_HEAD(smi_list);
 static struct file *file = NULL;
 
 static int cnt_init_sm = 0;
+
+/**
+ * @var cnt_init_sm_lock
+ * System map items list lock.
+ */
 DEFINE_SEMAPHORE(cnt_init_sm_lock);
 
 static int file_open(void)
@@ -258,6 +284,11 @@ static void free_sys_map(void)
 	}
 }
 
+/**
+ * @brief Generates symbols list.
+ *
+ * @return 0 on success.
+ */
 int swap_get_ksyms(void)
 {
 	int ret = 0;
@@ -274,6 +305,11 @@ int swap_get_ksyms(void)
 }
 EXPORT_SYMBOL_GPL(swap_get_ksyms);
 
+/**
+ * @brief Frees symbols list.
+ *
+ * @return Void.
+ */
 void swap_put_ksyms(void)
 {
 	down(&cnt_init_sm_lock);
@@ -291,6 +327,12 @@ void swap_put_ksyms(void)
 }
 EXPORT_SYMBOL_GPL(swap_put_ksyms);
 
+/**
+ * @brief Searches for symbol by its exact name.
+ *
+ * @param name Pointer the name string.
+ * @return Symbol's address.
+ */
 unsigned long swap_ksyms(const char *name)
 {
 	struct sys_map_item *smi;
@@ -305,6 +347,12 @@ unsigned long swap_ksyms(const char *name)
 }
 EXPORT_SYMBOL_GPL(swap_ksyms);
 
+/**
+ * @brief Searches for symbol by substring of its name.
+ *
+ * @param name Pointer to the name substring.
+ * @return Symbol's address.
+ */
 unsigned long swap_ksyms_substr(const char *name)
 {
 	struct sys_map_item *smi;
@@ -319,6 +367,11 @@ unsigned long swap_ksyms_substr(const char *name)
 }
 EXPORT_SYMBOL_GPL(swap_ksyms_substr);
 
+/**
+ * @brief SWAP ksyms module initialization.
+ *
+ * @return 0 on success, negative error code on error.
+ */
 int ksyms_init(void)
 {
 	int ret = 0;
@@ -339,6 +392,11 @@ int ksyms_init(void)
 	return 0;
 }
 
+/**
+ * @brief SWAP ksyms module deinitialization.
+ *
+ * @return Void.
+ */
 void ksyms_exit(void)
 {
 	down(&cnt_init_sm_lock);

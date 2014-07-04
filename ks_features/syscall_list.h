@@ -1,6 +1,8 @@
-/*
- *  SWAP kernel features
- *  modules/ks_features/syscall_list.h
+/**
+ * @file ks_features/syscall_list.h
+ * @author Vyacheslav Cherkashin: SWAP ks_features implement
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP ks_features implement
+ * @section DESCRIPTION
  *
+ * Syscalls list.
  */
 
 

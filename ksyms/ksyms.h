@@ -1,9 +1,8 @@
-#ifndef __KSYMS_H__
-#define __KSYMS_H__
-
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/ksyms/ksyms.h
+/**
+ * @file ksyms/ksyms.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,11 +18,17 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ * @sectoin DESCRIPTION
  *
+ * SWAP symbols searching module.
  */
+
+#ifndef __KSYMS_H__
+#define __KSYMS_H__
 
 #include <linux/version.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
