@@ -1,9 +1,8 @@
-#ifndef _EVENT_FILTER_H
-#define _EVENT_FILTER_H
-
-/*
- *  SWAP kernel features
- *  writer/event_filter.h
+/**
+ * @file writer/event_filter.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,21 +18,32 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ * @section DESCRIPTION
  *
+ * Event filter interface declaration.
  */
+
+
+#ifndef _EVENT_FILTER_H
+#define _EVENT_FILTER_H
 
 
 #include <linux/list.h>
 
 struct task_struct;
 
+/**
+ * @struct ev_filter
+ * @bref Event filter structure.
+ */
 struct ev_filter {
-	struct list_head list;
-	char *name;
-	int (*filter)(struct task_struct *);
+	struct list_head list;                  /**< Filter list head. */
+	char *name;                             /**< Filter name. */
+	int (*filter)(struct task_struct *);    /**< Filter function. */
 };
 
 

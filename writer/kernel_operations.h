@@ -1,6 +1,8 @@
-/*
- *  SWAP Writer Module
- *  modules/writer/kernel_operations.h
+/**
+ * @file writer/kernel_operations.h
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP Writer implementation
+ * @section DESCRIPTION
  *
+ * Writer kernel operations.
  */
 
 /* Kernel functions wrap */
@@ -32,14 +37,19 @@
 
 /* MESSAGES */
 
+/** Prints debug message.*/
 #define print_debug(msg, args...) \
 	printk(KERN_DEBUG "SWAP_WRITER DEBUG : " msg, ##args)
+/** Prints info message.*/
 #define print_msg(msg, args...)   \
 	printk(KERN_INFO "SWAP_WRITER : " msg, ##args)
+/** Prints warning message.*/
 #define print_warn(msg, args...)  \
 	printk(KERN_WARNING "SWAP_WRITER WARNING : " msg, ##args)
+/** Prints error message.*/
 #define print_err(msg, args...)   \
 	printk(KERN_ERR "SWAP_WRITER ERROR : " msg, ##args)
+/** Prints critical error message.*/
 #define print_crit(msg, args...)  \
 	printk(KERN_CRIT "SWAP_WRITER CRITICAL : " msg, ##args)
 
@@ -49,16 +59,16 @@
 /* Regs manipulations */
 #if defined(CONFIG_ARM)
 
-#define get_regs_ip(regs)           regs->ARM_pc
-#define get_regs_ret_func(regs)     regs->ARM_lr
-#define get_regs_ret_val(regs)      regs->ARM_r0
-#define get_regs_stack_ptr(regs)    regs->ARM_sp
+#define get_regs_ip(regs)           regs->ARM_pc    /**< Get pc reg. */
+#define get_regs_ret_func(regs)     regs->ARM_lr    /**< Get lr reg. */
+#define get_regs_ret_val(regs)      regs->ARM_r0    /**< Get ret val. */
+#define get_regs_stack_ptr(regs)    regs->ARM_sp    /**< Get stack pointer. */
 
 #elif defined(CONFIG_X86_32)
 
-#define get_regs_ip(regs)           regs->ip - 1
-#define get_regs_ret_val(regs)      regs->ax
-#define get_regs_stack_ptr(regs)    regs->sp
+#define get_regs_ip(regs)           regs->ip - 1    /**< Get ip. */
+#define get_regs_ret_val(regs)      regs->ax        /**< Get ret val. */
+#define get_regs_stack_ptr(regs)    regs->sp        /**< Get stack pointer. */
 
 static inline u32 get_regs_ret_func(struct pt_regs *regs)
 {

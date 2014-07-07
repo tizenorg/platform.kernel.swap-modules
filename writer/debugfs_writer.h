@@ -1,9 +1,8 @@
-#ifndef _DEBUGFS_WRITER_H
-#define _DEBUGFS_WRITER_H
-
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  writer/debugfs_writer.h
+/**
+ * @file writer/debugfs_writer.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,11 +18,17 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ * @section DESCRIPTION
  *
+ * Writer debugfs interface declaration.
  */
+
+#ifndef _DEBUGFS_WRITER_H
+#define _DEBUGFS_WRITER_H
 
 int init_debugfs_writer(void);
 void exit_debugfs_writer(void);

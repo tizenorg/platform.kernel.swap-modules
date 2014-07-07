@@ -1,6 +1,8 @@
-/*
- *  SWAP kernel features
- *  writer/event_filter.c
+/**
+ * writer/event_filter.c
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ * @section DESCRIPTION
  *
+ * Events filter.
  */
 
 
@@ -59,6 +64,12 @@ static struct ev_filter *event_filter_find(const char *name)
 	return NULL;
 }
 
+/**
+ * @brief Registers event filter.
+ *
+ * @param f Pointer to the event filter.
+ * @return 0 on success, error code on error.
+ */
 int event_filter_register(struct ev_filter *f)
 {
 	if (event_filter_find(f->name))
@@ -71,6 +82,12 @@ int event_filter_register(struct ev_filter *f)
 }
 EXPORT_SYMBOL_GPL(event_filter_register);
 
+/**
+ * @brief Unregisters event filter.
+ *
+ * @param f Pointer to the event filter.
+ * @return Void.
+ */
 void event_filter_unregister(struct ev_filter *f)
 {
 	struct ev_filter *filter, *tmp;
@@ -87,6 +104,12 @@ void event_filter_unregister(struct ev_filter *f)
 }
 EXPORT_SYMBOL_GPL(event_filter_unregister);
 
+/**
+ * @brief Sets event filter by its name.
+ *
+ * @param name Filter name.
+ * @return 0 on success, error code on error.
+ */
 int event_filter_set(const char *name)
 {
 	struct ev_filter *f;
@@ -101,11 +124,23 @@ int event_filter_set(const char *name)
 }
 EXPORT_SYMBOL_GPL(event_filter_set);
 
+/**
+ * @brief Gets filter name.
+ *
+ * @return Pointer to the filter name string.
+ */
 const char *event_filter_get(void)
 {
 	return filter_current->name;
 }
 
+/**
+ * @brief Runs specified callback for each filter in list.
+ *
+ * @param func Specified callback.
+ * @param data Pointer to the data passed to the callback.
+ * @return Void.
+ */
 void event_filter_on_each(void (*func)(struct ev_filter *, void *),
 			  void *data)
 {
@@ -115,11 +150,21 @@ void event_filter_on_each(void (*func)(struct ev_filter *, void *),
 		func(f, data);
 }
 
+/**
+ * @brief Initializes event filter.
+ *
+ * @return Initialization result.
+ */
 int event_filter_init(void)
 {
 	return event_filter_register(&filter_none);
 }
 
+/**
+ * @brief Uninitializes event filter.
+ *
+ * @return Void.
+ */
 void event_filter_exit(void)
 {
 	event_filter_unregister(&filter_none);;

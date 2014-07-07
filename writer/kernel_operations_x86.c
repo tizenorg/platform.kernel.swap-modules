@@ -1,6 +1,8 @@
-/*
- *  SWAP Writer
- *  modules/writer/kernel_operations_x86.c
+/**
+ * writer/kernel_operations_x86.c
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,11 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP Writer module kernel
- * operaions implement
+ * @section DESCRIPTION
  *
+ * X86 arch-dependent operations.
  */
 
 #include <asm/ptrace.h>
@@ -35,6 +39,14 @@
 
 /* ======================= ARGS ========================== */
 
+/**
+ * @brief Returns arg values.
+ *
+ * @param[out] args Pointer to array where argument values should be stored/
+ * @param cnt Arguments count.
+ * @param regs Pointer to register data.
+ * @return 0.
+ */
 int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 {
 	int i, stack_args = 0;
@@ -78,6 +90,16 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 
 /* ================== KERNEL SHARED MEM ===================== */
 
+/**
+ * @brief Gets shared kernel memory addresses.
+ *
+ * @param mm Pointer to process mm_struct.
+ * @param[out] start Pointer to the variable where the first shared mem
+ * address should be put.
+ * @param[out] end Pointer to the variable where the last shared mem
+ * address should be put.
+ * @return Pointer to the string with shared mem area name.
+ */
 const char *get_shared_kmem(struct mm_struct *mm, unsigned long *start,
 			    unsigned long *end)
 {

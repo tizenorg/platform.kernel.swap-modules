@@ -1,6 +1,8 @@
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  writer/debugfs_writer.c
+/**
+ * writer/debugfs_writer.c
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ * @section DESCRIPTION
  *
+ * Writer debugfs implementation.
  */
 
 
@@ -225,6 +230,11 @@ static const struct file_operations fops_filter = {
  */
 static struct dentry *writer_dir = NULL;
 
+/**
+ * @brief Removes writer debugfs.
+ *
+ * @return Void.
+ */
 void exit_debugfs_writer(void)
 {
 	if (writer_dir)
@@ -235,6 +245,11 @@ void exit_debugfs_writer(void)
 	exit_buffer();
 }
 
+/**
+ * @brief Initializes writer debugfs.
+ *
+ * @return 0 on success, error code on error.
+ */
 int init_debugfs_writer(void)
 {
 	int ret;

@@ -1,6 +1,9 @@
-/*
- *  SWAP Writer
- *  modules/writer/swap_writer_module.h
+/**
+ * @file writer/swap_writer_module.h
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ * @author Vyacheslav Cherkashin
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,11 +19,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>, Vyacheslav Cherkashin: 
- *                  SWAP Writer module implement
+ * @section DESCRIPTION
  *
+ * Write module interface defenition.
  */
 
 #ifndef _SWAP_MSG_H
@@ -28,19 +33,27 @@
 
 #include <linux/types.h>
 
+/**
+ * @enum PROBE_TYPE
+ * @brief Probe types.
+ */
 enum PROBE_TYPE {
-	PT_US	= 1,
-	PT_KS	= 3
+	PT_US	= 1,            /**< User probe */
+	PT_KS	= 3             /**< Kernel probe */
 };
 
+/**
+ * @enum PROBE_SUB_TYPE
+ * @brief Probe sub types.
+ */
 enum PROBE_SUB_TYPE {
-	PST_NONE	= 0x00,
-	PST_KS_FILE	= 0x01,
-	PST_KS_IPC	= 0x02,
-	PST_KS_PROCESS	= 0x04,
-	PST_KS_SIGNAL	= 0x08,
-	PST_KS_NETWORK	= 0x10,
-	PST_KS_DESC	= 0x20
+	PST_NONE	= 0x00,     /**< Common */
+	PST_KS_FILE	= 0x01,     /**< File feature */
+	PST_KS_IPC	= 0x02,     /**< Ipc feature */
+	PST_KS_PROCESS	= 0x04, /**< Process feature */
+	PST_KS_SIGNAL	= 0x08, /**< Signal feature */
+	PST_KS_NETWORK	= 0x10, /**< Network feature */
+	PST_KS_DESC	= 0x20      /**< Desc feature */
 };
 
 struct pt_regs;

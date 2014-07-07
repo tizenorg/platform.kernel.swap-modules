@@ -1,6 +1,9 @@
-/*
- *  SWAP Writer
- *  modules/writer/swap_writer_module.c
+/**
+ * writer/swap_writer_module.c
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ * @author Vyacheslav Cherkashin
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,11 +19,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>, Vyacheslav Cherkashin: 
- *                  SWAP Writer module implement
+ * @section DESCRIPTION
  *
+ * Packing and writing data.
  */
 
 #include <linux/types.h>
@@ -48,24 +53,34 @@
 #include "event_filter.h"
 
 
+/**
+ * @enum MSG_ID
+ * @brief Supported message IDs.
+ */
 enum MSG_ID {
-	MSG_PROC_INFO			= 0x0001,
-	MSG_TERMINATE			= 0x0002,
-	MSG_ERROR			= 0x0003,
-	MSG_SAMPLE			= 0x0004,
-	MSG_FUNCTION_ENTRY		= 0x0008,
-	MSG_FUNCTION_EXIT		= 0x0009,
-	MSG_CONTEXT_SWITCH_ENTRY	= 0x0010,
-	MSG_CONTEXT_SWITCH_EXIT		= 0x0011,
-	MSG_PROC_MAP			= 0x0012,
-	MSG_PROC_UNMAP			= 0x0013,
-	MSG_PROC_COMM			= 0x0014
+	MSG_PROC_INFO			= 0x0001,       /**< Process info */
+	MSG_TERMINATE			= 0x0002,       /**< Terminate */
+	MSG_ERROR			= 0x0003,           /**< Error */
+	MSG_SAMPLE			= 0x0004,           /**< Sampler event */
+	MSG_FUNCTION_ENTRY		= 0x0008,       /**< Function entry */
+	MSG_FUNCTION_EXIT		= 0x0009,       /**< Function return */
+	MSG_CONTEXT_SWITCH_ENTRY	= 0x0010,   /**< Context switch entry */
+	MSG_CONTEXT_SWITCH_EXIT		= 0x0011,   /**< Context switch exit */
+	MSG_PROC_MAP			= 0x0012,       /**< Process map */
+	MSG_PROC_UNMAP			= 0x0013,       /**< Process unmap */
+	MSG_PROC_COMM			= 0x0014        /**< Process comm */
 };
 
 static char *cpu_buf[NR_CPUS];
 static u32 seq_num = 0;
 static unsigned int discarded = 0;
 
+/**
+ * @brief Initializes new message.
+ *
+ * @param buf_size Message buffer size.
+ * @return Success.
+ */
 int init_msg(size_t buf_size)
 {
 	int i;
@@ -77,6 +92,11 @@ int init_msg(size_t buf_size)
 }
 EXPORT_SYMBOL_GPL(init_msg);
 
+/**
+ * @brief Uninitializes message.
+ *
+ * @return Void.
+ */
 void uninit_msg(void)
 {
 	int i;
@@ -86,18 +106,33 @@ void uninit_msg(void)
 }
 EXPORT_SYMBOL_GPL(uninit_msg);
 
+/**
+ * @brief Sets discarded events count to 0.
+ *
+ * @return Void.
+ */
 void reset_discarded(void)
 {
 	discarded = 0;
 }
 EXPORT_SYMBOL_GPL(reset_discarded);
 
+/**
+ * @brief Sets events sequence number to 0.
+ *
+ * @return Void.
+ */
 void reset_seq_num(void)
 {
 	seq_num = 0;
 }
 EXPORT_SYMBOL_GPL(reset_seq_num);
 
+/**
+ * @brief Gets discarded events count.
+ *
+ * @return Discarded events count.
+ */
 unsigned int get_discarded_count(void)
 {
 	return discarded;
@@ -124,12 +159,16 @@ static inline u64 timespec2time(struct timespec *ts)
  * ============================================================================
  */
 
+/**
+ * @struct basic_msg_fmt
+ * @brief Basic message.
+ */
 struct basic_msg_fmt {
-	u32 msg_id;
-	u32 seq_number;
-	u64 time;
-	u32 len;
-	char payload[0];
+	u32 msg_id;             /**< Message ID */
+	u32 seq_number;         /**< Sequence number */
+	u64 time;               /**< Message time */
+	u32 len;                /**< Message length */
+	char payload[0];        /**< Message itself */
 } __attribute__((packed));
 
 #if 0 /* debug */
@@ -197,29 +236,45 @@ static char* pack_basic_msg_fmt(char *buf, enum MSG_ID id)
  * ============================================================================
  */
 
+/**
+ * @struct proc_info_top
+ * @brief Top proc info part.
+ */
 struct proc_info_top {
-	u32 pid;
-	char comm[0];
+	u32 pid;                    /**< Process PID */
+	char comm[0];               /**< Message */
 } __attribute__((packed));
 
+/**
+ * @struct proc_info_bottom
+ * @brief Bottom proc info part.
+ */
 struct proc_info_bottom {
-	u32 ppid;
-	u32 start_sec;
-	u32 start_nsec;
-	u64 low_addr;
-	u64 high_addr;
-	char bin_path[0];
+	u32 ppid;                   /**< Parent PID */
+	u32 start_sec;              /**< Start time sec */
+	u32 start_nsec;             /**< Start time nsec */
+	u64 low_addr;               /**< Low address */
+	u64 high_addr;              /**< High address */
+	char bin_path[0];           /**< Binary path */
 } __attribute__((packed));
 
+/**
+ * @struct proc_info_part
+ * @brief Process info part.
+ */
 struct proc_info_part {
-	u32 lib_cnt;
-	char libs[0];
+	u32 lib_cnt;                /**< Library count */
+	char libs[0];               /**< Libraries */
 } __attribute__((packed));
 
+/**
+ * @struct lib_obj
+ * @brief Library object.
+ */
 struct lib_obj {
-	u64 low_addr;
-	u64 high_addr;
-	char lib_path[0];
+	u64 low_addr;               /**< Low library address */
+	u64 high_addr;              /**< High library address */
+	char lib_path[0];           /**< Library path */
 } __attribute__((packed));
 
 static char *pack_path(char *buf, struct file *file)
@@ -383,7 +438,14 @@ static char *pack_proc_info(char *payload, struct task_struct *task,
 	return pack_proc_info_bottom(payload, task, dentry);
 }
 
-/* called with down\up\_read(&task->mm->mmap_sem) */
+/**
+ * @brief Packs and writes process info message. Called with
+ * down\up\_read(&task->mm->mmap_sem).
+ *
+ * @param task Pointer to the target task_struct.
+ * @param dentry Pointer to the task dentry.
+ * @return Written data size on success, negative error code on error.
+ */
 int proc_info_msg(struct task_struct *task, struct dentry *dentry)
 {
 	char *buf, *payload, *buf_end;
@@ -411,8 +473,12 @@ EXPORT_SYMBOL_GPL(proc_info_msg);
  * ============================================================================
  */
 
+/**
+ * @struct proc_terminate
+ * @brief Terminate message struct.
+ */
 struct proc_terminate {
-	u32 pid;
+	u32 pid;                /**< Process ID */
 } __attribute__((packed));
 
 static char *pack_proc_terminate(char *payload, struct task_struct *task)
@@ -423,6 +489,12 @@ static char *pack_proc_terminate(char *payload, struct task_struct *task)
 	return payload + sizeof(*pt);
 }
 
+/**
+ * @brief Packs and writes terminate message.
+ *
+ * @param task Target task_struct.
+ * @return Void.
+ */
 void terminate_msg(struct task_struct *task)
 {
 	char *buf, *payload, *buf_end;
@@ -446,11 +518,16 @@ EXPORT_SYMBOL_GPL(terminate_msg);
  * =                             PROCESS MAP                                  =
  * ============================================================================
  */
+
+/**
+ * @struct proc_map
+ * @brief Process mapping info.
+ */
 struct proc_map {
-	u32 pid;
-	u64 low_addr;
-	u64 high_addr;
-	char bin_path[0];
+	u32 pid;                    /**< Process ID */
+	u64 low_addr;               /**< Low address */
+	u64 high_addr;              /**< High address */
+	char bin_path[0];           /**< Binary path */
 } __attribute__((packed));
 
 static char *pack_proc_map(char *payload, struct vm_area_struct *vma)
@@ -464,6 +541,12 @@ static char *pack_proc_map(char *payload, struct vm_area_struct *vma)
 	return pack_path(pm->bin_path, vma->vm_file);
 }
 
+/**
+ * @brief Packs and writes process map message.
+ *
+ * @param vma Target memory area.
+ * @return Void.
+ */
 void pcoc_map_msg(struct vm_area_struct *vma)
 {
 	char *buf, *payload, *buf_end;
@@ -487,10 +570,15 @@ EXPORT_SYMBOL_GPL(pcoc_map_msg);
  * =                            PROCESS UNMAP                                 =
  * ============================================================================
  */
+
+/**
+ * @struct proc_unmap
+ * @brief Process mapping info.
+ */
 struct proc_unmap {
-	u32 pid;
-	u64 low_addr;
-	u64 high_addr;
+	u32 pid;                /**< Process ID */
+	u64 low_addr;           /**< Low address */
+	u64 high_addr;          /**< High address */
 } __attribute__((packed));
 
 static char *pack_proc_unmap(char *payload, unsigned long start,
@@ -505,6 +593,13 @@ static char *pack_proc_unmap(char *payload, unsigned long start,
 	return payload + sizeof(*pum);
 }
 
+/**
+ * @brief Packs and writes process unmap message.
+ *
+ * @param start Unmapping area low address.
+ * @param end Unmapping area high address.
+ * @return Void.
+ */
 void proc_unmap_msg(unsigned long start, unsigned long end)
 {
 	char *buf, *payload, *buf_end;
@@ -528,9 +623,14 @@ EXPORT_SYMBOL_GPL(proc_unmap_msg);
  * =                              PROCESS COMM                                =
  * ============================================================================
  */
+
+/**
+ * @struct proc_comm
+ * @brief Comm message info.
+ */
 struct proc_comm {
-	u32 pid;
-	char comm[0];
+	u32 pid;                /**< Process ID */
+	char comm[0];           /**< Comm */
 } __attribute__((packed));
 
 static char *pack_proc_comm(char *data, struct task_struct *task)
@@ -542,6 +642,12 @@ static char *pack_proc_comm(char *data, struct task_struct *task)
 	return pack_comm(pcomm->comm, task);
 }
 
+/**
+ * @brief Packs and writes process comm message.
+ *
+ * @param task Target task_struct.
+ * @return Void.
+ */
 void proc_comm_msg(struct task_struct *task)
 {
 	char *buf, *payload, *buf_end;
@@ -566,11 +672,15 @@ EXPORT_SYMBOL_GPL(proc_comm_msg);
  * ============================================================================
  */
 
+/**
+ * @struct sample
+ * @brief Sampler event info.
+ */
 struct sample {
-	u32 pid;
-	u64 pc_addr;
-	u32 tid;
-	u32 cpu_num;
+	u32 pid;                /**< Process ID */
+	u64 pc_addr;            /**< Instruction pointer address */
+	u32 tid;                /**< Thread ID */
+	u32 cpu_num;            /**< CPU number */
 } __attribute__((packed));
 
 static char *pack_sample(char *payload, struct pt_regs *regs)
@@ -586,6 +696,12 @@ static char *pack_sample(char *payload, struct pt_regs *regs)
 	return payload + sizeof(*s);
 }
 
+/**
+ * @brief Packs and writes sample message.
+ *
+ * @param regs Pointer to CPU register data.
+ * @return Written data size on success, negative error code on error.
+ */
 int sample_msg(struct pt_regs *regs)
 {
 	char *buf, *payload, *buf_end;
@@ -615,16 +731,20 @@ EXPORT_SYMBOL_GPL(sample_msg);
  * ============================================================================
  */
 
+/**
+ * @struct msg_func_entry
+ * @brief Entry event info.
+ */
 struct msg_func_entry {
-	u64 pc_addr;
-	u64 caller_pc_addr;
-	u16 probe_type;
-	u16 probe_sub_type;
-	u32 pid;
-	u32 tid;
-	u32 cpu_num;
-	u32 cnt_args;
-	char args[0];
+	u64 pc_addr;            /**< Instruction pointer address. */
+	u64 caller_pc_addr;     /**< Return address */
+	u16 probe_type;         /**< Probe type */
+	u16 probe_sub_type;     /**< Probe subtype */
+	u32 pid;                /**< Process ID */
+	u32 tid;                /**< Thread ID */
+	u32 cpu_num;            /**< CPU number */
+	u32 cnt_args;           /**< Count of args */
+	char args[0];           /**< Args format string */
 } __attribute__((packed));
 
 static char *pack_msg_func_entry(char *payload, const char *fmt,
@@ -740,6 +860,16 @@ static int pack_args(char *buf, int len, const char *fmt, struct pt_regs *regs)
 	return buf - buf_old;
 }
 
+/**
+ * @brief Packs and writes entry event message.
+ *
+ * @param fmt Arguments format string.
+ * @param func_addr Function address.
+ * @param regs CPU register data.
+ * @param pt Probe type.
+ * @param sub_type Probe sub type.
+ * @return Written data size on success, negative error code on error.
+ */
 int entry_event(const char *fmt, unsigned long func_addr, struct pt_regs *regs,
 		enum PROBE_TYPE pt, int sub_type)
 {
@@ -783,13 +913,17 @@ EXPORT_SYMBOL_GPL(entry_event);
  * ============================================================================
  */
 
+/**
+ * @struct msg_func_exit
+ * @brief Exit event message info.
+ */
 struct msg_func_exit {
-	u32 pid;
-	u32 tid;
-	u64 pc_addr;
-	u64 caller_pc_addr;
-	u32 cpu_num;
-	char ret_val[0];
+	u32 pid;                /**< PID */
+	u32 tid;                /**< TID */
+	u64 pc_addr;            /**< Instruction pointer */
+	u64 caller_pc_addr;     /**< Return address */
+	u32 cpu_num;            /**< CPU number */
+	char ret_val[0];        /**< Return value */
 } __attribute__((packed));
 
 static int pack_msg_ret_val(char *buf, int len, char ret_type,
@@ -897,6 +1031,15 @@ static int pack_msg_func_exit(char *buf, int len, char ret_type,
 	return sizeof(*mfe) + ret;
 }
 
+/**
+ * @brief Packs and writes exit event.
+ *
+ * @param ret_type Return value type.
+ * @param regs CPU register data.
+ * @param func_addr Function address.
+ * @param ret_addr Return address.
+ * @return Written data size on success, negative error code on error.
+ */
 int exit_event(char ret_type, struct pt_regs *regs, unsigned long func_addr,
 	       unsigned long ret_addr)
 {
@@ -935,11 +1078,15 @@ EXPORT_SYMBOL_GPL(exit_event);
  * ============================================================================
  */
 
+/*
+ * @struct msg_context_switch
+ * @brief Context switch message info.
+ */
 struct msg_context_switch {
-	u64 pc_addr;
-	u32 pid;
-	u32 tid;
-	u32 cpu_num;
+	u64 pc_addr;            /**< Instruction pointer */
+	u32 pid;                /**< PID */
+	u32 tid;                /**< TID */
+	u32 cpu_num;            /**< CPU number */
 } __attribute__((packed));
 
 static char *pack_msg_context_switch(char *payload, struct pt_regs *regs)
@@ -971,6 +1118,12 @@ static int context_switch(struct pt_regs *regs, enum MSG_ID id)
 	return ret;
 }
 
+/**
+ * @brief Packs and writes context switch entry message.
+ *
+ * @param regs CPU register data.
+ * @return Written data size on success, negative error code on error.
+ */
 int switch_entry(struct pt_regs *regs)
 {
 	if (!check_event(current))
@@ -980,6 +1133,12 @@ int switch_entry(struct pt_regs *regs)
 }
 EXPORT_SYMBOL_GPL(switch_entry);
 
+/**
+ * @brief Packs and writes context switch exit message.
+ *
+ * @param regs CPU register data.
+ * @return Written data size on success, negative error code on error.
+ */
 int switch_exit(struct pt_regs *regs)
 {
 	if (!check_event(current))
@@ -997,8 +1156,12 @@ EXPORT_SYMBOL_GPL(switch_exit);
  * ============================================================================
  */
 
+/**
+ * @struct msg_err
+ * @brief Error message info.
+ */
 struct msg_err {
-	char msg[0];
+	char msg[0];            /**< Error message string */
 } __attribute__((packed));
 
 static char *pack_msg_err(char *payload, const char *fmt, va_list args)
@@ -1013,6 +1176,12 @@ static char *pack_msg_err(char *payload, const char *fmt, va_list args)
 	return payload + sizeof(*me) + ret + 1;
 }
 
+/**
+ * @brief Packs and writes error message.
+ *
+ * @param fmt Error string format
+ * @return Written data size on success, negative error code on error.
+ */
 int error_msg(const char *fmt, ...)
 {
 	char *buf, *payload, *buf_end;
@@ -1044,6 +1213,13 @@ EXPORT_SYMBOL_GPL(error_msg);
  * ============================================================================
  */
 
+/**
+ * @brief Interface for writing messages from user space directly.
+ *
+ * @param buf Pointer to message.
+ * @param len Message len.
+ * @return len
+ */
 int raw_msg(char *buf, size_t len)
 {
 	struct basic_msg_fmt *bmf = (struct basic_msg_fmt *)buf;
@@ -1208,6 +1384,16 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 
 enum { max_custom_event_size = 2048 };
 
+/**
+ * @brief Packs and writes custom entry event.
+ *
+ * @param func_addr Function address.
+ * @param regs CPU register data.
+ * @param type Probe type.
+ * @param sub_type Probe sub type.
+ * @param fmt Format string.
+ * @return Written data size on success, negative error code on error.
+ */
 int custom_entry_event(unsigned long func_addr, struct pt_regs *regs,
 		       int type, int sub_type, const char *fmt, ...)
 {
@@ -1240,6 +1426,16 @@ EXPORT_SYMBOL_GPL(custom_entry_event);
 
 /* TODO currently this function is a simple wrapper. it will be refactored when
  * protocol changes are applied */
+
+/**
+ * @brief Packs and writes custom exit event.
+ *
+ * @param func_addr Function address.
+ * @param ret_addr Return address.
+ * @param regs CPU register data.
+ * @param fmt Format string.
+ * @return Written data size on success, negative error code on error.
+ */
 int custom_exit_event(unsigned long func_addr, unsigned long ret_addr,
 		      struct pt_regs *regs, const char *fmt, ...)
 {
