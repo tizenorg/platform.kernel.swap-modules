@@ -1,6 +1,8 @@
-/*
- *  SWAP sampler
- *  modules/sampler/sampler_hrtimer.c
+/**
+ * sampler/sampler_hrtimer.c
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP sampler porting
+ * @section DESCRIPTION
  *
+ * Sampler for high resolution timers.
  */
 
 
@@ -32,6 +37,12 @@ static u64 sampler_timer_quantum = 0;
 static DEFINE_PER_CPU(struct hrtimer, swap_hrtimer);
 static int swap_hrtimer_running;
 
+/**
+ * @brief Restarts sampling.
+ *
+ * @param timer Pointer to hrtimer struct.
+ * @return hrtimer_restart flag.
+ */
 restart_ret sampler_timers_restart(swap_timer *timer)
 {
 	restart_ret ret;
@@ -42,19 +53,32 @@ restart_ret sampler_timers_restart(swap_timer *timer)
 	return ret;
 }
 
-
+/**
+ * @brief Sets running flag true.
+ *
+ * @return Void.
+ */
 void sampler_timers_set_run(void)
 {
 	swap_hrtimer_running = 1;
 }
 
-
+/**
+ * @brief Sets running flag false.
+ *
+ * @return Void.
+ */
 void sampler_timers_set_stop(void)
 {
 	swap_hrtimer_running = 0;
 }
 
-
+/**
+ * @brief Starts timer sampling.
+ *
+ * @param restart_func Pointer to restart function.
+ * @return Void.
+ */
 void sampler_timers_start(void *restart_func)
 {
 	struct hrtimer *hrtimer = &__get_cpu_var(swap_hrtimer);
@@ -68,7 +92,12 @@ void sampler_timers_start(void *restart_func)
 		  HRTIMER_MODE_REL_PINNED);
 }
 
-
+/**
+ * @brief Stops timer sampling.
+ *
+ * @param cpu Online CPUs.
+ * @return Void.
+ */
 void sampler_timers_stop(int cpu)
 {
 	struct hrtimer *hrtimer = &per_cpu(swap_hrtimer, cpu);
@@ -79,7 +108,12 @@ void sampler_timers_stop(int cpu)
 	hrtimer_cancel(hrtimer);
 }
 
-
+/**
+ * @brief Sets timer quantum.
+ *
+ * @param timer_quantum Timer quantum.
+ * @return Void.
+ */
 void sampler_timers_set_quantum(unsigned int timer_quantum)
 {
 	sampler_timer_quantum = timer_quantum * 1000 * 1000;

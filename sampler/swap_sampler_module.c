@@ -1,6 +1,9 @@
-/*
- *  SWAP sampler
- *  modules/sampler/swap_sampler_module.c
+/**
+ * sampler/swap_sampler_module.c
+ * @author Andreev S.V.: SWAP Sampler implementation
+ * @author Alexander Aksenov <a.aksenov@samsung.com>: SWAP sampler porting
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,11 +19,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2012  Andreev S.V.: SWAP Sampler implementation
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP sampler porting
+ * @section DESCRIPTION
  *
+ * Timer-based sampling module.
  */
 
 #include <asm/ptrace.h>
@@ -114,6 +119,13 @@ static void do_swap_sampler_stop(void)
 static DEFINE_MUTEX(mutex_run);
 static int sampler_run = 0;
 
+
+/**
+ * @brief Starts sampling with specified timer quantum.
+ *
+ * @param timer_quantum Timer quantum for sampling.
+ * @return 0 on success, error code on error.
+ */
 int swap_sampler_start(unsigned int timer_quantum)
 {
 	int ret = -EINVAL;
@@ -135,6 +147,12 @@ unlock:
 }
 EXPORT_SYMBOL_GPL(swap_sampler_start);
 
+
+/**
+ * @brief Stops sampling.
+ *
+ * @return 0 on success, error code on error.
+ */
 int swap_sampler_stop(void)
 {
 	int ret = 0;
