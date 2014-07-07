@@ -1,6 +1,9 @@
-/*
- *  SWAP Parser
- *  modules/parser/msg_parser.c
+/**
+ * parser/msg_parser.c
+ * @author Vyacheslav Cherkashin
+ * @author Vitaliy Cherepanov
+ *
+ * @sectionLICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +19,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin, Vitaliy Cherepanov: SWAP Parser implement
+ * @section DESCRIPTION
  *
+ * Message parsing implementation.
  */
 
 
@@ -54,6 +60,14 @@ static int str_to_u32(const char* str, u32 *val)
 /* ============================================================================
  * ==                               APP_INFO                                 ==
  * ============================================================================
+ */
+
+/**
+ * @brief Creates and fills app_info_data struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return Pointer to the filled app_info_data struct on success;\n
+ * NULL on error.
  */
 struct app_info_data *create_app_info(struct msg_buf *mb)
 {
@@ -137,6 +151,12 @@ free_ta_id:
 	return NULL;
 }
 
+/**
+ * @brief app_info_data cleanup.
+ *
+ * @param ai Pointer to the target app_info_data.
+ * @return Void.
+ */
 void destroy_app_info(struct app_info_data *ai)
 {
 	put_string(ai->exec_path);
@@ -150,6 +170,14 @@ void destroy_app_info(struct app_info_data *ai)
 /* ============================================================================
  * ==                                CONFIG                                  ==
  * ============================================================================
+ */
+
+/**
+ * @brief Creates and fills conf_data struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return Pointer to the filled conf_data struct on success;\n
+ * 0 on error.
  */
 struct conf_data *create_conf_data(struct msg_buf *mb)
 {
@@ -196,17 +224,36 @@ struct conf_data *create_conf_data(struct msg_buf *mb)
 	return conf;
 }
 
+/**
+ * @brief conf_data cleanup.
+ *
+ * @param conf Pointer to the target conf_data.
+ * @return Void.
+ */
 void destroy_conf_data(struct conf_data *conf)
 {
 	kfree(conf);
 }
 
 static struct conf_data config;
+
+/**
+ * @brief Saves config to static config variable.
+ *
+ * @param conf Variable to save.
+ * @return Void.
+ */
 void save_config(const struct conf_data *conf)
 {
 	memcpy(&config, conf, sizeof(config));
 }
 
+/**
+ * @brief Restores config from static config variable.
+ *
+ * @param conf Variable to restore.
+ * @return Void.
+ */
 void restore_config(struct conf_data *conf)
 {
 	memcpy(conf, &config, sizeof(*conf));
@@ -217,6 +264,14 @@ void restore_config(struct conf_data *conf)
 /* ============================================================================
  * ==                               FUNC_INST                                ==
  * ============================================================================
+ */
+
+/**
+ * @brief Creates and fills func_inst_data struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return Pointer to the filled func_inst_data struct on success;\n
+ * 0 on error.
  */
 struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 {
@@ -260,6 +315,12 @@ free_args:
 	return NULL;
 }
 
+/**
+ * @brief func_inst_data cleanup.
+ *
+ * @param fi Pointer to the target func_inst_data.
+ * @return Void.
+ */
 void destroy_func_inst_data(struct func_inst_data *fi)
 {
 	put_string(fi->args);
@@ -273,6 +334,14 @@ void destroy_func_inst_data(struct func_inst_data *fi)
 /* ============================================================================
  * ==                               LIB_INST                                 ==
  * ============================================================================
+ */
+
+/**
+ * @brief Creates and fills lib_inst_data struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return Pointer to the filled lib_inst_data struct on success;\n
+ * 0 on error.
  */
 struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 {
@@ -340,6 +409,12 @@ free_path:
 	return NULL;
 }
 
+/**
+ * @brief lib_inst_data cleanup.
+ *
+ * @param li Pointer to the target lib_inst_data.
+ * @return Void.
+ */
 void destroy_lib_inst_data(struct lib_inst_data *li)
 {
 	int i;
@@ -360,6 +435,14 @@ void destroy_lib_inst_data(struct lib_inst_data *li)
 /* ============================================================================
  * ==                               APP_INST                                 ==
  * ============================================================================
+ */
+
+/**
+ * @brief Creates and fills app_inst_data struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return Pointer to the filled app_inst_data struct on success;\n
+ * 0 on error.
  */
 struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 {
@@ -458,6 +541,12 @@ free_app_info:
 	return NULL;
 }
 
+/**
+ * @brief app_inst_data cleanup.
+ *
+ * @param ai Pointer to the target app_inst_data.
+ * @return Void.
+ */
 void destroy_app_inst_data(struct app_inst_data *ai)
 {
 	int i;
@@ -481,6 +570,14 @@ void destroy_app_inst_data(struct app_inst_data *ai)
 /* ============================================================================
  * ==                                US_INST                                 ==
  * ============================================================================
+ */
+
+/**
+ * @brief Creates and fills us_inst_data struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return Pointer to the filled us_inst_data struct on success;\n
+ * 0 on error.
  */
 struct us_inst_data *create_us_inst_data(struct msg_buf *mb)
 {
@@ -538,6 +635,12 @@ free_ui:
 	return NULL;
 }
 
+/**
+ * @brief us_inst_data cleanup.
+ *
+ * @param ui Pointer to the target us_inst_data.
+ * @return Void.
+ */
 void destroy_us_inst_data(struct us_inst_data *ui)
 {
 	int i;

@@ -1,6 +1,8 @@
-/*
- *  SWAP Parser
- *  modules/parser/msg_buf.c
+/**
+ * @file parser/msg_buf.h
+ * @author Vyacheslav Cherkashin
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP Parser implement
+ * @section DESCRIPTION
  *
+ * Message buffer interface declaration.
  */
 
 
@@ -28,10 +33,14 @@
 
 #include <linux/types.h>
 
+/**
+ * @struct msg_buf
+ * @brief Stores pointers to the message buffer.
+ */
 struct msg_buf {
-	char *begin;
-	char *end;
-	char *ptr;
+	char *begin;    /**< Pointer to the beginning of the buffer. */
+	char *end;      /**< Pointer to the end of the buffer. */
+	char *ptr;      /**< Buffer iterator. */
 };
 
 int init_mb(struct msg_buf *mb, size_t size);

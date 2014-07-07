@@ -1,6 +1,8 @@
-/*
- *  SWAP Parser
- *  modules/parser/features.c
+/**
+ * parser/features.c
+ * @author Vyacheslav Cherkashin
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP Parser implement
+ * @section DESCRIPTION
  *
+ * Features control implementation.
  */
 
 
@@ -34,17 +39,27 @@
 #include <sampler/swap_sampler_module.h>
 #include <energy/energy.h>
 
+/**
+ * @enum features_list
+ * List of supported features.
+ */
 enum features_list {
-	syscall_file	= (1 << 10),	/* File operation syscalls tracing */
-	syscall_ipc	= (1 << 11),	/* IPC syscall tracing */
-	syscall_process	= (1 << 12),	/* Process syscalls tracing */
-	syscall_signal	= (1 << 13),	/* Signal syscalls tracing */
-	syscall_network	= (1 << 14),	/* Network syscalls tracing */
-	syscall_desc	= (1 << 15),	/* Descriptor syscalls tracing */
-	context_switch	= (1 << 16),	/* Context switch tracing */
-	func_sampling	= (1 << 19)	/* Function sampling */
+	syscall_file	= (1 << 10),	/**< File operation syscalls tracing */
+	syscall_ipc	= (1 << 11),	/**< IPC syscall tracing */
+	syscall_process	= (1 << 12),	/**< Process syscalls tracing */
+	syscall_signal	= (1 << 13),	/**< Signal syscalls tracing */
+	syscall_network	= (1 << 14),	/**< Network syscalls tracing */
+	syscall_desc	= (1 << 15),	/**< Descriptor syscalls tracing */
+	context_switch	= (1 << 16),	/**< Context switch tracing */
+	func_sampling	= (1 << 19)	/**< Function sampling */
 };
 
+/**
+ * @brief Start user-space instrumentation event handling.
+ *
+ * @param conf Pointer to conf_data config.
+ * @return 0.
+ */
 int set_us_inst(struct conf_data *conf)
 {
 	set_quiet(QT_OFF);
@@ -52,6 +67,11 @@ int set_us_inst(struct conf_data *conf)
 	return 0;
 }
 
+/**
+ * @brief Stop user-space instrumentation event handling.
+ *
+ * @return 0.
+ */
 int unset_us_inst(void)
 {
 	set_quiet(QT_ON);
@@ -59,6 +79,12 @@ int unset_us_inst(void)
 	return 0;
 }
 
+/**
+ * @brief Set syscall file feature on.
+ *
+ * @param conf Pointer to conf_data config.
+ * @return set_feature results.
+ */
 int set_syscall_file(struct conf_data *conf)
 {
 	int ret;
@@ -68,6 +94,11 @@ int set_syscall_file(struct conf_data *conf)
 	return ret;
 }
 
+/**
+ * @brief Set syscall file feature off.
+ *
+ * @return unset_feature results.
+ */
 int unset_syscall_file(void)
 {
 	int ret;
@@ -77,6 +108,12 @@ int unset_syscall_file(void)
 	return ret;
 }
 
+/**
+ * @brief Set syscall ipc feature on.
+ *
+ * @param conf Pointer to conf_data config.
+ * @return set_feature results.
+ */
 int set_syscall_ipc(struct conf_data *conf)
 {
 	int ret;
@@ -86,6 +123,11 @@ int set_syscall_ipc(struct conf_data *conf)
 	return ret;
 }
 
+/**
+ * @brief Set syscall ipc feature off.
+ *
+ * @return unset_feature results.
+ */
 int unset_syscall_ipc(void)
 {
 	int ret;
@@ -95,6 +137,12 @@ int unset_syscall_ipc(void)
 	return ret;
 }
 
+/**
+ * @brief Set syscall process feature on.
+ *
+ * @param conf Pointer to conf_data config.
+ * @return set_feature results.
+ */
 int set_syscall_process(struct conf_data *conf)
 {
 	int ret;
@@ -104,6 +152,11 @@ int set_syscall_process(struct conf_data *conf)
 	return ret;
 }
 
+/**
+ * @brief Set syscall process feature off.
+ *
+ * @return unset_feature results.
+ */
 int unset_syscall_process(void)
 {
 	int ret;
@@ -113,6 +166,12 @@ int unset_syscall_process(void)
 	return ret;
 }
 
+/**
+ * @brief Set syscall signal feature on.
+ *
+ * @param conf Pointer to conf_data config.
+ * @return set_feature results.
+ */
 int set_syscall_signal(struct conf_data *conf)
 {
 	int ret;
@@ -122,6 +181,11 @@ int set_syscall_signal(struct conf_data *conf)
 	return ret;
 }
 
+/**
+ * @brief Set syscall signal feature off.
+ *
+ * @return unset_feature results.
+ */
 int unset_syscall_signal(void)
 {
 	int ret;
@@ -131,6 +195,12 @@ int unset_syscall_signal(void)
 	return ret;
 }
 
+/**
+ * @brief Set syscall network feature on.
+ *
+ * @param conf Pointer to conf_data config.
+ * @return set_feature results.
+ */
 int set_syscall_network(struct conf_data *conf)
 {
 	int ret;
@@ -140,6 +210,11 @@ int set_syscall_network(struct conf_data *conf)
 	return ret;
 }
 
+/**
+ * @brief Set syscall network feature off.
+ *
+ * @return unset_feature results.
+ */
 int unset_syscall_network(void)
 {
 	int ret;
@@ -149,6 +224,12 @@ int unset_syscall_network(void)
 	return ret;
 }
 
+/**
+ * @brief Set syscall desc feature on.
+ *
+ * @param conf Pointer to conf_data config.
+ * @return set_feature results.
+ */
 int set_syscall_desc(struct conf_data *conf)
 {
 	int ret;
@@ -158,6 +239,11 @@ int set_syscall_desc(struct conf_data *conf)
 	return ret;
 }
 
+/**
+ * @brief Set syscall desc feature off.
+ *
+ * @return unset_feature results.
+ */
 int unset_syscall_desc(void)
 {
 	int ret;
@@ -167,6 +253,12 @@ int unset_syscall_desc(void)
 	return ret;
 }
 
+/**
+ * @brief Set context switch feature on.
+ *
+ * @param conf Pointer to conf_data config.
+ * @return set_feature results.
+ */
 int set_context_switch(struct conf_data *conf)
 {
 	int ret;
@@ -175,7 +267,11 @@ int set_context_switch(struct conf_data *conf)
 
 	return ret;
 }
-
+/**
+ * @brief Set context switch feature off.
+ *
+ * @return unset_feature results.
+ */
 int unset_context_switch(void)
 {
 	int ret;
@@ -185,6 +281,12 @@ int unset_context_switch(void)
 	return ret;
 }
 
+/**
+ * @brief Set sampling feature on.
+ *
+ * @param conf Pointer to conf_data config.
+ * @return set_feature results.
+ */
 int set_func_sampling(struct conf_data *conf)
 {
 	int ret;
@@ -194,6 +296,11 @@ int set_func_sampling(struct conf_data *conf)
 	return ret;
 }
 
+/**
+ * @brief Set sampling feature off.
+ *
+ * @return unset_feature results.
+ */
 int unset_func_sampling(void)
 {
 	int ret;
@@ -213,6 +320,16 @@ static int unset_func_energy(void)
 	return unset_energy();
 }
 
+/**
+ * @struct feature_item
+ * @brief Struct that describes feature.
+ * @var feature_item::name
+ * Feature name.
+ * @var feature_item::set
+ * Set feature callback.
+ * @var feature_item::unset
+ * Unset feature callback.
+ */
 struct feature_item {
 	char *name;
 	int (*set)(struct conf_data *conf);
@@ -309,6 +426,9 @@ static struct feature_item *feature_list[] = {
  /* 26 */	&feature_func_energy
 };
 
+/**
+ * @brief SIZE_FEATURE_LIST definition.
+ */
 enum {
 	SIZE_FEATURE_LIST = sizeof(feature_list) / sizeof(struct feature_item *),
 };
@@ -316,6 +436,11 @@ enum {
 static u64 feature_inst = 0;
 static u64 feature_mask = 0;
 
+/**
+ * @brief Inits features list.
+ *
+ * @return 0.
+ */
 int init_features(void)
 {
 	int i;
@@ -330,6 +455,11 @@ int init_features(void)
 	return 0;
 }
 
+/**
+ * @brief Uninits features list.
+ *
+ * @return Void.
+ */
 void uninit_features(void)
 {
 }
@@ -375,6 +505,12 @@ static int do_set_features(struct conf_data *conf)
 
 static DEFINE_MUTEX(mutex_features);
 
+/**
+ * @brief Wrapper for do_set_features with locking.
+ *
+ * @param conf Pointer to the current config.
+ * @return do_set_features result.
+ */
 int set_features(struct conf_data *conf)
 {
 	int ret;

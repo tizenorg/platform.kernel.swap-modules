@@ -1,6 +1,8 @@
-/*
- *  SWAP Parser
- *  modules/parser/us_inst.c
+/**
+ * parser/us_inst.c
+ * @author Vyacheslav Cherkashin
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP Parser implement
+ * @section DESCRIPTION
  *
+ * User-space instrumentation controls.
  */
 
 
@@ -175,6 +180,13 @@ static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 	return 0;
 }
 
+/**
+ * @brief Registers probes.
+ *
+ * @param us_inst Pointer to the target us_inst_data struct.
+ * @param mt Modificator, indicates whether we install or remove probes.
+ * @return 0 on suceess, error code on error.
+ */
 int mod_us_inst(struct us_inst_data *us_inst, enum MOD_TYPE mt)
 {
 	u32 i;

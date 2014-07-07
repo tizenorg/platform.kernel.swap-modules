@@ -1,6 +1,8 @@
-/*
- *  SWAP Parser
- *  modules/parser/msg_cmd.c
+/**
+ * parser/msg_cmd.c
+ * @author Vyacheslav Cherkashin
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP Parser implement
+ * @section DESCRIPTION
  *
+ * Module's messages parsing implementation.
  */
 
 
@@ -41,6 +46,12 @@ static int set_config(struct conf_data *conf)
 	return ret;
 }
 
+/**
+ * @brief Message "keep alive" handling.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return 0 on success, negative error code on error.
+ */
 int msg_keep_alive(struct msg_buf *mb)
 {
 	if (!is_end_mb(mb)) {
@@ -51,6 +62,12 @@ int msg_keep_alive(struct msg_buf *mb)
 	return 0;
 }
 
+/**
+ * @brief Message "start" handling.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return 0 on success, negative error code on error.
+ */
 int msg_start(struct msg_buf *mb)
 {
 	int ret = 0;
@@ -91,6 +108,12 @@ free_us_inst:
 	return ret;
 }
 
+/**
+ * @brief Message "stop" handling.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return 0 on success, negative error code on error.
+ */
 int msg_stop(struct msg_buf *mb)
 {
 	int ret = 0;
@@ -119,6 +142,12 @@ int msg_stop(struct msg_buf *mb)
 	return ret;
 }
 
+/**
+ * @brief Message "config" handling.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return 0 on success, negative error code on error.
+ */
 int msg_config(struct msg_buf *mb)
 {
 	int ret = 0;
@@ -148,6 +177,12 @@ free_conf_data:
 	return ret;
 }
 
+/**
+ * @brief Message "swap inst add" handling.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return 0 on success, negative error code on error.
+ */
 int msg_swap_inst_add(struct msg_buf *mb)
 {
 	int ret = 0;
@@ -172,6 +207,12 @@ free_us_inst:
 	return ret;
 }
 
+/**
+ * @brief Message "swap inst remove" handling.
+ *
+ * @param mb Pointer to the message buffer.
+ * @return 0 on success, negative error code on error.
+ */
 int msg_swap_inst_remove(struct msg_buf *mb)
 {
 	int ret = 0;
@@ -196,6 +237,11 @@ free_us_inst:
 	return ret;
 }
 
+/**
+ * @brief Initializes commands handling.
+ *
+ * @return Initialization results.
+ */
 int init_cmd(void)
 {
 	int ret;
@@ -205,6 +251,11 @@ int init_cmd(void)
 	return ret;
 }
 
+/**
+ * @brief Uninitializes commands handling.
+ *
+ * @return Void.
+ */
 void uninit_cmd(void)
 {
 	uninit_features();

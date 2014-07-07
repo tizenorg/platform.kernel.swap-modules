@@ -1,6 +1,8 @@
-/*
- *  SWAP Parser
- *  modules/parser/us_inst.h
+/**
+ * @file parser/us_inst.h
+ * @author Vyacheslav Cherkashin
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,19 +18,25 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin: SWAP Parser implement
+ * @section DESCRIPTION
  *
+ * User-space instrumentation controls interface.
  */
 
 
 #ifndef _US_INST_H
 #define _US_INST_H
 
+/**
+ * @enum MOD_TYPE
+ * @brief Type of mod_us_inst behaviour. */
 enum MOD_TYPE {
-	MT_ADD,
-	MT_DEL
+	MT_ADD,             /**< Add probes. */
+	MT_DEL              /**< Remove probes. */
 };
 
 struct us_inst_data;

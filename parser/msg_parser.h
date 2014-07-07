@@ -1,6 +1,9 @@
-/*
- *  SWAP Parser
- *  modules/parser/msg_parser.h
+/**
+ * @file parser/msg_parser.h
+ * @author Vyacheslav Cherkashin
+ * @author Vitaliy Cherepanov
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +19,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin, Vitaliy Cherepanov: SWAP Parser implement
+ * @section DESCRIPTION
  *
+ * Message parsing interface declaration.
  */
 
 
@@ -30,59 +36,84 @@
 
 struct msg_buf;
 
+/**
+ * @enum APP_TYPE
+ * Supported application types.
+ */
 enum APP_TYPE {
-	AT_TIZEN_NATIVE_APP	= 0x01,
-	AT_PID			= 0x02,
-	AT_COMMON_EXEC		= 0x03,
-	AT_TIZEN_WEB_APP	= 0x04
+	AT_TIZEN_NATIVE_APP	= 0x01,     /**< Tizen native application. */
+	AT_PID			= 0x02,         /**< App with specified PID. */
+	AT_COMMON_EXEC		= 0x03,     /**< Common application. */
+	AT_TIZEN_WEB_APP	= 0x04      /**< Tizen web application. */
 };
 
+/**
+ * @brief App type size defenition.
+ */
 enum {
 	SIZE_APP_TYPE = 4
 };
 
-/* Basic application information */
+/**
+ * @struct app_info_data
+ * @brief Basic application information.
+ */
 struct app_info_data {
-	enum APP_TYPE app_type;
-	pid_t tgid;
-	char *exec_path;
+	enum APP_TYPE app_type;     /**< Application type. */
+	pid_t tgid;                 /**< Application PID. */
+	char *exec_path;            /**< Application execution path. */
 };
 
-/* Configuration struct */
+/**
+ * @struct conf_data
+ * @brief Configuration struct.
+ */
 struct conf_data {
-	u64 use_features0;
-	u64 use_features1;
-	u32 sys_trace_period;
-	u32 data_msg_period;
+	u64 use_features0;          /**< Feature flags. */
+	u64 use_features1;          /**< Feature flags. */
+	u32 sys_trace_period;       /**< Trace period. */
+	u32 data_msg_period;        /**< Data message period. */
 };
 
-/* Application and library functions to set probes */
+/**
+ * @struct func_inst_data
+ * @brief Application and library functions to set probes.
+ */
 struct func_inst_data {
-	u64 addr;
-	char *args;
-	char ret_type;
+	u64 addr;                   /**< Function address. */
+	char *args;                 /**< Function args format string. */
+	char ret_type;              /**< Function return type. */
 };
 
-/* Library struct */
+/**
+ * @struct lib_inst_data
+ * @brief Library struct.
+ */
 struct lib_inst_data {
-	char *path;
-	u32 cnt_func;
-	struct func_inst_data **func;
+	char *path;                 /**< Library path. */
+	u32 cnt_func;               /**< Function probes count in this library. */
+	struct func_inst_data **func;    /**< Pointer to the probes array. */
 };
 
-/* Application struct */
+/**
+ * @struct app_inst_data
+ * @brief Application struct.
+ */
 struct app_inst_data {
-	struct app_info_data *app_info;
-	u32 cnt_func;
-	struct func_inst_data **func;
-	u32 cnt_lib;
-	struct lib_inst_data **lib;
+	struct app_info_data *app_info;     /**< Pointer to app_info struct. */
+	u32 cnt_func;                       /**< Function probes count in app. */
+	struct func_inst_data **func;       /**< Pointer to the probes array. */
+	u32 cnt_lib;                        /**< Libs count. */
+	struct lib_inst_data **lib;         /**< Pointer to the libs array. */
 };
 
-/* User space instrumentation struct */
+/**
+ * @struct us_inst_data
+ * @brief User space instrumentation struct.
+ */
 struct us_inst_data {
-	u32 cnt;
-	struct app_inst_data **app_inst;
+	u32 cnt;                            /**< Apps count. */
+	struct app_inst_data **app_inst;    /**< Pointer to the apps array. */
 };
 
 
@@ -114,6 +145,9 @@ struct lib_inst_data make_lib_inst_data(void);
 struct app_inst_data make_app_inst_data(void);
 struct us_inst_data make_us_inst_data(void);
 
+/**
+ * @brief Constant defenitions.
+ */
 enum {
 	MIN_SIZE_STRING = 1,
 	MIN_SIZE_FUNC_INST = sizeof(make_func_inst_data().addr) +

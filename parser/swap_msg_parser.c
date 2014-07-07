@@ -1,6 +1,9 @@
-/*
- *  SWAP Parser
- *  modules/parser/swap_msg_parser.c
+/**
+ * parser/swap_msg_parser.c
+ * @author Vyacheslav Cherkashin
+ * @author Vitaliy Cherepanov
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +19,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Vyacheslav Cherkashin, Vitaliy Cherepanov: SWAP Parser implement
+ * @section DESCRIPTION
  *
+ * Parser module interface implementation.
  */
 
 
@@ -36,18 +42,26 @@
 #include <driver/driver_to_msg.h>
 #include <driver/swap_ioctl.h>
 
+/**
+ * @enum MSG_ID
+ * @brief Message IDs.
+ */
 enum MSG_ID {
-	MSG_KEEP_ALIVE		= 0x0001,
-	MSG_START		= 0x0002,
-	MSG_STOP		= 0x0003,
-	MSG_CONFIG		= 0x0004,
-	MSG_SWAP_INST_ADD	= 0x0008,
-	MSG_SWAP_INST_REMOVE	= 0x0009
+	MSG_KEEP_ALIVE		= 0x0001,       /**< Keep alive message. */
+	MSG_START		= 0x0002,           /**< Start message. */
+	MSG_STOP		= 0x0003,           /**< Stop message. */
+	MSG_CONFIG		= 0x0004,           /**< Config message. */
+	MSG_SWAP_INST_ADD	= 0x0008,       /**< Swap inst add message. */
+	MSG_SWAP_INST_REMOVE	= 0x0009    /**< Swap inst remove message. */
 };
 
+/**
+ * @struct basic_msg_fmt
+ * @brief Basic part of each message.
+ */
 struct basic_msg_fmt {
-	u32 msg_id;
-	u32 len;
+	u32 msg_id;                         /**< Message ID. */
+	u32 len;                            /**< Message length. */
 } __attribute__((packed));
 
 static int msg_handler(void __user *msg)
