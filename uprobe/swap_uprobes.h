@@ -1,9 +1,11 @@
-#ifndef _SWAP_UPROBES_H
-#define _SWAP_UPROBES_H
-
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/uprobe/swap_uprobes.h
+/**
+ * @file uprobe/swap_uprobes.h
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial
+ * implementation; Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for
+ * separating core and arch parts
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,75 +21,96 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2006-2010
  *
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @section DESCRIPTION
  *
+ * Uprobes interface declaration.
  */
+
+#ifndef _SWAP_UPROBES_H
+#define _SWAP_UPROBES_H
+
 
 #include <kprobe/swap_kprobes.h>
 #include <uprobe/arch/asm/swap_uprobes.h>
 
-
+/**
+ * @struct uprobe
+ * @brief Stores uprobe data, based on kprobe.
+ */
 struct uprobe {
-	struct kprobe kp;
-	struct task_struct *task;
-	struct slot_manager *sm;
-	struct arch_specific_tramp atramp;
+	struct kprobe kp;                   /**< Kprobe for this uprobe */
+	struct task_struct *task;           /**< Pointer to the task struct */
+	struct slot_manager *sm;            /**< Pointer to slot manager */
+	struct arch_specific_tramp atramp;  /**< Stores trampoline */
 };
 
+/**
+ * @brief Uprobe pre-entry handler.
+ */
 typedef unsigned long (*uprobe_pre_entry_handler_t)(void *priv_arg, struct pt_regs * regs);
 
+/**
+ * @struct ujprobe
+ * @brief Stores ujprobe data, based on uprobe.
+ */
 struct ujprobe {
-	struct uprobe up;
-	/* probe handling code to jump to */
-	void *entry;
-	// handler whichw willb bec called before 'entry'
+	struct uprobe up;                   /**< Uprobe for this ujprobe */
+	void *entry;                        /**< Probe handling code to jump to */
+	/** Handler which will be called before 'entry' */
 	uprobe_pre_entry_handler_t pre_entry;
-	void *priv_arg;
-	char *args;
+	void *priv_arg;                     /**< Private args for handler */
+	char *args;                         /**< Function args format string */
 };
 
 struct uretprobe_instance;
 
+/**
+ * @brief Uretprobe handler.
+ */
 typedef int (*uretprobe_handler_t)(struct uretprobe_instance *, struct pt_regs *);
 
-/*
- * Function-return probe -
+/**
+ * @strict uretprobe
+ * @brief Function-return probe.
+ *
  * Note:
  * User needs to provide a handler function, and initialize maxactive.
- * maxactive - The maximum number of instances of the probed function that
- * can be active concurrently.
- * nmissed - tracks the number of times the probed function's return was
- * ignored, due to maxactive being too low.
- *
  */
 struct uretprobe {
-	struct uprobe up;
-	uretprobe_handler_t handler;
-	uretprobe_handler_t entry_handler;
+	struct uprobe up;                   /**< Uprobe for this uretprobe */
+	uretprobe_handler_t handler;        /**< Uretprobe handler */
+	uretprobe_handler_t entry_handler;  /**< Uretprobe entry handler */
+	/** Maximum number of instances of the probed function that can be
+	 * active concurrently. */
 	int maxactive;
+	/** Tracks the number of times the probed function's return was
+	 * ignored, due to maxactive being too low. */
 	int nmissed;
-	struct hlist_head free_instances;
-	struct hlist_head used_instances;
+	struct hlist_head free_instances;   /**< Free instances list */
+	struct hlist_head used_instances;   /**< Used instances list */
 
 #ifdef CONFIG_ARM
-	/* probe with noreturn (bl,blx) */
-	unsigned arm_noret:1;
-	unsigned thumb_noret:1;
+	unsigned arm_noret:1;               /**< No-return flag for ARM */
+	unsigned thumb_noret:1;             /**< No-return flag for Thumb */
 #endif
 };
 
+/**
+ * @struct uretprobe_instance
+ * @brief Structure for each uretprobe instance.
+ */
 struct uretprobe_instance {
 	/* either on free list or used list */
-	struct hlist_node uflist;
-	struct hlist_node hlist;
-	struct uretprobe *rp;
-	kprobe_opcode_t *ret_addr;
-	kprobe_opcode_t *sp;
-	struct task_struct *task;
+	struct hlist_node uflist;           /**< Free list */
+	struct hlist_node hlist;            /**< Used list */
+	struct uretprobe *rp;               /**< Pointer to the parent uretprobe */
+	kprobe_opcode_t *ret_addr;          /**< Return address */
+	kprobe_opcode_t *sp;                /**< Pointer to stack */
+	struct task_struct *task;           /**< Pointer to the task struct */
 };
 
 int swap_register_uprobe(struct uprobe *p);

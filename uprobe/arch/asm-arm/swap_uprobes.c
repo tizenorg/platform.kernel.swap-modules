@@ -1,6 +1,11 @@
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/uprobe/arch/asm-arm/swap_uprobes.h
+/**
+ * uprobe/arch/asm-arm/swap_uprobes.c
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial
+ * implementation; Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for
+ * separating core and arch parts
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +21,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2006-2010
  *
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @section DESCRIPTION
  *
+ * Arch-dependent uprobe interface implementation for ARM.
  */
 
 #include <kprobe/swap_kprobes.h>
@@ -37,7 +43,10 @@
 // FIXME:
 #include <kprobe/swap_kdebug.h>
 
-
+/**
+ * @def flush_insns
+ * @brief Flushes instructions.
+ */
 #define flush_insns(addr, size)					\
 	flush_icache_range((unsigned long)(addr),		\
 			   (unsigned long)(addr) + (size))
@@ -530,6 +539,13 @@ static int arch_copy_trampoline_thumb_uprobe(struct uprobe *up)
 	return 0;
 }
 
+/**
+ * @brief Prepares uprobe for ARM.
+ *
+ * @param up Pointer to the uprobe.
+ * @return 0 on success,\n
+ * negative error code on error.
+ */
 int arch_prepare_uprobe(struct uprobe *up)
 {
 	struct kprobe *p = up2kp(up);
@@ -568,6 +584,12 @@ int arch_prepare_uprobe(struct uprobe *up)
 	return 0;
 }
 
+/**
+ * @brief Analysis opcodes.
+ *
+ * @param rp Pointer to the uretprobe.
+ * @return Void.
+ */
 void arch_opcode_analysis_uretprobe(struct uretprobe *rp)
 {
 	/* Remove retprobe if first insn overwrites lr */
@@ -580,6 +602,13 @@ void arch_opcode_analysis_uretprobe(struct uretprobe *rp)
 			   ARM_INSN_MATCH(BLX2, rp->up.kp.opcode));
 }
 
+/**
+ * @brief Prepates uretprobe for ARM.
+ *
+ * @param ri Pointer to the uretprobe instance.
+ * @param regs Pointer to CPU register data.
+ * @return Void.
+ */
 void arch_prepare_uretprobe(struct uretprobe_instance *ri,
 			    struct pt_regs *regs)
 {
@@ -596,6 +625,14 @@ void arch_prepare_uretprobe(struct uretprobe_instance *ri,
 	}
 }
 
+/**
+ * @brief Disarms uretprobe instance.
+ *
+ * @param ri Pointer to the uretprobe instance
+ * @param task Pointer to the task for which the uretprobe instance
+ * @return 0 on success,\n
+ * negative error code on error.
+ */
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 			 struct task_struct *task)
 {
@@ -675,6 +712,13 @@ check_lr: /* check lr anyway */
 	return retval;
 }
 
+/**
+ * @brief Jump pre-handler.
+ *
+ * @param p Pointer to the kprobe.
+ * @param regs Pointer to CPU register data.
+ * @return 0.
+ */
 int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct uprobe *up = container_of(p, struct uprobe, kp);
@@ -698,6 +742,13 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
+/**
+ * @brief Gets trampoline address.
+ *
+ * @param p Pointer to the kprobe.
+ * @param regs Pointer to CPU register data.
+ * @return Trampoline address.
+ */
 unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs)
 {
 	return thumb_mode(regs) ?
@@ -705,6 +756,13 @@ unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs)
 			(unsigned long)(p->ainsn.insn + UPROBES_TRAMP_RET_BREAK_IDX);
 }
 
+/**
+ * @brief Restores return address.
+ *
+ * @param orig_ret_addr Original return address.
+ * @param regs Pointer to CPU register data.
+ * @return Void.
+ */
 void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
 {
 	regs->ARM_lr = orig_ret_addr;
@@ -716,6 +774,12 @@ void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
 		regs->ARM_cpsr &= ~PSR_T_BIT;
 }
 
+/**
+ * @brief Removes uprobe.
+ *
+ * @param up Pointer to the uprobe.
+ * @return Void.
+ */
 void arch_remove_uprobe(struct uprobe *up)
 {
 	swap_slot_free(up->sm, up->atramp.utramp);
@@ -824,6 +888,13 @@ static int uprobe_handler(struct pt_regs *regs)
 	return 0;
 }
 
+/**
+ * @brief Breakpoint instruction handler.
+ *
+ * @param regs Pointer to CPU register data.
+ * @param instr Instruction.
+ * @return uprobe_handler results.
+ */
 int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 {
 	int ret;
@@ -856,6 +927,11 @@ static struct undef_hook undef_hook_for_us_thumb = {
 	.fn		= uprobe_trap_handler
 };
 
+/**
+ * @brief Installs breakpoint hooks.
+ *
+ * @return 0.
+ */
 int swap_arch_init_uprobes(void)
 {
 	swap_register_undef_hook(&undef_hook_for_us_arm);
@@ -864,6 +940,11 @@ int swap_arch_init_uprobes(void)
 	return 0;
 }
 
+/**
+ * @brief Uninstalls breakpoint hooks.
+ *
+ * @return Void.
+ */
 void swap_arch_exit_uprobes(void)
 {
 	swap_unregister_undef_hook(&undef_hook_for_us_thumb);

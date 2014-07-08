@@ -1,6 +1,11 @@
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/uprobe/arch/asm-arm/swap_uprobes.h
+/**
+ * @file uprobe/arch/asm-arm/swap_uprobes.h
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial
+ * implementation; Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for
+ * separating core and arch parts
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +21,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2006-2010
  *
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @section DESCRIPTION
  *
+ * Arch-dependent uprobe interface declaration.
  */
 
 
@@ -35,11 +41,14 @@ struct uprobe;
 struct uretprobe;
 struct uretprobe_instance;
 
-
+/**
+ * @struct arch_specific_tramp
+ * @brief Stores arch-dependent trampolines.
+ */
 struct arch_specific_tramp {
-	unsigned long tramp_arm[UPROBES_TRAMP_LEN];
-	unsigned long tramp_thumb[UPROBES_TRAMP_LEN];
-	void *utramp;
+	unsigned long tramp_arm[UPROBES_TRAMP_LEN];     /**< ARM trampoline */
+	unsigned long tramp_thumb[UPROBES_TRAMP_LEN];   /**< Thumb trampoline */
+	void *utramp;                               /**< Pointer to trampoline */
 };
 
 

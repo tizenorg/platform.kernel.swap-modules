@@ -1,6 +1,11 @@
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/uprobe/swap_uprobes.h
+/**
+ * uprobe/swap_uprobes.c
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial
+ * implementation; Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for
+ * separating core and arch parts
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +21,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2006-2010
  *
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @section DESCRIPTION
  *
+ * Uprobes implementation.
  */
 
 
@@ -246,6 +252,13 @@ static void arm_uprobe(struct uprobe *p)
 	}
 }
 
+/**
+ * @brief Disarms uprobe.
+ *
+ * @param p Pointer to the uprobe's kprobe.
+ * @param task Pointer to the target task.
+ * @return Void.
+ */
 void disarm_uprobe(struct kprobe *p, struct task_struct *task)
 {
 	int ret = write_proc_vm_atomic(task, (unsigned long)p->addr,
@@ -281,6 +294,14 @@ static void init_uretprobe_inst_table(void)
 	}
 }
 
+/**
+ * @brief Gets uprobe's kprobe.
+ *
+ * @param addr Probe's address.
+ * @param tgid Probes's thread group ID.
+ * @return Pointer to the kprobe on success,\n
+ * NULL otherwise.
+ */
 struct kprobe *get_ukprobe(void *addr, pid_t tgid)
 {
 	struct hlist_head *head;
@@ -297,12 +318,27 @@ struct kprobe *get_ukprobe(void *addr, pid_t tgid)
 	return NULL;
 }
 
+/**
+ * @brief Adds uprobe to hlist when trampoline have been made.
+ *
+ * @param p Pointer to the uprobe's kprobe.
+ * @return Void.
+ */
 void add_uprobe_table(struct kprobe *p)
 {
 	INIT_HLIST_NODE(&p->is_hlist);
 	hlist_add_head_rcu(&p->is_hlist, &uprobe_insn_slot_table[hash_ptr(p->ainsn.insn, UPROBE_HASH_BITS)]);
 }
 
+/**
+ * @brief Gets kprobe by insn slot.
+ *
+ * @param addr Probe's address.
+ * @param tgit Probe's thread group ID.
+ * @param regs Pointer to CPU registers data.
+ * @return Pointer to the kprobe on success,\n
+ * NULL otherwise.
+ */
 struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *regs)
 {
 	struct hlist_head *head;
@@ -375,7 +411,14 @@ static struct uretprobe_instance *get_used_urp_inst(struct uretprobe *rp)
 	return NULL;
 }
 
-/* Called with uretprobe_lock held */
+/**
+ * @brief Gets free uretprobe instanse for the specified uretprobe without
+ * allocation. Called with uretprobe_lock held.
+ *
+ * @param rp Pointer to the uretprobe.
+ * @return Pointer to the uretprobe_instance on success,\n
+ * NULL otherwise.
+ */
 struct uretprobe_instance *get_free_urp_inst_no_alloc(struct uretprobe *rp)
 {
 	struct uretprobe_instance *ri;
@@ -446,6 +489,13 @@ static struct uretprobe_instance *get_free_urp_inst(struct uretprobe *rp)
 }
 // ===================================================================
 
+/**
+ * @brief Registers uprobe.
+ *
+ * @param up Pointer to the uprobe to register.
+ * @return 0 on success,\n
+ * negative error code on error.
+ */
 int swap_register_uprobe(struct uprobe *up)
 {
 	int ret = 0;
@@ -506,6 +556,13 @@ out:
 	return ret;
 }
 
+/**
+ * @brief Unregisters uprobe.
+ *
+ * @param up Pointer to the uprobe.
+ * @param disarm Disarm flag. When true uprobe is disarmed.
+ * @return Void.
+ */
 void __swap_unregister_uprobe(struct uprobe *up, int disarm)
 {
 	struct kprobe *p, *old_p, *list_p;
@@ -574,11 +631,25 @@ valid_p:
 }
 EXPORT_SYMBOL_GPL(__swap_unregister_uprobe);
 
+/**
+ * @brief Unregisters uprobe. Main interface function, wrapper for
+ * __swap_unregister_uprobe.
+ *
+ * @param up Pointer to the uprobe.
+ * @return Void.
+ */
 void swap_unregister_uprobe(struct uprobe *up)
 {
 	__swap_unregister_uprobe(up, 1);
 }
 
+/**
+ * @brief Registers ujprobe.
+ *
+ * @param uj Pointer to the ujprobe function.
+ * @return 0 on success,\n
+ * error code on error.
+ */
 int swap_register_ujprobe(struct ujprobe *jp)
 {
 	int ret = 0;
@@ -593,6 +664,13 @@ int swap_register_ujprobe(struct ujprobe *jp)
 }
 EXPORT_SYMBOL_GPL(swap_register_ujprobe);
 
+/**
+ * @brief Unregisters ujprobe.
+ *
+ * @param jp Pointer to the ujprobe.
+ * @param disarm Disarm flag, passed to __swap_unregister_uprobe.
+ * @return Void.
+ */
 void __swap_unregister_ujprobe(struct ujprobe *jp, int disarm)
 {
 	__swap_unregister_uprobe(&jp->up, disarm);
@@ -609,12 +687,26 @@ void __swap_unregister_ujprobe(struct ujprobe *jp, int disarm)
 }
 EXPORT_SYMBOL_GPL(__swap_unregister_ujprobe);
 
+/**
+ * @brief Unregisters ujprobe. Main interface function, wrapper for
+ * __swap_unregister_ujprobe.
+ *
+ * @param jp Pointer to the jprobe.
+ * @return Void.
+ */
 void swap_unregister_ujprobe(struct ujprobe *jp)
 {
 	__swap_unregister_ujprobe(jp, 1);
 }
 EXPORT_SYMBOL_GPL(swap_unregister_ujprobe);
 
+/**
+ * @brief Trampoline uprobe handler.
+ *
+ * @param p Pointer to the uprobe's kprobe.
+ * @param regs Pointer to CPU register data.
+ * @return 1
+ */
 int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct uretprobe_instance *ri = NULL;
@@ -713,6 +805,13 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
+/**
+ * @brief Registers uretprobe.
+ *
+ * @param rp Pointer to the uretprobe.
+ * @return 0 on success,\n
+ * negative error code on error.
+ */
 int swap_register_uretprobe(struct uretprobe *rp)
 {
 	int i, ret = 0;
@@ -761,6 +860,13 @@ int swap_register_uretprobe(struct uretprobe *rp)
 }
 EXPORT_SYMBOL_GPL(swap_register_uretprobe);
 
+/**
+ * @brief Disarms uretprobe instances for the specified child task.
+ *
+ * @param parent Pointer to the parent task struct.
+ * @param task Pointer to the child task struct.
+ * @return 0
+ */
 int swap_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task)
 {
 	unsigned long flags;
@@ -784,6 +890,12 @@ int swap_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct
 }
 EXPORT_SYMBOL_GPL(swap_disarm_urp_inst_for_task);
 
+/**
+ * @brief Disarms uretprobes for specified task.
+ *
+ * @param task Pointer to the task_struct.
+ * @return Void.
+ */
 void swap_discard_pending_uretprobes(struct task_struct *task)
 {
 	unsigned long flags;
@@ -809,6 +921,13 @@ void swap_discard_pending_uretprobes(struct task_struct *task)
 }
 EXPORT_SYMBOL_GPL(swap_discard_pending_uretprobes);
 
+/**
+ * @brief Unregisters uretprobe.
+ *
+ * @param rp Pointer to the ureprobe.
+ * @param disarm Disarm flag, passed to __swap_unregister_uprobe
+ * @return Void.
+ */
 void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 {
 	unsigned long flags;
@@ -843,12 +962,25 @@ void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 }
 EXPORT_SYMBOL_GPL(__swap_unregister_uretprobe);
 
+/**
+ * @brief Unregistets uretprobe. Main interface function, wrapper for
+ * __swap_unregister_uretprobe.
+ *
+ * @param rp Pointer to the uretprobe.
+ * @return Void.
+ */
 void swap_unregister_uretprobe(struct uretprobe *rp)
 {
 	__swap_unregister_uretprobe(rp, 1);
 }
 EXPORT_SYMBOL_GPL(swap_unregister_uretprobe);
 
+/**
+ * @brief Unregisters all uprobes for task's thread group ID.
+ *
+ * @param task Pointer to the task_struct
+ * @return Void.
+ */
 void swap_unregister_all_uprobes(struct task_struct *task)
 {
 	struct hlist_head *head;
@@ -873,6 +1005,11 @@ void swap_unregister_all_uprobes(struct task_struct *task)
 }
 EXPORT_SYMBOL_GPL(swap_unregister_all_uprobes);
 
+/**
+ * @brief Arch-independent wrapper for arch_ujprobe_return.
+ *
+ * @return Void.
+ */
 void swap_ujprobe_return(void)
 {
 	arch_ujprobe_return();

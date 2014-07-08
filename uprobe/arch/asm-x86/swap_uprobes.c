@@ -1,6 +1,11 @@
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/uprobe/arch/asm-x86/swap_uprobes.c
+/**
+ * uprobe/arch/asm-x86/swap_uprobes.c
+ * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space Probes initial
+ * implementation; Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for
+ * separating core and arch parts
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,12 +21,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2006-2010
  *
- * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ * @section DESCRIPTION
  *
+ * Arch-dependent uprobe interface implementation for x86.
  */
 
 #include <linux/kdebug.h>
@@ -29,9 +35,13 @@
 #include <uprobe/arch/asm/swap_uprobes.h>
 #include <kprobe/swap_slots.h>
 
+/**
+ * @struct uprobe_ctlblk
+ * @brief Uprobe control block
+ */
 struct uprobe_ctlblk {
-        unsigned long flags;
-        struct kprobe *p;
+        unsigned long flags;            /**< Flags */
+        struct kprobe *p;               /**< Pointer to the uprobe's kprobe */
 };
 
 static unsigned long trampoline_addr(struct uprobe *up)
@@ -68,6 +78,13 @@ static void restore_current_flags(struct pt_regs *regs)
 	regs->EREG(flags) |= __get_cpu_var(ucb).flags & IF_MASK;
 }
 
+/**
+ * @brief Prepares uprobe for x86.
+ *
+ * @param up Pointer to the uprobe.
+ * @return 0 on success,\n
+ * -1 on error.
+ */
 int arch_prepare_uprobe(struct uprobe *up)
 {
 	int ret = 0;
@@ -95,6 +112,13 @@ int arch_prepare_uprobe(struct uprobe *up)
 	return ret;
 }
 
+/**
+ * @brief Jump pre-handler.
+ *
+ * @param p Pointer to the uprobe's kprobe.
+ * @param regs Pointer to CPU register data.
+ * @return 0.
+ */
 int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct uprobe *up = container_of(p, struct uprobe, kp);
@@ -125,6 +149,13 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
+/**
+ * @brief Prepares uretprobe for x86.
+ *
+ * @param ri Pointer to the uretprobe instance.
+ * @param regs Pointer to CPU register data.
+ * @return Void.
+ */
 void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	/* Replace the return addr with trampoline addr */
@@ -138,6 +169,14 @@ void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 		panic("failed to write user space func ra %lx!\n", regs->EREG(sp));
 }
 
+/**
+ * @brief Disarms uretprobe on x86 arch.
+ *
+ * @param ri Pointer to the uretprobe instance.
+ * @param task Pointer to the task for which the probe.
+ * @return 0 on success,\n
+ * negative error code on error.
+ */
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 			 struct task_struct *task)
 {
@@ -170,16 +209,36 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 	return 0;
 }
 
+/**
+ * @brief Gets trampoline address.
+ *
+ * @param p Pointer to the uprobe's kprobe.
+ * @param regs Pointer to CPU register data.
+ * @return Trampoline address.
+ */
 unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs)
 {
 	return trampoline_addr(kp2up(p));
 }
 
+/**
+ * @brief Restores return address.
+ *
+ * @param orig_ret_addr Original return address.
+ * @param regs Pointer to CPU register data.
+ * @return Void.
+ */
 void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
 {
 	regs->EREG(ip) = orig_ret_addr;
 }
 
+/**
+ * @brief Removes uprobe.
+ *
+ * @param up Pointer to the target uprobe.
+ * @return Void.
+ */
 void arch_remove_uprobe(struct uprobe *up)
 {
 	struct kprobe *p = up2kp(up);
@@ -415,11 +474,21 @@ static struct notifier_block uprobe_exceptions_nb = {
 	.priority = INT_MAX
 };
 
+/**
+ * @brief Registers notify.
+ *
+ * @return register_die_notifier result.
+ */
 int swap_arch_init_uprobes(void)
 {
 	return register_die_notifier(&uprobe_exceptions_nb);
 }
 
+/**
+ * @brief Unregisters notify.
+ *
+ * @return Void.
+ */
 void swap_arch_exit_uprobes(void)
 {
 	unregister_die_notifier(&uprobe_exceptions_nb);
