@@ -31,6 +31,12 @@
 
 static void img_del_ip_by_list(struct img_ip *ip);
 
+/**
+ * @brief Create img_file struct
+ *
+ * @param dentry Dentry of file
+ * @return Pointer to the created img_file struct
+ */
 struct img_file *create_img_file(struct dentry *dentry)
 {
 	struct img_file *file;
@@ -43,6 +49,12 @@ struct img_file *create_img_file(struct dentry *dentry)
 	return file;
 }
 
+/**
+ * @brief Remove img_file struct
+ *
+ * @param file remove object
+ * @return Void
+ */
 void free_img_file(struct img_file *file)
 {
 	struct img_ip *ip, *tmp;
@@ -77,6 +89,15 @@ static struct img_ip *find_img_ip(struct img_file *file, unsigned long addr)
 	return NULL;
 }
 
+/**
+ * @brief Add instrumentation pointer
+ *
+ * @param file Pointer to the img_file struct
+ * @param addr Function address
+ * @param args Function arguments
+ * @param ret_type Return type
+ * @return Error code
+ */
 int img_file_add_ip(struct img_file *file, unsigned long addr,
 		    const char *args, char ret_type)
 {
@@ -94,6 +115,13 @@ int img_file_add_ip(struct img_file *file, unsigned long addr,
 	return 0;
 }
 
+/**
+ * @brief Delete img_ip struct from img_file struct
+ *
+ * @param file Pointer to the img_file struct
+ * @param addr Function address
+ * @return Error code
+ */
 int img_file_del_ip(struct img_file *file, unsigned long addr)
 {
 	struct img_ip *ip;
@@ -109,10 +137,25 @@ int img_file_del_ip(struct img_file *file, unsigned long addr)
 	return 0;
 }
 
+/**
+ * @brief Check on absence img_ip structs in img_file struct
+ *
+ * @param file Pointer to the img_file struct
+ * @return
+ *       - 0 - not empty
+ *       - 1 - empty
+ */
 int img_file_empty(struct img_file *file)
 {
 	return list_empty(&file->ip_list);
 }
+
+/**
+ * @brief For debug
+ *
+ * @param file Pointer to the img_file struct
+ * @return Void
+ */
 
 /* debug */
 void img_file_print(struct img_file *file)

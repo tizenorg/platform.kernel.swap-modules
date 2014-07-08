@@ -40,6 +40,13 @@ static int calculation_hash_bits(int cnt)
 	return bits;
 }
 
+/**
+ * @brief Create sspt_file struct
+ *
+ * @param dentry Dentry of file
+ * @param page_cnt Size of hash-table
+ * @return Pointer to the created sspt_file struct
+ */
 struct sspt_file *sspt_file_create(struct dentry *dentry, int page_cnt)
 {
 	struct sspt_file *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
@@ -66,6 +73,12 @@ struct sspt_file *sspt_file_create(struct dentry *dentry, int page_cnt)
 	return obj;
 }
 
+/**
+ * @brief Remove sspt_file struct
+ *
+ * @param file remove object
+ * @return Void
+ */
 void sspt_file_free(struct sspt_file *file)
 {
 	struct hlist_head *head;
@@ -121,6 +134,13 @@ static struct sspt_page *sspt_find_page_or_new(struct sspt_file *file, unsigned 
 	return page;
 }
 
+/**
+ * @brief Get sspt_page from sspt_file
+ *
+ * @param file Pointer to the sspt_file struct
+ * @param page Page address
+ * @return Pointer to the sspt_page struct
+ */
 struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long page)
 {
 	unsigned long offset;
@@ -137,6 +157,15 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long pa
 	return sspt_find_page(file, offset);
 }
 
+/**
+ * @brief Add instruction pointer to sspt_file
+ *
+ * @param file Pointer to the sspt_file struct
+ * @param offset File offset
+ * @param args Function arguments
+ * @param ret_type Return type
+ * @return Void
+ */
 void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
 		      const char *args, char ret_type)
 {
@@ -148,6 +177,13 @@ void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
 	sspt_add_ip(page, ip);
 }
 
+/**
+ * @brief Get sspt_page from sspt_file (look)
+ *
+ * @param file Pointer to the sspt_file struct
+ * @param offset_addr File offset
+ * @return Pointer to the sspt_page struct
+ */
 struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_addr)
 {
 	unsigned long offset = offset_addr & PAGE_MASK;
@@ -158,11 +194,25 @@ struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_add
 	return page;
 }
 
+/**
+ * @brief Put sspt_page (unlook)
+ *
+ * @param file Pointer to the sspt_page struct
+ * @return void
+ */
 void sspt_put_page(struct sspt_page *page)
 {
 	spin_unlock(&page->lock);
 }
 
+/**
+ * @brief Check install sspt_file (legacy code, it is need remove)
+ *
+ * @param file Pointer to the sspt_file struct
+ * @return
+ *       - 0 - false
+ *       - 1 - true
+ */
 int sspt_file_check_install_pages(struct sspt_file *file)
 {
 	int i, table_size;
@@ -184,6 +234,12 @@ int sspt_file_check_install_pages(struct sspt_file *file)
 	return 0;
 }
 
+/**
+ * @brief Install sspt_file
+ *
+ * @param file Pointer to the sspt_file struct
+ * @return Void
+ */
 void sspt_file_install(struct sspt_file *file)
 {
 	struct sspt_page *page = NULL;
@@ -208,6 +264,14 @@ void sspt_file_install(struct sspt_file *file)
 	}
 }
 
+/**
+ * @brief Uninstall sspt_file
+ *
+ * @param file Pointer to the sspt_file struct
+ * @param task Pointer to the task_stract struct
+ * @param flag Action for probes
+ * @return Void
+ */
 int sspt_file_uninstall(struct sspt_file *file, struct task_struct *task, enum US_FLAGS flag)
 {
 	int i, err = 0;
@@ -235,6 +299,13 @@ int sspt_file_uninstall(struct sspt_file *file, struct task_struct *task, enum U
 	return err;
 }
 
+/**
+ * @brief Set mapping for sspt_file
+ *
+ * @param file Pointer to the sspt_file struct
+ * @param vma Pointer to the vm_area_struct struct
+ * @return Void
+ */
 void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma)
 {
 	file->vm_start = vma->vm_start;

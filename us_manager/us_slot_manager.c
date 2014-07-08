@@ -66,6 +66,12 @@ static void sm_free_us(struct slot_manager *sm, void *ptr)
 	/* FIXME: implement the removal of memory for task */
 }
 
+/**
+ * @brief Create slot_manager struct for US
+ *
+ * @param task Pointer to the task_struct struct
+ * @return Pointer to the created slot_manager struct
+ */
 struct slot_manager *create_sm_us(struct task_struct *task)
 {
 	struct slot_manager *sm = kmalloc(sizeof(*sm), GFP_ATOMIC);
@@ -78,6 +84,12 @@ struct slot_manager *create_sm_us(struct task_struct *task)
 	return sm;
 }
 
+/**
+ * @brief Remove slot_manager struct for US
+ *
+ * @param sm remove object
+ * @return Void
+ */
 void free_sm_us(struct slot_manager *sm)
 {
 	if (sm == NULL)

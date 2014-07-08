@@ -1,7 +1,8 @@
-/*
- *  SWAP uprobe manager
- *  modules/us_manager/img/img_ip.h
+/**
+ * @file us_manager/img/img_ip.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
+ * @section LICENSE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -16,9 +17,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
  * Copyright (C) Samsung Electronics, 2013
- *
- * 2013	 Vyacheslav Cherkashin: SWAP us_manager implement
  *
  */
 
@@ -28,11 +28,15 @@
 
 #include <linux/types.h>
 
+/**
+ * @struct img_ip
+ * @breaf Image of instrumentation pointer
+ */
 struct img_ip {
-	struct list_head list;			/* for img_file */
-	unsigned long addr;
-	char *args;
-	char ret_type;
+	struct list_head list;		/**< For img_file */
+	unsigned long addr;		/**< Function address */
+	char *args;			/**< Function arguments */
+	char ret_type;			/**< Return type */
 };
 
 struct img_ip *create_img_ip(unsigned long addr, const char *args,

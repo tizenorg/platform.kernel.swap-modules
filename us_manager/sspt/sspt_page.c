@@ -29,6 +29,12 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 
+/**
+ * @brief Create sspt_page struct
+ *
+ * @param offset File ofset
+ * @return Pointer to the created sspt_page struct
+ */
 struct sspt_page *sspt_page_create(unsigned long offset)
 {
 	struct sspt_page *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
@@ -44,6 +50,12 @@ struct sspt_page *sspt_page_create(unsigned long offset)
 	return obj;
 }
 
+/**
+ * @brief Remove sspt_page struct
+ *
+ * @param page remove object
+ * @return Void
+ */
 void sspt_page_free(struct sspt_page *page)
 {
 	struct us_ip *ip, *n;
@@ -72,6 +84,13 @@ static void sspt_list_del_ip(struct us_ip *ip)
 	list_del(&ip->list);
 }
 
+/**
+ * @brief Add instruction pointer to sspt_page
+ *
+ * @param page Pointer to the sspt_page struct
+ * @param ip Pointer to the us_ip struct
+ * @return Void
+ */
 void sspt_add_ip(struct sspt_page *page, struct us_ip *ip)
 {
 	ip->offset &= ~PAGE_MASK;
@@ -79,12 +98,26 @@ void sspt_add_ip(struct sspt_page *page, struct us_ip *ip)
 	sspt_list_add_ip(page, ip);
 }
 
+/**
+ * @brief Del instruction pointer from sspt_page
+ *
+ * @param ip Pointer to the us_ip struct
+ * @return Void
+ */
 void sspt_del_ip(struct us_ip *ip)
 {
 	sspt_list_del_ip(ip);
 	free_ip(ip);
 }
 
+/**
+ * @brief Check if probes are set on the page
+ *
+ * @param page Pointer to the sspt_page struct
+ * @return
+ *       - 0 - false
+ *       - 1 - true
+ */
 int sspt_page_is_installed(struct sspt_page *page)
 {
 	int empty;
@@ -96,6 +129,13 @@ int sspt_page_is_installed(struct sspt_page *page)
 	return !empty;
 }
 
+/**
+ * @brief Install probes on the page
+ *
+ * @param page Pointer to the sspt_page struct
+ * @param file Pointer to the sspt_file struct
+ * @return Error code
+ */
 int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 {
 	int err = 0;
@@ -140,6 +180,14 @@ unlock:
 	return 0;
 }
 
+/**
+ * @brief Uninstall probes on the page
+ *
+ * @param page Pointer to the sspt_page struct
+ * @param flag Action for probes
+ * @param task Pointer to the task_struct struct
+ * @return Error code
+ */
 int sspt_unregister_page(struct sspt_page *page,
 			 enum US_FLAGS flag,
 			 struct task_struct *task)

@@ -77,6 +77,14 @@ static struct task_struct *call_dumb(struct proc_filter *self,
 	return task;
 }
 
+/**
+ * @brief Filling pf_group struct by dentry
+ *
+ * @param pf Pointer to the proc_filter struct
+ * @param dentry Dentry
+ * @param priv Private data
+ * @return Void
+ */
 void set_pf_by_dentry(struct proc_filter *pf, struct dentry *dentry, void *priv)
 {
 	pf->call = &call_by_dentry;
@@ -84,6 +92,14 @@ void set_pf_by_dentry(struct proc_filter *pf, struct dentry *dentry, void *priv)
 	pf->priv = priv;
 }
 
+/**
+ * @brief Filling pf_group struct by TGID
+ *
+ * @param pf Pointer to the proc_filter struct
+ * @param tgid Thread group ID
+ * @param priv Private data
+ * @return Void
+ */
 void set_pf_by_tgid(struct proc_filter *pf, pid_t tgid, void *priv)
 {
 	pf->call = &call_by_tgid;
@@ -91,6 +107,13 @@ void set_pf_by_tgid(struct proc_filter *pf, pid_t tgid, void *priv)
 	pf->priv = priv;
 }
 
+/**
+ * @brief Filling pf_group struct for each process
+ *
+ * @param pf Pointer to the proc_filter struct
+ * @param priv Private data
+ * @return Void
+ */
 void set_pf_dumb(struct proc_filter *pf, void *priv)
 {
 	pf->call = &call_dumb;
@@ -98,22 +121,54 @@ void set_pf_dumb(struct proc_filter *pf, void *priv)
 	pf->priv = priv;
 }
 
+/**
+ * @brief Check pf_group struct by dentry
+ *
+ * @param filter Pointer to the proc_filter struct
+ * @param dentry Dentry
+ * @return
+ *       - 0 - false
+ *       - 1 - true
+ */
 int check_pf_by_dentry(struct proc_filter *filter, struct dentry *dentry)
 {
 	return filter->data == (void *)dentry &&
 	       filter->call == &call_by_dentry;
 }
 
+/**
+ * @brief Check pf_group struct by TGID
+ *
+ * @param filter Pointer to the proc_filter struct
+ * @param tgid Thread group ID
+ * @return
+ *       - 0 - false
+ *       - 1 - true
+ */
 int check_pf_by_tgid(struct proc_filter *filter, pid_t tgid)
 {
 	return filter->data == (void *)tgid && filter->call == &call_by_tgid;
 }
 
+/**
+ * @brief Dumb check always true if filter is a dumb one
+ *
+ * @param filter Pointer to the proc_filter struct
+ * @return
+ *       - 0 - false
+ *       - 1 - true
+ */
 int check_pf_dumb(struct proc_filter *filter)
 {
 	return filter->call == &call_dumb;
 }
 
+/**
+ * @brief Get dentry from pf_group struct if it filter by dentry
+ *
+ * @param filter Pointer to the proc_filter struct
+ * @return Pointer to the dentry struct or  NULL
+ */
 struct dentry *get_dentry_by_pf(struct proc_filter *filter)
 {
 	if (filter->call == &call_by_dentry)

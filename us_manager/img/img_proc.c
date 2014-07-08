@@ -29,6 +29,11 @@
 
 static void img_del_file_by_list(struct img_file *file);
 
+/**
+ * @brief Create img_proc struct
+ *
+ * @return Pointer to the created img_proc struct
+ */
 struct img_proc *create_img_proc(void)
 {
 	struct img_proc *proc;
@@ -39,6 +44,12 @@ struct img_proc *create_img_proc(void)
 	return proc;
 }
 
+/**
+ * @brief Remove img_proc struct
+ *
+ * @param file remove object
+ * @return Void
+ */
 void free_img_proc(struct img_proc *ip)
 {
 	struct img_file *file, *tmp;
@@ -73,6 +84,16 @@ static struct img_file *find_img_file(struct img_proc *proc, struct dentry *dent
 	return NULL;
 }
 
+/**
+ * @brief Add instrumentation pointer
+ *
+ * @param proc Pointer to the img_proc struct
+ * @param dentry Dentry of file
+ * @param addr Function address
+ * @param args Function address
+ * @param ret_type Return type
+ * @return Error code
+ */
 int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 		    unsigned long addr, const char *args, char ret_type)
 {
@@ -96,6 +117,14 @@ int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 	return ret;
 }
 
+/**
+ * @brief Remove instrumentation pointer
+ *
+ * @param proc Pointer to the img_proc struct
+ * @param dentry Dentry of file
+ * @param args Function address
+ * @return Error code
+ */
 int img_proc_del_ip(struct img_proc *proc, struct dentry *dentry, unsigned long addr)
 {
 	int ret;
@@ -113,6 +142,13 @@ int img_proc_del_ip(struct img_proc *proc, struct dentry *dentry, unsigned long 
 
 	return ret;
 }
+
+/**
+ * @brief For debug
+ *
+ * @param proc Pointer to the img_proc struct
+ * @return Void
+ */
 
 /* debug */
 void img_proc_print(struct img_proc *proc)

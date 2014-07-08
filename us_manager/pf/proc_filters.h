@@ -1,7 +1,8 @@
-/*
- *  SWAP uprobe manager
- *  modules/us_manager/pf/proc_filters.h
+/**
+ * @file us_manager/pf/proc_filters.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
+ * @section LICENSE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -16,10 +17,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
  * Copyright (C) Samsung Electronics, 2013
- *
- * 2013	 Vyacheslav Cherkashin: SWAP us_manager implement
- *
  */
 
 
@@ -31,13 +30,25 @@
 struct dentry;
 struct task_struct;
 
+/**
+ * @struct proc_filter
+ * @breaf Filter for process
+ */
 struct proc_filter {
+	/** Callback for filtering */
 	struct task_struct *(*call)(struct proc_filter *self,
 				    struct task_struct *task);
-	void *data;
-	void *priv;
+	void *data;		/**< Data of callback */
+	void *priv;		/**< Private data */
 };
 
+/**
+ * @def check_task_f @hideinitializer
+ * Call filter on the task
+ *
+ * @param filter Pointer to the proc_filter struct
+ * @param task Pointer to the task_struct struct
+ */
 #define check_task_f(filter, task) (filter)->call(filter, task)
 
 void set_pf_by_dentry(struct proc_filter *pf, struct dentry *dentry,

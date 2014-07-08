@@ -75,6 +75,11 @@ static const struct file_operations fops_tasks = {
 
 static struct dentry *us_manager_dir = NULL;
 
+/**
+ * @brief Destroy debugfs for us_manager
+ *
+ * @return Void
+ */
 void exit_debugfs_us_manager(void)
 {
 	if (us_manager_dir)
@@ -83,6 +88,11 @@ void exit_debugfs_us_manager(void)
 	us_manager_dir = NULL;
 }
 
+/**
+ * @brief Create debugfs for us_manager
+ *
+ * @return Error code
+ */
 int init_debugfs_us_manager(void)
 {
 	struct dentry *swap_dir, *dentry;

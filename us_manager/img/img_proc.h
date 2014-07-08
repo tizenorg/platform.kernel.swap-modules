@@ -1,7 +1,8 @@
-/*
- *  SWAP uprobe manager
- *  modules/us_manager/img_proc.h
+/**
+ * @file us_manager/img/img_proc.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
+ * @section LICENCE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -16,10 +17,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
  * Copyright (C) Samsung Electronics, 2013
- *
- * 2013	 Vyacheslav Cherkashin: SWAP us_manager implement
- *
  */
 
 
@@ -30,8 +29,12 @@
 
 struct dentry;
 
+/**
+ * @struct img_proc
+ * @breaf Image of process
+ */
 struct img_proc {
-	struct list_head file_list;
+	struct list_head file_list;	/**< For img_file */
 };
 
 struct img_proc *create_img_proc(void);

@@ -68,27 +68,54 @@
 static LIST_HEAD(proc_probes_list);
 static DEFINE_RWLOCK(sspt_proc_rwlock);
 
+/**
+ * @brief Global read lock for sspt_proc
+ *
+ * @return Void
+ */
 void sspt_proc_read_lock(void)
 {
 	read_lock(&sspt_proc_rwlock);
 }
 
+/**
+ * @brief Global read unlock for sspt_proc
+ *
+ * @return Void
+ */
 void sspt_proc_read_unlock(void)
 {
 	read_unlock(&sspt_proc_rwlock);
 }
 
+/**
+ * @brief Global write lock for sspt_proc
+ *
+ * @return Void
+ */
 void sspt_proc_write_lock(void)
 {
 	write_lock(&sspt_proc_rwlock);
 }
 
+/**
+ * @brief Global write unlock for sspt_proc
+ *
+ * @return Void
+ */
 void sspt_proc_write_unlock(void)
 {
 	write_unlock(&sspt_proc_rwlock);
 }
 
 
+/**
+ * @brief Create sspt_proc struct
+ *
+ * @param task Pointer to the task_struct struct
+ * @param priv Private data
+ * @return Pointer to the created sspt_proc struct
+ */
 struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
 {
 	struct sspt_proc *proc = kmalloc(sizeof(*proc), GFP_ATOMIC);
@@ -114,6 +141,13 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
 	return proc;
 }
 
+/**
+ * @brief Remove sspt_proc struct
+ *
+ * @param proc remove object
+ * @return Void
+ */
+
 /* called with sspt_proc_write_lock() */
 void sspt_proc_free(struct sspt_proc *proc)
 {
@@ -134,6 +168,12 @@ void sspt_proc_free(struct sspt_proc *proc)
 	kfree(proc);
 }
 
+/**
+ * @brief Get sspt_proc by task
+ *
+ * @param task Pointer on the task_struct struct
+ * @return Pointer on the sspt_proc struct
+ */
 struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 {
 	struct sspt_proc *proc, *tmp;
@@ -148,6 +188,13 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 }
 EXPORT_SYMBOL_GPL(sspt_proc_get_by_task);
 
+/**
+ * @brief Call func() on each proc (no lock)
+ *
+ * @param func Callback
+ * @param data Data for callback
+ * @return Void
+ */
 void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *), void *data)
 {
 	struct sspt_proc *proc, *tmp;
@@ -157,6 +204,13 @@ void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *), void *data)
 	}
 }
 
+/**
+ * @brief Call func() on each proc
+ *
+ * @param func Callback
+ * @param data Data for callback
+ * @return Void
+ */
 void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data)
 {
 	sspt_proc_read_lock();
@@ -165,6 +219,13 @@ void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data)
 }
 EXPORT_SYMBOL_GPL(on_each_proc);
 
+/**
+ * @brief Get sspt_proc by task or create sspt_proc
+ *
+ * @param task Pointer on the task_struct struct
+ * @param priv Private data
+ * @return Pointer on the sspt_proc struct
+ */
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
 					       void *priv)
 {
@@ -176,6 +237,11 @@ struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
 	return proc;
 }
 
+/**
+ * @brief Free all sspt_proc
+ *
+ * @return Pointer on the sspt_proc struct
+ */
 void sspt_proc_free_all(void)
 {
 	struct sspt_proc *proc, *n;
@@ -190,6 +256,13 @@ static void sspt_proc_add_file(struct sspt_proc *proc, struct sspt_file *file)
 	file->proc = proc;
 }
 
+/**
+ * @brief Get sspt_file from sspt_proc by dentry or new
+ *
+ * @param proc Pointer on the sspt_proc struct
+ * @param dentry Dentry of file
+ * @return Pointer on the sspt_file struct
+ */
 struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
 					     struct dentry *dentry)
 {
@@ -204,6 +277,13 @@ struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
 	return file;
 }
 
+/**
+ * @brief Get sspt_file from sspt_proc by dentry
+ *
+ * @param proc Pointer on the sspt_proc struct
+ * @param dentry Dentry of file
+ * @return Pointer on the sspt_file struct
+ */
 struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc, struct dentry *dentry)
 {
 	struct sspt_file *file;
@@ -217,6 +297,13 @@ struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc, struct dentry *den
 	return NULL;
 }
 
+/**
+ * @brief Install probes on the page to monitored process
+ *
+ * @param proc Pointer on the sspt_proc struct
+ * @param page_addr Page address
+ * @return Void
+ */
 void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 {
 	int lock, atomic;
@@ -248,6 +335,12 @@ void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 	mm_read_unlock(mm, atomic, lock);
 }
 
+/**
+ * @brief Install probes to monitored process
+ *
+ * @param proc Pointer on the sspt_proc struct
+ * @return Void
+ */
 void sspt_proc_install(struct sspt_proc *proc)
 {
 	int lock, atomic;
@@ -278,6 +371,14 @@ void sspt_proc_install(struct sspt_proc *proc)
 	mm_read_unlock(mm, atomic, lock);
 }
 
+/**
+ * @brief Uninstall probes to monitored process
+ *
+ * @param proc Pointer on the sspt_proc struct
+ * @param task Pointer on the task_struct struct
+ * @param flag Action for probes
+ * @return Error code
+ */
 int sspt_proc_uninstall(struct sspt_proc *proc, struct task_struct *task, enum US_FLAGS flag)
 {
 	int err = 0;
@@ -302,6 +403,15 @@ static int intersection(unsigned long start_a, unsigned long end_a,
 			start_a < end_b;
 }
 
+/**
+ * @brief Get sspt_file list by region (remove sspt_file from sspt_proc list)
+ *
+ * @param proc Pointer on the sspt_proc struct
+ * @param head[out] Pointer on the head list
+ * @param start Region start
+ * @param len Region length
+ * @return Error code
+ */
 int sspt_proc_get_files_by_region(struct sspt_proc *proc,
 				  struct list_head *head,
 				  unsigned long start, size_t len)
@@ -320,6 +430,13 @@ int sspt_proc_get_files_by_region(struct sspt_proc *proc,
 	return ret;
 }
 
+/**
+ * @brief Insert sspt_file to sspt_proc list
+ *
+ * @param proc Pointer on the sspt_proc struct
+ * @param head Pointer on the head list
+ * @return Void
+ */
 void sspt_proc_insert_files(struct sspt_proc *proc, struct list_head *head)
 {
 	list_splice(head, &proc->file_list);

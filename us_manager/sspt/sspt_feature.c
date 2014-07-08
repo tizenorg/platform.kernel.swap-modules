@@ -71,6 +71,11 @@ static void destroy_feature_data(struct sspt_feature_data *fd)
 	kfree(fd);
 }
 
+/**
+ * @brief Create sspt_feature struct
+ *
+ * @return Pointer to the created sspt_feature struct
+ */
 struct sspt_feature *sspt_create_feature(void)
 {
 	struct sspt_feature *f;
@@ -96,6 +101,12 @@ struct sspt_feature *sspt_create_feature(void)
 	return f;
 }
 
+/**
+ * @brief Destroy sspt_feature struct
+ *
+ * @param f remove object
+ * @return Void
+ */
 void sspt_destroy_feature(struct sspt_feature *f)
 {
 	struct sspt_feature_data *fd, *n;
@@ -171,6 +182,13 @@ static void del_feature_from_proc(struct sspt_proc *proc, void *data)
 	del_feature_by_img(proc->feature, (struct sspt_feature_img *)data);
 }
 
+/**
+ * @brief Get data for feature
+ *
+ * @param f Pointer to the sspt_feature struct
+ * @param id Feature ID
+ * @return Pointer to the data
+ */
 void *sspt_get_feature_data(struct sspt_feature *f, sspt_feature_id_t id)
 {
 	struct sspt_feature_img *img = (struct sspt_feature_img *)id;
@@ -185,6 +203,13 @@ void *sspt_get_feature_data(struct sspt_feature *f, sspt_feature_id_t id)
 }
 EXPORT_SYMBOL_GPL(sspt_get_feature_data);
 
+/**
+ * @brief Register sspt feature
+ *
+ * @param alloc Callback for allocating data
+ * @param free Callback to release data
+ * @return Feature ID
+ */
 sspt_feature_id_t sspt_register_feature(void *(*alloc)(void), void (*free)(void *data))
 {
 	struct sspt_feature_img *fi;
@@ -197,6 +222,12 @@ sspt_feature_id_t sspt_register_feature(void *(*alloc)(void), void (*free)(void 
 }
 EXPORT_SYMBOL_GPL(sspt_register_feature);
 
+/**
+ * @brief Unregister sspt feature
+ *
+ * @param id Feature ID
+ * @return Void
+ */
 void sspt_unregister_feature(sspt_feature_id_t id)
 {
 	struct sspt_feature_img *fi = (struct sspt_feature_img *)id;

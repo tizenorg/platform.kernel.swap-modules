@@ -546,6 +546,11 @@ static void unregister_comm(void)
 
 
 
+/**
+ * @brief Registration of helper
+ *
+ * @return Error code
+ */
 int register_helper(void)
 {
 	int ret = 0;
@@ -620,6 +625,11 @@ unreg_comm:
 	return ret;
 }
 
+/**
+ * @brief Unegistration of helper bottom
+ *
+ * @return Void
+ */
 void unregister_helper_top(void)
 {
 #ifdef CONFIG_ARM
@@ -629,6 +639,11 @@ void unregister_helper_top(void)
 	atomic_set(&stop_flag, 1);
 }
 
+/**
+ * @brief Unegistration of helper top
+ *
+ * @return Void
+ */
 void unregister_helper_bottom(void)
 {
 	unregister_mmap();
@@ -638,6 +653,11 @@ void unregister_helper_bottom(void)
 	unregister_comm();
 }
 
+/**
+ * @brief Initialization of helper
+ *
+ * @return Error code
+ */
 int init_helper(void)
 {
 	unsigned long addr;
@@ -701,6 +721,11 @@ int init_helper(void)
 	return 0;
 }
 
+/**
+ * @brief Uninitialization of helper
+ *
+ * @return Void
+ */
 void uninit_helper(void)
 {
 }

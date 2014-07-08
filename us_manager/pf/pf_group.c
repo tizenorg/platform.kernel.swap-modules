@@ -172,6 +172,13 @@ static void del_pfg_by_list(struct pf_group *pfg)
 	list_del(&pfg->list);
 }
 
+/**
+ * @brief Get pf_group struct by dentry
+ *
+ * @param dentry Dentry of file
+ * @param priv Private data
+ * @return Pointer on pf_group struct
+ */
 struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv)
 {
 	struct pf_group *pfg;
@@ -193,6 +200,13 @@ struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv)
 }
 EXPORT_SYMBOL_GPL(get_pf_group_by_dentry);
 
+/**
+ * @brief Get pf_group struct by TGID
+ *
+ * @param tgid Thread group ID
+ * @param priv Private data
+ * @return Pointer on pf_group struct
+ */
 struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv)
 {
 	struct pf_group *pfg;
@@ -214,6 +228,12 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv)
 }
 EXPORT_SYMBOL_GPL(get_pf_group_by_tgid);
 
+/**
+ * @brief Get pf_group struct for each process
+ *
+ * @param priv Private data
+ * @return Pointer on pf_group struct
+ */
 struct pf_group *get_pf_group_dumb(void *priv)
 {
 	struct pf_group *pfg;
@@ -235,11 +255,27 @@ struct pf_group *get_pf_group_dumb(void *priv)
 }
 EXPORT_SYMBOL_GPL(get_pf_group_dumb);
 
+/**
+ * @brief Put pf_group struct
+ *
+ * @param pfg Pointer to the pf_group struct
+ * @return Void
+ */
 void put_pf_group(struct pf_group *pfg)
 {
 
 }
 
+/**
+ * @brief Register prober for pf_grpup struct
+ *
+ * @param pfg Pointer to the pf_group struct
+ * @param dentry Dentry of file
+ * @param offset Function offset
+ * @param args Function arguments
+ * @param ret_type Return type
+ * @return Error code
+ */
 int pf_register_probe(struct pf_group *pfg, struct dentry *dentry,
 		      unsigned long offset, const char *args, char ret_type)
 {
@@ -247,6 +283,14 @@ int pf_register_probe(struct pf_group *pfg, struct dentry *dentry,
 }
 EXPORT_SYMBOL_GPL(pf_register_probe);
 
+/**
+ * @brief Unregister prober from pf_grpup struct
+ *
+ * @param pfg Pointer to the pf_group struct
+ * @param dentry Dentry of file
+ * @param offset Function offset
+ * @return Error code
+ */
 int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 			unsigned long offset)
 {
@@ -254,6 +298,14 @@ int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 }
 EXPORT_SYMBOL_GPL(pf_unregister_probe);
 
+/**
+ * @brief Check the task, to meet the filter criteria
+ *
+ * @prarm task Pointer on the task_struct struct
+ * @return
+ *       - 0 - false
+ *       - 1 - true
+ */
 int check_task_on_filters(struct task_struct *task)
 {
 	struct pf_group *pfg;
@@ -266,6 +318,13 @@ int check_task_on_filters(struct task_struct *task)
 	return 0;
 }
 
+/**
+ * @brief Check task and install probes on demand
+ *
+ * @prarm task Pointer on the task_struct struct
+ * @param page_addr Page fault address
+ * @return Void
+ */
 void call_page_fault(struct task_struct *task, unsigned long page_addr)
 {
 	struct pf_group *pfg, *pfg_first = NULL;
@@ -321,6 +380,13 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	}
 }
 
+/**
+ * @brief Uninstall probes from the sspt_proc struct
+ *
+ * @prarm proc Pointer on the sspt_proc struct
+ * @return Void
+ */
+
 /* called with sspt_proc_write_lock() */
 void uninstall_proc(struct sspt_proc *proc)
 {
@@ -344,6 +410,12 @@ void uninstall_proc(struct sspt_proc *proc)
 	sspt_proc_free(proc);
 }
 
+/**
+ * @brief Remove probes from the task on demand
+ *
+ * @prarm task Pointer on the task_struct struct
+ * @return Void
+ */
 void call_mm_release(struct task_struct *task)
 {
 	struct sspt_proc *proc;
@@ -358,11 +430,22 @@ void call_mm_release(struct task_struct *task)
 	sspt_proc_write_unlock();
 }
 
+/**
+ * @brief Legacy code, it is need remove
+ *
+ * @param addr Page address
+ * @return Void
+ */
 void uninstall_page(unsigned long addr)
 {
 
 }
 
+/**
+ * @brief Install probes on running processes
+ *
+ * @return Void
+ */
 void install_all(void)
 {
 #if !defined(CONFIG_ARM)
@@ -401,6 +484,11 @@ static void on_each_uninstall_proc(struct sspt_proc *proc, void *data)
 	uninstall_proc(proc);
 }
 
+/**
+ * @brief Uninstall probes from all processes
+ *
+ * @return Void
+ */
 void uninstall_all(void)
 {
 	sspt_proc_write_lock();
@@ -409,6 +497,13 @@ void uninstall_all(void)
 
 	clean_pfg();
 }
+
+/**
+ * @brief For debug
+ *
+ * @param pfg Pointer to the pf_group struct
+ * @return Void
+ */
 
 /* debug */
 void pfg_print(struct pf_group *pfg)

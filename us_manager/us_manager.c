@@ -62,6 +62,11 @@ static int do_usm_start(void)
 	return 0;
 }
 
+/**
+ * @brief Get instrumentation status
+ *
+ * @return Instrumentation status
+ */
 enum status_type usm_get_status(void)
 {
 	mutex_lock(&mutex_inst);
@@ -69,6 +74,12 @@ enum status_type usm_get_status(void)
 }
 EXPORT_SYMBOL_GPL(usm_get_status);
 
+/**
+ * @brief Put instrumentation status
+ *
+ * @param st Instrumentation status
+ * @return Void
+ */
 void usm_put_status(enum status_type st)
 {
 	status = st;
@@ -76,6 +87,11 @@ void usm_put_status(enum status_type st)
 }
 EXPORT_SYMBOL_GPL(usm_put_status);
 
+/**
+ * @brief Stop instrumentation
+ *
+ * @return Error code
+ */
 int usm_stop(void)
 {
 	int ret = 0;
@@ -95,6 +111,11 @@ put:
 }
 EXPORT_SYMBOL_GPL(usm_stop);
 
+/**
+ * @brief Start instrumentation
+ *
+ * @return Error code
+ */
 int usm_start(void)
 {
 	int ret = -EINVAL;
@@ -127,12 +148,23 @@ EXPORT_SYMBOL_GPL(usm_start);
  */
 static enum quiet_type quiet = QT_ON;
 
+/**
+ * @brief Set quiet mode
+ *
+ * @param q Quiet mode
+ * @return Void
+ */
 void set_quiet(enum quiet_type q)
 {
 	quiet = q;
 }
 EXPORT_SYMBOL_GPL(set_quiet);
 
+/**
+ * @brief Get quiet mode
+ *
+ * @return Quiet mode
+ */
 enum quiet_type get_quiet(void)
 {
 	return quiet;

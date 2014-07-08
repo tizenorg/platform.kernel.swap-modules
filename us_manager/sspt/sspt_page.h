@@ -1,10 +1,11 @@
 #ifndef __SSPT_PAGE__
 #define __SSPT_PAGE__
 
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/driver/sspt/sspt_page.h
+/**
+ * @file us_manager/sspt/sspt_page.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
+ * @section LICENSE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -19,10 +20,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
  * Copyright (C) Samsung Electronics, 2013
- *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
- *
  */
 
 #include <linux/types.h>
@@ -33,14 +32,18 @@ struct sspt_file;
 struct task_struct;
 enum US_FLAGS;
 
+/**
+ * @struct sspt_page
+ * @breaf Image of page for specified process
+ */
 struct sspt_page {
-	struct list_head ip_list_inst;
-	struct list_head ip_list_no_inst;
-	unsigned long offset;
-	spinlock_t lock;
+	struct list_head ip_list_inst;		/**< For installed ip */
+	struct list_head ip_list_no_inst;	/**< For don'tinstalled ip */
+	unsigned long offset;			/**< File offset */
+	spinlock_t lock;			/**< Lock page */
 
-	struct sspt_file *file;
-	struct hlist_node hlist; // for file_probes
+	struct sspt_file *file;			/**< Ptr to the file(parent)=*/
+	struct hlist_node hlist;		/**< For sspt_file */
 };
 
 struct sspt_page *sspt_page_create(unsigned long offset);

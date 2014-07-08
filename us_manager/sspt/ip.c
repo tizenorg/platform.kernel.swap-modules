@@ -60,6 +60,14 @@ static int ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
+/**
+ * @brief Create us_ip struct
+ *
+ * @param offset Function offset from the beginning of the page
+ * @param args Function arguments
+ * @param ret_type Return type
+ * @return Pointer to the created us_ip struct
+ */
 struct us_ip *create_ip(unsigned long offset, const char *args, char ret_type)
 {
 	size_t len = strlen(args) + 1;
@@ -86,6 +94,12 @@ struct us_ip *create_ip(unsigned long offset, const char *args, char ret_type)
 	return ip;
 }
 
+/**
+ * @brief Remove us_ip struct
+ *
+ * @param ip remove object
+ * @return Void
+ */
 void free_ip(struct us_ip *ip)
 {
 	kfree(ip);

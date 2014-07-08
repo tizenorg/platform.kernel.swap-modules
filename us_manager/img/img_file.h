@@ -1,7 +1,8 @@
-/*
- *  SWAP uprobe manager
- *  modules/us_manager/img/img_file.h
+/**
+ * @file us_manager/img/img_file.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
+ * @section LICENSE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -16,9 +17,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
  * Copyright (C) Samsung Electronics, 2013
- *
- * 2013	 Vyacheslav Cherkashin: SWAP us_manager implement
  *
  */
 
@@ -28,10 +28,14 @@
 
 #include <linux/types.h>
 
+/**
+ * @struct img_file
+ * @breaf Image of file
+ */
 struct img_file {
-	struct list_head list;			/* for img_proc */
-	struct dentry *dentry;
-	struct list_head ip_list;		/* for img_ip */
+	struct list_head list;		/**< For img_proc */
+	struct dentry *dentry;		/**< Dentry of file */
+	struct list_head ip_list;	/**< For img_ip */
 };
 
 struct img_file *create_img_file(struct dentry *dentry);

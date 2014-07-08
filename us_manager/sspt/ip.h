@@ -1,10 +1,11 @@
 #ifndef __IP__
 #define __IP__
 
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/driver/sspt/ip.h
+/**
+ * @file us_manager/sspt/ip.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
+ * @section LICENSE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -19,10 +20,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
  * Copyright (C) Samsung Electronics, 2013
- *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
- *
  */
 
 #include <linux/list.h>
@@ -30,16 +29,20 @@
 
 struct sspt_page;
 
+/**
+ * @struct us_ip
+ * @breaf Image of instrumentation pointer for specified process
+ */
 struct us_ip {
-	struct list_head list;
-	struct sspt_page *page;
+	struct list_head list;		/**< For sspt_page */
+	struct sspt_page *page;		/**< Pointer on the page (parent) */
 
-	struct uretprobe retprobe;
-	char *args;
-	char ret_type;
-	unsigned long orig_addr;
+	struct uretprobe retprobe;	/**< uretprobe */
+	char *args;			/**< Function arguments */
+	char ret_type;			/**< Return type */
+	unsigned long orig_addr;	/**< Function address */
 
-	unsigned long offset;
+	unsigned long offset;		/**< Page offset */
 };
 
 

@@ -1,10 +1,11 @@
 #ifndef __SSPT_PROC__
 #define __SSPT_PROC__
 
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/driver/sspt/sspt_proc.h
+/**
+ * @file us_manager/sspt/sspt_proc.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
+ * @section LICENSE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -19,10 +20,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
  * Copyright (C) Samsung Electronics, 2013
- *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
- *
  */
 
 #include <linux/types.h>
@@ -31,20 +30,25 @@
 struct slot_manager;
 struct task_struct;
 
+/** Flags for sspt_*_uninstall() */
 enum US_FLAGS {
-	US_UNREGS_PROBE,	/* probes remove and disarm */
-	US_DISARM,		/* probes disarm */
-	US_UNINSTALL		/* probes remove from list install */
+	US_UNREGS_PROBE,	/**< probes remove and disarm */
+	US_DISARM,		/**< probes disarm */
+	US_UNINSTALL		/**< probes remove from list install */
 };
 
+/**
+ * @struct sspt_proc
+ * @breaf Image of process for specified process
+ */
 struct sspt_proc {
-	struct list_head list;
-	pid_t tgid;
-	struct task_struct *task;
-	struct slot_manager *sm;
-	struct list_head file_list;
-	unsigned first_install:1;
-	struct sspt_feature *feature;
+	struct list_head list;		/**< For global process list */
+	pid_t tgid;			/**< Thread group ID */
+	struct task_struct *task;	/**< Ptr to the task */
+	struct slot_manager *sm;	/**< Ptr to the manager slot */
+	struct list_head file_list;	/**< For sspt_file */
+	unsigned first_install:1;	/**< Install flag */
+	struct sspt_feature *feature;	/**< Ptr to the feature */
 };
 
 

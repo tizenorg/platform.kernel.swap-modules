@@ -1,10 +1,11 @@
 #ifndef __SSPT_FILE__
 #define __SSPT_FILE__
 
-/*
- *  Dynamic Binary Instrumentation Module based on KProbes
- *  modules/driver/sspt/sspt_file.h
+/**
+ * @file us_manager/sspt/sspt_file.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
+ * @section LICENSE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -19,10 +20,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
  * Copyright (C) Samsung Electronics, 2013
- *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
- *
  */
 
 #include "ip.h"
@@ -31,16 +30,20 @@
 enum US_FLAGS;
 struct vm_area_struct;
 
+/**
+ * @struct sspt_file
+ * @breaf Image of file for specified process
+ */
 struct sspt_file {
-	struct list_head list;			// for proc_probes
-	struct sspt_proc *proc;
-	struct dentry *dentry;
-	int loaded;
-	unsigned long vm_start;
-	unsigned long vm_end;
+	struct list_head list;		/**< For sspt_proc */
+	struct sspt_proc *proc;		/**< Pointer to the proc (parent) */
+	struct dentry *dentry;		/**< Dentry of file */
+	int loaded;			/**< Flag of loading */
+	unsigned long vm_start;		/**< VM start */
+	unsigned long vm_end;		/**< VM end */
 
-	unsigned long page_probes_hash_bits;
-	struct hlist_head *page_probes_table; // for page_probes
+	unsigned long page_probes_hash_bits;	/**< Hash-table size */
+	struct hlist_head *page_probes_table;	/**< Hash-table for pages */
 };
 
 

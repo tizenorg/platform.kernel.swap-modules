@@ -26,6 +26,14 @@
 #include "img_ip.h"
 #include <linux/slab.h>
 
+/**
+ * @brief Create img_ip struct
+ *
+ * @param addr Function address
+ * @param args Function arguments
+ * @param ret_type Return type
+ * @return Pointer to the created img_ip struct
+ */
 struct img_ip *create_img_ip(unsigned long addr, const char *args,
 			     char ret_type)
 {
@@ -46,11 +54,24 @@ struct img_ip *create_img_ip(unsigned long addr, const char *args,
 	return ip;
 }
 
+/**
+ * @brief Remove img_ip struct
+ *
+ * @param ip remove object
+ * @return Void
+ */
 void free_img_ip(struct img_ip *ip)
 {
 	kfree(ip->args);
 	kfree(ip);
 }
+
+/**
+ * @brief For debug
+ *
+ * @param ip Pointer to the img_ip struct
+ * @return Void
+ */
 
 /* debug */
 void img_ip_print(struct img_ip *ip)
