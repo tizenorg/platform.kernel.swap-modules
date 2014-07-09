@@ -1,9 +1,8 @@
-#ifndef _SWAP_DEBUG_FS_H
-#define _SWAP_DEBUG_FS_H
-
-/*
- *  SWAP kernel features
- *  driver/swap_debugfs.h
+/**
+ * @file driver/swap_debugfs.h
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,12 +18,18 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ * @section DESCRIPTION
  *
+ * SWAP debugfs interface definition.
  */
 
+
+#ifndef _SWAP_DEBUG_FS_H
+#define _SWAP_DEBUG_FS_H
 
 struct dentry;
 

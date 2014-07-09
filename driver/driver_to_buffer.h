@@ -1,6 +1,8 @@
-/*
- *  SWAP driver
- *  modules/driver/driver_to_buffer.h
+/**
+ * @file driver/driver_to_buffer.h
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
+ * @section DESCRIPTION
  *
+ * Driver and buffer interaction interface declaration.
  */
 
 #ifndef __SWAP_DRIVER_DRIVER_TO_BUFFER__

@@ -1,6 +1,8 @@
-/*
- *  SWAP kernel features
- *  driver/swap_debugfs.c
+/**
+ * driver/swap_debugfs.c
+ * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+ * @section DESCRIPTION
  *
+ * Initializes root debugfs for all SWAP modules
  */
 
 
@@ -29,13 +34,22 @@
 
 static struct dentry *swap_dir = NULL;
 
-
+/**
+ * @brief Get debugfs dir.
+ *
+ * @return Pointer to dentry stuct.
+ */
 struct dentry *get_swap_debugfs_dir(void)
 {
 	return swap_dir;
 }
 EXPORT_SYMBOL_GPL(get_swap_debugfs_dir);
 
+/**
+ * @brief Initializes SWAP debugfs.
+ *
+ * @return 0 on success, negative error code on error.
+ */
 int swap_debugfs_init(void)
 {
 	swap_dir = debugfs_create_dir("swap", NULL);
@@ -45,6 +59,11 @@ int swap_debugfs_init(void)
 	return 0;
 }
 
+/**
+ * @brief Deinitializes SWAP debugfs and recursively removes all its files.
+ *
+ * @return Void.
+ */
 void swap_debugfs_exit(void)
 {
 	struct dentry *dir = swap_dir;

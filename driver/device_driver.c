@@ -1,6 +1,8 @@
-/*
- *  SWAP device driver
- *  modules/driver/device_driver.c
+/**
+ * driver/device_driver.c
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
+ * @section DESCRIPTION
  *
+ * Provides SWAP device.
  */
 
 #include <linux/types.h>
@@ -48,8 +53,10 @@
 #include "driver_to_buffer.h"
 #include "driver_to_msg.h"
 
+/** SWAP device name as it is in /dev/. */
 #define SWAP_DEVICE_NAME "swap_device"
 
+/** Maximum subbuffer size. Used for sanitization checks. */
 #define MAXIMUM_SUBBUFFER_SIZE (64 * 1024)
 
 /* swap_device driver routines */
@@ -63,7 +70,10 @@ static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
 									   struct pipe_inode_info *pipe, size_t len,
 									   unsigned int flags);
 
-/* File operations structure */
+/**
+ * @var swap_device_fops
+ * @brief SWAP device file operations.
+ */
 const struct file_operations swap_device_fops = {
 	.owner = THIS_MODULE,
 	.read = swap_device_read,
@@ -74,8 +84,10 @@ const struct file_operations swap_device_fops = {
 };
 
 /* Typedefs for splice_* funcs. Prototypes are for linux-3.8.6 */
+/** Splice to pipe pointer type. */
 typedef ssize_t(*splice_to_pipe_p_t)(struct pipe_inode_info *pipe,
 					 struct splice_pipe_desc *spd);
+/** Splice grow spd pointer type. */
 typedef int(*splice_grow_spd_p_t)(const struct pipe_inode_info *pipe,
 					struct splice_pipe_desc *spd);
 
@@ -125,8 +137,14 @@ static void exit_w_wake_up(void)
 }
 
 
-/* We need this realization of splice_shrink_spd() because of the its desing
- * frequent changes that I have encountered in custom kernels */
+/**
+ * @brief We need this realization of splice_shrink_spd() because its desing
+ * frequently changes in custom kernels.
+ *
+ * @param pipe Pointer to the pipe whereto splice data.
+ * @param spd Pointer to the splice_pipe_desc structure.
+ * @return Void.
+ */
 void swap_device_splice_shrink_spd(struct pipe_inode_info *pipe,
                                    struct splice_pipe_desc *spd)
 {
@@ -138,8 +156,14 @@ void swap_device_splice_shrink_spd(struct pipe_inode_info *pipe,
 }
 
 
-/* Register device TODO Think of permanent major */
-int swap_device_init(void)
+/* TODO Think of permanent major */
+
+/**
+ * @brief Register device.
+ *
+ * @return 0 on success, negative error code otherwise.
+ */
+ int swap_device_init(void)
 {
 	int result;
 
@@ -218,7 +242,13 @@ init_fail:
 	return result;
 }
 
-/* Unregister device TODO Check wether driver is registered */
+/* TODO Check wether driver is registered */
+
+/**
+ * @brief Unregister device.
+ *
+ * @return Void.
+ */
 void swap_device_exit(void)
 {
 	exit_w_wake_up();
@@ -471,6 +501,11 @@ swap_device_splice_read_error:
 	return result;
 }
 
+/**
+ * @brief Wakes up daemon that splicing data from driver.
+ *
+ * @return Void.
+ */
 void swap_device_wake_up_process(void)
 {
 	if (atomic_read(&flag_wake_up) == 0) {
@@ -479,6 +514,12 @@ void swap_device_wake_up_process(void)
 	}
 }
 
+/**
+ * @brief Registers received message handler.
+ *
+ * @param mh Pointer to message handler.
+ * @return Void.
+ */
 void set_msg_handler(msg_handler_t mh)
 {
 	msg_handler = mh;

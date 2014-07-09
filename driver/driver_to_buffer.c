@@ -1,6 +1,8 @@
-/*
- *  SWAP driver
- *  modules/driver/driver_to_buffer.c
+/**
+ * driver/driver_to_buffer.c
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP device driver implement
+ * @section DESCRIPTION
  *
+ * Driver and buffer interaction interface implementation.
  */
 
 #include <linux/string.h>
@@ -136,7 +141,11 @@ static int driver_to_buffer_release(void)
 	return E_SD_SUCCESS;
 }
 
-/* Buffers callback function */
+/**
+ * @brief Buffers callback function
+ *
+ * @return 0
+ */
 int driver_to_buffer_callback(void)
 {
 	/* Increment buffers_to_read counter */
@@ -146,7 +155,14 @@ int driver_to_buffer_callback(void)
 	return E_SD_SUCCESS;
 }
 
-/* Read buffers */
+/**
+ * @brief Copies data from subbuffer to userspace.
+ *
+ * @param[out] buf Pointer to userspace memory area whereto copy data from
+ * subbuffer.
+ * @param count Size of data to be read.
+ * @return Read data size on success, negative error code on error.
+ */
 ssize_t driver_to_buffer_read(char __user *buf, size_t count)
 {
 	size_t bytes_to_copy;
@@ -186,7 +202,11 @@ ssize_t driver_to_buffer_read(char __user *buf, size_t count)
 	return bytes_to_read;
 }
 
-/* Flush swap_buffer */
+/**
+ * @brief Flushes SWAP buffer.
+ *
+ * @return 0.
+ */
 int driver_to_buffer_flush(void)
 {
 	unsigned int flushed;
@@ -198,7 +218,12 @@ int driver_to_buffer_flush(void)
 	return E_SD_SUCCESS;
 }
 
-/* Fills spd structure */
+/**
+ * @brief Fills spd structure.
+ *
+ * @param[out] spd Pointer to the splice_pipe_desc struct that should be filled.
+ * @return 0 on success, negative error code on error.
+ */
 int driver_to_buffer_fill_spd(struct splice_pipe_desc *spd)
 {
 	size_t data_to_splice = busy_buffer->full_buffer_part;
@@ -237,13 +262,23 @@ int driver_to_buffer_fill_spd(struct splice_pipe_desc *spd)
 	return 0;
 }
 
-/* Check for subbuffers ready to be read */
+/**
+ * @brief Check for subbuffer ready to be read.
+ *
+ * @return 1 if there is subbuffer to be read, 0 - if there isn't.
+ */
 int driver_to_buffer_buffer_to_read(void)
 {
 	return busy_buffer ? 1 : 0;
 }
 
-/* Set buffers size and count */
+/**
+ * @brief Initializes SWAP buffer.
+ *
+ * @param size Size of one subbuffer.
+ * @param count Count of subbuffers.
+ * @return 0 on success, negative error code on error.
+ */
 int driver_to_buffer_initialize(size_t size, unsigned int count)
 {
 	int result;
@@ -277,7 +312,11 @@ int driver_to_buffer_initialize(size_t size, unsigned int count)
 	return E_SD_SUCCESS;
 }
 
-/* Uninitialize buffer */
+/**
+ * @brief Uninitializes buffer.
+ *
+ * @return 0 on success, negative error code on error.
+ */
 int driver_to_buffer_uninitialize(void)
 {
 	int result;
@@ -310,7 +349,12 @@ int driver_to_buffer_uninitialize(void)
 	return result;
 }
 
-/* Get next buffer to read */
+/**
+ * @brief Get next buffer to read.
+ *
+ * @return 0 on success, negative error code on error, E_SD_NO_DATA_TO_READ if
+ * there is nothing to be read.
+ */
 int driver_to_buffer_next_buffer_to_read(void)
 {
 	int result;
@@ -340,4 +384,3 @@ int driver_to_buffer_next_buffer_to_read(void)
 
 	return E_SD_SUCCESS;
 }
-

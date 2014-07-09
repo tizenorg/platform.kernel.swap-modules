@@ -1,6 +1,8 @@
-/*
- *  SWAP device driver
- *  modules/driver/us_interaction.c
+/**
+ * driver/us_interaction.c
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,11 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2014
  *
- * 2014	 Alexander Aksenov <a.aksenov@samsung.com>: Driver user<-> kernel
- *                                                  connect implement
+ * @section DESCRIPTION
  *
+ * Kernel-to-user interface implementation.
  */
 
 
@@ -45,7 +49,13 @@ static const char cn_swap_name[] = "cn_swap";
 /* Send messages counter */
 static u32 msg_counter = 0;
 
-
+/**
+ * @brief Sends message to userspace via netlink.
+ *
+ * @param data Pointer to the data to be send.
+ * @param size Size of the data to be send.
+ * @return 0 on success, error code on error.
+ */
 int us_interaction_send_msg(const void *data, size_t size)
 {
 	struct cn_msg *msg;
@@ -80,6 +90,11 @@ static void us_interaction_recv_msg(struct cn_msg *msg,
 {
 }
 
+/**
+ * @brief Creates netlink connection.
+ *
+ * @return 0 on success, error code on error.
+ */
 int us_interaction_create(void)
 {
 	int res;
@@ -91,6 +106,11 @@ int us_interaction_create(void)
 	return E_SD_SUCCESS;
 }
 
+/**
+ * @brief Destroy netlink connection.
+ *
+ * @return Void.
+ */
 void us_interaction_destroy(void)
 {
 	cn_del_callback(&cn_swap_id);

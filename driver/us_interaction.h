@@ -1,6 +1,8 @@
-/*
- *  SWAP device driver
- *  modules/driver/us_interaction.h
+/**
+ * @file driver/us_interaction.h
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,11 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2014
  *
- * 2014	 Alexander Aksenov <a.aksenov@samsung.com>: Driver user<-> kernel
- *                                                  connect implement
+ * @section DESCRIPTION
  *
+ * Kernel-to-user interface definition.
  */
 
 #ifndef __US_INTERACTION_H__
