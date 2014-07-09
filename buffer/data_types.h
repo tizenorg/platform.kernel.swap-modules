@@ -1,6 +1,8 @@
-/*
- *  SWAP Buffer Module
- *  modules/buffer/data_types.h
+/**
+ * @file buffer/data_types.h
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP Buffer implement
+ * @section DESCRIPTION
  *
+ * Declares data types for SWAP buffer.
  */
 
 #ifndef __DATA_TYPES_H__
@@ -31,13 +36,22 @@
 
 struct page;
 
-/* Using spinlocks as sync primitives */
+/**
+ * @struct sync_t
+ * @brief Using spinlocks as sync primitives.
+ * @var sync_t::spinlock
+ * Spinlock.
+ * @var sync_t::flags
+ * Flags for spinlock.
+ */
 struct sync_t {
 	spinlock_t spinlock;
 	unsigned long flags;
 };
 
-/* swap_subbuffer_ptr points to the first memory page of the subbuffer */
+/**
+ * @brief swap_subbuffer_ptr points to the first memory page of the subbuffer.
+ */
 typedef struct page *swap_subbuffer_ptr;
 
 #endif /* __DATA_TYPES_H__ */

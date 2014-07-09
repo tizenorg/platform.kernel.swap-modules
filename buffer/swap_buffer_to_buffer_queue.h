@@ -1,6 +1,8 @@
-/*
- *  SWAP Buffer Module
- *  modules/buffer/swap_buffer_to_buffer_queue.h
+/**
+ * @file buffer/swap_buffer_to_buffer_queue.h
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Alexander Aksenov <a.aksenov@samsung.com>: SWAP Buffer implement
- *
+ * @section DESCRIPTION
+ * SWAP Buffer interface for buffer queue.
  */
-
-/* SWAP Buffer interface for buffer queue */
 
 #ifndef __SWAP_BUFFER_TO_BUFFER_QUEUE_H__
 #define __SWAP_BUFFER_TO_BUFFER_QUEUE_H__

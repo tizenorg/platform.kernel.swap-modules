@@ -1,6 +1,8 @@
-/*
- *  SWAP Buffer Module
- *  modules/buffer/buffer_queue.c
+/**
+ * buffer/buffer_queue.c
+ * @author Alexander Aksenov <a.aksenov@samsung.com>: SWAP Buffer implement
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +18,14 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP Buffer implement
+ * @section DESCRIPTION
  *
+ * Implements buffers queues interface
  */
-
-/* SWAP buffer queues implementation */
 
 /* For all memory allocation/deallocation operations, except buffer memory
  * allocation/deallocation should be used 
@@ -47,8 +50,19 @@
 #include "swap_buffer_errors.h"
 #include "kernel_operations.h"
 
-/* Queue structure. Consist of pointers to the first and the last elements of
- * queue. */
+/**
+ * @struct queue_t
+ * @brief Queue structure. Consist of pointers to the first and the last
+ * elements of queue.
+ * @var queue_t::start_ptr
+ * Pointer to the first subbuffer in queue
+ * @var queue_t::end_ptr
+ * Pointer to the last subbuffer in queue
+ * @var queue_t::subbuffers_count
+ * Subbuffers count in queue
+ * @var queue_t::queue_sync
+ * Queue access sync primitive
+ */
 struct queue_t {
 	struct swap_subbuffer *start_ptr;
 	struct swap_subbuffer *end_ptr;
@@ -56,7 +70,10 @@ struct queue_t {
 	struct sync_t queue_sync;
 };
 
-/* Write queue */
+/**
+ * @var write_queue
+ * @brief Represents write queue.
+ */
 struct queue_t write_queue = {
 	.start_ptr = NULL,
 	.end_ptr = NULL,
@@ -66,7 +83,10 @@ struct queue_t write_queue = {
 	}
 };
 
-/* Read queue */
+/**
+ * @var read_queue
+ * @brief Represents read queue.
+ */
 struct queue_t read_queue = {
 	.start_ptr = NULL,
 	.end_ptr = NULL,
@@ -96,7 +116,14 @@ static struct sync_t buffer_busy_sync = {
 /* Memory pages count in one subbuffer */
 static int pages_order_in_subbuffer = 0;
 
-
+/**
+ * @brief Allocates memory for swap_subbuffer structures and subbuffers.
+ * Total allocated memory = subbuffer_size * subbuffers_count.
+ *
+ * @param subbuffer_size Size of each subbuffer.
+ * @param subbuffers_count Count of subbuffers.
+ * @return 0 on success, negative error code otherwise.
+ */
 int buffer_queue_allocation(size_t subbuffer_size,
 			    unsigned int subbuffers_count)
 {
@@ -220,6 +247,11 @@ buffer_allocation_error_ret:
 	return result;
 }
 
+/**
+ * @brief Resets all subbuffers for writing.
+ *
+ * @return 0 on success, negative error code otherwise.
+ */
 int buffer_queue_reset(void)
 {
 	struct swap_subbuffer *buffer = read_queue.start_ptr;
@@ -261,6 +293,11 @@ int buffer_queue_reset(void)
 	return E_SB_SUCCESS;
 }
 
+/**
+ * @brief Free all allocated subbuffers.
+ *
+ * @return Void.
+ */
 void buffer_queue_free(void)
 {
 	struct swap_subbuffer *tmp = NULL;
@@ -322,7 +359,11 @@ static void next_queue_element(struct queue_t *queue)
 	--queue->subbuffers_count;
 }
 
-/* Get first subbuffer from read list */
+/**
+ * @brief Get first subbuffer from read list.
+ *
+ * @return Pointer to swap_subbuffer
+ */
 struct swap_subbuffer *get_from_read_list(void)
 {
 	struct swap_subbuffer *result = NULL;
@@ -346,7 +387,12 @@ get_from_read_list_unlock:
 	return result;
 }
 
-/* Add subbuffer to read list */
+/**
+ * @brief Add subbuffer to read list.
+ *
+ * @param subbuffer Pointer to the subbuffer to add.
+ * @return Void.
+ */
 void add_to_read_list(struct swap_subbuffer *subbuffer)
 {
 	/* Lock read sync primitive */
@@ -369,7 +415,12 @@ void add_to_read_list(struct swap_subbuffer *subbuffer)
 	sync_unlock(&read_queue.queue_sync);
 }
 
-/* Call add to read list and callback function from driver module */
+/**
+ * @brief Call add to read list and callback function from driver module.
+ *
+ * @param subbuffer Pointer to the subbuffer to add.
+ * @return swap_buffer_callback result.
+ */
 int add_to_read_list_with_callback(struct swap_subbuffer *subbuffer)
 {
 	int result = 0;
@@ -381,14 +432,25 @@ int add_to_read_list_with_callback(struct swap_subbuffer *subbuffer)
 	return result;
 }
 
-/* Returns subbuffers to read count */
+/**
+ * @brief Returns subbuffers to read count.
+ *
+ * @return Count of subbuffers in read_queue.
+ */
 unsigned int get_readable_buf_cnt(void)
 {
 	return read_queue.subbuffers_count;
 }
 
 
-/* Get first writable subbuffer from write list */
+/**
+ * @brief Get first writable subbuffer from write list.
+ *
+ * @param size Minimum amount of free space in subbuffer.
+ * @param[out] ptr_to_write Pointer to the variable where pointer to the beginning
+ * of memory for writing should be stored.
+ * @return Found swap_subbuffer.
+ */
 struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 {
 	struct swap_subbuffer *result = NULL;
@@ -461,7 +523,12 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 	return result;
 }
 
-/* Add subbuffer to write list */
+/**
+ * @brief Add subbuffer to write list.
+ *
+ * @param subbuffer Pointer to the swap_subbuffer that should be stored.
+ * @return Void.
+ */
 void add_to_write_list(struct swap_subbuffer *subbuffer)
 {
 	sync_lock(&write_queue.queue_sync);
@@ -484,14 +551,23 @@ void add_to_write_list(struct swap_subbuffer *subbuffer)
 	sync_unlock(&write_queue.queue_sync);
 }
 
-/* Returns subbuffers to write count */
+/**
+ * @brief Returns subbuffers to write count.
+ *
+ * @return Count of subbuffers in write queue.
+ */
 unsigned int get_writable_buf_cnt(void)
 {
 	return write_queue.subbuffers_count;
 }
 
 
-/* Add subbuffer to busy list when it is read from out of the buffer */
+/**
+ * @brief Add subbuffer to busy list when it is read from out of the buffer.
+ *
+ * @param subbuffer Pointer to the swap_subbuffer that should be added.
+ * @return Void.
+ */
 void add_to_busy_list(struct swap_subbuffer *subbuffer)
 {
 	/* Lock busy sync primitive */
@@ -505,7 +581,12 @@ void add_to_busy_list(struct swap_subbuffer *subbuffer)
 	sync_unlock(&buffer_busy_sync);
 }
 
-/* Remove subbuffer from busy list when it is released */
+/**
+ * @brief Remove subbuffer from busy list when it is released.
+ *
+ * @param subbuffer Pointer to the swap_subbuffer that should be removed.
+ * @return 0 on success, negative error code otherwise.
+ */
 int remove_from_busy_list(struct swap_subbuffer *subbuffer)
 {
 	int result = -E_SB_NO_SUBBUFFER_IN_BUSY; // For sanitization
@@ -531,7 +612,11 @@ int remove_from_busy_list(struct swap_subbuffer *subbuffer)
 	return result;
 }
 
-/* Set all subbuffers in write list to read list */
+/**
+ * @brief Set all subbuffers in write list to read list.
+ *
+ * @return Void.
+ */
 void buffer_queue_flush(void)
 {
 	struct swap_subbuffer *buffer = write_queue.start_ptr;
@@ -558,7 +643,11 @@ void buffer_queue_flush(void)
 	sync_unlock(&write_queue.queue_sync);
 }
 
-/* Get subbuffers count in busy list */
+/**
+ * @brief Get subbuffers count in busy list.
+ *
+ * @return Count of swap_subbuffers in busy  list.
+ */
 int get_busy_buffers_count(void)
 {
 	int result;
@@ -570,7 +659,11 @@ int get_busy_buffers_count(void)
 	return result;
 }
 
-/* Get memory pages count in subbuffer */
+/**
+ * @brief Get memory pages count in subbuffer.
+ *
+ * @return Pages count in subbuffer.
+ */
 int get_pages_count_in_subbuffer(void)
 {
 /* Return 1 if pages order 0, or 2 of power pages_order_in_subbuffer otherwise */

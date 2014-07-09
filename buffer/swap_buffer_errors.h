@@ -1,6 +1,8 @@
-/*
- *  SWAP Buffer Module
- *  modules/buffer/swap_buffer_errors.h
+/**
+ * @file buffer/swap_buffer_errors.h
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,38 +18,81 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP Buffer implement
+ * @section DESCRIPTION
  *
+ * SWAP Buffer error codes enumeration.
  */
-
-/* SWAP Buffer error codes enumeration */
 
 #ifndef __SWAP_BUFFER_ERRORS_H__
 #define __SWAP_BUFFER_ERRORS_H__
 
+/**
+ * @enum _swap_buffer_errors
+ * @brief SWAP buffer errors enumeration.
+ */
 enum _swap_buffer_errors {
-	E_SB_SUCCESS = 0,               /* Success */
-	E_SB_UNRELEASED_BUFFERS = 1,    /* There are some unreleased buffers. Mainly
-					   returned by swap_buffer_uninit */
-	E_SB_NO_WRITABLE_BUFFERS = 2,   /* No buffers for writing */
-	E_SB_WRONG_DATA_SIZE = 3,       /* Wrong data size: size == 0 or
-					   size > subbuffer size */
-	E_SB_IS_STOPPED = 4,            /* Trying to write data after SWAP buffer
-					   has been stopped. */
-	E_SB_OVERLAP = 5,               /* Memory areas of data to be written and
-					   subbuffer itself are overlap */
-	E_SB_NO_READABLE_BUFFERS = 6,   /* No buffers for reading */
-	E_SB_NO_CALLBACK = 7,           /* Callback function ptr == NULL */
-	E_SB_NO_MEM_QUEUE_BUSY = 8,     /* Memory for queue_busy wasn't allocated */
-	E_SB_NO_MEM_BUFFER_STRUCT = 9,  /* Memory for one of struct swap_buffer
-					   wasn't allocated */
-	E_SB_NO_MEM_DATA_BUFFER = 10,   /* Memort for data buffer itself wasn't
-					   allocated */
-	E_SB_NO_SUBBUFFER_IN_BUSY = 11, /* No such subbuffer in busy_list */
-	E_SB_NOT_ALLOC = 12,            /* Subbuffers aren't allocated */
-	E_SB_WRONG_THRESHOLD = 13       /* Thresholds > 100, top < lower */
+	/**
+	 * @brief Success.
+	 */
+	E_SB_SUCCESS = 0,
+	/**
+	 * @brief There are some unreleased buffers.
+	 * Mainly returned by swap_buffer_uninit.
+	 */
+	E_SB_UNRELEASED_BUFFERS = 1,
+	/**
+	 * @brief No buffers for writing.
+	 */
+	E_SB_NO_WRITABLE_BUFFERS = 2,
+	/**
+	 * @brief Wrong data size: size == 0 or size > subbuffer size.
+	 */
+	E_SB_WRONG_DATA_SIZE = 3,
+	/**
+	 * @brief Trying to write data after SWAP buffer has been stopped.
+	 */
+	E_SB_IS_STOPPED = 4,
+	/**
+	 * @brief Memory areas of data to be written and subbuffer itself
+	 * are overlap.
+	 */
+	E_SB_OVERLAP = 5,
+	/**
+	 * @brief No buffers for reading.
+	 */
+	E_SB_NO_READABLE_BUFFERS = 6,
+	/**
+	 * @brief Callback function ptr == NULL.
+	 */
+	E_SB_NO_CALLBACK = 7,
+	/**
+	 * @brief Memory for queue_busy wasn't allocated.
+	 */
+	E_SB_NO_MEM_QUEUE_BUSY = 8,
+	/**
+	 * @brief Memory for one of struct swap_buffer wasn't allocated.
+	 */
+	E_SB_NO_MEM_BUFFER_STRUCT = 9,
+	/**
+	 * @brief Memort for data buffer itself wasn't allocated.
+	 */
+	E_SB_NO_MEM_DATA_BUFFER = 10,
+	/**
+	 * @brief No such subbuffer in busy_list.
+	 */
+	E_SB_NO_SUBBUFFER_IN_BUSY = 11,
+	/**
+	 * @brief Subbuffers aren't allocated.
+	 */
+	E_SB_NOT_ALLOC = 12,
+	/**
+	 * @brief Thresholds > 100, top < lower.
+	 */
+	E_SB_WRONG_THRESHOLD = 13
 };
 
 #endif /* __SWAP_BUFFER_ERRORS_H__ */

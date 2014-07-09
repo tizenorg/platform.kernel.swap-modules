@@ -1,6 +1,8 @@
-/*
- *  SWAP Buffer Module
- *  modules/buffer/swap_buffer_module.c
+/**
+ * buffer/swap_buffer_module.c
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +18,14 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013	 Alexander Aksenov <a.aksenov@samsung.com>: SWAP Buffer implement
+ * @section DESCRIPTION
  *
+ * SWAP Buffer interface implementation.
  */
-
-/* SWAP Buffer interface implementation */
 
 #include "swap_buffer_module.h"
 #include "buffer_queue.h"
@@ -30,23 +33,22 @@
 #include "swap_buffer_errors.h"
 #include "kernel_operations.h"
 
-/* Bitwise mask for buffer status */
+/**
+ * @enum _swap_buffer_status_mask
+ * @brief Bitwise mask for buffer status.
+ */
 enum _swap_buffer_status_mask {
-	BUFFER_FREE = 0,
-	BUFFER_ALLOC = 1,
-	BUFFER_PAUSE = 2,
-	BUFFER_WORK = 4
+	BUFFER_FREE = 0,                /**< 000 - memory free. */
+	BUFFER_ALLOC = 1,               /**< 001 - memory allocated. */
+	BUFFER_PAUSE = 2,               /**< 010 - buffer overflow. */
+	BUFFER_WORK = 4                 /**< @brief 100 - buffer work. */
 };
 
-/* Buffer status masks:
- *   0 - memory free
- *   1 - memory allocated
- *  10 - buffer overflow
- * 100 - buffer work
- * */
 static unsigned char swap_buffer_status = BUFFER_FREE;
 
-/* Callback type */
+/**
+ * @brief Subbuffer callback type.
+ */
 typedef int(*subbuffer_callback_type)(void);
 
 /* Callback that is called when full subbuffer appears */
@@ -81,6 +83,14 @@ static inline unsigned int percent_to_count(unsigned char percent,
 	return (percent * cnt) / 100;
 }
 
+/**
+ * @brief Initializes SWAP buffer and allocates memory.
+ *
+ * @param buf_init Pointer to the buffer_init_t structure which contains
+ * information about subbuffers count, subbuffers size and subbuffer-full-
+ * callback.
+ * @return 0 on success, negative error code otherwise.
+ */
 int swap_buffer_init(struct buffer_init_t *buf_init)
 {
 	int result = -1;
@@ -131,7 +141,11 @@ swap_buffer_init_work:
 }
 EXPORT_SYMBOL_GPL(swap_buffer_init);
 
-
+/**
+ * @brief Uninitializes SWAP buffer, releases allocated memory.
+ *
+ * @return 0 on success, negative error code otherwise.
+ */
 int swap_buffer_uninit(void)
 {
 	/* Check whether buffer is allocated */
@@ -164,7 +178,13 @@ int swap_buffer_uninit(void)
 }
 EXPORT_SYMBOL_GPL(swap_buffer_uninit);
 
-
+/**
+ * @brief Writes data to SWAP buffer.
+ *
+ * @param data Pointer to a data for writing.
+ * @param size Size of a data for writing.
+ * @return Size of written data on success, negative error code otherwise.
+ */
 ssize_t swap_buffer_write(void *data, size_t size)
 {
 	int result = E_SB_SUCCESS;
@@ -219,7 +239,12 @@ buf_write_sem_post:
 }
 EXPORT_SYMBOL_GPL(swap_buffer_write);
 
-
+/**
+ * @brief Gets pointer to subbuffer for reading.
+ *
+ * @param[out] subbuffer Pointer to a variable which points on target subbuffer.
+ * @return 0 on success, negative error code otherwise.
+ */
 int swap_buffer_get(struct swap_subbuffer **subbuffer)
 {
 	int result = 0;
@@ -246,7 +271,12 @@ int swap_buffer_get(struct swap_subbuffer **subbuffer)
 }
 EXPORT_SYMBOL_GPL(swap_buffer_get);
 
-
+/**
+ * @brief Releases subbuffer after reading.
+ *
+ * @param subbuffer Subbuffer that should be released.
+ * @return 0 on success, negative error code otherwise.
+ */
 int swap_buffer_release(struct swap_subbuffer **subbuffer)
 {
 	int result;
@@ -270,7 +300,11 @@ int swap_buffer_release(struct swap_subbuffer **subbuffer)
 }
 EXPORT_SYMBOL_GPL(swap_buffer_release);
 
-
+/**
+ * @brief Sets all subbuffers for reading.
+ *
+ * @return Count of subbeffers for reading.
+ */
 unsigned int swap_buffer_flush(void)
 {
 	unsigned int result;
@@ -285,7 +319,13 @@ unsigned int swap_buffer_flush(void)
 }
 EXPORT_SYMBOL_GPL(swap_buffer_flush);
 
-
+/**
+ * @brief Executes subbuffer-full-callback.
+ *
+ * @param buffer Pointer to the full subbuffer.
+ * @return -E_SB_NO_CALLBACK if no callback is registered or callbacks ret
+ * value otherwise.
+ */
 int swap_buffer_callback(void *buffer)
 {
 	int result;

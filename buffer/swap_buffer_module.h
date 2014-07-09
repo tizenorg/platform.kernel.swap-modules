@@ -1,6 +1,8 @@
-/*
- *  SWAP Buffer Module
- *  modules/buffer/swap_buffer_module.h
+/**
+ * @file buffer/swap_buffer_module.h
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,13 +18,14 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Alexander Aksenov <a.aksenov@samsung.com>: SWAP Buffer implement
+ * @section DESCRIPTION
  *
+ * SWAP Buffer interface declaration.
  */
-
-/* SWAP Buffer interface description */
 
 #ifndef __SWAP_BUFFER_MODULE_H__
 #define __SWAP_BUFFER_MODULE_H__
@@ -31,18 +34,37 @@
 
 struct swap_subbuffer;
 
+/**
+ * @struct buffer_init_t
+ * @brief Buffer init structure. Contains information necessary for SWAP buffer
+ * initialization.
+ * @var buffer_init_t::subbuffer_size
+ * Subbuffer size.
+ * @var buffer_init_t::nr_subbuffers
+ * Subbuffers count.
+ * @var buffer_init_t::subbuffer_full_cb
+ * Callback. Called when one of subbuffers is full.
+ * @var buffer_init_t::lower_threshold
+ * Lower threshold in percent. When buffers fall below this limit
+ * low_mem_cb is called and swap_buffer is suspended.
+ * @var buffer_init_t::low_mem_cb
+ * Callback that is called when count of free subbuffers falls below
+ * lower_threshold.
+ * @var buffer_init_t::top_threshold
+ * Top threshold in percent. When buffers exceed this limit
+ * enough_mem_cb is called.
+ * @var buffer_init_t::enough_mem_cb
+ * Callback that is called when count of free subbuffers exceeds top_threshold.
+ */
+
 struct buffer_init_t {
 	size_t subbuffer_size;
 	unsigned int nr_subbuffers;
 	int (*subbuffer_full_cb)(void);
 
-	/* Lower threshold in percent. When buffers fall below this limit
-	 * low_mem_cb is called and swap_buffer is suspended. */
 	unsigned char lower_threshold;
 	int (*low_mem_cb)(void);
 
-	/* Top threshold in percent. When buffers exceed this limit
-	 * enough_mem_cb is called */
 	unsigned char top_threshold;
 	int (*enough_mem_cb)(void);
 };

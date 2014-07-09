@@ -1,6 +1,8 @@
-/*
- *  SWAP Buffer Module
- *  modules/buffer/buffer_description.h
+/**
+ * @file buffer/buffer_description.h
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ *
+ * @section LICENSE
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,19 +18,32 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2013
  *
- * 2013         Alexander Aksenov <a.aksenov@samsung.com>: SWAP Buffer implement
+ * @section DESCRIPTION
  *
+ * swap_subbuffer structure represents one buffers subbufer
  */
-
-/* SWAP Buffer structure description */
 
 #ifndef __BUFFER_DESCRIPTION_H__
 #define __BUFFER_DESCRIPTION_H__
 
 #include "data_types.h"
 
+/**
+ * @struct swap_subbuffer
+ * @brief This structures are combined in array which represents the SWAP buffer.
+ * @var swap_subbuffer::next_in_queue
+ * Pointer to the next swap_subbufer in queue
+ * @var swap_subbuffer::full_buffer_part
+ * Currently occupied subbuffers size
+ * @var swap_subbuffer::data_buffer
+ * Pointer to subbuffers data itself of type swap_subbuffer_ptr
+ * @var swap_subbuffer::buffer_sync
+ * Subbuffers sync primitive
+ */
 struct swap_subbuffer {
 	/* Pointer to the next subbuffer in queue */
 	struct swap_subbuffer *next_in_queue;
