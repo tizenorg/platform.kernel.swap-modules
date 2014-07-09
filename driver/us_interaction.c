@@ -33,7 +33,7 @@
 #include "us_interaction.h"
 #include "us_interaction_msg.h"
 #include "swap_driver_errors.h"
-#include "kernel_operations.h"
+#include "driver_defs.h"
 
 
 /* Connector id struct */
