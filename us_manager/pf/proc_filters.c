@@ -84,10 +84,15 @@ static inline void free_by_tgid(struct proc_filter *self)
 static struct task_struct *call_by_comm(struct proc_filter *self,
 				       struct task_struct *task)
 {
+	struct task_struct *parent;
 	char *comm = (char *)self->data;
 	size_t len = strnlen(comm, TASK_COMM_LEN);
 
 	if (!strncmp(comm, task->comm, len))
+		return task;
+
+	parent = task->parent;
+	if (parent && !strncmp(comm, parent->comm, len))
 		return task;
 
 	return NULL;

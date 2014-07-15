@@ -402,6 +402,10 @@ void check_task_and_install(struct task_struct *task)
 	struct pf_group *pfg;
 	struct sspt_proc *proc = NULL;
 
+	WARN(task != current, "Context: current(%d/%d/%s), task(%d/%d/%s)\n",
+	     current->tgid, current->pid, current->comm,
+	     task->tgid, task->pid, task->comm);
+
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_task_f(&pfg->filter, task) == NULL)
 			continue;
@@ -443,8 +447,7 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	struct sspt_proc *proc = NULL;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (ignore_pf(&pfg->filter) ||
-		    (check_task_f(&pfg->filter, task) == NULL))
+		if ((check_task_f(&pfg->filter, task) == NULL))
 			continue;
 
 		proc = get_proc_by_pfg(pfg, task);
