@@ -210,6 +210,15 @@ static inline char *fops_path_buf(void)
 	return __get_cpu_var(__path_buf);
 }
 
+static inline unsigned fops_dcount(const struct dentry *dentry)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
+	return dentry->d_count;
+#else
+	return d_count(dentry);
+#endif
+}
+
 /* kernel function args */
 #define fops_karg(_type, _regs, _idx) ((_type)swap_get_karg(_regs, _idx))
 /* syscall args */
@@ -606,7 +615,7 @@ static int filp_close_entry_handler(struct kretprobe_instance *ri,
 		struct dentry *dentry = file->f_dentry;
 
 		/* release the file if it is going to be removed soon */
-		if (dentry && dentry->d_count == 2)
+		if (dentry && fops_dcount(dentry) == 2)
 			fops_dremove(dentry);
 	}
 
