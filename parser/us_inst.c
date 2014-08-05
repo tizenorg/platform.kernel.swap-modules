@@ -74,17 +74,8 @@ static int mod_func_inst(struct func_inst_data *func, struct pf_group *pfg,
 
 	switch (mt) {
 	case MT_ADD:
-	{
-		struct probe_info probe_i;
-
-		/* ARM toolchain hates good style initialization of struct with union */
-		probe_i.probe_type = SWAP_RETPROBE;
-		probe_i.size = 0;
-		probe_i.rp_i.args = func->args;
-		probe_i.rp_i.ret_type = func->ret_type;
-		ret = pf_register_probe(pfg, dentry, func->addr, &probe_i);
+		ret = pf_register_probe(pfg, dentry, func->addr, &func->probe_i);
 		break;
-	}
 	case MT_DEL:
 		ret = pf_unregister_probe(pfg, dentry, func->addr);
 		break;

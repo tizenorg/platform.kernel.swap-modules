@@ -33,6 +33,7 @@
 #define _MSG_PARSER_H
 
 #include <linux/types.h>
+#include <us_manager/probes/probes.h>
 
 struct msg_buf;
 
@@ -82,8 +83,7 @@ struct conf_data {
  */
 struct func_inst_data {
 	u64 addr;                   /**< Function address. */
-	char *args;                 /**< Function args format string. */
-	char ret_type;              /**< Function return type. */
+	struct probe_info probe_i;  /**< Probe info. */
 };
 
 /**

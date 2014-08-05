@@ -30,6 +30,7 @@
 
 
 #include <linux/slab.h>
+#include <us_manager/probes/probes.h>
 #include "msg_parser.h"
 #include "msg_buf.h"
 #include "parser_defs.h"
@@ -262,6 +263,62 @@ void restore_config(struct conf_data *conf)
 
 
 /* ============================================================================
+ * ==                             PROBES PARSING                             ==
+ * ============================================================================
+ */
+
+/**
+ * @brief Gets retprobe data and puts it to the probe_info struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @param pi Pointer to the probe_info struct.
+ * @return 0 on success, error code on error.
+ */
+int get_retprobe(struct msg_buf *mb, struct probe_info *pi)
+{
+	char *args;
+	char ret_type;
+
+	print_parse_debug("funct args:");
+	if (get_string(mb, &args)) {
+		print_err("failed to read data function arguments\n");
+		return -EINVAL;
+	}
+
+	print_parse_debug("funct ret type:");
+	if (get_u8(mb, (u8 *)&ret_type)) {
+		print_err("failed to read data function arguments\n");
+		goto free_args;
+	}
+
+	pi->probe_type = SWAP_RETPROBE;
+	pi->size = 0;
+	pi->rp_i.args = args;
+	pi->rp_i.ret_type = ret_type;
+
+	return 0;
+
+free_args:
+	put_string(args);
+	return -EINVAL;
+}
+
+/**
+ * @brief Retprobe data cleanup.
+ *
+ * @param pi Pointer to the probe_info comprising retprobe.
+ * @return Void.
+ */
+void put_retprobe(struct probe_info *pi)
+{
+	put_string(pi->rp_i.args);
+}
+
+
+
+
+
+/* ============================================================================
  * ==                               FUNC_INST                                ==
  * ============================================================================
  */
@@ -277,8 +334,7 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 {
 	struct func_inst_data *fi;
 	u64 addr;
-	char *args;
-	char ret_type;
+	u8 type;
 
 	print_parse_debug("func addr:");
 	if (get_u64(mb, &addr)) {
@@ -286,32 +342,35 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 		return NULL;
 	}
 
-	print_parse_debug("funct args:");
-	if (get_string(mb, &args)) {
-		print_err("failed to read data function arguments\n");
+	print_parse_debug("probe type:");
+	if (get_u8(mb, &type)) {
+		print_err("failed to read data probe type\n");
 		return NULL;
-	}
-
-	print_parse_debug("funct ret type:");
-	if (get_u8(mb, (u8 *)&ret_type)) {
-		print_err("failed to read data function arguments\n");
-		goto free_args;
 	}
 
 	fi = kmalloc(sizeof(*fi), GFP_KERNEL);
 	if (fi == NULL) {
 		print_err("out of memory\n");
-		goto free_args;
+		return NULL;
 	}
 
 	fi->addr = addr;
-	fi->args = args;
-	fi->ret_type = ret_type;
+
+	switch (type) {
+	case SWAP_RETPROBE:
+		if (get_retprobe(mb, &(fi->probe_i)) != 0)
+			goto free_func_inst;
+		break;
+	default:
+		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n", type);
+		goto free_func_inst;
+	}
 
 	return fi;
 
-free_args:
-	put_string(args);
+free_func_inst:
+
+	kfree(fi);
 	return NULL;
 }
 
@@ -323,7 +382,15 @@ free_args:
  */
 void destroy_func_inst_data(struct func_inst_data *fi)
 {
-	put_string(fi->args);
+	switch (fi->probe_i.probe_type) {
+	case SWAP_RETPROBE:
+		put_retprobe(&(fi->probe_i));
+		break;
+	default:
+		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n",
+		   fi->probe_i.probe_type);
+	}
+
 	kfree(fi);
 }
 
