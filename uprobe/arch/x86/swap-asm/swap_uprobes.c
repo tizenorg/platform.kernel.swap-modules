@@ -415,8 +415,14 @@ static int uprobe_handler(struct pt_regs *regs)
 		}
 
 		if (!p->pre_handler || !p->pre_handler(p, regs)) {
+
 			if (p->ainsn.boostable == 1 && !p->post_handler) {
-				regs->EREG(ip) = (unsigned long)p->ainsn.insn;
+				if (p->ss_addr[smp_processor_id()]) {
+					regs->EREG(ip) = (unsigned long)p->ss_addr[smp_processor_id()];
+					p->ss_addr[smp_processor_id()] = NULL;
+				} else {
+					regs->EREG(ip) = (unsigned long)p->ainsn.insn;
+				}
 				return 1;
 			}
 
