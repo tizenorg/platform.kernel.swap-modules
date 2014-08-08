@@ -402,10 +402,6 @@ void check_task_and_install(struct task_struct *task)
 	struct pf_group *pfg;
 	struct sspt_proc *proc = NULL;
 
-	WARN(task != current, "Context: current(%d/%d/%s), task(%d/%d/%s)\n",
-	     current->tgid, current->pid, current->comm,
-	     task->tgid, task->pid, task->comm);
-
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_task_f(&pfg->filter, task) == NULL)
 			continue;
