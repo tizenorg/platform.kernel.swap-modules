@@ -190,31 +190,18 @@ static void first_install(struct task_struct *task, struct sspt_proc *proc,
 			 NULL;
 	}
 
-	down_read(&task->mm->mmap_sem);
-	proc_info_msg(task, dentry);
-	up_read(&task->mm->mmap_sem);
-
-#ifdef CONFIG_ARM
 	down_write(&task->mm->mmap_sem);
+	proc_info_msg(task, dentry);
 	sspt_proc_install(proc);
 	up_write(&task->mm->mmap_sem);
-#else /* CONFIG_ARM */
-	sspt_proc_install(proc);
-#endif /* CONFIG_ARM */
 }
 
 static void subsequent_install(struct task_struct *task,
 			       struct sspt_proc *proc, unsigned long page_addr)
 {
-	if (!page_addr)
-		return;
-#ifdef CONFIG_ARM
 	down_write(&task->mm->mmap_sem);
 	sspt_proc_install_page(proc, page_addr);
 	up_write(&task->mm->mmap_sem);
-#else /* CONFIG_ARM */
-	sspt_proc_install_page(proc, page_addr);
-#endif /* CONFIG_ARM */
 }
 
 /**

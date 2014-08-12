@@ -34,38 +34,6 @@
 #include <writer/swap_writer_module.h>
 
 
-#ifdef CONFIG_ARM
-#define mm_read_lock(task, mm, atomic, lock)			\
-	mm = task->mm;						\
-	lock = 0
-
-#define mm_read_unlock(mm, atomic, lock)
-#else /* CONFIG_ARM */
-#define mm_read_lock(task, mm, atomic, lock)			\
-	mm = atomic ? task->active_mm : get_task_mm(task); 	\
-	if (mm == NULL) {					\
-		/* FIXME: */					\
-		panic("ERRR mm_read_lock: mm == NULL\n");	\
-	}							\
-								\
-	if (atomic) {						\
-		lock = down_read_trylock(&mm->mmap_sem);	\
-	} else {						\
-		lock = 1;					\
-		down_read(&mm->mmap_sem);			\
-	}
-
-#define mm_read_unlock(mm, atomic, lock) 			\
-	if (lock) {						\
-		up_read(&mm->mmap_sem);				\
-	}							\
-								\
-	if (!atomic) {						\
-		mmput(mm);					\
-	}
-#endif /* CONFIG_ARM */
-
-
 static LIST_HEAD(proc_probes_list);
 static DEFINE_RWLOCK(sspt_proc_rwlock);
 
@@ -311,13 +279,8 @@ struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc, struct dentry *den
  */
 void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 {
-	int lock, atomic;
-	struct mm_struct *mm;
+	struct mm_struct *mm = proc->task->mm;
 	struct vm_area_struct *vma;
-	struct task_struct *task = proc->task;
-
-	atomic = in_atomic();
-	mm_read_lock(task, mm, atomic, lock);
 
 	vma = find_vma_intersection(mm, page_addr, page_addr + 1);
 	if (vma && check_vma(vma)) {
@@ -336,8 +299,6 @@ void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 			}
 		}
 	}
-
-	mm_read_unlock(mm, atomic, lock);
 }
 
 /**
@@ -348,15 +309,10 @@ void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
  */
 void sspt_proc_install(struct sspt_proc *proc)
 {
-	int lock, atomic;
 	struct vm_area_struct *vma;
-	struct task_struct *task = proc->task;
-	struct mm_struct *mm;
+	struct mm_struct *mm = proc->task->mm;
 
 	proc->first_install = 1;
-
-	atomic = in_atomic();
-	mm_read_lock(task, mm, atomic, lock);
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (check_vma(vma)) {
@@ -372,8 +328,6 @@ void sspt_proc_install(struct sspt_proc *proc)
 			}
 		}
 	}
-
-	mm_read_unlock(mm, atomic, lock);
 }
 
 /**
