@@ -33,8 +33,12 @@
 #ifndef __SWAP_SAMPLER_MODULE_H__
 #define __SWAP_SAMPLER_MODULE_H__
 
+
+typedef void (*swap_sample_cb_t)(struct pt_regs *);
+
+
 /* Starts the SWAP Sampler */
-int swap_sampler_start(unsigned int timer_quantum);
+int swap_sampler_start(unsigned int timer_quantum, swap_sample_cb_t cb);
 
 /* Stops the SWAP Sampler */
 int swap_sampler_stop(void);

@@ -35,9 +35,6 @@
 #include <linux/cpu.h>
 #include <linux/module.h>
 
-#include <writer/swap_writer_module.h>
-#include <writer/event_filter.h>
-
 #include "swap_sampler_module.h"
 #include "swap_sampler_errors.h"
 #include "kernel_operations.h"
@@ -45,11 +42,11 @@
 
 
 static BLOCKING_NOTIFIER_HEAD(swap_sampler_notifier_list);
+static swap_sample_cb_t sampler_cb;
 
 static restart_ret swap_timer_restart(swap_timer *timer)
 {
-	if (check_event(current))
-		sample_msg(task_pt_regs(current));
+	sampler_cb(task_pt_regs(current));
 
 	return sampler_timers_restart(timer);
 }
@@ -127,7 +124,7 @@ static int sampler_run = 0;
  * @param timer_quantum Timer quantum for sampling.
  * @return 0 on success, error code on error.
  */
-int swap_sampler_start(unsigned int timer_quantum)
+int swap_sampler_start(unsigned int timer_quantum, swap_sample_cb_t cb)
 {
 	int ret = -EINVAL;
 
@@ -136,6 +133,8 @@ int swap_sampler_start(unsigned int timer_quantum)
 		printk("sampler profiling is already run!\n");
 		goto unlock;
 	}
+
+	sampler_cb = cb;
 
 	ret = do_swap_sampler_start(timer_quantum);
 	if (ret == 0)

@@ -36,6 +36,8 @@
 #include "features.h"
 #include "msg_parser.h"
 
+#include <writer/event_filter.h>
+#include <writer/swap_writer_module.h>
 #include <sampler/swap_sampler_module.h>
 #include <energy/energy.h>
 
@@ -281,6 +283,13 @@ int unset_context_switch(void)
 	return ret;
 }
 
+
+static void sampler_cb(struct pt_regs *regs)
+{
+	if (check_event(current))
+		sample_msg(regs);
+}
+
 /**
  * @brief Set sampling feature on.
  *
@@ -291,7 +300,7 @@ int set_func_sampling(struct conf_data *conf)
 {
 	int ret;
 
-	ret = swap_sampler_start(conf->data_msg_period);
+	ret = swap_sampler_start(conf->data_msg_period, sampler_cb);
 
 	return ret;
 }
