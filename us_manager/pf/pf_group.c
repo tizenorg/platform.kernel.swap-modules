@@ -183,7 +183,7 @@ static void first_install(struct task_struct *task, struct sspt_proc *proc,
 {
 	struct dentry *dentry;
 
-	dentry = get_dentry_by_pf(&pfg->filter);
+	dentry = (struct dentry *)get_pf_priv(&pfg->filter);
 	if (dentry == NULL) {
 		dentry = task->mm->exe_file ?
 			 task->mm->exe_file->f_dentry :

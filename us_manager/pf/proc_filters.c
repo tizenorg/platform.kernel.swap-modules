@@ -247,17 +247,14 @@ int check_pf_dumb(struct proc_filter *filter)
 }
 
 /**
- * @brief Get dentry from pf_group struct if it filter by dentry
+ * @brief Get priv from pf_group struct
  *
  * @param filter Pointer to the proc_filter struct
- * @return Pointer to the dentry struct or  NULL
+ * @return Pointer to the priv
  */
-struct dentry *get_dentry_by_pf(struct proc_filter *filter)
+void *get_pf_priv(struct proc_filter *filter)
 {
-	if (filter->call == &call_by_dentry)
-		return (struct dentry *)filter->data;
-
-	return NULL;
+	return filter->priv;
 }
 
 /* Check function for call_page_fault() and other frequently called

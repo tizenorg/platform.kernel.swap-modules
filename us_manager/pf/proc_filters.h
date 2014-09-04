@@ -62,7 +62,7 @@ int check_pf_by_dentry(struct proc_filter *filter, struct dentry *dentry);
 int check_pf_by_tgid(struct proc_filter *filter, pid_t tgid);
 int check_pf_by_comm(struct proc_filter *filter, char *comm);
 int check_pf_dumb(struct proc_filter *filter);
-struct dentry *get_dentry_by_pf(struct proc_filter *filter);
+void *get_pf_priv(struct proc_filter *filter);
 
 void free_pf(struct proc_filter *filter);
 
