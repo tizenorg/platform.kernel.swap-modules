@@ -298,7 +298,7 @@ int swap_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 
 
-extern DEFINE_PER_CPU(struct kprobe *, swap_current_kprobe);
+DECLARE_PER_CPU(struct kprobe *, swap_current_kprobe);
 extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 //extern struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 extern atomic_t kprobe_count;
