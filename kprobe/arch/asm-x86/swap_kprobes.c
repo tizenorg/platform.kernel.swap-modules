@@ -41,10 +41,6 @@
 #include <kprobe/swap_kprobes_deps.h>
 #define SUPRESS_BUG_MESSAGES                    /**< Debug-off definition. */
 
-extern struct kprobe * per_cpu__current_kprobe;
-extern struct kprobe * per_cpu__current_kprobe;
-extern struct kprobe *swap_current_kprobe;
-
 
 static int (*swap_fixup_exception)(struct pt_regs * regs);
 static void *(*swap_text_poke)(void *addr, const void *opcode, size_t len);

@@ -56,40 +56,6 @@ static struct hlist_head uretprobe_inst_table[UPROBE_TABLE_SIZE];
 #define DEBUG_PRINT_HASH_TABLE 0
 
 #if DEBUG_PRINT_HASH_TABLE
-void print_kprobe_hash_table(void)
-{
-	int i;
-	struct hlist_head *head;
-	struct kprobe *p;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	// print uprobe table
-	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
-		head = &kprobe_table[i];
-		swap_hlist_for_each_entry_rcu(p, node, head, is_hlist_arm) {
-			printk("####### find K tgid=%u, addr=%x\n",
-					p->tgid, p->addr);
-		}
-	}
-}
-
-void print_kretprobe_hash_table(void)
-{
-	int i;
-	struct hlist_head *head;
-	struct kprobe *p;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	// print uprobe table
-	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
-		head = &kretprobe_inst_table[i];
-		swap_hlist_for_each_entry_rcu(p, node, head, is_hlist_arm) {
-			printk("####### find KR tgid=%u, addr=%x\n",
-					p->tgid, p->addr);
-		}
-	}
-}
-
 void print_uprobe_hash_table(void)
 {
 	int i;

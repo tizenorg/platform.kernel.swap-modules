@@ -299,8 +299,6 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 
 
 DECLARE_PER_CPU(struct kprobe *, swap_current_kprobe);
-extern struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
-//extern struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 extern atomic_t kprobe_count;
 extern unsigned long sched_addr;
 
