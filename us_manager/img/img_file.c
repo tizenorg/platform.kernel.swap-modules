@@ -94,12 +94,12 @@ static struct img_ip *find_img_ip(struct img_file *file, unsigned long addr)
  *
  * @param file Pointer to the img_file struct
  * @param addr Function address
- * @param args Function arguments
- * @param ret_type Return type
+ * @param probe_Pointer to a probe_info structure with an information about
+ * the probe.
  * @return Error code
  */
 int img_file_add_ip(struct img_file *file, unsigned long addr,
-		    const char *args, char ret_type)
+		    struct probe_info *probe_i)
 {
 	struct img_ip *ip;
 
@@ -109,7 +109,7 @@ int img_file_add_ip(struct img_file *file, unsigned long addr,
 		return 0;
 	}
 
-	ip = create_img_ip(addr, args, ret_type);
+	ip = create_img_ip(addr, probe_i);
 	img_add_ip_by_list(file, ip);
 
 	return 0;

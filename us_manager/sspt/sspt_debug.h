@@ -26,6 +26,7 @@
  */
 
 #include <kprobe/swap_kprobes_deps.h>
+#include <us_manager/probes/probes.h>
 
 static inline void print_jprobe(struct jprobe *jp)
 {
@@ -41,10 +42,14 @@ static inline void print_retprobe(struct uretprobe *rp)
 
 static inline void print_ip(struct us_ip *ip, int i)
 {
-	printk("###       addr[%2d]=%lx, R_addr=%lx\n",
-				i, (unsigned long)ip->offset,
-				(unsigned long)ip->retprobe.up.kp.addr);
-	print_retprobe(&ip->retprobe);
+	if (ip->probe_i.probe_type == SWAP_RETPROBE) {
+		struct uretprobe *rp = &ip->retprobe;
+
+		printk("###       addr[%2d]=%lx, R_addr=%lx\n",
+					i, (unsigned long)ip->offset,
+					(unsigned long)rp->up.kp.addr);
+		print_retprobe(rp);
+	}
 }
 
 static inline void print_page_probes(const struct sspt_page *page)

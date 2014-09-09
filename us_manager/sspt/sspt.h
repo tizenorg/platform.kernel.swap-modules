@@ -35,6 +35,7 @@
 
 #include <us_manager/us_manager.h>
 #include <us_manager/pf/pf_group.h>
+#include <us_manager/probes/use_probes.h>
 
 
 static inline int check_vma(struct vm_area_struct *vma)
@@ -48,16 +49,23 @@ static inline int check_vma(struct vm_area_struct *vma)
 static inline int sspt_register_usprobe(struct us_ip *ip)
 {
 	int ret;
+	struct uprobe *up = NULL;
 
-	/* for retuprobe */
-	ip->retprobe.up.task = ip->page->file->proc->task;
-	ip->retprobe.up.sm = ip->page->file->proc->sm;
+	up = probe_info_get_uprobe(&ip->probe_i, ip);
 
-	ret = swap_register_uretprobe(&ip->retprobe);
+	if (!up) {
+		printk("SWAP US_MANAGER: failed getting uprobe!\n");
+		return -EINVAL;
+	}
+
+	up->task = ip->page->file->proc->task;
+	up->sm = ip->page->file->proc->sm;
+
+	ret = probe_info_register(&ip->probe_i, ip);
 	if (ret) {
 		struct sspt_file *file = ip->page->file;
 		char *name = file->dentry->d_iname;
-		unsigned long addr = (unsigned long)ip->retprobe.up.kp.addr;
+		unsigned long addr = (unsigned long)up->kp.addr;
 		unsigned long offset = addr - file->vm_start;
 
 		printk("swap_register_uretprobe() failure %d (%s:%lx|%lx)\n",
@@ -67,32 +75,26 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	return ret;
 }
 
-static inline int do_unregister_usprobe(struct us_ip *ip, int disarm)
-{
-	__swap_unregister_uretprobe(&ip->retprobe, disarm);
-
-	return 0;
-}
-
 static inline int sspt_unregister_usprobe(struct task_struct *task, struct us_ip *ip, enum US_FLAGS flag)
 {
-	int err = 0;
+	struct uprobe *up = NULL;
 
 	switch (flag) {
 	case US_UNREGS_PROBE:
-		err = do_unregister_usprobe(ip, 1);
+		probe_info_unregister(&ip->probe_i, ip, 1);
 		break;
 	case US_DISARM:
-		disarm_uprobe(&ip->retprobe.up.kp, task);
+		up = probe_info_get_uprobe(&ip->probe_i, ip);
+		disarm_uprobe(&up->kp, task);
 		break;
 	case US_UNINSTALL:
-		err = do_unregister_usprobe(ip, 0);
+		probe_info_unregister(&ip->probe_i, ip, 0);
 		break;
 	default:
 		panic("incorrect value flag=%d", flag);
 	}
 
-	return err;
+	return 0;
 }
 
 #endif /* __SSPT__ */

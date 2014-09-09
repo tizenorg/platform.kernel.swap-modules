@@ -90,23 +90,22 @@ static struct img_file *find_img_file(struct img_proc *proc, struct dentry *dent
  * @param proc Pointer to the img_proc struct
  * @param dentry Dentry of file
  * @param addr Function address
- * @param args Function address
- * @param ret_type Return type
+ * @param probe_i Pointer to a probe_info struct related with the probe
  * @return Error code
  */
 int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
-		    unsigned long addr, const char *args, char ret_type)
+		    unsigned long addr, struct probe_info *probe_i)
 {
 	int ret;
 	struct img_file *file;
 
 	file = find_img_file(proc, dentry);
 	if (file)
-		return img_file_add_ip(file, addr, args, ret_type);
+		return img_file_add_ip(file, addr, probe_i);
 
 	file = create_img_file(dentry);
 
-	ret = img_file_add_ip(file, addr, args, ret_type);
+	ret = img_file_add_ip(file, addr, probe_i);
 	if (ret) {
 		printk("Cannot add ip to img file\n");
 		free_img_file(file);

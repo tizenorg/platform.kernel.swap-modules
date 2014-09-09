@@ -34,6 +34,7 @@ ks_features_dir=${modules_dir}/ks_features
 sampler_dir=${modules_dir}/sampler
 energy_dir=${modules_dir}/energy
 parser_dir=${modules_dir}/parser
+retprobe_dir=${modules_dir}/retprobe
 
 buffer_module_name=swap_buffer.ko
 driver_module_name=swap_driver.ko
@@ -47,6 +48,7 @@ sampler_module_name=swap_sampler.ko
 energy_module_name=swap_energy.ko
 parser_module_name=swap_message_parser.ko
 ksyms_module_name=swap_ksyms.ko
+retprobe_module_name=swap_retprobe.ko
 
 install_dir="/opt/swap/sdk"
 
@@ -69,7 +71,8 @@ ${ks_features_dir}/${ks_features_module_name} \
 ${sampler_dir}/${sampler_module_name} \
 ${energy_dir}/${energy_module_name} \
 ${parser_dir}/${parser_module_name} \
-${ksyms_dir}/${ksyms_module_name}"
+${ksyms_dir}/${ksyms_module_name} \
+${retprobe_dir}/${retprobe_module_name}"
 
 for m in ${modules} ; do
 	${cross_compile}strip -x -g $m

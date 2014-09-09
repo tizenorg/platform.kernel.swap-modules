@@ -33,6 +33,8 @@
 #include <linux/errno.h>
 #include <linux/namei.h>
 #include <us_manager/pf/pf_group.h>
+#include <us_manager/probes/probes.h>
+
 #include "msg_parser.h"
 #include "us_inst.h"
 
@@ -72,9 +74,17 @@ static int mod_func_inst(struct func_inst_data *func, struct pf_group *pfg,
 
 	switch (mt) {
 	case MT_ADD:
-		ret = pf_register_probe(pfg, dentry, func->addr, func->args,
-					func->ret_type);
+	{
+		struct probe_info probe_i;
+
+		/* ARM toolchain hates good style initialization of struct with union */
+		probe_i.probe_type = SWAP_RETPROBE;
+		probe_i.rp_i.args = func->args;
+		probe_i.rp_i.ret_type = func->ret_type;
+		probe_i.rp_i.size = 0;
+		ret = pf_register_probe(pfg, dentry, func->addr, &probe_i);
 		break;
+	}
 	case MT_DEL:
 		ret = pf_unregister_probe(pfg, dentry, func->addr);
 		break;

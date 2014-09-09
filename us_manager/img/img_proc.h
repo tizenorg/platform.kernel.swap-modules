@@ -28,6 +28,7 @@
 #include <linux/types.h>
 
 struct dentry;
+struct probe_info;
 
 /**
  * @struct img_proc
@@ -41,7 +42,7 @@ struct img_proc *create_img_proc(void);
 void free_img_proc(struct img_proc *proc);
 
 int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
-		    unsigned long addr, const char *args, char ret_type);
+		    unsigned long addr, struct probe_info *probe_i);
 int img_proc_del_ip(struct img_proc *proc, struct dentry *dentry, unsigned long addr);
 
 /* debug */

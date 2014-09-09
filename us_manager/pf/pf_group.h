@@ -30,6 +30,7 @@
 struct dentry;
 struct pf_group;
 struct sspt_proc;
+struct probe_info;
 
 struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv);
 struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv);
@@ -38,7 +39,7 @@ struct pf_group *get_pf_group_dumb(void *priv);
 void put_pf_group(struct pf_group *pfg);
 
 int pf_register_probe(struct pf_group *pfg, struct dentry *dentry,
-		      unsigned long offset, const char *args, char ret_type);
+		      unsigned long offset, struct probe_info *probe_i);
 int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 			unsigned long offset);
 

@@ -167,12 +167,12 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long pa
  * @return Void
  */
 void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
-		      const char *args, char ret_type)
+		      struct probe_info *probe_i)
 {
 	struct sspt_page *page = sspt_find_page_or_new(file, offset & PAGE_MASK);
 
 	// FIXME: delete ip
-	struct us_ip *ip = create_ip(offset, args, ret_type);
+	struct us_ip *ip = create_ip(offset, probe_i);
 
 	sspt_add_ip(page, ip);
 }

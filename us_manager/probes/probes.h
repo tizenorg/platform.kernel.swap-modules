@@ -1,8 +1,7 @@
-/**
- * @file us_manager/img/img_ip.h
- * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+/*
+ *  SWAP uprobe manager
+ *  modules/us_manager/probes/probes.h
  *
- * @section LICENSE
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -17,33 +16,38 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * @section COPYRIGHT
- * Copyright (C) Samsung Electronics, 2013
+ * Copyright (C) Samsung Electronics, 2014
+ *
+ * 2014	 Alexander Aksenov: Probes interface implement
  *
  */
 
 
-#ifndef _IMG_IP_H
-#define _IMG_IP_H
+#ifndef __PROBES_H__
+#define __PROBES_H__
 
 #include <linux/types.h>
-#include <us_manager/probes/probes.h>
 
-/**
- * @struct img_ip
- * @breaf Image of instrumentation pointer
+#include <retprobe/retprobe.h>       /* TODO Remove */
+
+
+
+/* All probe types. Only us_manager should know about them - it is its own
+ * business to install proper probes on proper places.
  */
-struct img_ip {
-	struct list_head list;		/**< For img_file */
-	unsigned long addr;		/**< Function address */
-	struct probe_info probe_i;	/**< Probe info */
+enum probe_t {
+	SWAP_RETPROBE = 0,          /* Retprobe */
+	SWAP_PROBE_MAX_VAL          /* Probes max value. */
 };
 
-struct img_ip *create_img_ip(unsigned long addr, struct probe_info *probe_i);
-void free_img_ip(struct img_ip *ip);
+/* Probe info stuct. It contains the whole information about probe. */
+struct probe_info {
+	enum probe_t probe_type;
+	size_t size;
+	/* Union of all SWAP supported probe types */
+	union {
+		struct retprobe_info rp_i;
+	};
+};
 
-/* debug */
-void img_ip_print(struct img_ip *ip);
-/* debug */
-
-#endif /* _IMG_IP_H */
+#endif /* __PROBES_H__ */

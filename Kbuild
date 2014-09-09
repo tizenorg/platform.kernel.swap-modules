@@ -11,4 +11,5 @@ obj-m := buffer/ \
          ks_features/ \
          sampler/ \
          energy/ \
-         parser/
+         parser/ \
+         retprobe/

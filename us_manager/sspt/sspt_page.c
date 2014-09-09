@@ -26,6 +26,7 @@
 #include "sspt_page.h"
 #include "sspt_file.h"
 #include "ip.h"
+#include <us_manager/probes/use_probes.h>
 #include <linux/slab.h>
 #include <linux/list.h>
 
@@ -141,6 +142,7 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 	int err = 0;
 	struct us_ip *ip, *n;
 	struct list_head ip_list_tmp;
+	struct uprobe *up;
 	unsigned long addr;
 
 	spin_lock(&page->lock);
@@ -161,7 +163,8 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 		addr = file->vm_start + page->offset + ip->offset;
 
 		ip->orig_addr = addr;
-		ip->retprobe.up.kp.addr = (kprobe_opcode_t *)addr;
+		up = probe_info_get_uprobe(&ip->probe_i, ip);
+		up->kp.addr = (kprobe_opcode_t *)addr;
 
 		err = sspt_register_usprobe(ip);
 		if (err) {

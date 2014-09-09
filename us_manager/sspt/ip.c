@@ -26,67 +26,29 @@
 #include "ip.h"
 #include "sspt_page.h"
 #include "sspt_file.h"
-#include <writer/swap_writer_module.h>
-#include <us_manager/us_manager.h>
-
-
-static int entry_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
-{
-	struct uretprobe *rp = ri->rp;
-
-	if (rp && get_quiet() == QT_OFF) {
-		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
-		const char *fmt = ip->args;
-		unsigned long addr = (unsigned long)ip->orig_addr;
-
-		entry_event(fmt, addr, regs, PT_US, PST_NONE);
-	}
-
-	return 0;
-}
-
-static int ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
-{
-	struct uretprobe *rp = ri->rp;
-
-	if (rp && get_quiet() == QT_OFF) {
-		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
-		unsigned long addr = (unsigned long)ip->orig_addr;
-		unsigned long ret_addr = (unsigned long)ri->ret_addr;
-
-		exit_event(ip->ret_type, regs, PT_US, PST_NONE, addr, ret_addr);
-	}
-
-	return 0;
-}
+#include <us_manager/probes/use_probes.h>
 
 /**
  * @brief Create us_ip struct
  *
  * @param offset Function offset from the beginning of the page
- * @param args Function arguments
- * @param ret_type Return type
+ * @param probe_i Pointer to the probe data.
  * @return Pointer to the created us_ip struct
  */
-struct us_ip *create_ip(unsigned long offset, const char *args, char ret_type)
+struct us_ip *create_ip(unsigned long offset, const struct probe_info *probe_i)
 {
-	size_t len = strlen(args) + 1;
-	struct us_ip *ip = kmalloc(sizeof(*ip) + len, GFP_ATOMIC);
+	size_t len = probe_i->size;
+	struct us_ip *ip;
 
+	ip = kmalloc(sizeof(*ip) + len, GFP_ATOMIC);
 	if (ip != NULL) {
-		memset(ip, 0, sizeof(*ip));
+		memset(ip, 0, sizeof(*ip) + len);
 
 		INIT_LIST_HEAD(&ip->list);
 		ip->offset = offset;
-		ip->args = (char *)ip + sizeof(*ip);
-		ip->ret_type = ret_type;
 
-		/* copy args */
-		memcpy(ip->args, args, len);
-
-		/* retprobe */
-		ip->retprobe.handler = ret_handler;
-		ip->retprobe.entry_handler = entry_handler;
+		probe_info_copy(probe_i, &ip->probe_i);
+		probe_info_init(&ip->probe_i, ip);
 	} else {
 		printk("Cannot kmalloc in create_ip function!\n");
 	}
@@ -102,5 +64,6 @@ struct us_ip *create_ip(unsigned long offset, const char *args, char ret_type)
  */
 void free_ip(struct us_ip *ip)
 {
+	probe_info_uninit(&ip->probe_i, ip);
 	kfree(ip);
 }

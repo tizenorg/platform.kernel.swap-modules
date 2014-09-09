@@ -24,32 +24,25 @@
 
 
 #include "img_ip.h"
+#include <us_manager/probes/use_probes.h>
 #include <linux/slab.h>
 
 /**
  * @brief Create img_ip struct
  *
  * @param addr Function address
- * @param args Function arguments
- * @param ret_type Return type
+ * @param probe_i Pointer to the probe info data.
  * @return Pointer to the created img_ip struct
  */
-struct img_ip *create_img_ip(unsigned long addr, const char *args,
-			     char ret_type)
+struct img_ip *create_img_ip(unsigned long addr, struct probe_info *probe_i)
 {
 	struct img_ip *ip;
-	size_t len;
 
 	ip = kmalloc(sizeof(*ip), GFP_KERNEL);
 	INIT_LIST_HEAD(&ip->list);
 	ip->addr = addr;
 
-	/* copy args */
-	len = strlen(args) + 1;
-	ip->args = kmalloc(len, GFP_KERNEL);
-	memcpy(ip->args, args, len);
-
-	ip->ret_type = ret_type;
+	probe_info_copy(probe_i, &ip->probe_i);
 
 	return ip;
 }
@@ -62,7 +55,7 @@ struct img_ip *create_img_ip(unsigned long addr, const char *args,
  */
 void free_img_ip(struct img_ip *ip)
 {
-	kfree(ip->args);
+	probe_info_cleanup(&ip->probe_i);
 	kfree(ip);
 }
 
@@ -76,6 +69,8 @@ void free_img_ip(struct img_ip *ip)
 /* debug */
 void img_ip_print(struct img_ip *ip)
 {
-	printk("###            addr=8%lx, args=%s\n", ip->addr, ip->args);
+	if (ip->probe_i.probe_type == SWAP_RETPROBE)
+		printk("###            addr=8%lx, args=%s\n", ip->addr,
+			   ip->probe_i.rp_i.args);
 }
 /* debug */

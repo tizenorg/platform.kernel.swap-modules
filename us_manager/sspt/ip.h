@@ -26,6 +26,7 @@
 
 #include <linux/list.h>
 #include <uprobe/swap_uprobes.h>
+#include <us_manager/probes/probes.h>
 
 struct sspt_page;
 
@@ -34,19 +35,21 @@ struct sspt_page;
  * @breaf Image of instrumentation pointer for specified process
  */
 struct us_ip {
-	struct list_head list;		/**< For sspt_page */
-	struct sspt_page *page;		/**< Pointer on the page (parent) */
+	struct list_head list;      /**< For sspt_page */
+	struct sspt_page *page;     /**< Pointer on the page (parent) */
+	struct probe_info probe_i;  /**< Probe's data */
 
-	struct uretprobe retprobe;	/**< uretprobe */
-	char *args;			/**< Function arguments */
-	char ret_type;			/**< Return type */
-	unsigned long orig_addr;	/**< Function address */
+	unsigned long orig_addr;    /**< Function address */
+	unsigned long offset;       /**< Page offset */
 
-	unsigned long offset;		/**< Page offset */
+	union {
+		struct uretprobe retprobe;
+		struct uprobe uprobe;
+	};
 };
 
 
-struct us_ip *create_ip(unsigned long offset, const char *args, char ret_type);
+struct us_ip *create_ip(unsigned long offset, const struct probe_info *probe_i);
 void free_ip(struct us_ip *ip);
 
 #endif /* __IP__ */
