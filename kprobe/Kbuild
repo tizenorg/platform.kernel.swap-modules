@@ -5,4 +5,12 @@ swap_kprobe-y := swap_kprobes.o \
                  swap_kprobes_deps.o \
                  arch/asm/swap_kprobes.o \
                  swap_slots.o
-swap_kprobe-$(CONFIG_ARM) += arch/asm/trampoline_arm.o
+
+ifeq ($(CONFIG_ARM), y)
+swap_kprobe-y += arch/asm/trampoline_arm.o
+
+ifeq ($(CONFIG_STRICT_MEMORY_RWX), y)
+swap_kprobe-y += arch/asm/memory_rwx.o
+endif # CONFIG_STRICT_MEMORY_RWX
+
+endif # CONFIG_ARM

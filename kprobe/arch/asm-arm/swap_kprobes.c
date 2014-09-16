@@ -530,8 +530,19 @@ int swap_longjmp_break_handler (struct kprobe *p, struct pt_regs *regs)
 EXPORT_SYMBOL_GPL(swap_longjmp_break_handler);
 
 #ifdef CONFIG_STRICT_MEMORY_RWX
-extern void mem_text_write_kernel_word(unsigned long *addr, unsigned long word);
-#endif
+#include "memory_rwx.h"
+
+static void write_u32(unsigned long addr, unsigned long val)
+{
+	mem_rwx_write_u32(addr, val);
+}
+#else /* CONFIG_STRICT_MEMORY_RWX */
+static void write_u32(unsigned long addr, unsigned long val)
+{
+	*(long *)addr = BREAKPOINT_INSTRUCTION;
+	flush_icache_range(addr, addr + sizeof(long));
+}
+#endif /* CONFIG_STRICT_MEMORY_RWX */
 
 /**
  * @brief Arms kprobe.
@@ -541,12 +552,7 @@ extern void mem_text_write_kernel_word(unsigned long *addr, unsigned long word);
  */
 void swap_arch_arm_kprobe(struct kprobe *p)
 {
-#ifdef CONFIG_STRICT_MEMORY_RWX
-	mem_text_write_kernel_word(p->addr, BREAKPOINT_INSTRUCTION);
-#else
-	*p->addr = BREAKPOINT_INSTRUCTION;
-	flush_icache_range((unsigned long)p->addr, (unsigned long)p->addr + sizeof(kprobe_opcode_t));
-#endif
+	write_u32((long)p->addr, BREAKPOINT_INSTRUCTION);
 }
 
 /**
@@ -557,12 +563,7 @@ void swap_arch_arm_kprobe(struct kprobe *p)
  */
 void swap_arch_disarm_kprobe(struct kprobe *p)
 {
-#ifdef CONFIG_STRICT_MEMORY_RWX
-	mem_text_write_kernel_word(p->addr, p->opcode);
-#else
-	*p->addr = p->opcode;
-	flush_icache_range((unsigned long)p->addr, (unsigned long)p->addr + sizeof(kprobe_opcode_t));
-#endif
+	write_u32((long)p->addr, p->opcode);
 }
 
 /**
