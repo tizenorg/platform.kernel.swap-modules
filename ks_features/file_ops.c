@@ -37,8 +37,9 @@ enum {
 	FOPS_RECV		= 10,
 	FOPS_OPTION		= 11,
 	FOPS_MANAGE		= 12,
-	FOPS_LOCK		= 14, /* 13 */
-	FOPS_UNLOCK		= 15
+	FOPS_LOCK_START		= 14, /* 13 */
+	FOPS_LOCK_END		= 15,
+	FOPS_LOCK_RELEASE	= 16
 };
 
 struct file_probe {
@@ -565,8 +566,8 @@ static int lock_entry_handler(struct kretprobe_instance *ri,
 			filepath = fops_fpath(file, buf, PATH_LEN);
 
 			if (lock_arg_init(fprobe->id, regs, &arg) == 0) {
-				subtype = (arg.type == F_UNLCK ? FOPS_UNLOCK:
-								 FOPS_LOCK);
+				subtype = (arg.type == F_UNLCK ? FOPS_LOCK_RELEASE:
+								 FOPS_LOCK_START);
 
 				custom_entry_event(F_ADDR(rp), regs, PT_FILE,
 						   subtype, "Sxddxx",
@@ -598,9 +599,16 @@ static int lock_ret_handler(struct kretprobe_instance *ri,
 	struct kretprobe *rp = ri->rp;
 	struct flock_private *priv = (struct flock_private *)ri->data;
 
-	if (rp && priv->dentry)
+	if (rp && priv->dentry) {
+		int subtype;
+		if (priv->subtype == FOPS_LOCK_START)
+			subtype = FOPS_LOCK_END; /* lock ret marked as lock_end */
+		else
+			subtype = priv->subtype;
+
 		custom_exit_event(F_ADDR(rp), R_ADDR(ri), regs,
-				  PT_FILE, priv->subtype, "x");
+				  PT_FILE, subtype, "x");
+	}
 
 	return 0;
 }
