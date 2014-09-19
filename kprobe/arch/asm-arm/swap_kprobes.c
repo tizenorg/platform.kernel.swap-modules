@@ -539,7 +539,7 @@ static void write_u32(unsigned long addr, unsigned long val)
 #else /* CONFIG_STRICT_MEMORY_RWX */
 static void write_u32(unsigned long addr, unsigned long val)
 {
-	*(long *)addr = BREAKPOINT_INSTRUCTION;
+	*(long *)addr = val;
 	flush_icache_range(addr, addr + sizeof(long));
 }
 #endif /* CONFIG_STRICT_MEMORY_RWX */
