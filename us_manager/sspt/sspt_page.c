@@ -77,7 +77,6 @@ void sspt_page_free(struct sspt_page *page)
 static void sspt_list_add_ip(struct sspt_page *page, struct us_ip *ip)
 {
 	list_add(&ip->list, &page->ip_list_no_inst);
-	ip->page = page;
 }
 
 static void sspt_list_del_ip(struct us_ip *ip)

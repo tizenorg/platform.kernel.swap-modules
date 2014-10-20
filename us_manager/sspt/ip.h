@@ -50,7 +50,8 @@ struct us_ip {
 
 #define to_us_ip(rp) container_of(rp, struct us_ip, retprobe)
 
-struct us_ip *create_ip(unsigned long offset, const struct probe_info *probe_i);
+struct us_ip *create_ip(unsigned long offset, const struct probe_info *probe_i,
+			struct sspt_page *page);
 void free_ip(struct us_ip *ip);
 
 #endif /* __IP__ */

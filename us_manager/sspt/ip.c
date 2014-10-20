@@ -35,9 +35,11 @@
  * @param page User page
  * @param offset Function offset from the beginning of the page
  * @param probe_i Pointer to the probe data.
+ * @param page Pointer to the parent sspt_page struct
  * @return Pointer to the created us_ip struct
  */
-struct us_ip *create_ip(unsigned long offset, const struct probe_info *probe_i)
+struct us_ip *create_ip(unsigned long offset, const struct probe_info *probe_i,
+			struct sspt_page *page)
 {
 	size_t len = probe_i->size;
 	struct us_ip *ip;
@@ -48,6 +50,7 @@ struct us_ip *create_ip(unsigned long offset, const struct probe_info *probe_i)
 
 		INIT_LIST_HEAD(&ip->list);
 		ip->offset = offset;
+		ip->page = page;
 
 		probe_info_copy(probe_i, &ip->probe_i);
 		probe_info_init(&ip->probe_i, ip);

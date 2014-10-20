@@ -172,7 +172,7 @@ void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
 	struct sspt_page *page = sspt_find_page_or_new(file, offset & PAGE_MASK);
 
 	// FIXME: delete ip
-	struct us_ip *ip = create_ip(offset, probe_i);
+	struct us_ip *ip = create_ip(offset, probe_i, page);
 
 	sspt_add_ip(page, ip);
 }
