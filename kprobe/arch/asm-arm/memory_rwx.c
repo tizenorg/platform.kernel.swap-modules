@@ -31,15 +31,10 @@
 #include <ksyms/ksyms.h>
 
 
-static unsigned long get_init_mm(void)
-{
-	static unsigned long addr = 0;
+static struct mm_struct *swap_init_mm = NULL;
+static int (*swap_set_memory_ro)(unsigned long addr, int numpages) = NULL;
+static int (*swap_set_memory_rw)(unsigned long addr, int numpages) = NULL;
 
-	if (addr == 0)
-		addr = swap_ksyms("init_mm");
-
-	return addr;
-}
 
 static int get_pte_cb(pte_t *ptep, pgtable_t token,
 		      unsigned long addr, void *data)
@@ -51,10 +46,10 @@ static int get_pte_cb(pte_t *ptep, pgtable_t token,
 
 static pte_t get_pte(unsigned long page_addr)
 {
-	struct mm_struct *mm = (struct mm_struct *)get_init_mm();
 	pte_t pte = 0;
 
-	apply_to_page_range(mm, page_addr, PAGE_SIZE, get_pte_cb, &pte);
+	apply_to_page_range(swap_init_mm, page_addr,
+			    PAGE_SIZE, get_pte_cb, &pte);
 
 	return pte;
 }
@@ -71,9 +66,13 @@ static void write_to_module(unsigned long addr, unsigned long val)
 		DEFINE_SPINLOCK(mem_lock);
 
 		spin_lock_irqsave(&mem_lock, flags);
-		set_memory_rw(page_addr, 1);
-		*maddr = val;
-		set_memory_ro(page_addr, 1);
+		if (swap_set_memory_rw(page_addr, 1) == 0) {
+			*maddr = val;
+			swap_set_memory_ro(page_addr, 1);
+		} else {
+			printk("RWX: failed to write memory %08lx (%08lx)\n",
+			       addr, val);
+		}
 		spin_unlock_irqrestore(&mem_lock, flags);
 	} else {
 		*maddr = val;
@@ -93,4 +92,30 @@ void mem_rwx_write_u32(unsigned long addr, unsigned long val)
 	} else {
 		write_to_module(addr, val);
 	}
+}
+
+int mem_rwx_init(void)
+{
+	const char *sym;
+
+	sym = "set_memory_ro";
+	swap_set_memory_ro = (void *)swap_ksyms(sym);
+	if (swap_set_memory_ro == NULL)
+		goto not_found;
+
+	sym = "set_memory_rw";
+	swap_set_memory_rw = (void *)swap_ksyms(sym);
+	if (swap_set_memory_rw == NULL)
+		goto not_found;
+
+	sym = "init_mm";
+	swap_init_mm = (void *)swap_ksyms(sym);
+	if (swap_init_mm == NULL)
+		goto not_found;
+
+	return 0;
+
+not_found:
+	printk("ERROR: symbol '%s' not found\n", sym);
+	return -ESRCH;
 }

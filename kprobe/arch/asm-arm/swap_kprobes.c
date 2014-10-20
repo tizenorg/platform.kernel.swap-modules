@@ -870,6 +870,12 @@ int swap_arch_init_kprobes(void)
 {
 	int ret;
 
+#ifdef CONFIG_STRICT_MEMORY_RWX
+	ret = mem_rwx_init();
+	if (ret)
+		return ret;
+#endif /* CONFIG_STRICT_MEMORY_RWX */
+
 	// Register hooks (kprobe_handler)
 	__swap_register_undef_hook = (void *)swap_ksyms("register_undef_hook");
 	if (__swap_register_undef_hook == NULL) {
@@ -904,6 +910,10 @@ void swap_arch_exit_kprobes(void)
 {
 	kjump_exit();
 	swap_unregister_undef_hook(&undef_ho_k);
+
+#ifdef CONFIG_STRICT_MEMORY_RWX
+	mem_rwx_exit();
+#endif /* CONFIG_STRICT_MEMORY_RWX */
 }
 
 /* export symbol for trampoline_arm.h */
