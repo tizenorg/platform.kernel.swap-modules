@@ -43,7 +43,7 @@
 #include <linux/sched.h>
 #include <linux/pagemap.h>
 
-#include <kprobe/arch/asm/swap_kprobes.h>
+#include <swap-asm/swap_kprobes.h>
 
 
 #ifdef CONFIG_ARM

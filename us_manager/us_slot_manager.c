@@ -29,8 +29,9 @@
 #include <linux/mm.h>
 #include <linux/mman.h>
 #include <linux/list.h>
+
 #include <kprobe/swap_slots.h>
-#include <kprobe/arch/asm/swap_kprobes.h>
+#include <swap-asm/swap_kprobes.h>
 #include "us_manager_common.h"
 
 

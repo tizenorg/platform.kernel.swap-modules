@@ -31,16 +31,18 @@
  */
 
 
-#include "swap_uprobes.h"
-#include <kprobe/swap_kdebug.h>
-
-#include <uprobe/arch/asm/swap_uprobes.h>
-
 #include <linux/hash.h>
 #include <linux/mempolicy.h>
 #include <linux/module.h>
+
 #include <kprobe/swap_slots.h>
+#include <kprobe/swap_kdebug.h>
 #include <kprobe/swap_kprobes_deps.h>
+
+#include <swap-asm/swap_uprobes.h>
+
+#include "swap_uprobes.h"
+
 
 enum {
 	UPROBE_HASH_BITS  = 10,

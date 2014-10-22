@@ -39,12 +39,14 @@
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+
 #include <asm/uaccess.h>
-#include <kprobe/arch/asm/swap_kprobes.h>
-#include <uprobe/arch/asm/swap_uprobes.h>
 
 #include <buffer/swap_buffer_module.h>
 #include <buffer/swap_buffer_errors.h>
+
+#include <swap-asm/swap_kprobes.h>
+#include <swap-asm/swap_uprobes.h>
 
 #include "swap_writer_module.h"
 #include "swap_writer_errors.h"

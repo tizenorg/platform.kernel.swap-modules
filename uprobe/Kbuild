@@ -2,5 +2,12 @@ EXTRA_CFLAGS := $(extra_cflags)
 KBUILD_EXTRA_SYMBOLS = $(src)/../kprobe/Module.symvers
 
 obj-m := swap_uprobe.o
-swap_uprobe-y := swap_uprobes.o arch/asm/swap_uprobes.o
-swap_uprobe-$(CONFIG_ARM) += arch/asm/trampoline_thumb.o
+swap_uprobe-y := swap_uprobes.o
+
+### ARM
+swap_uprobe-$(CONFIG_ARM) += arch/arm/swap-asm/swap_uprobes.o \
+                             arch/arm/swap-asm/trampoline_thumb.o
+
+
+### X86
+swap_uprobe-$(CONFIG_X86) += arch/x86/swap-asm/swap_uprobes.o

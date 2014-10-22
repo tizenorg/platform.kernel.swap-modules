@@ -30,10 +30,14 @@
  * Arch-dependent uprobe interface implementation for x86.
  */
 
+
 #include <linux/kdebug.h>
-#include <uprobe/swap_uprobes.h>
-#include <uprobe/arch/asm/swap_uprobes.h>
+
 #include <kprobe/swap_slots.h>
+#include <uprobe/swap_uprobes.h>
+
+#include "swap_uprobes.h"
+
 
 /**
  * @struct uprobe_ctlblk

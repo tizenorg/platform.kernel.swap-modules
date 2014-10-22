@@ -35,7 +35,9 @@
 
 
 #include <kprobe/swap_kprobes.h>
-#include <uprobe/arch/asm/swap_uprobes.h>
+
+#include <swap-asm/swap_uprobes.h>
+
 
 /**
  * @struct uprobe

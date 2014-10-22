@@ -42,7 +42,7 @@
 #include <linux/pagemap.h>
 
 #include <ksyms/ksyms.h>
-#include <kprobe/arch/asm/swap_kprobes.h>
+#include <swap-asm/swap_kprobes.h>
 
 #include "swap_slots.h"
 #include "swap_kdebug.h"

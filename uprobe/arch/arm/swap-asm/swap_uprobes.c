@@ -30,18 +30,24 @@
  * Arch-dependent uprobe interface implementation for ARM.
  */
 
-#include <kprobe/swap_kprobes.h>
-#include <kprobe/arch/asm/swap_kprobes.h>
-#include <kprobe/arch/asm/trampoline_arm.h>
+
+#include <linux/init.h>			/* need for asm/traps.h */
+#include <linux/sched.h>		/* need for asm/traps.h */
+
+#include <asm/ptrace.h>			/* need for asm/traps.h */
 #include <asm/traps.h>
-#include <uprobe/swap_uprobes.h>
-#include <uprobe/arch/asm/swap_uprobes.h>
+
 #include <kprobe/swap_slots.h>
+#include <kprobe/swap_kprobes.h>
 #include <kprobe/swap_kprobes_deps.h>
+#include <uprobe/swap_uprobes.h>
+
+#include <swap-asm/swap_kprobes.h>
+#include <swap-asm/trampoline_arm.h>
+
+#include "swap_uprobes.h"
 #include "trampoline_thumb.h"
 
-// FIXME:
-#include <kprobe/swap_kdebug.h>
 
 /**
  * @def flush_insns

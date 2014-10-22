@@ -50,13 +50,12 @@ ksyms_module_name=swap_ksyms.ko
 
 install_dir="/opt/swap/sdk"
 
-rm -f ${kprobe_arch_dir}/asm
-ln -s asm-${link_name} ${kprobe_arch_dir}/asm
-rm -f ${uprobe_arch_dir}/asm
-ln -s asm-${link_name} ${uprobe_arch_dir}/asm
+asm_kprobe_dir=${modules_dir}/kprobe/arch/${link_name}/
+asm_uprobe_dir=${modules_dir}/uprobe/arch/${link_name}/
 
 make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} \
-	M=${modules_dir} extra_cflags="-Werror -I${modules_dir}" modules || exit 1
+	M=${modules_dir} extra_cflags="-Werror -I${modules_dir} -I${asm_kprobe_dir} \
+	-I${asm_uprobe_dir}" modules || exit 1
 
 modules=\
 "${buffer_dir}/${buffer_module_name} \
