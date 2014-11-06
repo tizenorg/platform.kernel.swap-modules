@@ -26,6 +26,8 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/list.h>
+#include <linux/namei.h>
+
 #include "proc_filters.h"
 #include <us_manager/usm_msg.h>
 #include <us_manager/img/img_proc.h>
@@ -203,6 +205,40 @@ static void subsequent_install(struct task_struct *task,
 	sspt_proc_install_page(proc, page_addr);
 	up_write(&task->mm->mmap_sem);
 }
+
+/**
+ * @brief Get dentry struct by path
+ *
+ * @param path Path to file
+ * @return Pointer on dentry struct on NULL
+ */
+struct dentry *dentry_by_path(const char *path)
+{
+	struct dentry *dentry;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	struct path st_path;
+	if (kern_path(path, LOOKUP_FOLLOW, &st_path) != 0) {
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	struct nameidata nd;
+	if (path_lookup(path, LOOKUP_FOLLOW, &nd) != 0) {
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+		printk("failed to lookup dentry for path %s!\n", path);
+		return NULL;
+	}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+	dentry = nd.dentry;
+	path_release(&nd);
+#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 38)
+	dentry = nd.path.dentry;
+	path_put(&nd.path);
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	dentry = st_path.dentry;
+	path_put(&st_path);
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) */
+	return dentry;
+}
+EXPORT_SYMBOL_GPL(dentry_by_path);
 
 /**
  * @brief Get pf_group struct by dentry

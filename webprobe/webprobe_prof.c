@@ -25,7 +25,6 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/version.h>
-#include <linux/namei.h>
 
 #include <us_manager/pf/pf_group.h>
 #include <us_manager/probes/probes.h>
@@ -48,19 +47,6 @@ struct web_prof_data {
 static const char *LIBEWEBKIT2_PATH = "/usr/lib/libewebkit2.so.0";
 static struct web_prof_data *web_data;
 
-static struct dentry *dentry_by_path(const char *path)
-{
-	struct dentry *dentry;
-	struct path st_path;
-	if (kern_path(path, LOOKUP_FOLLOW, &st_path) != 0) {
-		pr_err("failed to lookup dentry for path %s!\n", path);
-		return NULL;
-	}
-	dentry = st_path.dentry;
-	path_put(&st_path);
-
-	return dentry;
-}
 
 u64 *web_prof_addr_ptr(enum web_prof_addr_t type)
 {

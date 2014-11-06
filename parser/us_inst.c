@@ -31,41 +31,11 @@
 #include <linux/module.h>
 #include <linux/version.h>
 #include <linux/errno.h>
-#include <linux/namei.h>
 #include <us_manager/pf/pf_group.h>
 #include <us_manager/probes/probes.h>
 
 #include "msg_parser.h"
 #include "us_inst.h"
-
-/* FIXME: create get_dentry() and put_dentry() */
-static struct dentry *dentry_by_path(const char *path)
-{
-	struct dentry *dentry;
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-	struct path st_path;
-	if (kern_path(path, LOOKUP_FOLLOW, &st_path) != 0) {
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	struct nameidata nd;
-	if (path_lookup(path, LOOKUP_FOLLOW, &nd) != 0) {
-#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-		printk(KERN_INFO "failed to lookup dentry for path %s!\n",
-		       path);
-		return NULL;
-	}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	dentry = nd.dentry;
-	path_release(&nd);
-#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 38)
-	dentry = nd.path.dentry;
-	path_put(&nd.path);
-#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-	dentry = st_path.dentry;
-	path_put(&st_path);
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) */
-	return dentry;
-}
 
 
 static int mod_func_inst(struct func_inst_data *func, struct pf_group *pfg,

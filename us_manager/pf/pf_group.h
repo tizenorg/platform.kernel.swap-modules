@@ -32,6 +32,9 @@ struct pf_group;
 struct sspt_proc;
 struct probe_info;
 
+/* FIXME: create and use get_dentry() and put_dentry() */
+struct dentry *dentry_by_path(const char *path);
+
 struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv);
 struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv);
 struct pf_group *get_pf_group_by_comm(char *comm, void *priv);
