@@ -308,6 +308,9 @@ int sspt_file_uninstall(struct sspt_file *file,
 
 	if (flag != US_DISARM)
 		file->loaded = 0;
+		file->vm_start = 0;
+		file->vm_end = 0;
+	}
 
 	return err;
 }
@@ -321,6 +324,9 @@ int sspt_file_uninstall(struct sspt_file *file,
  */
 void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma)
 {
-	file->vm_start = vma->vm_start;
-	file->vm_end = vma->vm_end;
+	if (file->loaded == 0) {
+		file->loaded = 1;
+		file->vm_start = vma->vm_start;
+		file->vm_end = vma->vm_end;
+	}
 }

@@ -286,10 +286,8 @@ void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 		struct sspt_file *file = sspt_proc_find_file(proc, dentry);
 		if (file) {
 			struct sspt_page *page;
-			if (!file->loaded) {
-				sspt_file_set_mapping(file, vma);
-				file->loaded = 1;
-			}
+
+			sspt_file_set_mapping(file, vma);
 
 			page = sspt_find_page_mapped(file, page_addr);
 			if (page)
@@ -317,11 +315,7 @@ void sspt_proc_install(struct sspt_proc *proc)
 			struct sspt_file *file =
 				sspt_proc_find_file(proc, dentry);
 			if (file) {
-				if (!file->loaded) {
-					file->loaded = 1;
-					sspt_file_set_mapping(file, vma);
-				}
-
+				sspt_file_set_mapping(file, vma);
 				sspt_file_install(file);
 			}
 		}

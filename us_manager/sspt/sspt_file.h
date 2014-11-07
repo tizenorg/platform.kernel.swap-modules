@@ -38,12 +38,13 @@ struct sspt_file {
 	struct list_head list;		/**< For sspt_proc */
 	struct sspt_proc *proc;		/**< Pointer to the proc (parent) */
 	struct dentry *dentry;		/**< Dentry of file */
-	int loaded;			/**< Flag of loading */
 	unsigned long vm_start;		/**< VM start */
 	unsigned long vm_end;		/**< VM end */
 
 	unsigned long page_probes_hash_bits;	/**< Hash-table size */
 	struct hlist_head *page_probes_table;	/**< Hash-table for pages */
+
+	unsigned loaded:1;			/**< Flag of loading */
 };
 
 
