@@ -72,6 +72,8 @@ struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc,
 struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
 					     struct dentry *dentry);
 
+void sspt_proc_install_probe(struct sspt_proc *proc, unsigned long vaddr,
+			     struct probe_info *probe_i);
 void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr);
 void sspt_proc_install(struct sspt_proc *proc);
 int sspt_proc_uninstall(struct sspt_proc *proc,

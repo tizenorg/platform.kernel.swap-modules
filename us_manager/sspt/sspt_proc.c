@@ -268,6 +268,35 @@ struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc,
 	return NULL;
 }
 
+void sspt_proc_install_probe(struct sspt_proc *proc, unsigned long vaddr,
+			     struct probe_info *probe_i)
+{
+	struct vm_area_struct *vma;
+	struct task_struct *task = proc->task;
+	struct mm_struct *mm = task->mm;
+	unsigned long page_vaddr = vaddr & PAGE_MASK;
+
+	vma = find_vma_intersection(mm, page_vaddr, page_vaddr + 1);
+	if (vma && check_vma(vma)) {
+		struct sspt_file *file;
+		struct dentry *dentry = vma->vm_file->f_dentry;
+
+		file = sspt_proc_find_file_or_new(proc, dentry);
+		if (file) {
+			unsigned long addr = vaddr - vma->vm_start;
+			struct sspt_page *page;
+
+			sspt_file_set_mapping(file, vma);
+			sspt_file_add_ip(file, addr, probe_i);
+
+			page = sspt_find_page_mapped(file, page_vaddr);
+			if (page)
+				sspt_register_page(page, file);
+		}
+	}
+}
+EXPORT_SYMBOL_GPL(sspt_proc_install_probe);
+
 /**
  * @brief Install probes on the page to monitored process
  *
