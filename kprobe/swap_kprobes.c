@@ -1141,4 +1141,4 @@ static void __exit exit_kprobes(void)
 module_init(init_kprobes);
 module_exit(exit_kprobes);
 
-MODULE_LICENSE("Dual BSD/GPL");
+MODULE_LICENSE("GPL");
