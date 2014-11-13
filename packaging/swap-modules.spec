@@ -10,19 +10,8 @@ Source: swap-modules-3.0.tar.gz
 BuildRequires: perl
 BuildRequires: python
 %ifarch %{arm}
-%define build_arch arm
-%if "%_project" != "Tizen:2.3" && "%_project" != "Kirana_SWA_OPEN:Build"
-BuildRequires: NotSupportedProject
-%else
-%if "%_project" == "Tizen:2.3"
-BuildRequires: linux-kernel-devel
-%define kernel_path /usr/src/linux-kernel-build-3.0.15-tizen_defconfig.1
-%endif
-%if "%_project" == "Kirana_SWA_OPEN:Build"
-BuildRequires: kernel-devel-tizen-dev
-%define kernel_path /var/tmp/kernel/devel/kernel-devel-tizen_kiran_2g
-%endif
-%endif
+BuildRequires kernel-devel
+%define kernel_path /usr/src/linux-kernel-build-3.0.101-trats2_defconfig
 %else
 %define build_arch i386
 BuildRequires: emulator-kernel-devel
