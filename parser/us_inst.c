@@ -79,9 +79,9 @@ static int mod_func_inst(struct func_inst_data *func, struct pf_group *pfg,
 
 		/* ARM toolchain hates good style initialization of struct with union */
 		probe_i.probe_type = SWAP_RETPROBE;
+		probe_i.size = 0;
 		probe_i.rp_i.args = func->args;
 		probe_i.rp_i.ret_type = func->ret_type;
-		probe_i.rp_i.size = 0;
 		ret = pf_register_probe(pfg, dentry, func->addr, &probe_i);
 		break;
 	}
