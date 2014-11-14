@@ -10,7 +10,7 @@ Source: swap-modules-3.0.tar.gz
 BuildRequires: perl
 BuildRequires: python
 %ifarch %{arm}
-BuildRequires kernel-devel
+BuildRequires: kernel-devel
 %define kernel_path /usr/src/linux-kernel-build-3.0.101-trats2_defconfig
 %else
 %define build_arch i386
