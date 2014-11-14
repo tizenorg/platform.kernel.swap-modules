@@ -26,9 +26,45 @@
 #include "register_probes.h"
 #include "use_probes.h"
 
+#include <linux/slab.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/module.h>
+
+
+struct probe_info *probe_info_malloc(size_t size, enum probe_t type)
+{
+	struct probe_info *info;
+
+	info = kmalloc(sizeof(*info) + size, GFP_ATOMIC);
+	if (info) {
+		info->probe_type = type;
+		info->size = size;
+	}
+
+	return info;
+}
+EXPORT_SYMBOL_GPL(probe_info_malloc);
+
+struct probe_info *probe_info_dup(const struct probe_info *info)
+{
+	struct probe_info *info_new;
+	size_t size = info->size;
+
+	info_new = probe_info_malloc(size, info->probe_type);
+	if (info_new && size)
+		memcpy(info_new->data, info->data, size);
+
+	return info_new;
+}
+EXPORT_SYMBOL_GPL(probe_info_dup);
+
+void probe_info_free(struct probe_info *info)
+{
+	kfree(info);
+}
+EXPORT_SYMBOL_GPL(probe_info_free);
+
 
 static struct probe_iface *probes_methods[SWAP_PROBE_MAX_VAL] = { NULL };
 

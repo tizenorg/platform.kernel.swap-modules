@@ -88,7 +88,7 @@ void copy_proc_form_img_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc)
 		file = sspt_proc_find_file_or_new(proc, i_file->dentry);
 
 		list_for_each_entry(i_ip, &i_file->ip_list, list)
-			sspt_file_add_ip(file, i_ip->addr, &i_ip->probe_i);
+			sspt_file_add_ip(file, i_ip->addr, i_ip->info);
 	}
 }
 

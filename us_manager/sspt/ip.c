@@ -38,24 +38,32 @@
  * @param page Pointer to the parent sspt_page struct
  * @return Pointer to the created us_ip struct
  */
-struct us_ip *create_ip(unsigned long offset, const struct probe_info *probe_i,
+struct us_ip *create_ip(unsigned long offset, const struct probe_info *info,
 			struct sspt_page *page)
 {
-	size_t len = probe_i->size;
 	struct us_ip *ip;
+	struct probe_info *info_new;
 
-	ip = kmalloc(sizeof(*ip) + len, GFP_ATOMIC);
+	info_new = probe_info_dup(info);
+	if (info_new == NULL) {
+		printk("Cannot probe_info_dup in %s function!\n", __func__);
+		return NULL;
+	}
+
+	ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
 	if (ip != NULL) {
-		memset(ip, 0, sizeof(*ip) + len);
+		memset(ip, 0, sizeof(*ip));
 
 		INIT_LIST_HEAD(&ip->list);
 		ip->offset = offset;
 		ip->page = page;
 
-		probe_info_copy(probe_i, &ip->probe_i);
-		probe_info_init(&ip->probe_i, ip);
+		probe_info_copy(info, info_new);
+		probe_info_init(info_new, ip);
+		ip->info = info_new;
 	} else {
 		printk(KERN_INFO "Cannot kmalloc in create_ip function!\n");
+		probe_info_free(info_new);
 	}
 
 	return ip;
@@ -69,6 +77,7 @@ struct us_ip *create_ip(unsigned long offset, const struct probe_info *probe_i,
  */
 void free_ip(struct us_ip *ip)
 {
-	probe_info_uninit(&ip->probe_i, ip);
+	probe_info_uninit(ip->info, ip);
+	probe_info_free(ip->info);
 	kfree(ip);
 }

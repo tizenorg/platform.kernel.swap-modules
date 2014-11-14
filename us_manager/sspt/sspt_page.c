@@ -164,7 +164,7 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 		addr = file->vm_start + page->offset + ip->offset;
 
 		ip->orig_addr = addr;
-		up = probe_info_get_uprobe(&ip->probe_i, ip);
+		up = probe_info_get_uprobe(ip->info, ip);
 		up->kp.addr = (kprobe_opcode_t *)addr;
 
 		err = sspt_register_usprobe(ip);

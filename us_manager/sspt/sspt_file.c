@@ -306,7 +306,7 @@ int sspt_file_uninstall(struct sspt_file *file,
 		}
 	}
 
-	if (flag != US_DISARM)
+	if (flag != US_DISARM) {
 		file->loaded = 0;
 		file->vm_start = 0;
 		file->vm_end = 0;

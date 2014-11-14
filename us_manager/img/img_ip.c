@@ -34,15 +34,26 @@
  * @param probe_i Pointer to the probe info data.
  * @return Pointer to the created img_ip struct
  */
-struct img_ip *create_img_ip(unsigned long addr, struct probe_info *probe_i)
+struct img_ip *create_img_ip(unsigned long addr, struct probe_info *info)
 {
 	struct img_ip *ip;
 
 	ip = kmalloc(sizeof(*ip), GFP_KERNEL);
-	INIT_LIST_HEAD(&ip->list);
-	ip->addr = addr;
+	if (ip) {
+		struct probe_info *info_new;
 
-	probe_info_copy(probe_i, &ip->probe_i);
+		info_new = probe_info_dup(info);
+		if (info_new == NULL) {
+			kfree(ip);
+			return NULL;
+		}
+
+		probe_info_copy(info, info_new);
+
+		INIT_LIST_HEAD(&ip->list);
+		ip->addr = addr;
+		ip->info = info_new;
+	}
 
 	return ip;
 }
@@ -55,7 +66,8 @@ struct img_ip *create_img_ip(unsigned long addr, struct probe_info *probe_i)
  */
 void free_img_ip(struct img_ip *ip)
 {
-	probe_info_cleanup(&ip->probe_i);
+	probe_info_cleanup(ip->info);
+	probe_info_free(ip->info);
 	kfree(ip);
 }
 
@@ -69,8 +81,8 @@ void free_img_ip(struct img_ip *ip)
 /* debug */
 void img_ip_print(struct img_ip *ip)
 {
-	if (ip->probe_i.probe_type == SWAP_RETPROBE)
+	if (ip->info->probe_type == SWAP_RETPROBE)
 		printk(KERN_INFO "###            addr=8%lx, args=%s\n",
-		       ip->addr, ip->probe_i.rp_i.args);
+		       ip->addr, ip->info->rp_i.args);
 }
 /* debug */

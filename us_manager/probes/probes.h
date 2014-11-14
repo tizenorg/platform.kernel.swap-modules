@@ -67,6 +67,21 @@ struct probe_info {
 		struct get_caller_info gc_i;
 		struct get_call_type_info gct_i;
 	};
+
+	char data[0];
 };
+
+
+#define probe_info_create(val_t, type) probe_info_malloc(sizeof(val_t), type)
+struct probe_info *probe_info_malloc(size_t size, enum probe_t type);
+struct probe_info *probe_info_dup(const struct probe_info *info);
+void probe_info_free(struct probe_info *info);
+
+
+#define probe_info_get_data(info) ((void *)(info->data))
+#define probe_info_get_ptr(info, val_t) (val_t *)probe_info_get_data(info)
+#define probe_info_get_val(info, val_t) *probe_info_get_ptr(info, val_t)
+#define probe_info_set_val(info, val_t, v) *probe_info_get_ptr(info, val_t) = v
+
 
 #endif /* __PROBES_H__ */

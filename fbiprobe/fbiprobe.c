@@ -259,11 +259,11 @@ static int fbi_probe_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct uprobe *up = container_of(p, struct uprobe, kp);
 	struct us_ip *ip = container_of(up, struct us_ip, uprobe);
-	struct fbi_info *fbi_i = &ip->probe_i.fbi_i;
+	struct fbi_info *fbi_i = &ip->info->fbi_i;
 	struct fbi_var_data *fbi_d = NULL;
 	uint8_t i;
 
-	if (ip->probe_i.probe_type != SWAP_FBIPROBE) {
+	if (ip->info->probe_type != SWAP_FBIPROBE) {
 		/* How this can occure? Doesn't matter, just print and go */
 		print_err("Not FBI probe in FBI handler!\n");
 		return 0;
@@ -314,7 +314,7 @@ void fbi_probe_init(struct us_ip *ip)
 void fbi_probe_uninit(struct us_ip *ip)
 {
 	if (ip != NULL)
-		fbi_probe_cleanup(&ip->probe_i);
+		fbi_probe_cleanup(ip->info);
 }
 
 static int fbi_probe_register_probe(struct us_ip *ip)

@@ -78,7 +78,7 @@ static int retprobe_entry_handler(struct uretprobe_instance *ri, struct pt_regs 
 
 	if (rp && get_quiet() == QT_OFF) {
 		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
-		const char *fmt = ip->probe_i.rp_i.args;
+		const char *fmt = ip->info->rp_i.args;
 		const unsigned long func_addr = (unsigned long)ip->orig_addr;
 
 		rp_msg_entry(regs, func_addr, fmt);
@@ -95,7 +95,7 @@ static int retprobe_ret_handler(struct uretprobe_instance *ri, struct pt_regs *r
 		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
 		const unsigned long func_addr = (unsigned long)ip->orig_addr;
 		const unsigned long ret_addr = (unsigned long)ri->ret_addr;
-		const char ret_type = ip->probe_i.rp_i.ret_type;
+		const char ret_type = ip->info->rp_i.ret_type;
 
 		rp_msg_exit(regs, func_addr, ret_type, ret_addr);
 	}
@@ -112,7 +112,7 @@ static void retprobe_init(struct us_ip *ip)
 
 static void retprobe_uninit(struct us_ip *ip)
 {
-	retprobe_cleanup(&ip->probe_i);
+	retprobe_cleanup(ip->info);
 }
 
 
