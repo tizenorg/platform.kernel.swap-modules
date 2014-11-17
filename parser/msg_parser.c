@@ -1,7 +1,8 @@
 /**
  * parser/msg_parser.c
+ *
  * @author Vyacheslav Cherkashin
- * @author Vitaliy Cherepanov
+ * @author Vitaliy Cherepanov <v.cherepanov@samsung.com>
  *
  * @sectionLICENSE
  *
@@ -424,6 +425,102 @@ void put_get_call_type_probe(struct probe_info *pi)
 
 
 
+/**
+ * @brief Gets FBI probe data and puts it to the probe_info struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @param pi Pointer to the probe_info struct.
+ * @return 0 on success, error code on error.
+ */
+int get_fbi_probe(struct msg_buf *mb, struct probe_info *pi)
+{
+	u64 var_id;
+	u64 reg_offset;
+	u8 reg_n;
+	u32 data_size;
+	u8 steps_count, i;
+	struct fbi_step *steps = NULL;
+
+	print_parse_debug("var ID:");
+	if (get_u64(mb, &var_id)) {
+		print_err("failed to read var ID\n");
+		return -EINVAL;
+	}
+
+	print_parse_debug("register offset:");
+	if (get_u64(mb, &reg_offset)) {
+		print_err("failed to read register offset\n");
+		return -EINVAL;
+	}
+
+	print_parse_debug("register number:");
+	if (get_u8(mb, &reg_n)) {
+		print_err("failed to read number of the register\n");
+		return -EINVAL;
+	}
+
+	print_parse_debug("data size:");
+	if (get_u32(mb, &data_size)) {
+		print_err("failed to read data size\n");
+		return -EINVAL;
+	}
+
+	print_parse_debug("steps count:");
+	if (get_u8(mb, &steps_count)) {
+		print_err("failed to read steps count\n");
+		return -EINVAL;
+	}
+
+	if (steps_count > 0) {
+		steps = kmalloc(steps_count * sizeof(pi->fbi_i.steps[0]),
+				GFP_KERNEL);
+		if (steps == NULL)
+			return -ENOMEM;
+
+		for (i = 0; i != steps_count; i++) {
+			print_parse_debug("steps #%d ptr_order:", i);
+			if (get_u8(mb, &(steps[i].ptr_order))) {
+				print_err("failed to read pointer order(step #%d)\n",
+					  i);
+				goto free_steps;
+			}
+			print_parse_debug("steps #%d data_offset:", i);
+			if (get_u64(mb, &(steps[i].data_offset))){
+				print_err("failed to read offset (steps #%d)\n",
+					  i);
+				goto free_steps;
+			}
+		}
+	}
+
+	pi->probe_type = SWAP_FBIPROBE;
+	pi->fbi_i.reg_n = reg_n;
+	pi->fbi_i.reg_offset = reg_offset;
+	pi->fbi_i.data_size = data_size;
+	pi->fbi_i.var_id = var_id;
+	pi->fbi_i.steps_count = steps_count;
+	pi->fbi_i.steps = steps;
+	pi->size = 0;
+
+	return 0;
+
+free_steps:
+	kfree(steps);
+	return -EINVAL;
+}
+
+/**
+ * @brief FBI probe data cleanup.
+ *
+ * @param pi Pointer to the probe_info comprising FBI probe.
+ * @return Void.
+ */
+void put_fbi_probe(struct probe_info *pi)
+{
+	return;
+}
+
+
 /* ============================================================================
  * ==                               FUNC_INST                                ==
  * ============================================================================
@@ -483,6 +580,10 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 		if (get_get_call_type_probe(mb, &(fi->probe_i)) != 0)
 			goto free_func_inst;
 		break;
+	case SWAP_FBIPROBE:
+		if (get_fbi_probe(mb, &(fi->probe_i)) != 0)
+			goto free_func_inst;
+		break;
 	default:
 		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n",
 		       type);
@@ -519,6 +620,9 @@ void destroy_func_inst_data(struct func_inst_data *fi)
 		break;
 	case SWAP_GET_CALL_TYPE:
 		put_get_call_type_probe(&(fi->probe_i));
+		break;
+	case SWAP_FBIPROBE:
+		put_fbi_probe(&(fi->probe_i));
 		break;
 	default:
 		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n",

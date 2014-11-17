@@ -2,6 +2,11 @@
  *  SWAP uprobe manager
  *  modules/us_manager/probes/probes.h
  *
+ * @author Alexander Aksenov <a.aksenov@samsung.com>
+ * @author Vitaliy Cherepanov <v.cherepanov@samsung.com>
+ *
+ * @section LICENSE
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -16,9 +21,12 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
+ * @section COPYRIGHT
+ *
  * Copyright (C) Samsung Electronics, 2014
  *
- * 2014	 Alexander Aksenov: Probes interface implement
+ * 2014 Alexander Aksenov : Probes interface implement
+ * 2014 Vitaliy Cherepanov: Portage
  *
  */
 
@@ -30,6 +38,7 @@
 
 #include <preload/preload_probe.h>   /* TODO Remove */
 #include <retprobe/retprobe.h>       /* TODO Remove */
+#include <fbiprobe/fbiprobe.h>       /* TODO Remove */
 
 
 
@@ -38,6 +47,7 @@
  */
 enum probe_t {
 	SWAP_RETPROBE = 0,          /* Retprobe */
+	SWAP_FBIPROBE = 1,          /* FBI probe */
 	SWAP_PRELOAD_PROBE = 2,     /* Preload probe */
 	SWAP_WEBPROBE = 3,          /* Webprobe */
 	SWAP_GET_CALLER = 4,        /* Get caller probe. Supports preload */
@@ -52,6 +62,7 @@ struct probe_info {
 	/* Union of all SWAP supported probe types */
 	union {
 		struct retprobe_info rp_i;
+		struct fbi_info fbi_i;
 		struct preload_info pl_i;
 		struct get_caller_info gc_i;
 		struct get_call_type_info gct_i;

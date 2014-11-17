@@ -1,8 +1,7 @@
-/**
- * writer/swap_writer_module.c
- * @author Alexander Aksenov <a.aksenov@samsung.com>
+/*
+ * @file fbiprobe/fbi_msg.h
+ *
  * @author Vitaliy Cherepanov <v.cherepanov@samsung.com>
- * @author Vyacheslav Cherkashin
  *
  * @section LICENSE
  *
@@ -22,45 +21,19 @@
  *
  * @section COPYRIGHT
  *
- * Copyright (C) Samsung Electronics, 2013
+ * Copyright (C) Samsung Electronics, 2014
  *
  * @section DESCRIPTION
  *
- * Packing and writing data.
+ * Function body instrumetation
+ *
  */
 
+#ifndef __FBI_MSG_H__
+#define __FBI_MSG_H__
 
-#include <linux/module.h>
-#include <master/swap_initializer.h>
-#include "swap_msg.h"
-#include "event_filter.h"
-#include "debugfs_writer.h"
+#include <linux/types.h>
 
+void fbi_msg(unsigned long var_id, size_t size, char *msg_buf);
 
-static int core_init(void)
-{
-	int ret;
-
-	ret = swap_msg_init();
-	if (ret)
-		return ret;
-
-	ret = event_filter_init();
-	if (ret)
-		swap_msg_exit();
-
-	return ret;
-}
-
-static void core_exit(void)
-{
-	event_filter_exit();
-	swap_msg_exit();
-}
-
-SWAP_LIGHT_INIT_MODULE(NULL, core_init, core_exit,
-		       init_debugfs_writer, exit_debugfs_writer);
-
-MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("SWAP Writer module");
-MODULE_AUTHOR("Cherkashin V., Aksenov A.S.");
+#endif /* __FBI_MSG_H__ */

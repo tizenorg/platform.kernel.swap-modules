@@ -38,6 +38,7 @@ retprobe_dir=${modules_dir}/retprobe
 webprobe_dir=${modules_dir}/webprobe
 task_data_dir=${modules_dir}/task_data
 preload_dir=${modules_dir}/preload
+fbiprobe_dir=${modules_dir}/fbiprobe
 
 buffer_module_name=swap_buffer.ko
 driver_module_name=swap_driver.ko
@@ -55,6 +56,7 @@ retprobe_module_name=swap_retprobe.ko
 webprobe_module_name=swap_webprobe.ko
 task_data_module_name=swap_task_data.ko
 preload_module_name=swap_preload.ko
+fbiprobe_module_name=swap_fbiprobe.ko
 
 install_dir="/opt/swap/sdk"
 
@@ -81,7 +83,8 @@ ${ksyms_dir}/${ksyms_module_name} \
 ${retprobe_dir}/${retprobe_module_name} \
 ${webprobe_dir}/${webprobe_module_name} \
 ${task_data_dir}/${task_data_module_name} \
-${preload_dir}/${preload_module_name}"
+${preload_dir}/${preload_module_name} \
+${fbiprobe_dir}/${fbiprobe_module_name}"
 
 for m in ${modules} ; do
 	${cross_compile}strip -x -g $m
