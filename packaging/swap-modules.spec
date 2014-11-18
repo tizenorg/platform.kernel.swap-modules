@@ -52,6 +52,7 @@ install -m 666 ks_features/swap_ks_features.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 sampler/swap_sampler.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 energy/swap_energy.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 parser/swap_message_parser.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 retprobe/swap_retprobe.ko -t %{buildroot}/opt/swap/sdk
 
 %files
 %defattr(-,root,root)
@@ -67,3 +68,4 @@ install -m 666 parser/swap_message_parser.ko -t %{buildroot}/opt/swap/sdk
 /opt/swap/sdk/swap_sampler.ko
 /opt/swap/sdk/swap_energy.ko
 /opt/swap/sdk/swap_message_parser.ko
+/opt/swap/sdk/swap_retprobe.ko
