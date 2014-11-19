@@ -497,6 +497,13 @@ int swap_register_uprobe(struct uprobe *up)
 	// get the first item
 	old_p = get_ukprobe(p->addr, kp2up(p)->task->tgid);
 	if (old_p) {
+		struct task_struct *task = up->task;
+
+		/* TODO: add support many uprobes on address */
+		printk("uprobe on task[%u %u %s] vaddr=%p is there\n",
+		       task->tgid, task->pid, task->comm, p->addr);
+		ret = -EINVAL;
+		goto out;
 #ifdef CONFIG_ARM
 		p->safe_arm = old_p->safe_arm;
 		p->safe_thumb = old_p->safe_thumb;
