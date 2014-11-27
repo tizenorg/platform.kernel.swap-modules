@@ -29,6 +29,7 @@
 
 
 #include <linux/errno.h>
+#include <linux/delay.h>
 #include <writer/swap_writer_module.h>
 #include "msg_parser.h"
 #include "msg_buf.h"
@@ -36,6 +37,8 @@
 #include "parser_defs.h"
 #include "us_inst.h"
 #include <us_manager/us_manager.h>
+
+static int wrt_launcher_port = 0;
 
 static int set_config(struct conf_data *conf)
 {
@@ -235,6 +238,31 @@ free_us_inst:
 	destroy_us_inst_data(us_inst);
 
 	return ret;
+}
+
+void set_wrt_launcher_port(int port)
+{
+	wrt_launcher_port = port;
+}
+EXPORT_SYMBOL_GPL(set_wrt_launcher_port);
+
+#define GET_PORT_DELAY		100	/* msec */
+#define GET_PORT_TIMEOUT	10000	/* msec */
+
+int get_wrt_launcher_port(void)
+{
+	int port;
+	int timeout = GET_PORT_TIMEOUT;
+
+	do {
+		port = wrt_launcher_port;
+		timeout -= GET_PORT_DELAY;
+		mdelay(GET_PORT_DELAY);
+	} while (!port && timeout > 0);
+
+	set_wrt_launcher_port(0);
+
+	return port;
 }
 
 /**

@@ -12,4 +12,5 @@ obj-m := buffer/ \
          sampler/ \
          energy/ \
          parser/ \
-         retprobe/
+         retprobe/ \
+         webprobe/

@@ -70,7 +70,9 @@ enum MSG_ID {
 	MSG_CONTEXT_SWITCH_EXIT		= 0x0011,   /**< Context switch exit */
 	MSG_PROC_MAP			= 0x0012,       /**< Process map */
 	MSG_PROC_UNMAP			= 0x0013,       /**< Process unmap */
-	MSG_PROC_COMM			= 0x0014        /**< Process comm */
+	MSG_PROC_COMM			= 0x0014,       /**< Process comm */
+	MSG_WEB_FUNCTION_ENTRY		= 0x0015,   /**< Web function entry */
+	MSG_WEB_FUNCTION_EXIT		= 0x0016    /**< Web function exit */
 };
 
 static char *cpu_buf[NR_CPUS];
@@ -1240,6 +1242,7 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 	enum { max_str_len = 512 };
 	const char *p;
 	char *buf_orig = buf;
+	int len_s = 0;
 
 	for (p = fmt; *p != '\0'; p++) {
 		char ch = *p;
@@ -1252,6 +1255,13 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 		len -= 1;
 
 		switch (ch) {
+		case '*': /* string length (without '\0') */
+			/* usage: '*s' or '*S' */
+			/* will not pack to buffer */
+			len_s = va_arg(args, int);
+			buf -= 1;
+			len += 1;
+			break;
 		case 'b': /* 1 byte(bool) */
 			if (len < 1)
 				return -ENOMEM;
@@ -1292,11 +1302,14 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 		case 's': /* userspace string with '\0' terminating byte */
 		{
 			const char __user *str;
-			int len_s, n;
+			int n;
 
 			str = va_arg(args, const char __user *);
 			/* strnlen_user includes '\0' in its return value */
-			len_s = strnlen_user(str, max_str_len);
+			if (len_s == 0)
+				len_s = strnlen_user(str, max_str_len);
+			else
+				len_s++; /* + '\0' */
 			if (len < len_s)
 				return -ENOMEM;
 			/* strncpy_from_user returns the length of the copied
@@ -1308,15 +1321,16 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 
 			buf += n + 1;
 			len -= n + 1;
+			len_s = 0;
 			break;
 		}
 		case 'S': /* kernelspace string with '\0' terminating byte */
 		{
 			const char *str;
-			int len_s;
 
 			str = va_arg(args, const char *);
-			len_s = strnlen(str, max_str_len);
+			if (len_s == 0)
+				len_s = strnlen(str, max_str_len);
 			if (len < len_s + 1) /* + '\0' */
 				return -ENOMEM;
 			strncpy(buf, str, len_s);
@@ -1324,6 +1338,7 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 
 			buf += len_s + 1;
 			len -= len_s + 1;
+			len_s = 0;
 			break;
 		}
 		case 'a': /* userspace byte array (len + ptr) */
@@ -1372,6 +1387,18 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 	}
 
 	return buf - buf_orig;
+}
+
+static int pack_custom_args(char *buf, int len, const char *fmt, ...)
+{
+	va_list vargs;
+	int ret;
+
+	va_start(vargs, fmt);
+	ret = pack_custom_event(buf, len, fmt, vargs);
+	va_end(vargs);
+
+	return ret;
 }
 
 enum { max_custom_event_size = 2048 };
@@ -1454,6 +1481,115 @@ put_buf:
 	return ret;
 }
 EXPORT_SYMBOL_GPL(custom_exit_event);
+
+
+
+
+/* ============================================================================
+ * =                              WEB APP EVENT                               =
+ * ============================================================================
+ */
+
+/* TODO: develop method for obtaining this data during build... */
+/* location: webkit2-efl-123997_0.11.113/Source/WTF/wtf/text/StringImpl.h:70 */
+struct MStringImpl {
+	unsigned m_refCount;
+	unsigned m_length;
+	union {
+		const unsigned char *m_data8;
+		const unsigned short *m_data16;
+	};
+	union {
+		void* m_buffer;
+		struct MStringImpl *m_substringBuffer;
+		unsigned short *m_copyData16;
+	};
+	unsigned m_hashAndFlags;
+};
+
+/* location: webkit2-efl-123997_0.11.113/Source/JavaScriptCore/profiler/
+ * CallIdentifier.h:36
+ */
+struct MCallIdentifier {
+	struct MStringImpl *m_name;
+	struct MStringImpl *m_url;
+	unsigned m_lineNumber;
+};
+
+int entry_web_event(unsigned long func_addr, struct pt_regs *regs)
+{
+	char *buf, *payload;
+	int ret, t;
+	struct MCallIdentifier *callIdentifier;
+	struct {
+		const char *str;
+		int len;
+	} m_name, m_url;
+
+	if (!check_event(current))
+		return 0;
+
+	callIdentifier = (void *)swap_get_uarg(regs, 2);
+
+	if (!(!get_user(t, (int *)&callIdentifier->m_name) &&
+	      !get_user(m_name.str, &((struct MStringImpl *)t)->m_data8) &&
+	      !get_user(m_name.len, &((struct MStringImpl *)t)->m_length) &&
+	      !get_user(t, (int *)&callIdentifier->m_url) &&
+	      !get_user(m_url.str, &((struct MStringImpl *)t)->m_data8) &&
+	      !get_user(m_url.len, &((struct MStringImpl *)t)->m_length))) {
+		printk("SWAP_WRITER: cannot read user memory\n");
+		return 0;
+	}
+
+	buf = get_current_buf();
+	payload = pack_basic_msg_fmt(buf, MSG_WEB_FUNCTION_ENTRY);
+	payload = pack_msg_func_entry(payload, "ssd", func_addr, regs, PT_US,
+				      PST_NONE);
+	payload += pack_custom_args(payload, 1024, "*s*sd", m_name.len,
+				    m_name.str, m_url.len, m_url.str,
+				    callIdentifier->m_lineNumber);
+	set_len_msg(buf, payload);
+	ret = write_to_buffer(buf);
+	put_current_buf();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(entry_web_event);
+
+int exit_web_event(unsigned long func_addr, struct pt_regs *regs)
+{
+	char *buf, *payload;
+	int ret, t;
+	struct MCallIdentifier *callIdentifier;
+	struct {
+		const char *str;
+		int len;
+	} m_name;
+
+	if (!check_event(current))
+		return 0;
+
+	callIdentifier = (void *)swap_get_uarg(regs, 2);
+
+	if (!(!get_user(t, (int *)&callIdentifier->m_name) &&
+	      !get_user(m_name.str, &((struct MStringImpl *)t)->m_data8) &&
+	      !get_user(m_name.len, &((struct MStringImpl *)t)->m_length))) {
+		printk("SWAP_WRITER: cannot read user memory\n");
+		return 0;
+	}
+
+	buf = get_current_buf();
+	payload = pack_basic_msg_fmt(buf, MSG_WEB_FUNCTION_EXIT);
+	payload = pack_msg_func_entry(payload, "s", func_addr, regs, PT_US,
+				      PST_NONE);
+	payload += pack_custom_args(payload, 1024, "*s", m_name.len, m_name.str);
+	set_len_msg(buf, payload);
+	ret = write_to_buffer(buf);
+	put_current_buf();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(exit_web_event);
 
 static int __init swap_writer_module_init(void)
 {

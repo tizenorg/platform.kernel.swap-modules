@@ -47,12 +47,13 @@
  * @brief Message IDs.
  */
 enum MSG_ID {
-	MSG_KEEP_ALIVE		= 0x0001,       /**< Keep alive message. */
-	MSG_START		= 0x0002,           /**< Start message. */
-	MSG_STOP		= 0x0003,           /**< Stop message. */
-	MSG_CONFIG		= 0x0004,           /**< Config message. */
-	MSG_SWAP_INST_ADD	= 0x0008,       /**< Swap inst add message. */
-	MSG_SWAP_INST_REMOVE	= 0x0009    /**< Swap inst remove message. */
+	MSG_KEEP_ALIVE		= 0x0001,	/**< Keep alive message. */
+	MSG_START		= 0x0002,	/**< Start message. */
+	MSG_STOP		= 0x0003,	/**< Stop message. */
+	MSG_CONFIG		= 0x0004,	/**< Config message. */
+	MSG_SWAP_INST_ADD	= 0x0008,	/**< Swap inst add message. */
+	MSG_SWAP_INST_REMOVE	= 0x0009,	/**< Swap inst remove message. */
+	MSG_WRT_LAUNCHER_PORT	= 0x8001	/**< WRT launcher port. */
 };
 
 /**
@@ -128,6 +129,18 @@ static int msg_handler(void __user *msg)
 		print_parse_debug("MSG_SWAP_INST_REMOVE. size=%d\n", size);
 		ret = msg_swap_inst_remove(&mb);
 		break;
+	case MSG_WRT_LAUNCHER_PORT: {
+		/* TODO: discuss wrt-launcher port transfer */
+		int port;
+		print_parse_debug("MSG_WRT_LAUNCHER_PORT. size=%d\n", size);
+		port = get_wrt_launcher_port();
+		if (copy_to_user(payload, &port, sizeof(port))) {
+			ret = -EIO;
+			break;
+		}
+		ret = port ? 0 : -EINVAL;
+		break;
+	}
 	default:
 		print_err("incorrect message ID [%u]. size=%d\n", msg_id, size);
 		ret = -EINVAL;

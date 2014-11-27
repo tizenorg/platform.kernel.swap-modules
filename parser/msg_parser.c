@@ -304,6 +304,21 @@ free_args:
 }
 
 /**
+ * @brief Gets webprobe data and puts it to the probe_info struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @param pi Pointer to the probe_info struct.
+ * @return 0 on success, error code on error.
+ */
+int get_webprobe(struct msg_buf *mb, struct probe_info *pi)
+{
+	pi->probe_type = SWAP_WEBPROBE;
+	pi->size = 0;
+
+	return 0;
+}
+
+/**
  * @brief Retprobe data cleanup.
  *
  * @param pi Pointer to the probe_info comprising retprobe.
@@ -361,6 +376,10 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 		if (get_retprobe(mb, &(fi->probe_i)) != 0)
 			goto free_func_inst;
 		break;
+	case SWAP_WEBPROBE:
+		if (get_webprobe(mb, &(fi->probe_i)) != 0)
+			goto free_func_inst;
+		break;
 	default:
 		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n", type);
 		goto free_func_inst;
@@ -385,6 +404,8 @@ void destroy_func_inst_data(struct func_inst_data *fi)
 	switch (fi->probe_i.probe_type) {
 	case SWAP_RETPROBE:
 		put_retprobe(&(fi->probe_i));
+		break;
+	case SWAP_WEBPROBE:
 		break;
 	default:
 		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n",

@@ -37,6 +37,7 @@
  */
 enum probe_t {
 	SWAP_RETPROBE = 0,          /* Retprobe */
+	SWAP_WEBPROBE = 3,          /* Webprobe */
 	SWAP_PROBE_MAX_VAL          /* Probes max value. */
 };
 

@@ -80,6 +80,9 @@ int entry_event(const char *fmt, unsigned long func_addr, struct pt_regs *regs,
 int exit_event(char ret_type, struct pt_regs *regs, int pt, int sub_type,
 	       unsigned long func_addr, unsigned long ret_addr);
 
+int entry_web_event(unsigned long func_addr, struct pt_regs *regs);
+int exit_web_event(unsigned long func_addr, struct pt_regs *regs);
+
 int switch_entry(struct pt_regs *regs);
 int switch_exit(struct pt_regs *regs);
 
