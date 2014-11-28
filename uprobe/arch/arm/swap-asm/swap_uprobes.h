@@ -109,6 +109,27 @@ static inline unsigned long swap_get_uarg(struct pt_regs *regs, unsigned long n)
 	return addr;
 }
 
+static inline void swap_put_uarg(struct pt_regs *regs, unsigned long n,
+                                 unsigned long val)
+{
+	u32 *ptr;
+
+	switch (n) {
+	case 0:
+		regs->ARM_r0 = val;
+	case 1:
+		regs->ARM_r1 = val;
+	case 2:
+		regs->ARM_r2 = val;
+	case 3:
+		regs->ARM_r3 = val;
+	}
+
+	ptr = (u32 *)regs->ARM_sp + n - 4;
+	if (put_user(val, ptr))
+		printk("failed to dereference a pointer, ptr=%p\n", ptr);
+}
+
 int swap_arch_init_uprobes(void);
 void swap_arch_exit_uprobes(void);
 
