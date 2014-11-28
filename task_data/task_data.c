@@ -2,7 +2,9 @@
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/stop_machine.h>
+#include <linux/slab.h>
 #include <kprobe/swap_kprobes.h>
+#include <ksyms/ksyms.h>
 #include "task_data.h"
 
 /* lower bits are used as flags */
@@ -100,27 +102,35 @@ static int do_exit_handler(struct kprobe *p, struct pt_regs *regs)
 }
 
 static struct kretprobe copy_process_rp = {
-	.kp.symbol_name = "copy_process",
 	.handler = copy_process_ret_handler
 };
 
 static struct kprobe do_exit_probe = {
-	.symbol_name = "do_exit",
 	.pre_handler = do_exit_handler
 };
 
 static int __task_data_init(void *data)
 {
 	struct task_struct *g, *t;
-	const char *sym;
+	unsigned long addr;
 	int ret;
 
-	sym = copy_process_rp.kp.symbol_name;
+	addr = swap_ksyms_substr("copy_process");
+	if (addr == 0) {
+		printk(TD_PREFIX "Cannot find address for copy_process\n");
+		return -EINVAL;
+	}
+	copy_process_rp.kp.addr = (kprobe_opcode_t *)addr;
 	ret = swap_register_kretprobe(&copy_process_rp);
 	if (ret)
 		goto reg_failed;
 
-	sym = do_exit_probe.symbol_name;
+	addr = swap_ksyms_substr("do_exit");
+	if (addr == 0) {
+		printk(TD_PREFIX "Cannot find address for do_exit\n");
+		return -EINVAL;
+	}
+	do_exit_probe.addr = (kprobe_opcode_t *)addr;
 	ret = swap_register_kprobe(&do_exit_probe);
 	if (ret)
 		goto unreg_copy_process;
@@ -135,7 +145,7 @@ unreg_copy_process:
 	swap_unregister_kretprobe(&copy_process_rp);
 
 reg_failed:
-	printk(TD_PREFIX "%s: probe registration failed\n", sym);
+	printk(TD_PREFIX "0x%lx: probe registration failed\n", addr);
 
 	return ret;
 }
