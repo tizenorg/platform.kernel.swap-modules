@@ -47,8 +47,8 @@ struct fbi_step {
 	uint64_t data_offset;
 } __packed;
 
-/* FBI info */
-struct fbi_info {
+/* FBI var data */
+struct fbi_var_data {
 	/* Variable position is evaluated by the following rule:
 	 * var_position = *(pointer_to_register) - reg_offset
 	 * It is expected that the offset is not null only when we're taking
@@ -63,6 +63,12 @@ struct fbi_info {
 
 	uint8_t steps_count;	   /* Count of steps to extract variable value */
 	struct fbi_step *steps;    /* extract steps */
+};
+
+/* FBI info */
+struct fbi_info {
+	uint8_t var_count;
+	struct fbi_var_data *vars;
 };
 
 #endif /* __FBI_PROBE_H__ */

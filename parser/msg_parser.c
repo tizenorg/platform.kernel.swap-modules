@@ -432,7 +432,7 @@ void put_get_call_type_probe(struct probe_info *pi)
  * @param pi Pointer to the probe_info struct.
  * @return 0 on success, error code on error.
  */
-int get_fbi_probe(struct msg_buf *mb, struct probe_info *pi)
+int get_fbi_data(struct msg_buf *mb, struct fbi_var_data *vd)
 {
 	u64 var_id;
 	u64 reg_offset;
@@ -472,10 +472,12 @@ int get_fbi_probe(struct msg_buf *mb, struct probe_info *pi)
 	}
 
 	if (steps_count > 0) {
-		steps = kmalloc(steps_count * sizeof(pi->fbi_i.steps[0]),
+		steps = kmalloc(steps_count * sizeof(*vd->steps),
 				GFP_KERNEL);
-		if (steps == NULL)
+		if (steps == NULL) {
+			print_err("MALLOC FAIL\n");
 			return -ENOMEM;
+		}
 
 		for (i = 0; i != steps_count; i++) {
 			print_parse_debug("steps #%d ptr_order:", i);
@@ -493,20 +495,54 @@ int get_fbi_probe(struct msg_buf *mb, struct probe_info *pi)
 		}
 	}
 
-	pi->probe_type = SWAP_FBIPROBE;
-	pi->fbi_i.reg_n = reg_n;
-	pi->fbi_i.reg_offset = reg_offset;
-	pi->fbi_i.data_size = data_size;
-	pi->fbi_i.var_id = var_id;
-	pi->fbi_i.steps_count = steps_count;
-	pi->fbi_i.steps = steps;
-	pi->size = 0;
+	vd->reg_n = reg_n;
+	vd->reg_offset = reg_offset;
+	vd->data_size = data_size;
+	vd->var_id = var_id;
+	vd->steps_count = steps_count;
+	vd->steps = steps;
 
 	return 0;
 
 free_steps:
 	kfree(steps);
 	return -EINVAL;
+}
+
+int get_fbi_probe(struct msg_buf *mb, struct probe_info *pi)
+{
+	uint8_t var_count, i;
+	struct fbi_var_data *vars;
+
+	print_parse_debug("var count:");
+	if (get_u8(mb, &var_count)) {
+		print_err("failed to read var ID\n");
+		return -EINVAL;
+	}
+
+	vars = kmalloc(var_count * sizeof(*vars), GFP_KERNEL);
+	if (vars == NULL) {
+		print_err("alloc vars error\n");
+		goto err;
+	}
+
+	for (i = 0; i != var_count; i++) {
+		if (get_fbi_data(mb, &vars[i]) != 0)
+			goto free_vars;
+	}
+
+	pi->probe_type = SWAP_FBIPROBE;
+	pi->fbi_i.var_count = var_count;
+	pi->fbi_i.vars = vars;
+	pi->size =0 ;
+	return 0;
+
+free_vars:
+	kfree(vars);
+
+err:
+	return -EINVAL;
+
 }
 
 /**

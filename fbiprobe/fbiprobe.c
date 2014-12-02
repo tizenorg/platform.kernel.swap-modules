@@ -60,7 +60,7 @@
 #define MAX_STRING_LEN (512)
 
 /* you shoud free allocated data buffer */
-static char *fbi_probe_alloc_and_read_from_addr(const struct fbi_info *fbi_i,
+static char *fbi_probe_alloc_and_read_from_addr(const struct fbi_var_data *fbi_i,
 						unsigned long addr,
 						uint32_t *size)
 {
@@ -139,7 +139,7 @@ fail_exit:
 
 }
 
-static int fbi_probe_get_data_from_reg(const struct fbi_info *fbi_i,
+static int fbi_probe_get_data_from_reg(const struct fbi_var_data *fbi_i,
 				       struct pt_regs *regs)
 {
 	unsigned long *reg_ptr;
@@ -155,7 +155,7 @@ static int fbi_probe_get_data_from_reg(const struct fbi_info *fbi_i,
 	return 0;
 }
 
-static int fbi_probe_get_data_from_ptrs(const struct fbi_info *fbi_i,
+static int fbi_probe_get_data_from_ptrs(const struct fbi_var_data *fbi_i,
 					struct pt_regs *regs)
 {
 	unsigned long *reg_ptr;
@@ -200,7 +200,7 @@ exit:
 	return vma;
 }
 
-static int fbi_probe_get_data_from_direct_addr(const struct fbi_info *fbi_i,
+static int fbi_probe_get_data_from_direct_addr(const struct fbi_var_data *fbi_i,
 					       struct us_ip *ip,
 					       struct pt_regs *regs)
 {
@@ -239,6 +239,8 @@ static int fbi_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	struct uprobe *up = container_of(p, struct uprobe, kp);
 	struct us_ip *ip = container_of(up, struct us_ip, uprobe);
 	struct fbi_info *fbi_i = &ip->probe_i.fbi_i;
+	struct fbi_var_data *fbi_d = NULL;
+	uint8_t i;
 
 	if (ip->probe_i.probe_type != SWAP_FBIPROBE) {
 		/* How this can occure? Doesn't matter, just print and go */
@@ -246,12 +248,19 @@ static int fbi_probe_handler(struct kprobe *p, struct pt_regs *regs)
 		return 0;
 	}
 
-	if (fbi_i->reg_n == DIRECT_ADDR)
-		return fbi_probe_get_data_from_direct_addr(fbi_i, ip, regs);
-	else if (fbi_i->steps_count == 0)
-		return fbi_probe_get_data_from_reg(fbi_i, regs);
-	else
-		return fbi_probe_get_data_from_ptrs(fbi_i, regs);
+	for (i = 0; i != fbi_i->var_count; i++) {
+		fbi_d = &fbi_i->vars[i];
+		if (fbi_d->reg_n == DIRECT_ADDR) {
+			if (0 != fbi_probe_get_data_from_direct_addr(fbi_d, ip, regs))
+				print_err("fbi_probe_get_data_from_direct_addr error\n");
+		} else if (fbi_d->steps_count == 0) {
+			if (0 != fbi_probe_get_data_from_reg(fbi_d, regs))
+				print_err("fbi_probe_get_data_from_reg error\n");
+		} else {
+			if (0 != fbi_probe_get_data_from_ptrs(fbi_d, regs))
+				print_err("fbi_probe_get_data_from_ptrs error\n");
+		}
+	}
 
 	return 0;
 }
@@ -259,12 +268,21 @@ static int fbi_probe_handler(struct kprobe *p, struct pt_regs *regs)
 /* FBI probe interfaces */
 void fbi_probe_cleanup(struct probe_info *probe_i)
 {
-	struct fbi_step *steps;
-	steps = probe_i->fbi_i.steps;
-	if (steps != NULL) {
-		kfree(steps);
-		probe_i->fbi_i.steps = NULL;
-		probe_i->fbi_i.steps_count = 0;
+	uint8_t i;
+	struct fbi_info *fbi_i = &(probe_i->fbi_i);
+
+	for (i = 0; i != fbi_i->var_count; i++) {
+		if (fbi_i->vars[i].steps != NULL) {
+			if (fbi_i->vars[i].steps != NULL)
+				kfree(fbi_i->vars[i].steps);
+			fbi_i->vars[i].steps = NULL;
+			fbi_i->vars[i].steps_count = 0;
+		}
+	}
+
+	if (fbi_i->vars) {
+		kfree(fbi_i->vars);
+		fbi_i->vars = NULL;
 	}
 }
 
@@ -298,24 +316,39 @@ int fbi_probe_copy(struct probe_info *dest, const struct probe_info *source)
 {
 	uint8_t steps_count;
 	size_t steps_size;
+	size_t vars_size;
+	struct fbi_var_data *vars;
 	struct fbi_step *steps_source;
 	struct fbi_step *steps_dest = NULL;
+	uint8_t i;
 
-	steps_source = source->fbi_i.steps;
-	steps_count = source->fbi_i.steps_count;
-	steps_size = sizeof(*steps_source) * steps_count;
 
 	memcpy(dest, source, sizeof(*source));
-	if (steps_size != 0 && steps_source != NULL) {
-		steps_dest = kmalloc(steps_size, GFP_KERNEL);
-		if (steps_dest == NULL) {
-			print_err("can not alloc data\n");
-			return -ENOMEM;
-		}
 
-		memcpy(steps_dest, steps_source, steps_size);
+	vars_size = source->fbi_i.var_count * sizeof(*source->fbi_i.vars);
+	vars = kmalloc(vars_size, GFP_KERNEL);
+	memcpy(vars, source->fbi_i.vars, vars_size);
+
+	for (i = 0; i != source->fbi_i.var_count; i++) {
+		steps_dest = NULL;
+		steps_count = vars[i].steps_count;
+		steps_size = sizeof(*steps_source) * steps_count;
+		steps_source = vars[i].steps;
+
+		if (steps_size != 0 && steps_source != NULL) {
+			steps_dest = kmalloc(steps_size, GFP_KERNEL);
+			if (steps_dest == NULL) {
+				print_err("can not alloc data\n");
+				return -ENOMEM;
+			}
+
+			memcpy(steps_dest, steps_source, steps_size);
+		}
+		vars[i].steps = steps_dest;
 	}
-	dest->fbi_i.steps = steps_dest;
+
+	dest->fbi_i.vars = vars;
+
 	return 0;
 }
 
