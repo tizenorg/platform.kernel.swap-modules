@@ -99,33 +99,36 @@ static int ret_web_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
-#define WEB_FUNC_INSPSERVSTART		0
-#define WEB_FUNC_WILLEXECUTE		1
-#define WEB_FUNC_DIDEXECUTE		2
-
 static void webprobe_init(struct us_ip *ip)
 {
-	static int fcnt = 0;
+	enum {
+		web_func_inspservstart,
+		web_func_willexecute,
+		web_func_didexecute
+	};
+	static int fnum = web_func_inspservstart;
 
-	switch(fcnt++) {
-	case WEB_FUNC_INSPSERVSTART:
+	/* FIXME: probes can be set more than once */
+	switch(fnum) {
+	case web_func_inspservstart:
 		ip->retprobe.entry_handler = NULL;
 		ip->retprobe.handler = ret_web_handler;
+		fnum = web_func_willexecute;
 		printk("SWAP_WEBPROBE: web function ewk_view_inspector_server_start\n");
 		break;
-	case WEB_FUNC_WILLEXECUTE:
+	case web_func_willexecute:
 		/* TODO: use uprobe instead of uretprobe */
 		ip->retprobe.entry_handler = entry_web_handler;
 		ip->retprobe.handler = NULL;
+		fnum = web_func_didexecute;
 		printk("SWAP_WEBPROBE: web function willExecute\n");
 		break;
-	case WEB_FUNC_DIDEXECUTE:
+	case web_func_didexecute:
 		/* TODO: use uprobe instead of uretprobe */
 		ip->retprobe.entry_handler = exit_web_handler;
 		ip->retprobe.handler = NULL;
+		fnum = web_func_inspservstart;
 		printk("SWAP_WEBPROBE: web function didExecute\n");
-		/* FIXME: probes can be set more than once */
-		fcnt = 0;
 		break;
 	default:
 		printk("SWAP_WEBPROBE: web functions more than necessary\n");
