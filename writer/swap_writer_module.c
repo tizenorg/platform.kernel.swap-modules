@@ -1242,7 +1242,6 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 	enum { max_str_len = 512 };
 	const char *p;
 	char *buf_orig = buf;
-	int len_s = 0;
 
 	for (p = fmt; *p != '\0'; p++) {
 		char ch = *p;
@@ -1255,13 +1254,6 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 		len -= 1;
 
 		switch (ch) {
-		case '*': /* string length (without '\0') */
-			/* usage: '*s' or '*S' */
-			/* will not pack to buffer */
-			len_s = va_arg(args, int);
-			buf -= 1;
-			len += 1;
-			break;
 		case 'b': /* 1 byte(bool) */
 			if (len < 1)
 				return -ENOMEM;
@@ -1302,14 +1294,11 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 		case 's': /* userspace string with '\0' terminating byte */
 		{
 			const char __user *str;
-			int n;
+			int len_s, n;
 
 			str = va_arg(args, const char __user *);
 			/* strnlen_user includes '\0' in its return value */
-			if (len_s == 0)
-				len_s = strnlen_user(str, max_str_len);
-			else
-				len_s++; /* + '\0' */
+			len_s = strnlen_user(str, max_str_len);
 			if (len < len_s)
 				return -ENOMEM;
 			/* strncpy_from_user returns the length of the copied
@@ -1321,16 +1310,15 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 
 			buf += n + 1;
 			len -= n + 1;
-			len_s = 0;
 			break;
 		}
 		case 'S': /* kernelspace string with '\0' terminating byte */
 		{
 			const char *str;
+			int len_s;
 
 			str = va_arg(args, const char *);
-			if (len_s == 0)
-				len_s = strnlen(str, max_str_len);
+			len_s = strnlen(str, max_str_len);
 			if (len < len_s + 1) /* + '\0' */
 				return -ENOMEM;
 			strncpy(buf, str, len_s);
@@ -1338,7 +1326,6 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 
 			buf += len_s + 1;
 			len -= len_s + 1;
-			len_s = 0;
 			break;
 		}
 		case 'a': /* userspace byte array (len + ptr) */
@@ -1387,18 +1374,6 @@ static int pack_custom_event(char *buf, int len, const char *fmt, va_list args)
 	}
 
 	return buf - buf_orig;
-}
-
-static int pack_custom_args(char *buf, int len, const char *fmt, ...)
-{
-	va_list vargs;
-	int ret;
-
-	va_start(vargs, fmt);
-	ret = pack_custom_event(buf, len, fmt, vargs);
-	va_end(vargs);
-
-	return ret;
 }
 
 enum { max_custom_event_size = 2048 };
@@ -1518,75 +1493,124 @@ struct MCallIdentifier {
 
 int entry_web_event(unsigned long func_addr, struct pt_regs *regs)
 {
-	char *buf, *payload;
-	int ret, t;
+	char *buf, *pl;
+	long t;
+	int ret = 0, n, lnum;
 	struct MCallIdentifier *callIdentifier;
 	struct {
 		const char *str;
 		int len;
 	} m_name, m_url;
+	struct task_struct *task = current;
 
 	if (!check_event(current))
 		return 0;
 
 	callIdentifier = (void *)swap_get_uarg(regs, 2);
 
-	if (!(!get_user(t, (int *)&callIdentifier->m_name) &&
-	      !get_user(m_name.str, &((struct MStringImpl *)t)->m_data8) &&
-	      !get_user(m_name.len, &((struct MStringImpl *)t)->m_length) &&
-	      !get_user(t, (int *)&callIdentifier->m_url) &&
-	      !get_user(m_url.str, &((struct MStringImpl *)t)->m_data8) &&
-	      !get_user(m_url.len, &((struct MStringImpl *)t)->m_length))) {
-		printk("SWAP_WRITER: cannot read user memory\n");
+	if (get_user(t, (int *)&callIdentifier->m_name) ||
+	    get_user(m_name.str, &((struct MStringImpl *)t)->m_data8) ||
+	    get_user(m_name.len, &((struct MStringImpl *)t)->m_length) ||
+	    get_user(t, (int *)&callIdentifier->m_url) ||
+	    get_user(m_url.str, &((struct MStringImpl *)t)->m_data8) ||
+	    get_user(m_url.len, &((struct MStringImpl *)t)->m_length) ||
+	    get_user(lnum, (int *)&callIdentifier->m_lineNumber)) {
+		print_err("%s: cannot read user memory\n", __func__);
 		return 0;
 	}
 
 	buf = get_current_buf();
-	payload = pack_basic_msg_fmt(buf, MSG_WEB_FUNCTION_ENTRY);
-	payload = pack_msg_func_entry(payload, "ssd", func_addr, regs, PT_US,
-				      PST_NONE);
-	payload += pack_custom_args(payload, 1024, "*s*sd", m_name.len,
-				    m_name.str, m_url.len, m_url.str,
-				    callIdentifier->m_lineNumber);
-	set_len_msg(buf, payload);
-	ret = write_to_buffer(buf);
-	put_current_buf();
+	pl = pack_basic_msg_fmt(buf, MSG_WEB_FUNCTION_ENTRY);
 
+	/* Pack message */
+	/* PID */
+	*(u32 *)pl = task->tgid;
+	pl += sizeof(u32);
+	/* TID */
+	*(u32 *)pl = task->pid;
+	pl += sizeof(u32);
+	/* Line number (in source file) */
+	*(u32 *)pl = lnum;
+	pl += sizeof(u32);
+	/* Function name */
+	n = strncpy_from_user(pl, m_name.str, m_name.len);
+	if (n < 0) {
+		print_err("%s: cannot read user memory (function name)\n",
+			  __func__);
+		goto put_current_buf_return;
+	} else {
+		pl[n] = '\0';
+		pl += n + 1;
+	}
+	/* URL (source file) */
+	n = strncpy_from_user(pl, m_url.str, m_url.len);
+	if (n < 0) {
+		print_err("%s: cannot read user memory (url)\n", __func__);
+		goto put_current_buf_return;
+	} else {
+		pl[n] = '\0';
+		pl += n + 1;
+	}
+
+	set_len_msg(buf, pl);
+	ret = write_to_buffer(buf);
+
+put_current_buf_return:
+	put_current_buf();
 	return ret;
 }
 EXPORT_SYMBOL_GPL(entry_web_event);
 
 int exit_web_event(unsigned long func_addr, struct pt_regs *regs)
 {
-	char *buf, *payload;
-	int ret, t;
+	char *buf, *pl;
+	long t;
+	int ret = 0, n;
 	struct MCallIdentifier *callIdentifier;
 	struct {
 		const char *str;
 		int len;
 	} m_name;
+	struct task_struct *task = current;
 
 	if (!check_event(current))
 		return 0;
 
 	callIdentifier = (void *)swap_get_uarg(regs, 2);
 
-	if (!(!get_user(t, (int *)&callIdentifier->m_name) &&
-	      !get_user(m_name.str, &((struct MStringImpl *)t)->m_data8) &&
-	      !get_user(m_name.len, &((struct MStringImpl *)t)->m_length))) {
-		printk("SWAP_WRITER: cannot read user memory\n");
+	if (get_user(t, (int *)&callIdentifier->m_name) ||
+	    get_user(m_name.str, &((struct MStringImpl *)t)->m_data8) ||
+	    get_user(m_name.len, &((struct MStringImpl *)t)->m_length)) {
+		print_err("%s: cannot read user memory\n", __func__);
 		return 0;
 	}
 
 	buf = get_current_buf();
-	payload = pack_basic_msg_fmt(buf, MSG_WEB_FUNCTION_EXIT);
-	payload = pack_msg_func_entry(payload, "s", func_addr, regs, PT_US,
-				      PST_NONE);
-	payload += pack_custom_args(payload, 1024, "*s", m_name.len, m_name.str);
-	set_len_msg(buf, payload);
-	ret = write_to_buffer(buf);
-	put_current_buf();
+	pl = pack_basic_msg_fmt(buf, MSG_WEB_FUNCTION_EXIT);
 
+	/* Pack message */
+	/* PID */
+	*(u32 *)pl = task->tgid;
+	pl += sizeof(u32);
+	/* TID */
+	*(u32 *)pl = task->pid;
+	pl += sizeof(u32);
+	/* Function name */
+	n = strncpy_from_user(pl, m_name.str, m_name.len);
+	if (n < 0) {
+		print_err("%s: cannot read user memory (function name)\n",
+			  __func__);
+		goto put_current_buf_return;
+	} else {
+		pl[n] = '\0';
+		pl += n + 1;
+	}
+
+	set_len_msg(buf, pl);
+	ret = write_to_buffer(buf);
+
+put_current_buf_return:
+	put_current_buf();
 	return ret;
 }
 EXPORT_SYMBOL_GPL(exit_web_event);
