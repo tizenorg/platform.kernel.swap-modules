@@ -30,6 +30,7 @@
 
 #include <linux/errno.h>
 #include <linux/delay.h>
+#include <linux/module.h>
 #include <writer/swap_writer_module.h>
 #include "msg_parser.h"
 #include "msg_buf.h"
