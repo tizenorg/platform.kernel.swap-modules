@@ -211,7 +211,27 @@ static struct probe_iface get_call_type_iface = {
 	.cleanup = get_caller_info_cleanup
 };
 
+static void write_msg_init(struct us_ip *ip)
+{
+	preload_module_write_msg_init(ip);
+}
 
+static void write_msg_uninit(struct us_ip *ip)
+{
+	preload_module_write_msg_exit(ip);
+
+	get_caller_info_cleanup(ip->info);
+}
+
+static struct probe_iface write_msg_iface = {
+	.init = write_msg_init,
+	.uninit = write_msg_uninit,
+	.reg = get_caller_register_probe,
+	.unreg = get_caller_unregister_probe,
+	.get_uprobe = get_caller_get_uprobe,
+	.copy = get_caller_info_copy,
+	.cleanup = get_caller_info_cleanup
+};
 
 int register_preload_probes(void)
 {
@@ -226,6 +246,10 @@ int register_preload_probes(void)
 		return ret;
 
 	ret = swap_register_probe_type(SWAP_GET_CALL_TYPE, &get_call_type_iface);
+	if (ret != 0)
+		return ret;
+
+	ret = swap_register_probe_type(SWAP_WRITE_MSG, &write_msg_iface);
 	return ret;
 }
 
@@ -234,4 +258,5 @@ void unregister_preload_probes(void)
 	swap_unregister_probe_type(SWAP_PRELOAD_PROBE);
 	swap_unregister_probe_type(SWAP_GET_CALLER);
 	swap_unregister_probe_type(SWAP_GET_CALL_TYPE);
+	swap_unregister_probe_type(SWAP_WRITE_MSG);
 }

@@ -379,6 +379,7 @@ void put_preload_probe(struct probe_info *pi)
  * @param pi Pointer to the probe_info struct.
  * @return 0 on success, error code on error.
  */
+
 int get_get_caller_probe(struct msg_buf *mb, struct probe_info *pi)
 {
 	pi->probe_type = SWAP_GET_CALLER;
@@ -419,6 +420,31 @@ int get_get_call_type_probe(struct msg_buf *mb, struct probe_info *pi)
  * @return Void.
  */
 void put_get_call_type_probe(struct probe_info *pi)
+{
+}
+
+/**
+ * @brief Gets preload write_msg and puts it to the probe_info struct.
+ *
+ * @param mb Pointer to the message buffer.
+ * @param pi Pointer to the probe_info struct.
+ * @return 0 on success, error code on error.
+ */
+int get_write_msg_probe(struct msg_buf *mb, struct probe_info *pi)
+{
+	pi->probe_type = SWAP_WRITE_MSG;
+	pi->size = sizeof(pi->wm_i);
+
+	return 0;
+}
+
+/**
+ * @brief Preload write_msg type probe data cleanup.
+ *
+ * @param pi Pointer to the probe_info comprising retprobe.
+ * @return Void.
+ */
+void put_write_msg_probe(struct probe_info *pi)
 {
 }
 
@@ -620,6 +646,10 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 		if (get_fbi_probe(mb, &(fi->probe_i)) != 0)
 			goto free_func_inst;
 		break;
+	case SWAP_WRITE_MSG:
+		if (get_write_msg_probe(mb, &(fi->probe_i)) != 0)
+			goto free_func_inst;
+		break;
 	default:
 		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n",
 		       type);
@@ -659,6 +689,9 @@ void destroy_func_inst_data(struct func_inst_data *fi)
 		break;
 	case SWAP_FBIPROBE:
 		put_fbi_probe(&(fi->probe_i));
+		break;
+	case SWAP_WRITE_MSG:
+		put_write_msg_probe(&(fi->probe_i));
 		break;
 	default:
 		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n",

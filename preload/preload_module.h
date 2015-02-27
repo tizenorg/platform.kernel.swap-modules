@@ -20,6 +20,8 @@ int preload_module_get_caller_init(struct us_ip *ip);
 void preload_module_get_caller_exit(struct us_ip *ip);
 int preload_module_get_call_type_init(struct us_ip *ip);
 void preload_module_get_call_type_exit(struct us_ip *ip);
+int preload_module_write_msg_init(struct us_ip *ip);
+void preload_module_write_msg_exit(struct us_ip *ip);
 
 struct dentry *get_dentry(const char *filepath);
 void put_dentry(struct dentry *dentry);

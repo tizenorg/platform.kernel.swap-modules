@@ -53,6 +53,10 @@ struct get_caller_info {
 struct get_call_type_info {
 };
 
+/* Write message probe info */
+struct write_msg_info {
+};
+
 int register_preload_probes(void);
 void unregister_preload_probes(void);
 

@@ -52,6 +52,8 @@ enum probe_t {
 	SWAP_WEBPROBE = 3,          /* Webprobe */
 	SWAP_GET_CALLER = 4,        /* Get caller probe. Supports preload */
 	SWAP_GET_CALL_TYPE = 5,     /* Get call type probe. Supports preload */
+	SWAP_WRITE_MSG = 6,         /* Write messages from user space directly to 
+				     * kernel. Supports preload */
 	SWAP_NEW_UP,
 	SWAP_NEW_URP,
 	SWAP_PROBE_MAX_VAL          /* Probes max value. */
@@ -68,6 +70,7 @@ struct probe_info {
 		struct preload_info pl_i;
 		struct get_caller_info gc_i;
 		struct get_call_type_info gct_i;
+		struct write_msg_info wm_i;
 	};
 
 	char data[0];

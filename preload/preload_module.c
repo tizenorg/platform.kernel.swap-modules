@@ -7,6 +7,8 @@
 #include <linux/mman.h>
 #include <linux/mm.h>
 #include <linux/err.h>
+#include <linux/types.h>
+#include <linux/uaccess.h>
 #include <kprobe/swap_kprobes.h>
 #include <us_manager/us_manager_common.h>
 #include <us_manager/sspt/sspt_page.h>
@@ -16,6 +18,7 @@
 #include <us_manager/callbacks.h>
 #include <writer/kernel_operations.h>
 #include <master/swap_initializer.h>
+#include <writer/swap_msg.h>
 #include <task_data/task_data.h>
 #include "preload.h"
 #include "preload_probe.h"
@@ -326,6 +329,22 @@ is_handlers_call_out:
 	return res;
 }
 
+static inline int __msg_sanitization(char *user_msg, size_t len,
+				     char *call_type_p, char *caller_p)
+{
+	int ret;
+
+	ret = access_ok(VERIFY_READ, (unsigned long)user_msg, (unsigned long)len);
+	if (ret == 0)
+		return -EINVAL;
+
+	if ((call_type_p < user_msg) || (call_type_p > user_msg + len) ||
+	    (caller_p < user_msg) || (caller_p > user_msg + len))
+		return -EINVAL;
+
+	return 0;
+}
+
 
 
 
@@ -378,6 +397,34 @@ static bool __should_we_preload_handlers(struct task_struct *task,
 
 	return true;
 }
+
+static inline void __write_data_to_msg(char *msg, size_t len,
+				       unsigned long call_type_off,
+				       unsigned long caller_off)
+{
+	unsigned char call_type = 0;
+	unsigned long caller = 0;
+	int ret;
+
+	ret = preload_threads_get_caller(current, &caller);
+	if (ret != 0) {
+		caller = 0xbadbeef;
+		printk(PRELOAD_PREFIX "Error! Cannot get caller address for %d/%d\n",
+		       current->tgid, current->pid);
+	}
+
+	ret = preload_threads_get_call_type(current, &call_type);
+	if (ret != 0) {
+		call_type = 0xff;
+		printk(PRELOAD_PREFIX "Error! Cannot get call type for %d/%d\n",
+		       current->tgid, current->pid);
+	}
+
+	/* Using the same types as in the library. */
+	*(uint32_t *)(msg + call_type_off) = (uint32_t)call_type;
+	*(uintptr_t *)(msg + caller_off) = (uintptr_t)caller;
+}
+
 
 
 
@@ -673,6 +720,58 @@ static int get_call_type_handler(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
+static int write_msg_handler(struct kprobe *p, struct pt_regs *regs)
+{
+	char *user_buf;
+	char *buf;
+	char *caller_p;
+	char *call_type_p;
+	size_t len;
+	unsigned long caller_offset;
+	unsigned long call_type_offset;
+	int ret;
+
+	user_buf = (char *)swap_get_uarg(regs, 0);
+	len = swap_get_uarg(regs, 1);
+	call_type_p = (char *)swap_get_uarg(regs, 2);
+	caller_p = (char *)swap_get_uarg(regs, 3);
+
+	ret = __msg_sanitization(user_buf, len, call_type_p, caller_p);
+	if (ret != 0) {
+		printk(PRELOAD_PREFIX "Invalid message pointers!\n");
+		return 0;
+	}
+
+	buf = kmalloc(len, GFP_KERNEL);
+	if (buf == NULL) {
+		printk(PRELOAD_PREFIX "No mem for buffer! Size = %d\n", len);
+		return 0;
+	}
+
+	if (copy_from_user(buf, user_buf, len)) {
+		printk(PRELOAD_PREFIX "Cannot copy data from userspace! Size = %d"
+				      " ptr 0x%lx\n", len, (unsigned long)user_buf);
+		goto write_msg_fail;
+	}
+
+	/* Evaluating call_type and caller offset in message:
+	 * data offset = data pointer - beginning of the message.
+	 */
+	call_type_offset = (unsigned long)(call_type_p - user_buf);
+	caller_offset = (unsigned long)(caller_p - user_buf);
+
+	__write_data_to_msg(buf, len, call_type_offset, caller_offset);
+
+	ret = swap_msg_raw(buf, len);
+	if (ret != len)
+		printk(PRELOAD_PREFIX "Error writing probe lib message\n");
+
+write_msg_fail:
+	kfree(buf);
+
+	return 0;
+}
+
 
 
 
@@ -701,6 +800,20 @@ int preload_module_get_call_type_init(struct us_ip *ip)
 void preload_module_get_call_type_exit(struct us_ip *ip)
 {
 }
+
+int preload_module_write_msg_init(struct us_ip *ip)
+{
+	struct uprobe *up = &ip->uprobe;
+
+	up->kp.pre_handler = write_msg_handler;
+
+	return 0;
+}
+
+void preload_module_write_msg_exit(struct us_ip *ip)
+{
+}
+
 
 int preload_module_uprobe_init(struct us_ip *ip)
 {
