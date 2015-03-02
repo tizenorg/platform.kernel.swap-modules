@@ -28,8 +28,9 @@
  */
 
 
+#include "ksf_msg.h"
 #include "syscall_list.h"
-#include <linux/mutex.h>
+
 
 /**
  * @struct feature
@@ -38,7 +39,7 @@
  * Syscalls count.
  * @var feature::feature_list
  * Pointer to feature's syscall list.
- * @var feature::sub_type
+ * @var feature::type
  * Featue subtype.
  * @var feature::enable
  * Is feature enable.
@@ -46,7 +47,7 @@
 struct feature {
 	size_t cnt;
 	enum syscall_id *feature_list;
-	int sub_type;
+	enum probe_t type;
 
 	unsigned enable:1;
 };
@@ -285,22 +286,22 @@ static enum syscall_id id_desc[] = {
  * @def CREATE_FEATURE
  * Feature initialization.
  */
-#define CREATE_FEATURE(x, subtype)				\
+#define CREATE_FEATURE(x, _type)				\
 {								\
 	.cnt = sizeof(x) / sizeof(enum syscall_id),		\
 	.feature_list = x,					\
-	.sub_type = subtype,					\
+	.type = _type,						\
 	.enable = 0						\
 }
 
 static struct feature features[] = {
-	CREATE_FEATURE(id_none, PST_NONE),
-	CREATE_FEATURE(id_file, PST_KS_FILE),
-	CREATE_FEATURE(id_ipc, PST_KS_IPC),
-	CREATE_FEATURE(id_process, PST_KS_PROCESS),
-	CREATE_FEATURE(id_signal, PST_KS_SIGNAL),
-	CREATE_FEATURE(id_net, PST_KS_NETWORK),
-	CREATE_FEATURE(id_desc, PST_KS_DESC)
+	CREATE_FEATURE(id_none, PT_KS_NONE),
+	CREATE_FEATURE(id_file, PT_KS_FILE),
+	CREATE_FEATURE(id_ipc, PT_KS_IPC),
+	CREATE_FEATURE(id_process, PT_KS_PROCESS),
+	CREATE_FEATURE(id_signal, PT_KS_SIGNAL),
+	CREATE_FEATURE(id_net, PT_KS_NETWORK),
+	CREATE_FEATURE(id_desc, PT_KS_DESC)
 };
 
 /**

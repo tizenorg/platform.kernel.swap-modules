@@ -29,13 +29,8 @@
 #include "helper.h"
 #include "us_manager.h"
 #include "debugfs_us_manager.h"
-
 #include <writer/event_filter.h>
 #include <master/swap_initializer.h>
-
-/* FIXME: move /un/init_msg() elsewhere and remove this include  */
-#include <writer/swap_writer_module.h>		/* for /un/init_msg() */
-
 
 
 static DEFINE_MUTEX(mutex_inst);
@@ -215,12 +210,6 @@ static int init_us_manager(void)
 	int ret;
 
 	ret = init_us_filter();
-	if (ret)
-		return ret;
-
-	ret = init_msg(32*1024); /* TODO: move to writer */
-	if (ret)
-		exit_us_filter();
 
 	return ret;
 }
@@ -230,7 +219,6 @@ static void exit_us_manager(void)
 	if (status == ST_ON)
 		do_usm_stop();
 
-	uninit_msg();
 	exit_us_filter();
 }
 

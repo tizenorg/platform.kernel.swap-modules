@@ -9,8 +9,8 @@
 #include <linux/fs.h>
 #include <kprobe/swap_kprobes.h>
 #include <writer/event_filter.h>
-#include <writer/swap_writer_module.h>
 #include "ks_map.h"
+#include "ksf_msg.h"
 #include "file_ops.h"
 
 #define FOPS_PREFIX "[FILE_OPS] "
@@ -19,28 +19,6 @@
 
 /* path buffer size */
 enum { PATH_LEN = 512 };
-
-/* event subtypes: the same as for IO probes */
-enum {
-	FOPS_OPEN		= 0,
-	FOPS_CLOSE		= 1,
-	FOPS_READ_BEGIN		= 2,
-	FOPS_READ_END		= 3,
-	FOPS_READ		= FOPS_READ_BEGIN,
-	FOPS_WRITE_BEGIN	= 4,
-	FOPS_WRITE_END		= 5,
-	FOPS_WRITE		= FOPS_WRITE_BEGIN,
-	FOPS_DIRECTORY		= 6,
-	FOPS_PERMS		= 7,
-	FOPS_OTHER		= 8,
-	FOPS_SEND		= 9,
-	FOPS_RECV		= 10,
-	FOPS_OPTION		= 11,
-	FOPS_MANAGE		= 12,
-	FOPS_LOCK_START		= 14, /* 13 */
-	FOPS_LOCK_END		= 15,
-	FOPS_LOCK_RELEASE	= 16
-};
 
 struct file_probe {
 	int id;
@@ -394,10 +372,9 @@ static int generic_entry_handler(struct kretprobe_instance *ri,
 		if (fops_fcheck(current, file) == 0) {
 			char *buf = fops_path_buf();
 
-			custom_entry_event(F_ADDR(rp), regs, PT_FILE,
-					   fprobe->subtype, "Sx",
-					   fops_fpath(file, buf, PATH_LEN),
-					   (u64)fd);
+			ksf_msg_file_entry(fd, fprobe->subtype,
+					   fops_fpath(file, buf, PATH_LEN));
+
 			priv->dentry = file->f_dentry;
 		} else {
 			priv->dentry = NULL;
@@ -416,12 +393,8 @@ static int generic_ret_handler(struct kretprobe_instance *ri,
 	struct kretprobe *rp = ri->rp;
 	struct file_private *priv = (struct file_private *)ri->data;
 
-	if (rp && priv->dentry) {
-		struct file_probe *fprobe = to_file_probe(rp);
-
-		custom_exit_event(F_ADDR(rp), R_ADDR(ri), regs,
-				  PT_FILE, fprobe->subtype, "x");
-	}
+	if (rp && priv->dentry)
+		ksf_msg_file_exit(regs, 'x');
 
 	return 0;
 }
@@ -483,13 +456,11 @@ static int open_ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 		if (fops_fcheck(current, file) == 0) {
 			char *buf = fops_path_buf();
+			const char *path = fops_fpath(file, buf, PATH_LEN);
 
-			custom_entry_event(F_ADDR(rp), regs, PT_FILE,
-					   fprobe->subtype, "Sxs",
-					   fops_fpath(file, buf, PATH_LEN),
-					   (u64)fd, priv->name);
-			custom_exit_event(F_ADDR(rp), R_ADDR(ri), regs,
-					  PT_FILE, fprobe->subtype, "x");
+			ksf_msg_file_entry_open(fd, fprobe->subtype,
+						path, priv->name);
+			ksf_msg_file_exit(regs, 'x');
 		}
 
 		if (file)
@@ -566,19 +537,14 @@ static int lock_entry_handler(struct kretprobe_instance *ri,
 			filepath = fops_fpath(file, buf, PATH_LEN);
 
 			if (lock_arg_init(fprobe->id, regs, &arg) == 0) {
-				subtype = (arg.type == F_UNLCK ?
-					   FOPS_LOCK_RELEASE :
-					   FOPS_LOCK_START);
-
-				custom_entry_event(F_ADDR(rp), regs, PT_FILE,
-						   subtype, "Sxddxx",
-						   filepath, (u64)fd,
-						   arg.type, arg.whence,
-						   arg.start, arg.len);
+				subtype = arg.type == F_UNLCK ?
+						FOPS_LOCK_RELEASE :
+						FOPS_LOCK_START;
+				ksf_msg_file_entry_lock(fd, subtype, filepath,
+							arg.type, arg.whence,
+							arg.start, arg.len);
 			} else {
-				custom_entry_event(F_ADDR(rp), regs, PT_FILE,
-						   subtype, "Sx",
-						   filepath, (u64)fd);
+				ksf_msg_file_entry(fd, subtype, filepath);
 			}
 
 			priv->dentry = file->f_dentry;
@@ -600,16 +566,8 @@ static int lock_ret_handler(struct kretprobe_instance *ri,
 	struct kretprobe *rp = ri->rp;
 	struct flock_private *priv = (struct flock_private *)ri->data;
 
-	if (rp && priv->dentry) {
-		int subtype;
-		if (priv->subtype == FOPS_LOCK_START)
-			subtype = FOPS_LOCK_END;
-		else
-			subtype = priv->subtype;
-
-		custom_exit_event(F_ADDR(rp), R_ADDR(ri), regs,
-				  PT_FILE, subtype, "x");
-	}
+	if (rp && priv->dentry)
+		ksf_msg_file_exit(regs, 'x');
 
 	return 0;
 }

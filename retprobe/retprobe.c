@@ -26,10 +26,11 @@
 #include <us_manager/us_manager.h>
 #include <us_manager/sspt/ip.h>
 #include <us_manager/probes/register_probes.h>
-#include <writer/swap_writer_module.h>
 #include <uprobe/swap_uprobes.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#include "rp_msg.h"
+
 
 static int retprobe_copy(struct probe_info *dest,
 			 const struct probe_info *source)
@@ -78,9 +79,9 @@ static int retprobe_entry_handler(struct uretprobe_instance *ri, struct pt_regs 
 	if (rp && get_quiet() == QT_OFF) {
 		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
 		const char *fmt = ip->probe_i.rp_i.args;
-		unsigned long addr = (unsigned long)ip->orig_addr;
+		const unsigned long func_addr = (unsigned long)ip->orig_addr;
 
-		entry_event(fmt, addr, regs, PT_US, PST_NONE);
+		rp_msg_entry(regs, func_addr, fmt);
 	}
 
 	return 0;
@@ -92,11 +93,11 @@ static int retprobe_ret_handler(struct uretprobe_instance *ri, struct pt_regs *r
 
 	if (rp && get_quiet() == QT_OFF) {
 		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
-		unsigned long addr = (unsigned long)ip->orig_addr;
-		unsigned long ret_addr = (unsigned long)ri->ret_addr;
+		const unsigned long func_addr = (unsigned long)ip->orig_addr;
+		const unsigned long ret_addr = (unsigned long)ri->ret_addr;
+		const char ret_type = ip->probe_i.rp_i.ret_type;
 
-		exit_event(ip->probe_i.rp_i.ret_type, regs, PT_US, PST_NONE, addr,
-		   ret_addr);
+		rp_msg_exit(regs, func_addr, ret_type, ret_addr);
 	}
 
 	return 0;

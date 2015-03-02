@@ -32,7 +32,6 @@
 #include <us_manager/sspt/ip.h>
 #include <us_manager/probes/register_probes.h>
 #include <us_manager/sspt/sspt.h>
-#include <writer/swap_writer_module.h>
 #include <uprobe/swap_uprobes.h>
 #include <parser/msg_cmd.h>
 #include <linux/module.h>
@@ -41,6 +40,7 @@
 
 #include "webprobe_debugfs.h"
 #include "webprobe_prof.h"
+#include "web_msg.h"
 
 
 static unsigned long inspserver_addr_local;
@@ -104,11 +104,11 @@ static int web_entry_handler(struct uretprobe_instance *ri,
 		if (addr == web_prof_addr(WILL_EXECUTE) &&
 		    d == web_prof_lib_dentry()) {
 			willexecute_addr_local = ip->orig_addr;
-			return entry_web_event(addr, regs);
+			web_msg_entry(regs);
 		} else if (addr == web_prof_addr(DID_EXECUTE) &&
 			   d == web_prof_lib_dentry()) {
 			didexecute_addr_local = ip->orig_addr;
-			return exit_web_event(addr, regs);
+			web_msg_exit(regs);
 		}
 	}
 

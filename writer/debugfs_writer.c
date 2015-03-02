@@ -35,7 +35,7 @@
 #include <asm/uaccess.h>
 #include <master/swap_debugfs.h>
 #include <master/swap_initializer.h>
-#include "swap_writer_module.h"
+#include "swap_msg.h"
 #include "event_filter.h"
 
 
@@ -93,7 +93,7 @@ static ssize_t write_raw(struct file *file, const char __user *user_buf,
 		goto put_buf;
 	}
 
-	ret = raw_msg(buf, count);
+	ret = swap_msg_raw(buf, count);
 
 put_buf:
 	put_current_buf();

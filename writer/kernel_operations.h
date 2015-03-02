@@ -33,6 +33,7 @@
 #define __KERNEL_OPERATIONS_H__
 
 #include <linux/kernel.h>
+#include <linux/uaccess.h>
 #include <asm/ptrace.h>
 
 /* MESSAGES */
@@ -88,11 +89,5 @@ static inline u32 get_regs_ret_func(struct pt_regs *regs)
 }
 
 #endif /* CONFIG_arch */
-
-int get_args(unsigned long args[], int cnt, struct pt_regs *regs);
-
-/* Returns shared kernel memory area name if it is found, otherwise - NULL */
-const char *get_shared_kmem(struct mm_struct *mm, unsigned long *start,
-			    unsigned long *end);
 
 #endif /* __KERNEL_OPERATIONS_H__ */

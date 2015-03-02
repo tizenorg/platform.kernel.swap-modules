@@ -27,9 +27,9 @@
 #include <kprobe/swap_kprobes_deps.h>
 #include <ksyms/ksyms.h>
 #include <writer/kernel_operations.h>
-#include <writer/swap_writer_module.h>
 #include "us_slot_manager.h"
 #include "sspt/sspt.h"
+#include "usm_msg.h"
 #include "helper.h"
 
 struct task_struct;
@@ -343,7 +343,7 @@ static void __remove_unmap_probes(struct sspt_proc *proc,
 
 		sspt_proc_insert_files(proc, &head);
 
-		proc_unmap_msg(start, end);
+		usm_msg_unmap(start, end);
 	}
 }
 
@@ -384,8 +384,7 @@ static int ret_handler_unmap(struct kretprobe_instance *ri,
 	struct task_struct *task;
 
 	task = current->group_leader;
-	if (is_kthread(task) ||
-	    get_regs_ret_val(regs))
+	if (is_kthread(task) || regs_return_value(regs))
 		goto out;
 
 	remove_unmap_probes(task, (struct unmap_data *)ri->data);
@@ -444,7 +443,7 @@ static int ret_handler_mmap(struct kretprobe_instance *ri,
 	if (is_kthread(task))
 		return 0;
 
-	start_addr = (unsigned long)get_regs_ret_val(regs);
+	start_addr = regs_return_value(regs);
 	if (IS_ERR_VALUE(start_addr))
 		return 0;
 
@@ -454,7 +453,7 @@ static int ret_handler_mmap(struct kretprobe_instance *ri,
 
 	vma = find_vma_intersection(task->mm, start_addr, start_addr + 1);
 	if (vma && check_vma(vma))
-		pcoc_map_msg(vma);
+		usm_msg_map(vma);
 
 	return 0;
 }

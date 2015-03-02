@@ -30,8 +30,8 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/list.h>
+#include <us_manager/usm_msg.h>
 #include <us_manager/us_slot_manager.h>
-#include <writer/swap_writer_module.h>
 
 
 static LIST_HEAD(proc_probes_list);
@@ -135,7 +135,7 @@ void sspt_proc_free(struct sspt_proc *proc)
 
 	sspt_destroy_feature(proc->feature);
 
-	terminate_msg(proc->task);
+	usm_msg_term(proc->task);
 	free_sm_us(proc->sm);
 	kfree(proc);
 }

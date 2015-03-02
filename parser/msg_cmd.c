@@ -31,13 +31,14 @@
 #include <linux/errno.h>
 #include <linux/delay.h>
 #include <linux/module.h>
-#include <writer/swap_writer_module.h>
 #include "msg_parser.h"
 #include "msg_buf.h"
 #include "features.h"
 #include "parser_defs.h"
 #include "us_inst.h"
+#include <writer/swap_msg.h>
 #include <us_manager/us_manager.h>
+
 
 static int wrt_launcher_port;
 
@@ -78,8 +79,8 @@ int msg_start(struct msg_buf *mb)
 	struct us_inst_data *us_inst;
 	struct conf_data conf;
 
-	reset_seq_num();
-	reset_discarded();
+	swap_msg_seq_num_reset();
+	swap_msg_discard_reset();
 
 	us_inst = create_us_inst_data(mb);
 	if (us_inst == NULL)
@@ -121,7 +122,7 @@ int msg_stop(struct msg_buf *mb)
 {
 	int ret = 0;
 	struct conf_data conf;
-	unsigned int discarded;
+	int discarded;
 
 	if (!is_end_mb(mb)) {
 		print_err("to long message, remained=%u", remained_mb(mb));
@@ -138,9 +139,9 @@ int msg_stop(struct msg_buf *mb)
 	if (ret)
 		printk(KERN_INFO "Cannot set config, ret = %d\n", ret);
 
-	discarded = get_discarded_count();
+	discarded = swap_msg_discard_get();
 	printk(KERN_INFO "discarded messages: %d\n", discarded);
-	reset_discarded();
+	swap_msg_discard_reset();
 
 	return ret;
 }

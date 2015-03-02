@@ -35,12 +35,13 @@
 #include <ksyms/ksyms.h>
 #include <kprobe/swap_kprobes.h>
 #include <master/swap_initializer.h>
-#include <writer/swap_writer_module.h>
 #include <writer/event_filter.h>
+#include "ksf_msg.h"
 #include "ks_features.h"
 #include "syscall_list.h"
 #include "features_data.c"
 #include "file_ops.h"
+
 
 /**
  * @struct ks_probe
@@ -51,14 +52,14 @@
  * Installed probes counter.
  * @var ks_probe::args
  * Pointer to args format string.
- * @var ks_probe::sub_type
+ * @var ks_probe::type
  * Probe sub type.
  */
 struct ks_probe {
 	struct kretprobe rp;
 	int counter;
 	char *args;
-	int sub_type;
+	int type;
 };
 
 #define CREATE_RP(name)						\
@@ -87,7 +88,7 @@ enum {
 	.rp = CREATE_RP(name),					\
 	.counter = 0,						\
 	.args = #args__,					\
-	.sub_type = PST_NONE					\
+	.type = PT_KS_NONE					\
 }
 
 static struct ks_probe ksp[] = {
@@ -123,10 +124,10 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	if (rp && check_event(current)) {
 		struct ks_probe *ksp = container_of(rp, struct ks_probe, rp);
 		const char *fmt = ksp->args;
-		unsigned long addr = (unsigned long)ksp->rp.kp.addr;
-		int sub_type = ksp->sub_type;
+		const unsigned long addr = (unsigned long)ksp->rp.kp.addr;
+		enum probe_t type = ksp->type;
 
-		entry_event(fmt, addr, regs, PT_KS, sub_type);
+		ksf_msg_entry(regs, addr, type, fmt);
 	}
 
 	return 0;
@@ -138,11 +139,11 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	if (rp && check_event(current)) {
 		struct ks_probe *ksp = container_of(rp, struct ks_probe, rp);
-		unsigned long func_addr = (unsigned long)rp->kp.addr;
-		unsigned long ret_addr = (unsigned long)ri->ret_addr;
-		int sub_type = ksp->sub_type;
+		const unsigned long func_addr = (unsigned long)rp->kp.addr;
+		const unsigned long ret_addr = (unsigned long)ri->ret_addr;
+		enum probe_t type = ksp->type;
 
-		exit_event('x', regs, PT_KS, sub_type, func_addr, ret_addr);
+		ksf_msg_exit(regs, func_addr, ret_addr, type, 'x');
 	}
 
 	return 0;
@@ -157,7 +158,7 @@ static int switch_entry_handler(struct kretprobe_instance *ri,
 				struct pt_regs *regs)
 {
 	if (check_event(current))
-		switch_entry(regs);
+		ksf_switch_entry(regs);
 
 	return 0;
 }
@@ -166,7 +167,7 @@ static int switch_ret_handler(struct kretprobe_instance *ri,
 			      struct pt_regs *regs)
 {
 	if (check_event(current))
-		switch_exit(regs);
+		ksf_switch_exit(regs);
 
 	return 0;
 }
@@ -326,12 +327,12 @@ static int unregister_multiple_syscalls(size_t *id_p, size_t cnt)
 
 static void set_pst(struct feature *f, size_t id)
 {
-	ksp[id].sub_type |= f->sub_type;
+	ksp[id].type |= f->type;
 }
 
 static void unset_pst(struct feature *f, size_t id)
 {
-	ksp[id].sub_type &= !f->sub_type;
+	ksp[id].type &= !f->type;
 }
 
 static void do_uninstall_features(struct feature *f, size_t i)

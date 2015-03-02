@@ -29,6 +29,7 @@
 
 
 #include <linux/types.h>
+#include <linux/sched.h>
 #include <linux/module.h>
 #include <ks_features/ks_features.h>
 #include <us_manager/us_manager.h>
@@ -36,8 +37,8 @@
 #include "features.h"
 #include "msg_parser.h"
 
+#include <writer/swap_msg.h>
 #include <writer/event_filter.h>
-#include <writer/swap_writer_module.h>
 #include <sampler/swap_sampler_module.h>
 #include <energy/energy.h>
 
@@ -283,6 +284,34 @@ int unset_context_switch(void)
 	return ret;
 }
 
+
+
+
+
+struct sample {
+	u32 pid;
+	u64 pc_addr;
+	u32 tid;
+	u32 cpu_num;
+} __packed;
+
+static void sample_msg(struct pt_regs *regs)
+{
+	struct swap_msg *m;
+	struct sample *s;
+	struct task_struct *task = current;
+
+	m = swap_msg_get(MSG_SAMPLE);
+
+	s = swap_msg_payload(m);
+	s->pid = task->tgid;
+	s->pc_addr = instruction_pointer(regs);
+	s->tid = task->pid;
+	s->cpu_num = smp_processor_id();
+
+	swap_msg_flush(m, sizeof(*s));
+	swap_msg_put(m);
+}
 
 static void sampler_cb(struct pt_regs *regs)
 {

@@ -37,7 +37,6 @@
 #include <buffer/swap_buffer_module.h>
 #include <buffer/swap_buffer_errors.h>
 #include <buffer/buffer_description.h>
-#include <writer/swap_writer_module.h>
 
 #include "driver_defs.h"
 #include "swap_driver_errors.h"

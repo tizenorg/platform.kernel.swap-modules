@@ -26,7 +26,6 @@
 #include <us_manager/us_manager.h>
 #include <us_manager/probes/register_probes.h>
 #include <us_manager/sspt/sspt_page.h>
-#include <writer/swap_writer_module.h>
 #include <uprobe/swap_uprobes.h>
 #include <us_manager/sspt/ip.h>
 #include "preload_probe.h"

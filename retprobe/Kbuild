@@ -1,4 +1,6 @@
 EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_retprobe.o
-swap_retprobe-y := retprobe.o
+swap_retprobe-y := \
+    retprobe.o \
+    rp_msg.o

@@ -27,12 +27,12 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 #include "proc_filters.h"
+#include <us_manager/usm_msg.h>
 #include <us_manager/img/img_proc.h>
 #include <us_manager/img/img_file.h>
 #include <us_manager/img/img_ip.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include <us_manager/helper.h>
-#include <writer/swap_writer_module.h>
 
 struct pf_group {
 	struct list_head list;
@@ -190,7 +190,7 @@ static void first_install(struct task_struct *task, struct sspt_proc *proc,
 	}
 
 	down_write(&task->mm->mmap_sem);
-	proc_info_msg(task, dentry);
+	usm_msg_info(task, dentry);
 	sspt_proc_install(proc);
 	up_write(&task->mm->mmap_sem);
 }
