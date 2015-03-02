@@ -47,6 +47,7 @@ enum swap_msg_id {
 	MSG_PROC_COMM			= 0x0014,
 	MSG_WEB_FUNCTION_ENTRY		= 0x0015,
 	MSG_WEB_FUNCTION_EXIT		= 0x0016,
+	MSG_WSP				= 0x001a,
 	MSG_FBI				= 0x0020
 };
 

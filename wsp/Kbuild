@@ -1,0 +1,8 @@
+EXTRA_CFLAGS := $(extra_cflags)
+
+obj-m := swap_wsp.o
+swap_wsp-y := wsp_module.o \
+              wsp_msg.o \
+              wsp_debugfs.o \
+              wsp.o \
+              wsp_res.o

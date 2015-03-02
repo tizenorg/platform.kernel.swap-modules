@@ -17,4 +17,5 @@ obj-m := master/ \
          webprobe/ \
          task_data/ \
          preload/ \
-         fbiprobe/
+         fbiprobe/ \
+         wsp/

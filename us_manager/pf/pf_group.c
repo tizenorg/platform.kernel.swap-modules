@@ -384,6 +384,7 @@ void put_pf_group(struct pf_group *pfg)
 		free_pfg(pfg);
 	}
 }
+EXPORT_SYMBOL_GPL(put_pf_group);
 
 /**
  * @brief Register prober for pf_grpup struct
