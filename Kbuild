@@ -1,6 +1,7 @@
 EXTRA_CFLAGS := $(extra_cflags)
 
-obj-m := buffer/ \
+obj-m := master/ \
+         buffer/ \
          ksyms/ \
          driver/ \
          writer/ \

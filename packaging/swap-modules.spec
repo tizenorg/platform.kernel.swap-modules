@@ -30,6 +30,7 @@ Kernel modules for SWAP
 
 %install
 mkdir -p %{buildroot}/opt/swap/sdk
+install -m 666 master/swap_master.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 buffer/swap_buffer.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 ksyms/swap_ksyms.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 driver/swap_driver.ko -t %{buildroot}/opt/swap/sdk
@@ -45,6 +46,7 @@ install -m 666 parser/swap_message_parser.ko -t %{buildroot}/opt/swap/sdk
 
 %files
 %defattr(-,root,root)
+/opt/swap/sdk/swap_master.ko
 /opt/swap/sdk/swap_buffer.ko
 /opt/swap/sdk/swap_ksyms.ko
 /opt/swap/sdk/swap_driver.ko

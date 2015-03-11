@@ -33,7 +33,7 @@
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
 #include <asm/uaccess.h>
-#include <driver/swap_debugfs.h>
+#include <master/swap_debugfs.h>
 #include "swap_writer_module.h"
 #include "event_filter.h"
 
@@ -259,7 +259,7 @@ int init_debugfs_writer(void)
 	if (ret)
 		return ret;
 
-	swap_dir = get_swap_debugfs_dir();
+	swap_dir = swap_debugfs_getdir();
 	if (swap_dir == NULL)
 		return -ENOENT;
 

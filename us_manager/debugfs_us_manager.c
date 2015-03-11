@@ -1,7 +1,7 @@
 #include <linux/debugfs.h>
 #include <linux/module.h>
 
-#include <driver/swap_debugfs.h>
+#include <master/swap_debugfs.h>
 #include <us_manager/sspt/sspt_proc.h>
 
 #include "debugfs_us_manager.h"
@@ -97,7 +97,7 @@ int init_debugfs_us_manager(void)
 {
 	struct dentry *swap_dir, *dentry;
 
-	swap_dir = get_swap_debugfs_dir();
+	swap_dir = swap_debugfs_getdir();
 	if (swap_dir == NULL)
 		return -ENOENT;
 

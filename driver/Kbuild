@@ -4,8 +4,7 @@ KBUILD_EXTRA_SYMBOLS = $(src)/../buffer/Module.symvers
 obj-m := swap_driver.o
 swap_driver-y := swap_driver_module.o \
                      device_driver.o \
-                     driver_to_buffer.o \
-                     swap_debugfs.o
+                     driver_to_buffer.o
 
 ifeq ($(CONFIG_CONNECTOR),y)
 	swap_driver-y += us_interaction.o
