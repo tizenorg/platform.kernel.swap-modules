@@ -16,7 +16,7 @@ BuildRequires: kernel-devel
 %else
 %define build_arch i386
 BuildRequires: emulator-kernel-devel
-%define kernel_path /usr/src/linux-kernel-build-3.12.18
+%define kernel_path /usr/src/linux-kernel-build-3.14.25
 %endif
 Provides: swap-modules
 %description
