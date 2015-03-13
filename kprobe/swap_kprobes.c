@@ -781,7 +781,7 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
-	preempt_enable_no_resched();
+	swap_preempt_enable_no_resched();
 
 	/*
 	 * By returning a non-zero value, we are telling

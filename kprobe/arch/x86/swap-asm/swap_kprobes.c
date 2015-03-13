@@ -330,7 +330,7 @@ static int setup_singlestep(struct kprobe *p, struct pt_regs *regs,
 		/* Boost up -- we can execute copied instructions directly */
 		swap_reset_current_kprobe();
 		regs->ip = (unsigned long)p->ainsn.insn;
-		preempt_enable_no_resched();
+		swap_preempt_enable_no_resched();
 
 		return 1;
 	}
@@ -437,7 +437,7 @@ ss_probe:
 	return 1;
 
 no_kprobe:
-	preempt_enable_no_resched ();
+	swap_preempt_enable_no_resched();
 
 	return ret;
 }
@@ -667,7 +667,7 @@ static int post_kprobe_handler (struct pt_regs *regs)
 	}
 	swap_reset_current_kprobe();
 out:
-	preempt_enable_no_resched ();
+	swap_preempt_enable_no_resched();
 
 	/*
 	 * if somebody else is singlestepping across a probe point, eflags
@@ -702,7 +702,7 @@ static int kprobe_fault_handler(struct pt_regs *regs, int trapnr)
 				restore_previous_kprobe (kcb);
 			else
 				swap_reset_current_kprobe();
-			preempt_enable_no_resched ();
+			swap_preempt_enable_no_resched();
 			break;
 		case KPROBE_HIT_ACTIVE:
 		case KPROBE_HIT_SSDONE:
@@ -823,7 +823,7 @@ int swap_longjmp_break_handler(struct kprobe *p, struct pt_regs *regs)
 		}
 		*regs = kcb->jprobe_saved_regs;
 		memcpy ((kprobe_opcode_t *) stack_addr, kcb->jprobes_stack, MIN_STACK_SIZE (stack_addr));
-		preempt_enable_no_resched ();
+		swap_preempt_enable_no_resched();
 		return 1;
 	}
 
@@ -945,7 +945,7 @@ int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb, void *data, size_t size)
 	regs->ip = (unsigned long)&kjump_trampoline;
 
 	swap_reset_current_kprobe();
-	preempt_enable_no_resched();
+	swap_preempt_enable_no_resched();
 
 	return 1;
 }

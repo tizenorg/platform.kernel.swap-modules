@@ -467,7 +467,7 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 	local_irq_save(flags);
 	preempt_disable();
 	ret = kprobe_handler(regs);
-	preempt_enable_no_resched();
+	swap_preempt_enable_no_resched();
 	local_irq_restore(flags);
 
 #ifdef SUPRESS_BUG_MESSAGES
