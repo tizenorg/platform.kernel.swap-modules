@@ -589,15 +589,7 @@ struct undef_hook;
 void swap_register_undef_hook(struct undef_hook *hook);
 void swap_unregister_undef_hook(struct undef_hook *hook);
 
-/**
- * @brief Arch-dependend module deps initialization stub.
- *
- * @return 0.
- */
-static inline int arch_init_module_deps(void)
-{
-	return 0;
-}
+int arch_init_module_deps(void);
 
 int arch_make_trampoline_arm(unsigned long addr, unsigned long insn,
 			     unsigned long *tramp);

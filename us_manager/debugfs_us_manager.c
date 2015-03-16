@@ -2,6 +2,7 @@
 #include <linux/module.h>
 
 #include <master/swap_debugfs.h>
+#include <master/swap_initializer.h>
 #include <us_manager/sspt/sspt_proc.h>
 
 #include "debugfs_us_manager.h"
@@ -64,6 +65,8 @@ static ssize_t read_tasks(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_tasks = {
 	.owner = THIS_MODULE,
+	.open = swap_init_simple_open,
+	.release = swap_init_simple_release,
 	.read = read_tasks,
 	.llseek = default_llseek
 };

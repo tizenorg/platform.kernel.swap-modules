@@ -862,6 +862,39 @@ static struct undef_hook undef_ho_k = {
 };
 
 /**
+ * @brief Arch-dependend module deps initialization stub.
+ *
+ * @return 0.
+ */
+int arch_init_module_deps(void)
+{
+	const char *sym;
+#ifdef CONFIG_STRICT_MEMORY_RWX
+	int ret;
+
+	ret = mem_rwx_once();
+	if (ret)
+		return ret;
+#endif /* CONFIG_STRICT_MEMORY_RWX */
+
+	sym = "register_undef_hook";
+	__swap_register_undef_hook = (void *)swap_ksyms(sym);
+	if (__swap_register_undef_hook == NULL)
+		goto not_found;
+
+	sym = "unregister_undef_hook";
+	__swap_unregister_undef_hook = (void *)swap_ksyms(sym);
+	if (__swap_unregister_undef_hook == NULL)
+		goto not_found;
+
+	return 0;
+
+not_found:
+	printk("ERROR: symbol '%s' not found\n", sym);
+	return -ESRCH;
+}
+
+/**
  * @brief Initializes kprobes module for ARM arch.
  *
  * @return 0 on success, error code on error.
@@ -869,26 +902,6 @@ static struct undef_hook undef_ho_k = {
 int swap_arch_init_kprobes(void)
 {
 	int ret;
-
-#ifdef CONFIG_STRICT_MEMORY_RWX
-	ret = mem_rwx_init();
-	if (ret)
-		return ret;
-#endif /* CONFIG_STRICT_MEMORY_RWX */
-
-	// Register hooks (kprobe_handler)
-	__swap_register_undef_hook = (void *)swap_ksyms("register_undef_hook");
-	if (__swap_register_undef_hook == NULL) {
-		printk("no register_undef_hook symbol found!\n");
-                return -1;
-        }
-
-        // Unregister hooks (kprobe_handler)
-	__swap_unregister_undef_hook = (void *)swap_ksyms("unregister_undef_hook");
-	if (__swap_unregister_undef_hook == NULL) {
-                printk("no unregister_undef_hook symbol found!\n");
-                return -1;
-        }
 
 	swap_register_undef_hook(&undef_ho_k);
 
@@ -910,10 +923,6 @@ void swap_arch_exit_kprobes(void)
 {
 	kjump_exit();
 	swap_unregister_undef_hook(&undef_ho_k);
-
-#ifdef CONFIG_STRICT_MEMORY_RWX
-	mem_rwx_exit();
-#endif /* CONFIG_STRICT_MEMORY_RWX */
 }
 
 /* export symbol for trampoline_arm.h */

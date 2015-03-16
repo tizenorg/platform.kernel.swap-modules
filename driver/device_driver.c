@@ -43,6 +43,7 @@
 #include <asm/uaccess.h>
 
 #include <ksyms/ksyms.h>
+#include <master/swap_initializer.h>
 
 #include "device_driver.h"
 #include "swap_driver_errors.h"
@@ -60,8 +61,6 @@
 #define MAXIMUM_SUBBUFFER_SIZE (64 * 1024)
 
 /* swap_device driver routines */
-static int swap_device_open(struct inode *inode, struct file *filp);
-static int swap_device_release(struct inode *inode, struct file *file);
 static ssize_t swap_device_read(struct file *filp, char __user *buf,
 								size_t count, loff_t *f_pos);
 static long swap_device_ioctl(struct file *filp, unsigned int cmd,
@@ -77,8 +76,8 @@ static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
 const struct file_operations swap_device_fops = {
 	.owner = THIS_MODULE,
 	.read = swap_device_read,
-	.open = swap_device_open,
-	.release = swap_device_release,
+	.open = swap_init_simple_open,
+	.release = swap_init_simple_release,
 	.unlocked_ioctl = swap_device_ioctl,
 	.splice_read = swap_device_splice_read,
 };
@@ -260,18 +259,6 @@ void swap_device_exit(void)
 	cdev_del(swap_device_cdev);
 	class_destroy(swap_device_class);
 	unregister_chrdev_region(swap_device_no, 1);
-}
-
-static int swap_device_open(struct inode *inode, struct file *filp)
-{
-	// TODO MOD_INC_USE_COUNT
-	return 0;
-}
-
-static int swap_device_release(struct inode *inode, struct file *filp)
-{
-	// TODO MOD_DEC_USE_COUNT
-	return 0;
 }
 
 static ssize_t swap_device_read(struct file *filp, char __user *buf,

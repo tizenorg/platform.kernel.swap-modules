@@ -640,6 +640,31 @@ unlock:
 }
 EXPORT_SYMBOL_GPL(unset_energy);
 
+int energy_once(void)
+{
+	const char *sym;
+
+	sym = "__switch_to";
+	switch_to_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (switch_to_krp.kp.addr == NULL)
+		goto not_found;
+
+	sym = "sys_read";
+	sys_read_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (sys_read_krp.kp.addr == NULL)
+		goto not_found;
+
+	sym = "sys_write";
+	sys_write_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (sys_write_krp.kp.addr == NULL)
+		goto not_found;
+
+	return 0;
+
+not_found:
+	printk("ERROR: symbol '%s' not found\n", sym);
+	return -ESRCH;
+}
 
 /**
  * @brief Initialization energy
@@ -649,28 +674,6 @@ EXPORT_SYMBOL_GPL(unset_energy);
 int energy_init(void)
 {
 	int ret;
-	unsigned long addr;
-
-	addr = swap_ksyms("__switch_to");
-	if (addr == 0) {
-		printk("Cannot find address for __switch_to function!\n");
-		return -EINVAL;
-	}
-	switch_to_krp.kp.addr = (kprobe_opcode_t *)addr;
-
-	addr = swap_ksyms("sys_read");
-	if (addr == 0) {
-		printk("Cannot find address for sys_read function!\n");
-		return -EINVAL;
-	}
-	sys_read_krp.kp.addr = (kprobe_opcode_t *)addr;
-
-	addr = swap_ksyms("sys_write");
-	if (addr == 0) {
-		printk("Cannot find address for sys_write function!\n");
-		return -EINVAL;
-	}
-	sys_write_krp.kp.addr = (kprobe_opcode_t *)addr;
 
 	ret = init_feature();
 	if (ret) {

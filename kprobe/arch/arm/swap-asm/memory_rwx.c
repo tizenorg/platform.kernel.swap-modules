@@ -94,7 +94,7 @@ void mem_rwx_write_u32(unsigned long addr, unsigned long val)
 	}
 }
 
-int mem_rwx_init(void)
+int mem_rwx_once(void)
 {
 	const char *sym;
 

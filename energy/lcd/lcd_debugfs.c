@@ -27,6 +27,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <energy/lcd/lcd_base.h>
+#include <energy/debugfs_energy.h>
 #include <energy/rational_debugfs.h>
 
 
@@ -64,7 +65,7 @@ static int get_system(void *data, u64 *val)
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(fops_get_system, get_system, NULL, "%llu\n");
+SWAP_DEFINE_SIMPLE_ATTRIBUTE(fops_get_system, get_system, NULL, "%llu\n");
 
 
 static struct dentry *lcd_dir = NULL;

@@ -29,6 +29,7 @@
 #include <linux/math64.h>
 #include <master/swap_debugfs.h>
 #include "energy.h"
+#include "debugfs_energy.h"
 #include "rational_debugfs.h"
 #include "lcd/lcd_debugfs.h"
 
@@ -131,7 +132,7 @@ static int get_func_u64(void *data, u64 *val)
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(fops_get_u64, get_func_u64, NULL, "%llu\n");
+SWAP_DEFINE_SIMPLE_ATTRIBUTE(fops_get_u64, get_func_u64, NULL, "%llu\n");
 
 
 struct param_data {

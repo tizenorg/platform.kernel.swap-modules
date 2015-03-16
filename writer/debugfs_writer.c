@@ -34,6 +34,7 @@
 #include <linux/slab.h>
 #include <asm/uaccess.h>
 #include <master/swap_debugfs.h>
+#include <master/swap_initializer.h>
 #include "swap_writer_module.h"
 #include "event_filter.h"
 
@@ -101,6 +102,8 @@ put_buf:
 
 static const struct file_operations fops_raw = {
 	.owner = THIS_MODULE,
+	.open = swap_init_simple_open,
+	.release = swap_init_simple_release,
 	.write =	write_raw,
 	.llseek =	default_llseek
 };
@@ -157,6 +160,8 @@ static ssize_t read_af(struct file *file, char __user *user_buf,
 
 static const struct file_operations fops_available_filters = {
 	.owner = THIS_MODULE,
+	.open = swap_init_simple_open,
+	.release = swap_init_simple_release,
 	.read =		read_af,
 	.llseek =	default_llseek
 };
@@ -215,6 +220,8 @@ static ssize_t write_filter(struct file *file, const char __user *user_buf,
 
 static const struct file_operations fops_filter = {
 	.owner = THIS_MODULE,
+	.open = swap_init_simple_open,
+	.release = swap_init_simple_release,
 	.read =		read_filter,
 	.write =	write_filter,
 	.llseek =	default_llseek

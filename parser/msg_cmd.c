@@ -242,21 +242,7 @@ free_us_inst:
  *
  * @return Initialization results.
  */
-int init_cmd(void)
+int once_cmd(void)
 {
-	int ret;
-
-	ret = init_features();
-
-	return ret;
-}
-
-/**
- * @brief Uninitializes commands handling.
- *
- * @return Void.
- */
-void uninit_cmd(void)
-{
-	uninit_features();
+	return once_features();
 }

@@ -24,36 +24,12 @@
 
 
 #include <linux/module.h>
+#include <master/swap_initializer.h>
 #include "energy.h"
 #include "debugfs_energy.h"
 
 
-static int __init swap_energy_init(void)
-{
-	int ret;
-
-	ret = init_debugfs_energy();
-	if (ret) {
-		printk("Cannot init debugfs for energy\n");
-		return ret;
-	}
-
-	ret = energy_init();
-	if (ret) {
-		printk("Cannot init energy\n");
-		exit_debugfs_energy();
-	}
-
-	return ret;
-}
-
-static void __exit swap_energy_exit(void)
-{
-	energy_uninit();
-	exit_debugfs_energy();
-}
-
-module_init(swap_energy_init);
-module_exit(swap_energy_exit);
+SWAP_LIGHT_INIT_MODULE(energy_once, energy_init, energy_uninit,
+		       init_debugfs_energy, exit_debugfs_energy);
 
 MODULE_LICENSE("GPL");

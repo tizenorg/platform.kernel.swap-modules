@@ -28,7 +28,45 @@
  */
 
 
+#include <linux/fs.h>
+#include <master/swap_initializer.h>
+
+
 struct dentry;
+
+
+/* based on define DEFINE_SIMPLE_ATTRIBUTE */
+#define SWAP_DEFINE_SIMPLE_ATTRIBUTE(__fops, __get, __set, __fmt)	\
+static int __fops ## _open(struct inode *inode, struct file *file)	\
+{									\
+	int ret; 							\
+									\
+	ret = swap_init_simple_open(inode, file);			\
+	if (ret)							\
+		return ret;						\
+									\
+	__simple_attr_check_format(__fmt, 0ull);			\
+	ret = simple_attr_open(inode, file, __get, __set, __fmt);	\
+	if (ret)							\
+		swap_init_simple_release(inode, file);			\
+									\
+	return ret;							\
+}									\
+static int __fops ## _release(struct inode *inode, struct file *file)	\
+{									\
+	simple_attr_release(inode, file);				\
+	swap_init_simple_release(inode, file);				\
+									\
+	return 0;							\
+}									\
+static const struct file_operations __fops = {				\
+	.owner   = THIS_MODULE,						\
+	.open    = __fops ## _open,					\
+	.release = __fops ## _release,					\
+	.read    = simple_attr_read,					\
+	.write   = simple_attr_write,					\
+	.llseek  = generic_file_llseek,					\
+}
 
 
 int init_debugfs_energy(void);

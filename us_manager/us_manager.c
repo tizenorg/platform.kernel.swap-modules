@@ -31,6 +31,7 @@
 #include "debugfs_us_manager.h"
 
 #include <writer/event_filter.h>
+#include <master/swap_initializer.h>
 
 /* FIXME: move /un/init_msg() elsewhere and remove this include  */
 #include <writer/swap_writer_module.h>		/* for /un/init_msg() */
@@ -209,50 +210,31 @@ static void exit_us_filter(void)
 
 
 
-static int __init init_us_manager(void)
+static int init_us_manager(void)
 {
 	int ret;
 
 	ret = init_us_filter();
 	if (ret)
-		goto us_filter_init_fail;
+		return ret;
 
-	init_msg(32*1024);
-
-	ret = init_helper();
+	ret = init_msg(32*1024); /* TODO: move to writer */
 	if (ret)
-		goto helper_init_fail;
+		exit_us_filter();
 
-	ret = init_debugfs_us_manager();
-	if (ret)
-		goto debugfs_init_fail;
-
-	return 0;
-
-debugfs_init_fail:
-	uninit_helper();
-
-helper_init_fail:
-	uninit_msg();
-	exit_us_filter();
-
-us_filter_init_fail:
 	return ret;
 }
 
-static void __exit exit_us_manager(void)
+static void exit_us_manager(void)
 {
 	if (status == ST_ON)
 		do_usm_stop();
 
-	exit_debugfs_us_manager();
 	uninit_msg();
-	uninit_helper();
 	exit_us_filter();
 }
 
-module_init(init_us_manager);
-module_exit(exit_us_manager);
+SWAP_LIGHT_INIT_MODULE(once_helper, init_us_manager, exit_us_manager,
+		       init_debugfs_us_manager, exit_debugfs_us_manager);
 
 MODULE_LICENSE ("GPL");
-

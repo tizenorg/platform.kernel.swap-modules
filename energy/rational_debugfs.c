@@ -26,6 +26,7 @@
 #include <linux/dcache.h>
 #include <linux/debugfs.h>
 #include <linux/module.h>
+#include "debugfs_energy.h"
 #include "rational_debugfs.h"
 
 
@@ -44,7 +45,7 @@ static int denom_get(void *data, u64 *val)
 	return 0;
 }
 
-DEFINE_SIMPLE_ATTRIBUTE(fops_denom, denom_get, denom_set, "%llu\n");
+SWAP_DEFINE_SIMPLE_ATTRIBUTE(fops_denom, denom_get, denom_set, "%llu\n");
 
 /**
  * @brief Create file in debugfs for rational struct
