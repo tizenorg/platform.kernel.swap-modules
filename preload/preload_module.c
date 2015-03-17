@@ -284,7 +284,7 @@ static inline struct vm_area_struct *__get_vma_by_addr(struct task_struct *task,
 
 static inline bool __is_probe_non_block(struct us_ip *ip)
 {
-	if (!(ip->info->pl_i.type & (0x1 << 1)))
+	if (ip->info->pl_i.flags & SWAP_PRELOAD_NON_BLOCK_PROBE)
 		return true;
 
 	return false;
@@ -428,7 +428,7 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 			/* jump only if caller is instumented and it is not a system lib -
 			 * this leads to some errors */
-			if (__not_system_caller(current, cvma) && ct &&
+			if (__not_system_caller(current, cvma) && ct != NOT_INSTRUMENTED &&
 			    !__is_handlers_call(cvma)) {
 				if (preload_threads_set_data(current,
 							     caddr, ct,

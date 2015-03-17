@@ -340,7 +340,7 @@ void put_retprobe(struct probe_info *pi)
 int get_preload_probe(struct msg_buf *mb, struct probe_info *pi)
 {
 	u64 handler;
-	u8 type;
+	u8 flags;
 
 	print_parse_debug("funct handler:");
 	if (get_u64(mb, &handler)) {
@@ -348,8 +348,8 @@ int get_preload_probe(struct msg_buf *mb, struct probe_info *pi)
 		return -EINVAL;
 	}
 
-	print_parse_debug("collect events type:");
-	if (get_u8(mb, &type)) {
+	print_parse_debug("collect events flag:");
+	if (get_u8(mb, &flags)) {
 		print_err("failed to read collect events type\n");
 		return -EINVAL;
 	}
@@ -357,7 +357,7 @@ int get_preload_probe(struct msg_buf *mb, struct probe_info *pi)
 	pi->probe_type = SWAP_PRELOAD_PROBE;
 	pi->size = sizeof(pi->pl_i) + sizeof(pi->probe_type) + sizeof(pi->size);
 	pi->pl_i.handler = handler;
-	pi->pl_i.type = type;
+	pi->pl_i.flags = flags;
 
 	return 0;
 }

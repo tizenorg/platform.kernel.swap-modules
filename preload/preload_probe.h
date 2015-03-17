@@ -25,18 +25,24 @@
 #ifndef __PRELOAD_PROBE_H__
 #define __PRELOAD_PROBE_H__
 
-/* Probe type, specifies when probe should be ran. */
-enum preload_probe_type_t {
-	SWAP_PRELOAD_INTERNAL_CALL = 0,     /* Run probe only when it is called from
-					       target binaries. */
-	SWAP_PRELOAD_ALWAYS = 1,            /* Run probe always. */
-	SWAP_PRELOAD_DISABLE_HANDLING = 2   /* Disable handlers execution. */
+/* Probe flags description:
+ *
+ *    0 - handler is ran only when probe has fired from a target binary;
+ *    1 - handler is always ran;
+ *
+ *   00 - probe is disabling internal probes;
+ *   10 - probe is non blocking one;
+ */
+
+enum {
+	SWAP_PRELOAD_ALWAYS_RUN =       (1 << 0),
+	SWAP_PRELOAD_NON_BLOCK_PROBE =  (1 << 1)
 };
 
 /* Preload probe info. */
 struct preload_info {
 	unsigned long handler;              /* Handler offset in probe library. */
-	enum preload_probe_type_t type;     /* Preload probe type. */
+	unsigned char flags;                /* Preload probe flags. */
 };
 
 /* Get caller probe info */
