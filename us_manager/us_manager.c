@@ -26,6 +26,7 @@
 #include <linux/mutex.h>
 #include "pf/pf_group.h"
 #include "sspt/sspt_proc.h"
+#include "probes/probe_info_new.h"
 #include "helper.h"
 #include "us_manager.h"
 #include "usm_msg.h"
@@ -221,7 +222,13 @@ static int init_us_manager(void)
 {
 	int ret;
 
+	ret = pin_init();
+	if (ret)
+		return ret;
+
 	ret = init_us_filter();
+	if (ret)
+		pin_exit();
 
 	return ret;
 }
@@ -232,6 +239,7 @@ static void exit_us_manager(void)
 		do_usm_stop();
 
 	exit_us_filter();
+	pin_exit();
 }
 
 SWAP_LIGHT_INIT_MODULE(usm_once, init_us_manager, exit_us_manager,

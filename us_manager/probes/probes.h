@@ -52,6 +52,8 @@ enum probe_t {
 	SWAP_WEBPROBE = 3,          /* Webprobe */
 	SWAP_GET_CALLER = 4,        /* Get caller probe. Supports preload */
 	SWAP_GET_CALL_TYPE = 5,     /* Get call type probe. Supports preload */
+	SWAP_NEW_UP,
+	SWAP_NEW_URP,
 	SWAP_PROBE_MAX_VAL          /* Probes max value. */
 };
 
