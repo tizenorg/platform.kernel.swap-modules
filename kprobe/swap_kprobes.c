@@ -32,7 +32,7 @@
  */
 
 #include <linux/version.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 #include <linux/config.h>
 #endif
 
@@ -67,11 +67,11 @@ static unsigned long sys_exit_addr;
  */
 struct slot_manager sm;
 
-DEFINE_PER_CPU(struct kprobe *, swap_current_kprobe) = NULL;
+DEFINE_PER_CPU(struct kprobe *, swap_current_kprobe);
 static DEFINE_PER_CPU(struct kprobe_ctlblk, kprobe_ctlblk);
 
 static DEFINE_SPINLOCK(kretprobe_lock);	/* Protects kretprobe_inst_table */
-static DEFINE_PER_CPU(struct kprobe *, kprobe_instance) = NULL;
+static DEFINE_PER_CPU(struct kprobe *, kprobe_instance);
 
 struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 static struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
@@ -84,8 +84,8 @@ atomic_t kprobe_count;
 EXPORT_SYMBOL_GPL(kprobe_count);
 
 
-static void *(*module_alloc)(unsigned long size) = NULL;
-static void *(*module_free)(struct module *mod, void *module_region) = NULL;
+static void *(*module_alloc)(unsigned long size);
+static void *(*module_free)(struct module *mod, void *module_region);
 
 static void *__wrapper_module_alloc(unsigned long size)
 {
@@ -126,22 +126,21 @@ static void kretprobe_assert(struct kretprobe_instance *ri,
 {
 	if (!orig_ret_address || (orig_ret_address == trampoline_address)) {
 		struct task_struct *task;
-		if (ri == NULL) {
+		if (ri == NULL)
 			panic("kretprobe BUG!: ri = NULL\n");
-		}
 
 		task = ri->task;
 
-		if (task == NULL) {
+		if (task == NULL)
 			panic("kretprobe BUG!: task = NULL\n");
-		}
 
-		if (ri->rp == NULL) {
+		if (ri->rp == NULL)
 			panic("kretprobe BUG!: ri->rp = NULL\n");
-		}
 
-		panic("kretprobe BUG!: Processing kretprobe %p @ %p (%d/%d - %s)\n",
-		      ri->rp, ri->rp->kp.addr, ri->task->tgid, ri->task->pid, ri->task->comm);
+		panic("kretprobe BUG!: "
+		      "Processing kretprobe %p @ %p (%d/%d - %s)\n",
+		      ri->rp, ri->rp->kp.addr, ri->task->tgid,
+		      ri->task->pid, ri->task->comm);
 	}
 }
 
@@ -188,9 +187,9 @@ struct kprobe_ctlblk *swap_get_kprobe_ctlblk(void)
 
 /*
  * This routine is called either:
- * 	- under the kprobe_mutex - during kprobe_[un]register()
- * 				OR
- * 	- with preemption disabled - from arch/xxx/kernel/kprobes.c
+ *	- under the kprobe_mutex - during kprobe_[un]register()
+ *				OR
+ *	- with preemption disabled - from arch/xxx/kernel/kprobes.c
  */
 
 /**
@@ -205,11 +204,10 @@ struct kprobe *swap_get_kprobe(void *addr)
 	struct kprobe *p;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
-	head = &kprobe_table[hash_ptr (addr, KPROBE_HASH_BITS)];
+	head = &kprobe_table[hash_ptr(addr, KPROBE_HASH_BITS)];
 	swap_hlist_for_each_entry_rcu(p, node, head, hlist) {
-		if (p->addr == addr) {
+		if (p->addr == addr)
 			return p;
-		}
 	}
 
 	return NULL;
@@ -237,7 +235,9 @@ static int aggr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-static void aggr_post_handler(struct kprobe *p, struct pt_regs *regs, unsigned long flags)
+static void aggr_post_handler(struct kprobe *p,
+			      struct pt_regs *regs,
+			      unsigned long flags)
 {
 	struct kprobe *kp;
 
@@ -250,7 +250,9 @@ static void aggr_post_handler(struct kprobe *p, struct pt_regs *regs, unsigned l
 	}
 }
 
-static int aggr_fault_handler(struct kprobe *p, struct pt_regs *regs, int trapnr)
+static int aggr_fault_handler(struct kprobe *p,
+			      struct pt_regs *regs,
+			      int trapnr)
 {
 	struct kprobe *cur = __get_cpu_var(kprobe_instance);
 
@@ -270,9 +272,10 @@ static int aggr_break_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct kprobe *cur = __get_cpu_var(kprobe_instance);
 	int ret = 0;
-	DBPRINTF ("cur = 0x%p\n", cur);
+	DBPRINTF("cur = 0x%p\n", cur);
 	if (cur)
-		DBPRINTF ("cur = 0x%p cur->break_handler = 0x%p\n", cur, cur->break_handler);
+		DBPRINTF("cur = 0x%p cur->break_handler = 0x%p\n",
+			 cur, cur->break_handler);
 
 	if (cur && cur->break_handler) {
 		if (cur->break_handler(cur, regs))
@@ -362,7 +365,9 @@ static void add_rp_inst(struct kretprobe_instance *ri)
 	/* Add rp inst onto table */
 	INIT_HLIST_NODE(&ri->hlist);
 
-	hlist_add_head(&ri->hlist, &kretprobe_inst_table[hash_ptr(ri->task, KPROBE_HASH_BITS)]);
+	hlist_add_head(&ri->hlist,
+		       &kretprobe_inst_table[hash_ptr(ri->task,
+						      KPROBE_HASH_BITS)]);
 
 	/* Also add this rp inst to the used list. */
 	INIT_HLIST_NODE(&ri->uflist);
@@ -416,9 +421,8 @@ static inline void copy_kprobe(struct kprobe *old_p, struct kprobe *p)
 static int add_new_kprobe(struct kprobe *old_p, struct kprobe *p)
 {
 	if (p->break_handler) {
-		if (old_p->break_handler) {
+		if (old_p->break_handler)
 			return -EEXIST;
-		}
 
 		list_add_tail_rcu(&p->list, &old_p->list);
 		old_p->break_handler = aggr_break_handler;
@@ -426,9 +430,8 @@ static int add_new_kprobe(struct kprobe *old_p, struct kprobe *p)
 		list_add_rcu(&p->list, &old_p->list);
 	}
 
-	if (p->post_handler && !old_p->post_handler) {
+	if (p->post_handler && !old_p->post_handler)
 		old_p->post_handler = aggr_post_handler;
-	}
 
 	return 0;
 }
@@ -484,16 +487,16 @@ static int register_aggr_kprobe(struct kprobe *old_p, struct kprobe *p)
 {
 	int ret = 0;
 	struct kprobe *ap;
-	DBPRINTF ("start\n");
+	DBPRINTF("start\n");
 
-	DBPRINTF ("p = %p old_p = %p \n", p, old_p);
+	DBPRINTF("p = %p old_p = %p\n", p, old_p);
 	if (old_p->pre_handler == aggr_pre_handler) {
-		DBPRINTF ("aggr_pre_handler \n");
+		DBPRINTF("aggr_pre_handler\n");
 
 		copy_kprobe(old_p, p);
 		ret = add_new_kprobe(old_p, p);
 	} else {
-		DBPRINTF ("kzalloc\n");
+		DBPRINTF("kzalloc\n");
 #ifdef kzalloc
 		ap = kzalloc(sizeof(struct kprobe), GFP_KERNEL);
 #else
@@ -505,7 +508,7 @@ static int register_aggr_kprobe(struct kprobe *old_p, struct kprobe *p)
 			return -ENOMEM;
 		add_aggr_kprobe(ap, old_p);
 		copy_kprobe(ap, p);
-		DBPRINTF ("ap = %p p = %p old_p = %p \n", ap, p, old_p);
+		DBPRINTF("ap = %p p = %p old_p = %p\n", ap, p, old_p);
 		ret = add_new_kprobe(ap, p);
 	}
 
@@ -541,9 +544,9 @@ int swap_register_kprobe(struct kprobe *p)
 
 	if (!p->addr)
 		return -EINVAL;
-	DBPRINTF ("p->addr = 0x%p\n", p->addr);
+	DBPRINTF("p->addr = 0x%p\n", p->addr);
 	p->addr = (kprobe_opcode_t *)(((char *)p->addr) + p->offset);
-	DBPRINTF ("p->addr = 0x%p p = 0x%p\n", p->addr, p);
+	DBPRINTF("p->addr = 0x%p p = 0x%p\n", p->addr, p);
 
 #ifdef KPROBES_PROFILE
 	p->start_tm.tv_sec = p->start_tm.tv_usec = 0;
@@ -561,17 +564,18 @@ int swap_register_kprobe(struct kprobe *p)
 			atomic_inc(&kprobe_count);
 		goto out;
 	}
-
-	if ((ret = swap_arch_prepare_kprobe(p, &sm)) != 0)
+	ret = swap_arch_prepare_kprobe(p, &sm);
+	if (ret != 0)
 		goto out;
 
-	DBPRINTF ("before out ret = 0x%x\n", ret);
+	DBPRINTF("before out ret = 0x%x\n", ret);
 	INIT_HLIST_NODE(&p->hlist);
-	hlist_add_head_rcu(&p->hlist, &kprobe_table[hash_ptr(p->addr, KPROBE_HASH_BITS)]);
+	hlist_add_head_rcu(&p->hlist,
+			   &kprobe_table[hash_ptr(p->addr, KPROBE_HASH_BITS)]);
 	swap_arch_arm_kprobe(p);
 
 out:
-	DBPRINTF ("out ret = 0x%x\n", ret);
+	DBPRINTF("out ret = 0x%x\n", ret);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(swap_register_kprobe);
@@ -621,7 +625,7 @@ void swap_unregister_kprobe(struct kprobe *kp)
 	struct kprobe *old_p, *list_p;
 
 	old_p = swap_get_kprobe(kp->addr);
-	if (unlikely (!old_p))
+	if (unlikely(!old_p))
 		return;
 
 	if (kp != old_p) {
@@ -675,17 +679,18 @@ static int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
 	struct kretprobe_instance *ri;
 	unsigned long flags = 0;
 
-	/* TODO: consider to only swap the RA after the last pre_handler fired */
+	/* TODO: consider to only swap the RA
+	 * after the last pre_handler fired */
 	spin_lock_irqsave(&kretprobe_lock, flags);
 
 	/* TODO: test - remove retprobe after func entry but before its exit */
-	if ((ri = get_free_rp_inst(rp)) != NULL) {
+	ri = get_free_rp_inst(rp);
+	if (ri != NULL) {
 		ri->rp = rp;
 		ri->task = current;
 
-		if (rp->entry_handler) {
+		if (rp->entry_handler)
 			rp->entry_handler(ri, regs);
-		}
 
 		swap_arch_prepare_kretprobe(ri, regs);
 
@@ -727,9 +732,9 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 
 	/*
 	 * We are using different hash keys (current and mm) for finding kernel
-	 * space and user space probes.  Kernel space probes can change mm field in
-	 * task_struct.  User space probes can be shared between threads of one
-	 * process so they have different current but same mm.
+	 * space and user space probes.  Kernel space probes can change mm field
+	 * in task_struct.  User space probes can be shared between threads of
+	 * one process so they have different current but same mm.
 	 */
 	head = kretprobe_inst_table_head(current);
 
@@ -758,7 +763,8 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 			continue;
 		if (ri->rp && ri->rp->handler) {
 			__get_cpu_var(swap_current_kprobe) = &ri->rp->kp;
-			swap_get_kprobe_ctlblk()->kprobe_status = KPROBE_HIT_ACTIVE;
+			swap_get_kprobe_ctlblk()->kprobe_status =
+				KPROBE_HIT_ACTIVE;
 			ri->rp->handler(ri, regs);
 			__get_cpu_var(swap_current_kprobe) = NULL;
 		}
@@ -775,11 +781,10 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 	kretprobe_assert(ri, orig_ret_address, trampoline_address);
 
-	if (kcb->kprobe_status == KPROBE_REENTER) {
+	if (kcb->kprobe_status == KPROBE_REENTER)
 		restore_previous_kprobe(kcb);
-	} else {
+	else
 		swap_reset_current_kprobe();
-	}
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 	swap_preempt_enable_no_resched();
@@ -805,11 +810,11 @@ static int alloc_nodes_kretprobe(struct kretprobe *rp)
 	DBPRINTF("Alloc aditional mem for retprobes");
 
 	if ((unsigned long)rp->kp.addr == sched_addr) {
-		rp->maxactive += SCHED_RP_NR;//max (100, 2 * NR_CPUS);
+		rp->maxactive += SCHED_RP_NR; /* max (100, 2 * NR_CPUS); */
 		alloc_nodes = SCHED_RP_NR;
 	} else {
-#if 1//def CONFIG_PREEMPT
-		rp->maxactive += max (COMMON_RP_NR, 2 * NR_CPUS);
+#if 1/* def CONFIG_PREEMPT */
+		rp->maxactive += max(COMMON_RP_NR, 2 * NR_CPUS);
 #else
 		rp->maxacpptive += NR_CPUS;
 #endif
@@ -826,7 +831,10 @@ static int alloc_nodes_kretprobe(struct kretprobe *rp)
 		hlist_add_head(&inst->uflist, &rp->free_instances);
 	}
 
-	DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
+	DBPRINTF("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr,
+		  (unsigned long) (*(rp->kp.addr)),
+		  (unsigned long) (*(rp->kp.addr + 1)),
+		  (unsigned long) (*(rp->kp.addr + 2)));
 	return 0;
 }
 
@@ -841,7 +849,7 @@ int swap_register_kretprobe(struct kretprobe *rp)
 	int ret = 0;
 	struct kretprobe_instance *inst;
 	int i;
-	DBPRINTF ("START");
+	DBPRINTF("START");
 
 	rp->kp.pre_handler = pre_handler_kretprobe;
 	rp->kp.post_handler = NULL;
@@ -850,7 +858,7 @@ int swap_register_kretprobe(struct kretprobe *rp)
 
 	/* Pre-allocate memory for max kretprobe instances */
 	if ((unsigned long)rp->kp.addr == exit_addr) {
-		rp->kp.pre_handler = NULL; //not needed for do_exit
+		rp->kp.pre_handler = NULL; /* not needed for do_exit */
 		rp->maxactive = 0;
 	} else if ((unsigned long)rp->kp.addr == do_group_exit_addr) {
 		rp->kp.pre_handler = NULL;
@@ -862,8 +870,8 @@ int swap_register_kretprobe(struct kretprobe *rp)
 		rp->kp.pre_handler = NULL;
 		rp->maxactive = 0;
 	} else if (rp->maxactive <= 0) {
-#if 1//def CONFIG_PREEMPT
-		rp->maxactive = max (COMMON_RP_NR, 2 * NR_CPUS);
+#if 1/* def CONFIG_PREEMPT */
+		rp->maxactive = max(COMMON_RP_NR, 2 * NR_CPUS);
 #else
 		rp->maxactive = NR_CPUS;
 #endif
@@ -880,13 +888,20 @@ int swap_register_kretprobe(struct kretprobe *rp)
 		hlist_add_head(&inst->uflist, &rp->free_instances);
 	}
 
-	DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
+	DBPRINTF("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr,
+		  (unsigned long) (*(rp->kp.addr)),
+		  (unsigned long) (*(rp->kp.addr + 1)),
+		  (unsigned long) (*(rp->kp.addr + 2)));
 	rp->nmissed = 0;
 	/* Establish function entry probe point */
-	if ((ret = swap_register_kprobe(&rp->kp)) != 0)
+	ret = swap_register_kprobe(&rp->kp);
+	if (ret != 0)
 		free_rp_inst(rp);
 
-	DBPRINTF ("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr, (unsigned long) (*(rp->kp.addr)), (unsigned long) (*(rp->kp.addr + 1)), (unsigned long) (*(rp->kp.addr + 2)));
+	DBPRINTF("addr=%p, *addr=[%lx %lx %lx]", rp->kp.addr,
+		  (unsigned long) (*(rp->kp.addr)),
+		  (unsigned long) (*(rp->kp.addr + 1)),
+		  (unsigned long) (*(rp->kp.addr + 2)));
 
 	return ret;
 }
@@ -901,9 +916,10 @@ static void swap_disarm_krp(struct kretprobe *rp)
 
 	swap_hlist_for_each_entry(ri, node, &rp->used_instances, uflist) {
 		if (swap_disarm_krp_inst(ri) != 0) {
-			printk("%s (%d/%d): cannot disarm krp instance (%08lx)\n",
-					ri->task->comm, ri->task->tgid, ri->task->pid,
-					(unsigned long)rp->kp.addr);
+			printk(KERN_INFO "%s (%d/%d): cannot disarm "
+			       "krp instance (%08lx)\n",
+			       ri->task->comm, ri->task->tgid, ri->task->pid,
+			       (unsigned long)rp->kp.addr);
 		}
 	}
 }
@@ -958,9 +974,8 @@ void swap_unregister_kretprobe_bottom(struct kretprobe *rp)
 
 	spin_lock_irqsave(&kretprobe_lock, flags);
 
-	while ((ri = get_used_rp_inst(rp)) != NULL) {
+	while ((ri = get_used_rp_inst(rp)) != NULL)
 		recycle_rp_inst(ri);
-	}
 	free_rp_inst(rp);
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
@@ -1013,7 +1028,8 @@ void swap_unregister_kretprobe(struct kretprobe *rp)
 }
 EXPORT_SYMBOL_GPL(swap_unregister_kretprobe);
 
-static void inline rm_task_trampoline(struct task_struct *p, struct kretprobe_instance *ri)
+static inline void rm_task_trampoline(struct task_struct *p,
+				      struct kretprobe_instance *ri)
 {
 	arch_set_task_pc(p, (unsigned long)ri->ret_addr);
 }
@@ -1028,12 +1044,12 @@ static int swap_disarm_krp_inst(struct kretprobe_instance *ri)
 	if (!sp) {
 		unsigned long pc = arch_get_task_pc(ri->task);
 
-		printk("---> [%d] %s (%d/%d): pc = %08lx, ra = %08lx, tramp= %08lx (%08lx)\n",
+		printk(KERN_INFO "---> [%d] %s (%d/%d): pc = %08lx, ra = %08lx, tramp= %08lx (%08lx)\n",
 		       task_cpu(ri->task),
 		       ri->task->comm, ri->task->tgid, ri->task->pid,
 		       pc, (long unsigned int)ri->ret_addr,
 		       (long unsigned int)tramp,
-		       (long unsigned int)(ri->rp ? ri->rp->kp.addr: NULL));
+		       (long unsigned int)(ri->rp ? ri->rp->kp.addr : NULL));
 
 		/* __switch_to retprobe handling */
 		if (pc == (unsigned long)tramp) {
@@ -1053,20 +1069,23 @@ static int swap_disarm_krp_inst(struct kretprobe_instance *ri)
 	}
 
 	if (found) {
-		printk("---> [%d] %s (%d/%d): tramp (%08lx) found at %08lx (%08lx /%+d) - %p\n",
+		printk(KERN_INFO "---> [%d] %s (%d/%d): tramp (%08lx) "
+		       "found at %08lx (%08lx /%+d) - %p\n",
 		       task_cpu(ri->task),
 		       ri->task->comm, ri->task->tgid, ri->task->pid,
 		       (long unsigned int)tramp,
 		       (long unsigned int)found, (long unsigned int)ri->sp,
-		       found - ri->sp, ri->rp ? ri->rp->kp.addr: NULL);
+		       found - ri->sp, ri->rp ? ri->rp->kp.addr : NULL);
 		*found = (unsigned long)ri->ret_addr;
 		retval = 0;
 	} else {
-		printk("---> [%d] %s (%d/%d): tramp (%08lx) NOT found at sp = %08lx - %p\n",
-				task_cpu(ri->task),
-				ri->task->comm, ri->task->tgid, ri->task->pid,
-				(long unsigned int)tramp,
-				(long unsigned int)ri->sp, ri->rp ? ri->rp->kp.addr: NULL);
+		printk(KERN_INFO "---> [%d] %s (%d/%d): tramp (%08lx) "
+		       "NOT found at sp = %08lx - %p\n",
+		       task_cpu(ri->task),
+		       ri->task->comm, ri->task->tgid, ri->task->pid,
+		       (long unsigned int)tramp,
+		       (long unsigned int)ri->sp,
+		       ri->rp ? ri->rp->kp.addr : NULL);
 	}
 
 	return retval;
@@ -1079,8 +1098,8 @@ static int init_module_deps(void)
 	sched_addr = swap_ksyms("__switch_to");
 	exit_addr = swap_ksyms("do_exit");
 	sys_exit_group_addr = swap_ksyms("sys_exit_group");
-        do_group_exit_addr = swap_ksyms("do_group_exit");
-        sys_exit_addr = swap_ksyms("sys_exit");
+	do_group_exit_addr = swap_ksyms("do_group_exit");
+	sys_exit_addr = swap_ksyms("sys_exit");
 
 	if (sched_addr == 0 ||
 	    exit_addr == 0 ||
@@ -1091,9 +1110,8 @@ static int init_module_deps(void)
 	}
 
 	ret = init_module_dependencies();
-	if (ret) {
+	if (ret)
 		return ret;
-	}
 
 	return arch_init_module_deps();
 }
@@ -1129,7 +1147,7 @@ static int once(void)
 	return 0;
 
 not_found:
-	printk("ERROR: symbol '%s' not found\n", sym);
+	printk(KERN_INFO "ERROR: symbol '%s' not found\n", sym);
 	return -ESRCH;
 }
 

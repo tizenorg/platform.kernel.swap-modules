@@ -47,11 +47,12 @@ static void *sm_alloc_us(struct slot_manager *sm)
 static void sm_free_us(struct slot_manager *sm, void *ptr)
 {
 	/*
-	 * E. G.: This code provides kernel dump because of rescheduling while atomic.
-	 * As workaround, this code was commented. In this case we will have memory leaks
-	 * for instrumented process, but instrumentation process should functionate correctly.
-	 * Planned that good solution for this problem will be done during redesigning KProbe
-	 * for improving supportability and performance.
+	 * E. G.: This code provides kernel dump because of rescheduling while
+	 * atomic. As workaround, this code was commented. In this case we will
+	 * have memory leaks for instrumented process, but instrumentation
+	 * process should functionate correctly. Planned that good solution for
+	 * this problem will be done during redesigning KProbe for improving
+	 * supportability and performance.
 	 */
 #if 0
 	struct task_struct *task = sm->data;

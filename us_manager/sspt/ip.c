@@ -88,7 +88,7 @@ struct us_ip *create_ip(unsigned long offset, const char *args, char ret_type)
 		ip->retprobe.handler = ret_handler;
 		ip->retprobe.entry_handler = entry_handler;
 	} else {
-		printk("Cannot kmalloc in create_ip function!\n");
+		printk(KERN_INFO "Cannot kmalloc in create_ip function!\n");
 	}
 
 	return ip;

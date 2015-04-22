@@ -56,8 +56,8 @@ static int symbol_cb(void *data, const char *sym, struct module *mod,
 {
 	struct symbol_data *sym_data_p = (struct symbol_data *)data;
 
-	/* We expect that real symbol name should have at least the same length as
-	 * symbol name we are looking for. */
+	/* We expect that real symbol name should have at least the same
+	 * length as symbol name we are looking for. */
 	if (strncmp(sym_data_p->name, sym, sym_data_p->len) == 0) {
 		sym_data_p->addr = addr;
 		/* Return != 0 to stop loop over the symbols */

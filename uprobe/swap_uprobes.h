@@ -53,19 +53,20 @@ struct uprobe {
 /**
  * @brief Uprobe pre-entry handler.
  */
-typedef unsigned long (*uprobe_pre_entry_handler_t)(void *priv_arg, struct pt_regs * regs);
+typedef unsigned long (*uprobe_pre_entry_handler_t)(void *priv_arg,
+						    struct pt_regs *regs);
 
 /**
  * @struct ujprobe
  * @brief Stores ujprobe data, based on uprobe.
  */
 struct ujprobe {
-	struct uprobe up;                   /**< Uprobe for this ujprobe */
-	void *entry;                        /**< Probe handling code to jump to */
+	struct uprobe up;       /**< Uprobe for this ujprobe */
+	void *entry;		/**< Probe handling code to jump to */
 	/** Handler which will be called before 'entry' */
 	uprobe_pre_entry_handler_t pre_entry;
-	void *priv_arg;                     /**< Private args for handler */
-	char *args;                         /**< Function args format string */
+	void *priv_arg;         /**< Private args for handler */
+	char *args;             /**< Function args format string */
 };
 
 struct uretprobe_instance;
@@ -73,7 +74,8 @@ struct uretprobe_instance;
 /**
  * @brief Uretprobe handler.
  */
-typedef int (*uretprobe_handler_t)(struct uretprobe_instance *, struct pt_regs *);
+typedef int (*uretprobe_handler_t)(struct uretprobe_instance *,
+				   struct pt_regs *);
 
 /**
  * @strict uretprobe
@@ -132,7 +134,9 @@ void swap_discard_pending_uretprobes(struct task_struct *task);
 
 void swap_ujprobe_return(void);
 struct kprobe *get_ukprobe(void *addr, pid_t tgid);
-struct kprobe *get_ukprobe_by_insn_slot(void *addr, pid_t tgid, struct pt_regs *regs);
+struct kprobe *get_ukprobe_by_insn_slot(void *addr,
+					pid_t tgid,
+					struct pt_regs *regs);
 
 static inline struct uprobe *kp2up(struct kprobe *p)
 {

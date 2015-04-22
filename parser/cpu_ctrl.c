@@ -59,7 +59,7 @@ int swap_disable_nonboot_cpus_lock(struct cpumask *mask)
 		ret = swap_cpu_down(cpu, 0);
 		if (ret == 0)
 			cpumask_set_cpu(cpu, mask);
-		printk("===> SWAP CPU[%d] down(%d)\n", cpu, ret);
+		printk(KERN_INFO "===> SWAP CPU[%d] down(%d)\n", cpu, ret);
 	}
 
 	WARN_ON(num_online_cpus() > 1);
@@ -81,7 +81,7 @@ int swap_enable_nonboot_cpus_unlock(struct cpumask *mask)
 
 	for_each_cpu(cpu, mask) {
 		ret = swap_cpu_up(cpu, 0);
-		printk("===> SWAP CPU[%d] up(%d)\n", cpu, ret);
+		printk(KERN_INFO "===> SWAP CPU[%d] up(%d)\n", cpu, ret);
 	}
 
 out:
@@ -121,7 +121,7 @@ int init_cpu_deps(void)
 	return 0;
 
 not_found:
-	printk("ERROR: symbol %s(...) not found\n", sym);
+	printk(KERN_INFO "ERROR: symbol %s(...) not found\n", sym);
 	return -ESRCH;
 }
 

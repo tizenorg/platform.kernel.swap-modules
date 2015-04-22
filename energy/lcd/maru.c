@@ -29,12 +29,16 @@
 
 
 
-static const char path_backlight[]	= "/sys/class/backlight/emulator/brightness";
-static const char path_backlight_min[]	= "/sys/class/backlight/emulator/min_brightness";
-static const char path_backlight_max[]	= "/sys/class/backlight/emulator/max_brightness";
-static const char path_power[]		= "/sys/class/lcd/emulator/lcd_power";
+static const char path_backlight[]	=
+	"/sys/class/backlight/emulator/brightness";
+static const char path_backlight_min[]	=
+	"/sys/class/backlight/emulator/min_brightness";
+static const char path_backlight_max[]	=
+	"/sys/class/backlight/emulator/max_brightness";
+static const char path_power[]		=
+	"/sys/class/lcd/emulator/lcd_power";
 
-static const char *all_path[] = {
+static const char * const all_path[] = {
 	path_backlight,
 	path_backlight_min,
 	path_backlight_max,

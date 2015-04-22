@@ -75,15 +75,16 @@ struct buffer_init_t {
 int swap_buffer_init(struct buffer_init_t *buf_init);
 
 /* SWAP Buffer uninitialization function. Call it every time before removing
- * this module. 
+ * this module.
  * Returns E_SB_SUCCESS (0) on success, otherwise error code. */
 int swap_buffer_uninit(void);
 
 /* SWAP Buffer write function. Pass it size of the data and pointer to the data.
- * On success returns number of bytes written (>=0) or error code (<0) otherwise */
-ssize_t swap_buffer_write(void* data, size_t size);
+ * On success returns number of bytes written (>=0) or error code (<0)
+ * otherwise */
+ssize_t swap_buffer_write(void *data, size_t size);
 
-/* SWAP Buffer get. Put subbuffer pointer to the variable *subbuffer. 
+/* SWAP Buffer get. Put subbuffer pointer to the variable *subbuffer.
  * Return pages count in subbuffer. */
 int swap_buffer_get(struct swap_subbuffer **subbuffer);
 

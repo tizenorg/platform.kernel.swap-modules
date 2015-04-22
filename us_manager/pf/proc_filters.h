@@ -49,7 +49,7 @@ struct proc_filter {
  * @param filter Pointer to the proc_filter struct
  * @param task Pointer to the task_struct struct
  */
-#define check_task_f(filter, task) (filter)->call(filter, task)
+#define check_task_f(filter, task) ((filter)->call(filter, task))
 
 void set_pf_by_dentry(struct proc_filter *pf, struct dentry *dentry,
 		      void *priv);

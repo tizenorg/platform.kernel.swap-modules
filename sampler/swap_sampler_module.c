@@ -115,7 +115,7 @@ static void do_swap_sampler_stop(void)
 }
 
 static DEFINE_MUTEX(mutex_run);
-static int sampler_run = 0;
+static int sampler_run;
 
 
 /**
@@ -130,7 +130,7 @@ int swap_sampler_start(unsigned int timer_quantum, swap_sample_cb_t cb)
 
 	mutex_lock(&mutex_run);
 	if (sampler_run) {
-		printk("sampler profiling is already run!\n");
+		printk(KERN_INFO "sampler profiling is already run!\n");
 		goto unlock;
 	}
 
@@ -159,7 +159,7 @@ int swap_sampler_stop(void)
 
 	mutex_lock(&mutex_run);
 	if (sampler_run == 0) {
-		printk("energy profiling is not running!\n");
+		printk(KERN_INFO "energy profiling is not running!\n");
 		ret = -EINVAL;
 		goto unlock;
 	}

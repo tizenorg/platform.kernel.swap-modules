@@ -21,10 +21,13 @@
  *
  * Copyright (C) Samsung Electronics, 2006-2010
  *
- * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM/MIPS
+ * 2006-2007    Ekaterina Gorelkina <e.gorelkina@samsung.com>:
+ *		initial implementation for ARM/MIPS
  * 2008-2009    Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- *              Probes initial implementation; Support x86/ARM/MIPS for both user-space and kernel space.
- * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
+ *              Probes initial implementation; Support x86/ARM/MIPS for both
+ *		user-space and kernel space.
+ * 2010         Ekaterina Gorelkina <e.gorelkina@samsung.com>:
+ *		redesign module for separating core and arch parts
  *
  */
 
@@ -58,13 +61,13 @@ typedef unsigned long kprobe_opcode_t;
 #define MIPS_INSN_OPCODE_MASK	0xFC000000
 #define MIPS_INSN_RS_MASK	0x03E00000
 #define MIPS_INSN_RT_MASK	0x001F0000
-//#define MIPS_INSN_UN_MASK     0x0000FFC0
+/* #define MIPS_INSN_UN_MASK     0x0000FFC0 */
 #define MIPS_INSN_FUNC_MASK     0x0000003F
 #define MIPS_INSN_OPCODE(insn)	(insn & MIPS_INSN_OPCODE_MASK)
 #define MIPS_INSN_RS(insn)      (insn & MIPS_INSN_RS_MASK)
 #define MIPS_INSN_RT(insn)      (insn & MIPS_INSN_RT_MASK)
 #define MIPS_INSN_FUNC(insn)	(insn & MIPS_INSN_FUNC_MASK)
-// opcodes 31..26
+/* opcodes 31..26 */
 #define MIPS_BEQ_OPCODE		0x10000000
 #define MIPS_BNE_OPCODE		0x14000000
 #define MIPS_BLEZ_OPCODE	0x18000000
@@ -80,9 +83,9 @@ typedef unsigned long kprobe_opcode_t;
 #define MIPS_J_OPCODE		0x08000000
 #define MIPS_JAL_OPCODE		0x0C000000
 #define MIPS_JALX_OPCODE	0x74000000
-// rs 25..21
+/*  rs 25..21 */
 #define MIPS_BC_RS		0x01000000
-// rt 20..16
+/*  rt 20..16 */
 #define MIPS_BLTZ_RT		0x00000000
 #define MIPS_BGEZ_RT		0x00010000
 #define MIPS_BLTZL_RT		0x00020000
@@ -91,8 +94,8 @@ typedef unsigned long kprobe_opcode_t;
 #define MIPS_BGEZAL_RT		0x00110000
 #define MIPS_BLTZALL_RT		0x00120000
 #define MIPS_BGEZALL_RT		0x00130000
-// unnamed 15..6
-// function 5..0
+/*  unnamed 15..6 */
+/*  function 5..0 */
 #define MIPS_JR_FUNC		0x00000008
 #define MIPS_JALR_FUNC		0x00000009
 #define MIPS_BREAK_FUNC		0x0000000D
@@ -116,10 +119,12 @@ struct arch_specific_insn {
 	int boostable;
 };
 
-typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long);
+typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long,
+					  unsigned long, unsigned long,
+					  unsigned long, unsigned long);
 
 
-void gen_insn_execbuf_holder (void);
+void gen_insn_execbuf_holder(void);
 
 void patch_suspended_task_ret_addr(struct task_struct *p, struct kretprobe *rp);
 int arch_init_module_deps(void);

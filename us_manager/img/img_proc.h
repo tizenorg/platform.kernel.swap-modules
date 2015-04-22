@@ -42,7 +42,9 @@ void free_img_proc(struct img_proc *proc);
 
 int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 		    unsigned long addr, const char *args, char ret_type);
-int img_proc_del_ip(struct img_proc *proc, struct dentry *dentry, unsigned long addr);
+int img_proc_del_ip(struct img_proc *proc,
+		    struct dentry *dentry,
+		    unsigned long addr);
 
 /* debug */
 void img_proc_print(struct img_proc *proc);

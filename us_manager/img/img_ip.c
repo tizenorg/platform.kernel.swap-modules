@@ -76,6 +76,7 @@ void free_img_ip(struct img_ip *ip)
 /* debug */
 void img_ip_print(struct img_ip *ip)
 {
-	printk("###            addr=8%lx, args=%s\n", ip->addr, ip->args);
+	printk(KERN_INFO "###            addr=8%lx, args=%s\n",
+	       ip->addr, ip->args);
 }
 /* debug */

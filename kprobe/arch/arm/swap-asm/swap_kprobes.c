@@ -74,7 +74,7 @@ static int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns,
 
 	if (uregs & 0x10) {
 		int reg_mask = 0x1;
-		//search in reg list
+		/* search in reg list */
 		for (i = 0; i < 13; i++, reg_mask <<= 1) {
 			if (!(insn & reg_mask))
 				break;
@@ -94,16 +94,18 @@ static int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns,
 	}
 
 	if (i == 13) {
-		DBPRINTF ("there are no free register %x in insn %lx!", uregs, insn);
+		DBPRINTF("there are no free register %x in insn %lx!",
+			  uregs, insn);
 		return -EINVAL;
 	}
-	DBPRINTF ("prep_pc_dep_insn_execbuf: using R%d, changing regs %x", i, uregs);
+	DBPRINTF("prep_pc_dep_insn_execbuf: using R%d, changing regs %x",
+		 i, uregs);
 
-	// set register to save
+	/* set register to save */
 	ARM_INSN_REG_SET_RD(insns[0], i);
-	// set register to load address to
+	/* set register to load address to */
 	ARM_INSN_REG_SET_RD(insns[1], i);
-	// set instruction to execute and patch it
+	/* set instruction to execute and patch it */
 	if (uregs & 0x10) {
 		ARM_INSN_REG_CLEAR_MR(insn, 15);
 		ARM_INSN_REG_SET_MR(insn, i);
@@ -119,7 +121,7 @@ static int prep_pc_dep_insn_execbuf(kprobe_opcode_t *insns,
 	}
 
 	insns[UPROBES_TRAMP_INSN_IDX] = insn;
-	// set register to restore
+	/* set register to restore */
 	ARM_INSN_REG_SET_RD(insns[3], i);
 
 	return 0;
@@ -221,7 +223,7 @@ int arch_make_trampoline_arm(unsigned long addr, unsigned long insn,
 	int ret, uregs, pc_dep;
 
 	if (addr & 0x03) {
-		printk("Error in %s at %d: attempt to register uprobe "
+		printk(KERN_INFO "Error in %s at %d: attempt to register uprobe "
 		       "at an unaligned address\n", __FILE__, __LINE__);
 		return -EINVAL;
 	}
@@ -269,14 +271,13 @@ int arch_make_trampoline_arm(unsigned long addr, unsigned long insn,
 	/* register list */
 	} else if (ARM_INSN_MATCH(SM, insn)) {
 		uregs = 0x10;
-		if (ARM_INSN_REG_MR(insn, 15)) {
+		if (ARM_INSN_REG_MR(insn, 15))
 			pc_dep = 1;
-		}
 	}
 
 	/* check instructions that can write result to SP and uses PC */
 	if (pc_dep && (ARM_INSN_REG_RD(insn) == 13)) {
-		printk("Error in %s at %d: instruction check failed (arm)\n",
+		printk(KERN_INFO "Error in %s at %d: instruction check failed (arm)\n",
 		       __FILE__, __LINE__);
 		return -EFAULT;
 	}
@@ -284,7 +285,7 @@ int arch_make_trampoline_arm(unsigned long addr, unsigned long insn,
 	if (unlikely(uregs && pc_dep)) {
 		memcpy(tramp, pc_dep_insn_execbuf, KPROBES_TRAMP_LEN);
 		if (prep_pc_dep_insn_execbuf(tramp, insn, uregs) != 0) {
-			printk("Error in %s at %d: failed "
+			printk(KERN_INFO "Error in %s at %d: failed "
 			       "to prepare exec buffer for insn %lx!",
 			       __FILE__, __LINE__, insn);
 			return -EINVAL;
@@ -389,10 +390,12 @@ void restore_previous_kprobe(struct kprobe_ctlblk *kcb)
  * @param kcb Pointer to kprobe_ctlblk.
  * @return Void.
  */
-void set_current_kprobe(struct kprobe *p, struct pt_regs *regs, struct kprobe_ctlblk *kcb)
+void set_current_kprobe(struct kprobe *p,
+			struct pt_regs *regs,
+			struct kprobe_ctlblk *kcb)
 {
 	__get_cpu_var(swap_current_kprobe) = p;
-	DBPRINTF ("set_current_kprobe: p=%p addr=%p\n", p, p->addr);
+	DBPRINTF("set_current_kprobe: p=%p addr=%p\n", p, p->addr);
 }
 
 static int kprobe_handler(struct pt_regs *regs)
@@ -439,7 +442,7 @@ static int kprobe_handler(struct pt_regs *regs)
 	return 0;
 
 no_kprobe:
-	printk("no_kprobe: Not one of ours: let kernel handle it %p\n",
+	printk(KERN_INFO "no_kprobe: Not one of ours: let kernel handle it %p\n",
 			(unsigned long *)regs->ARM_pc);
 	return 1;
 }
@@ -487,7 +490,8 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct jprobe *jp = container_of(p, struct jprobe, kp);
-	kprobe_pre_entry_handler_t pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
+	kprobe_pre_entry_handler_t pre_entry =
+		(kprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
 	pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
 
@@ -574,13 +578,13 @@ void swap_arch_disarm_kprobe(struct kprobe *p)
 void __naked swap_kretprobe_trampoline(void)
 {
 	__asm__ __volatile__ (
-		"stmdb	sp!, {r0 - r11}		\n\t"
-		"mov	r1, sp			\n\t"
-		"mov	r0, #0			\n\t"
-		"bl	trampoline_probe_handler\n\t"
-		"mov	lr, r0			\n\t"
-		"ldmia	sp!, {r0 - r11}		\n\t"
-		"bx	lr			\n\t"
+		"stmdb	sp!, {r0 - r11}\n"
+		"mov	r1, sp\n"
+		"mov	r0, #0\n"
+		"bl	trampoline_probe_handler\n"
+		"mov	lr, r0\n"
+		"ldmia	sp!, {r0 - r11}\n"
+		"bx	lr\n"
 		: : : "memory");
 }
 
@@ -649,11 +653,11 @@ static struct kj_cb_data * __used kjump_handler(struct kj_cb_data *data)
  */
 void kjump_trampoline(void);
 __asm(
-	"kjump_trampoline:		\n"
+	"kjump_trampoline:\n"
 
-	"mov	r0, r10			\n"
-	"bl	kjump_handler		\n"
-	"nop				\n"	/* for kjump_kprobe */
+	"mov	r0, r10\n"
+	"bl	kjump_handler\n"
+	"nop\n"		  /* for kjump_kprobe */
 );
 
 /**
@@ -717,7 +721,7 @@ static int kjump_init(void)
 
 	ret = swap_register_kprobe(&kjump_kprobe);
 	if (ret)
-		printk("ERROR: kjump_init(), ret=%d\n", ret);
+		printk(KERN_INFO "ERROR: kjump_init(), ret=%d\n", ret);
 
 	return ret;
 }
@@ -771,17 +775,17 @@ static unsigned long __used jump_handler(struct cb_data *data)
  */
 void jump_trampoline(void);
 __asm(
-	"jump_trampoline:		\n"
+	"jump_trampoline:\n"
 
-	"push	{r0 - r12}		\n"
-	"mov	r1, r0			\n"	/* data --> r1 */
-	"bl	get_r0			\n"
-	"str	r0, [sp]		\n"	/* restore r0 */
-	"mov	r0, r1			\n"	/* data --> r0 */
-	"bl	jump_handler		\n"
-	"mov	lr, r0			\n"
-	"pop	{r0 - r12}		\n"
-	"bx	lr			\n"
+	"push	{r0 - r12}\n"
+	"mov	r1, r0\n"	/* data --> r1 */
+	"bl	get_r0\n"
+	"str	r0, [sp]\n"	/* restore r0 */
+	"mov	r0, r1\n"	/* data --> r0 */
+	"bl	jump_handler\n"
+	"mov	lr, r0\n"
+	"pop	{r0 - r12}\n"
+	"bx	lr\n"
 );
 
 /**
@@ -852,7 +856,7 @@ void swap_unregister_undef_hook(struct undef_hook *hook)
 }
 EXPORT_SYMBOL_GPL(swap_unregister_undef_hook);
 
-// kernel probes hook
+/* kernel probes hook */
 static struct undef_hook undef_ho_k = {
 	.instr_mask	= 0xffffffff,
 	.instr_val	= BREAKPOINT_INSTRUCTION,
@@ -890,7 +894,7 @@ int arch_init_module_deps(void)
 	return 0;
 
 not_found:
-	printk("ERROR: symbol '%s' not found\n", sym);
+	printk(KERN_INFO "ERROR: symbol '%s' not found\n", sym);
 	return -ESRCH;
 }
 

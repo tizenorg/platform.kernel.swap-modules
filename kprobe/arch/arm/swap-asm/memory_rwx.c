@@ -31,9 +31,9 @@
 #include <ksyms/ksyms.h>
 
 
-static struct mm_struct *swap_init_mm = NULL;
-static int (*swap_set_memory_ro)(unsigned long addr, int numpages) = NULL;
-static int (*swap_set_memory_rw)(unsigned long addr, int numpages) = NULL;
+static struct mm_struct *swap_init_mm;
+static int (*swap_set_memory_ro)(unsigned long addr, int numpages);
+static int (*swap_set_memory_rw)(unsigned long addr, int numpages);
 
 
 static int get_pte_cb(pte_t *ptep, pgtable_t token,
@@ -70,7 +70,7 @@ static void write_to_module(unsigned long addr, unsigned long val)
 			*maddr = val;
 			swap_set_memory_ro(page_addr, 1);
 		} else {
-			printk("RWX: failed to write memory %08lx (%08lx)\n",
+			printk(KERN_INFO "RWX: failed to write memory %08lx (%08lx)\n",
 			       addr, val);
 		}
 		spin_unlock_irqrestore(&mem_lock, flags);
@@ -116,6 +116,6 @@ int mem_rwx_once(void)
 	return 0;
 
 not_found:
-	printk("ERROR: symbol '%s' not found\n", sym);
+	printk(KERN_INFO "ERROR: symbol '%s' not found\n", sym);
 	return -ESRCH;
 }

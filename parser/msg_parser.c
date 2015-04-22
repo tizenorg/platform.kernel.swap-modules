@@ -35,14 +35,14 @@
 #include "parser_defs.h"
 
 
-static int str_to_u32(const char* str, u32 *val)
+static int str_to_u32(const char *str, u32 *val)
 {
 	u32 result;
-	if(!str || !*str)
+	if (!str || !*str)
 		return -EINVAL;
 
 	for (result = 0 ; *str; ++str) {
-		if (*str < '0' || *str> '9')
+		if (*str < '0' || *str > '9')
 			return -EINVAL;
 
 		result = result * 10 + (*str - '0');
@@ -368,18 +368,16 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 	}
 
 	li = kmalloc(sizeof(*li), GFP_KERNEL);
-	if (li == NULL)
 	if (li == NULL) {
 		print_err("out of memory\n");
 		goto free_path;
 	}
 
 	li->func = kmalloc(sizeof(struct func_inst_data *) * cnt, GFP_KERNEL);
-	if (li->func == NULL)
 	if (li->func == NULL) {
-		print_err("out of memory\n");
-		goto free_li;
-	}
+			print_err("out of memory\n");
+			goto free_li;
+		}
 
 	for (i = 0; i < cnt; ++i) {
 		print_parse_debug("func #%d:\n", i + 1);
@@ -612,7 +610,7 @@ struct us_inst_data *create_us_inst_data(struct msg_buf *mb)
 	}
 
 	for (i = 0; i < cnt; ++i) {
-		print_parse_debug("app #%d:\n",i+1);
+		print_parse_debug("app #%d:\n", i + 1);
 		ai = create_app_inst_data(mb);
 		if (ai == NULL)
 			goto free_app_inst;

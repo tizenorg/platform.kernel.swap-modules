@@ -55,12 +55,15 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
 void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
 		      const char *args, char ret_type);
 
-struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_addr);
+struct sspt_page *sspt_get_page(struct sspt_file *file,
+				unsigned long offset_addr);
 void sspt_put_page(struct sspt_page *page);
 
 int sspt_file_check_install_pages(struct sspt_file *file);
 void sspt_file_install(struct sspt_file *file);
-int sspt_file_uninstall(struct sspt_file *file, struct task_struct *task, enum US_FLAGS flag);
+int sspt_file_uninstall(struct sspt_file *file,
+			struct task_struct *task,
+			enum US_FLAGS flag);
 void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma);
 
 #endif /* __SSPT_FILE__ */

@@ -94,7 +94,7 @@ static void cpus_time_save_entry(struct cpus_time *ct, int cpu, u64 time)
 	struct tm_stat *tm = &ct->tm[cpu];
 
 	if (unlikely(tm_stat_timestamp(tm))) /* should never happen */
-		printk("XXX %s[%d/%d]: WARNING tmstamp(%p) set on cpu(%d)\n",
+		printk(KERN_INFO "XXX %s[%d/%d]: WARNING tmstamp(%p) set on cpu(%d)\n",
 		       current->comm, current->tgid, current->pid, tm, cpu);
 	tm_stat_set_timestamp(&ct->tm[cpu], time);
 }
@@ -105,8 +105,9 @@ static void cpus_time_update_running(struct cpus_time *ct, int cpu, u64 now,
 	struct tm_stat *tm = &ct->tm[cpu];
 
 	if (unlikely(tm_stat_timestamp(tm) == 0)) {
-		 /* not initialized. should happen only once per cpu/task */
-		printk("XXX %s[%d/%d]: nnitializing tmstamp(%p) on cpu(%d)\n",
+		/* not initialized. should happen only once per cpu/task */
+		printk(KERN_INFO "XXX %s[%d/%d]: nnitializing tmstamp(%p) "
+		       "on cpu(%d)\n",
 		       current->comm, current->tgid, current->pid, tm, cpu);
 		tm_stat_set_timestamp(tm, start_time);
 	}
@@ -279,7 +280,8 @@ static void uninit_data_energy(void)
  * =                             __switch_to                                  =
  * ============================================================================
  */
-static int entry_handler_switch(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int entry_handler_switch(struct kretprobe_instance *ri,
+				struct pt_regs *regs)
 {
 	int cpu;
 	struct cpus_time *ct;
@@ -288,7 +290,7 @@ static int entry_handler_switch(struct kretprobe_instance *ri, struct pt_regs *r
 
 	cpu = smp_processor_id();
 
-	ct = current->tgid ? &ed_system.ct: &ct_idle;
+	ct = current->tgid ? &ed_system.ct : &ct_idle;
 	cpus_time_lock(ct, flags);
 	cpus_time_update_running(ct, cpu, get_ntime(), start_time);
 	cpus_time_unlock(ct, flags);
@@ -304,7 +306,8 @@ static int entry_handler_switch(struct kretprobe_instance *ri, struct pt_regs *r
 	return 0;
 }
 
-static int ret_handler_switch(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int ret_handler_switch(struct kretprobe_instance *ri,
+			      struct pt_regs *regs)
 {
 	int cpu;
 	struct cpus_time *ct;
@@ -313,7 +316,7 @@ static int ret_handler_switch(struct kretprobe_instance *ri, struct pt_regs *reg
 
 	cpu = smp_processor_id();
 
-	ct = current->tgid ? &ed_system.ct: &ct_idle;
+	ct = current->tgid ? &ed_system.ct : &ct_idle;
 	cpus_time_lock(ct, flags);
 	cpus_time_save_entry(ct, cpu, get_ntime());
 	cpus_time_unlock(ct, flags);
@@ -346,7 +349,8 @@ struct sys_read_data {
 	int fd;
 };
 
-static int entry_handler_sys_read(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int entry_handler_sys_read(struct kretprobe_instance *ri,
+				  struct pt_regs *regs)
 {
 	struct sys_read_data *srd = (struct sys_read_data *)ri->data;
 
@@ -392,7 +396,8 @@ static struct kretprobe sys_read_krp = {
  * =                               sys_write                                  =
  * ============================================================================
  */
-static int entry_handler_sys_write(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int entry_handler_sys_write(struct kretprobe_instance *ri,
+				   struct pt_regs *regs)
 {
 	struct sys_read_data *srd = (struct sys_read_data *)ri->data;
 
@@ -401,7 +406,8 @@ static int entry_handler_sys_write(struct kretprobe_instance *ri, struct pt_regs
 	return 0;
 }
 
-static int ret_handler_sys_write(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int ret_handler_sys_write(struct kretprobe_instance *ri,
+				 struct pt_regs *regs)
 {
 	int ret = regs_return_value(regs);
 
@@ -543,19 +549,22 @@ int do_set_energy(void)
 
 	ret = swap_register_kretprobe(&sys_read_krp);
 	if (ret) {
-		printk("swap_register_kretprobe(sys_read) result=%d!\n", ret);
+		printk(KERN_INFO "swap_register_kretprobe(sys_read) "
+		       "result=%d!\n", ret);
 		return ret;
 	}
 
 	ret = swap_register_kretprobe(&sys_write_krp);
 	if (ret != 0) {
-		printk("swap_register_kretprobe(sys_write) result=%d!\n", ret);
+		printk(KERN_INFO "swap_register_kretprobe(sys_write) "
+		       "result=%d!\n", ret);
 		goto unregister_sys_read;
 	}
 
 	ret = swap_register_kretprobe(&switch_to_krp);
 	if (ret) {
-		printk("swap_register_kretprobe(__switch_to) result=%d!\n",
+		printk(KERN_INFO "swap_register_kretprobe(__switch_to) "
+		       "result=%d!\n",
 		       ret);
 		goto unregister_sys_write;
 	}
@@ -586,7 +595,7 @@ void do_unset_energy(void)
 }
 
 static DEFINE_MUTEX(mutex_enable);
-static int energy_enable = 0;
+static int energy_enable;
 
 /**
  * @brief Start measuring the energy consumption
@@ -599,7 +608,7 @@ int set_energy(void)
 
 	mutex_lock(&mutex_enable);
 	if (energy_enable) {
-		printk("energy profiling is already run!\n");
+		printk(KERN_INFO "energy profiling is already run!\n");
 		goto unlock;
 	}
 
@@ -625,7 +634,7 @@ int unset_energy(void)
 
 	mutex_lock(&mutex_enable);
 	if (energy_enable == 0) {
-		printk("energy profiling is not running!\n");
+		printk(KERN_INFO "energy profiling is not running!\n");
 		ret = -EINVAL;
 		goto unlock;
 	}
@@ -662,7 +671,7 @@ int energy_once(void)
 	return 0;
 
 not_found:
-	printk("ERROR: symbol '%s' not found\n", sym);
+	printk(KERN_INFO "ERROR: symbol '%s' not found\n", sym);
 	return -ESRCH;
 }
 
@@ -677,13 +686,13 @@ int energy_init(void)
 
 	ret = init_feature();
 	if (ret) {
-		printk("Cannot init feature\n");
+		printk(KERN_INFO "Cannot init feature\n");
 		return ret;
 	}
 
 	ret = lcd_init();
 	if (ret)
-		printk("Cannot init LCD, ret=%d\n", ret);
+		printk(KERN_INFO "Cannot init LCD, ret=%d\n", ret);
 
 	return 0;
 }

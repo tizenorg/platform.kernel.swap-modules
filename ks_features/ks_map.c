@@ -60,7 +60,7 @@ void *search(struct map *map, void *key)
 {
 	struct entry *entry = __search(map, key);
 
-	return (entry ? entry_data(entry): NULL);
+	return entry ? entry_data(entry) : NULL;
 }
 
 static void *__remove(struct map *map, struct entry *entry)
@@ -79,7 +79,7 @@ void *remove(struct map *map, void *key)
 	struct entry *entry = __search(map, key);
 
 	/* Removes entry from the tree but does not free the data */
-	return (entry ? __remove(map, entry): NULL);
+	return entry ? __remove(map, entry) : NULL;
 }
 
 static void *__replace(struct map *map, struct entry *old, struct entry *new)

@@ -44,8 +44,8 @@
  * @brief Uprobe control block
  */
 struct uprobe_ctlblk {
-        unsigned long flags;            /**< Flags */
-        struct kprobe *p;               /**< Pointer to the uprobe's kprobe */
+	unsigned long flags;            /**< Flags */
+	struct kprobe *p;               /**< Pointer to the uprobe's kprobe */
 };
 
 static unsigned long trampoline_addr(struct uprobe *up)
@@ -102,7 +102,7 @@ int arch_prepare_uprobe(struct uprobe *up)
 		panic("failed to read memory %p!\n", p->addr);
 	/* TODO: this is a workaround */
 	if (tramp[0] == call_relative_opcode) {
-		printk("cannot install probe: 1st instruction is call\n");
+		printk(KERN_INFO "cannot install probe: 1st instruction is call\n");
 		return -1;
 	}
 
@@ -127,19 +127,22 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct uprobe *up = container_of(p, struct uprobe, kp);
 	struct ujprobe *jp = container_of(up, struct ujprobe, up);
-	kprobe_pre_entry_handler_t pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
+	kprobe_pre_entry_handler_t pre_entry =
+		(kprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
 	unsigned long args[6];
 
 	/* FIXME some user space apps crash if we clean interrupt bit */
-	//regs->EREG(flags) &= ~IF_MASK;
+	/* regs->EREG(flags) &= ~IF_MASK; */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
 	trace_hardirqs_off();
 #endif
 
 	/* read first 6 args from stack */
-	if (!read_proc_vm_atomic(current, regs->EREG(sp) + 4, args, sizeof(args)))
-		panic("failed to read user space func arguments %lx!\n", regs->EREG(sp) + 4);
+	if (!read_proc_vm_atomic(current, regs->EREG(sp) + 4,
+				 args, sizeof(args)))
+		panic("failed to read user space func arguments %lx!\n",
+		      regs->EREG(sp) + 4);
 
 	if (pre_entry)
 		p->ss_addr[smp_processor_id()] = (kprobe_opcode_t *)
@@ -166,11 +169,14 @@ void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 	unsigned long ra = trampoline_addr(&ri->rp->up);
 	ri->sp = (kprobe_opcode_t *)regs->sp;
 
-	if (!read_proc_vm_atomic(current, regs->EREG(sp), &(ri->ret_addr), sizeof(ri->ret_addr)))
-		panic("failed to read user space func ra %lx!\n", regs->EREG(sp));
+	if (!read_proc_vm_atomic(current, regs->EREG(sp), &(ri->ret_addr),
+				 sizeof(ri->ret_addr)))
+		panic("failed to read user space func ra %lx!\n",
+		      regs->EREG(sp));
 
 	if (!write_proc_vm_atomic(current, regs->EREG(sp), &ra, sizeof(ra)))
-		panic("failed to write user space func ra %lx!\n", regs->EREG(sp));
+		panic("failed to write user space func ra %lx!\n",
+		      regs->EREG(sp));
 }
 
 /**
@@ -190,7 +196,7 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 	unsigned long tramp_addr = trampoline_addr(&ri->rp->up);
 	len = read_proc_vm_atomic(task, sp, &ret_addr, sizeof(ret_addr));
 	if (len != sizeof(ret_addr)) {
-		printk("---> %s (%d/%d): failed to read stack from %08lx\n",
+		printk(KERN_INFO "---> %s (%d/%d): failed to read stack from %08lx\n",
 		       task->comm, task->tgid, task->pid, sp);
 		return -EFAULT;
 	}
@@ -199,13 +205,13 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 		len = write_proc_vm_atomic(task, sp, &ri->ret_addr,
 					   sizeof(ri->ret_addr));
 		if (len != sizeof(ri->ret_addr)) {
-			printk("---> %s (%d/%d): failed to write "
+			printk(KERN_INFO "---> %s (%d/%d): failed to write "
 			       "orig_ret_addr to %08lx",
 			       task->comm, task->tgid, task->pid, sp);
 			return -EFAULT;
 		}
 	} else {
-		printk("---> %s (%d/%d): trampoline NOT found at sp = %08lx\n",
+		printk(KERN_INFO "---> %s (%d/%d): trampoline NOT found at sp = %08lx\n",
 		       task->comm, task->tgid, task->pid, sp);
 		return -ENOENT;
 	}
@@ -252,20 +258,22 @@ void arch_remove_uprobe(struct uprobe *up)
 
 static void set_user_jmp_op(void *from, void *to)
 {
-	struct __arch_jmp_op
-	{
+	struct __arch_jmp_op {
 		char op;
 		long raddr;
-	} __attribute__ ((packed)) jop;
+	} __packed jop;
 
 	jop.raddr = (long)(to) - ((long)(from) + 5);
 	jop.op = RELATIVEJUMP_INSTRUCTION;
 
-	if (!write_proc_vm_atomic(current, (unsigned long)from, &jop, sizeof(jop)))
+	if (!write_proc_vm_atomic(current, (unsigned long)from, &jop,
+				  sizeof(jop)))
 		panic("failed to write jump opcode to user space %p!\n", from);
 }
 
-static void resume_execution(struct kprobe *p, struct pt_regs *regs, unsigned long flags)
+static void resume_execution(struct kprobe *p,
+			     struct pt_regs *regs,
+			     unsigned long flags)
 {
 	unsigned long *tos, tos_dword = 0;
 	unsigned long copy_eip = (unsigned long)p->ainsn.insn;
@@ -275,75 +283,94 @@ static void resume_execution(struct kprobe *p, struct pt_regs *regs, unsigned lo
 	regs->EREG(flags) &= ~TF_MASK;
 
 	tos = (unsigned long *)&tos_dword;
-	if (!read_proc_vm_atomic(current, regs->EREG(sp), &tos_dword, sizeof(tos_dword)))
-		panic("failed to read dword from top of the user space stack %lx!\n", regs->EREG(sp));
+	if (!read_proc_vm_atomic(current, regs->EREG(sp), &tos_dword,
+				 sizeof(tos_dword)))
+		panic("failed to read dword from top of the user space stack "
+		      "%lx!\n", regs->EREG(sp));
 
-	if (!read_proc_vm_atomic(current, (unsigned long)p->ainsn.insn, insns, 2 * sizeof(kprobe_opcode_t)))
-		panic("failed to read first 2 opcodes of instruction copy from user space %p!\n", p->ainsn.insn);
+	if (!read_proc_vm_atomic(current, (unsigned long)p->ainsn.insn, insns,
+				 2 * sizeof(kprobe_opcode_t)))
+		panic("failed to read first 2 opcodes of instruction copy "
+		      "from user space %p!\n", p->ainsn.insn);
 
 	switch (insns[0]) {
-		case 0x9c:		/* pushfl */
-			*tos &= ~(TF_MASK | IF_MASK);
-			*tos |= flags & (TF_MASK | IF_MASK);
-			break;
-		case 0xc2:		/* iret/ret/lret */
-		case 0xc3:
-		case 0xca:
-		case 0xcb:
-		case 0xcf:
-		case 0xea:		/* jmp absolute -- eip is correct */
-			/* eip is already adjusted, no more changes required */
+	case 0x9c: /* pushfl */
+		*tos &= ~(TF_MASK | IF_MASK);
+		*tos |= flags & (TF_MASK | IF_MASK);
+		break;
+	case 0xc2: /* iret/ret/lret */
+	case 0xc3:
+	case 0xca:
+	case 0xcb:
+	case 0xcf:
+	case 0xea: /* jmp absolute -- eip is correct */
+		/* eip is already adjusted, no more changes required */
+		p->ainsn.boostable = 1;
+		goto no_change;
+	case 0xe8: /* call relative - Fix return addr */
+		*tos = orig_eip + (*tos - copy_eip);
+		break;
+	case 0x9a: /* call absolute -- same as call absolute, indirect */
+		*tos = orig_eip + (*tos - copy_eip);
+
+		if (!write_proc_vm_atomic(current,
+					  regs->EREG(sp),
+					  &tos_dword,
+					  sizeof(tos_dword)))
+			panic("failed to write dword to top of the"
+			      " user space stack %lx!\n",
+			      regs->EREG(sp));
+
+		goto no_change;
+	case 0xff:
+		if ((insns[1] & 0x30) == 0x10) {
+			/*
+			 * call absolute, indirect
+			 * Fix return addr; eip is correct.
+			 * But this is not boostable
+			 */
+			*tos = orig_eip + (*tos - copy_eip);
+
+			if (!write_proc_vm_atomic(current, regs->EREG(sp),
+						  &tos_dword,
+						  sizeof(tos_dword)))
+				panic("failed to write dword to top of the "
+				      "user space stack %lx!\n",
+				      regs->EREG(sp));
+
+			goto no_change;
+		} else if (((insns[1] & 0x31) == 0x20) || /* jmp near, absolute
+							   * indirect */
+			   ((insns[1] & 0x31) == 0x21)) {
+			/* jmp far, absolute indirect */
+			/* eip is correct. And this is boostable */
 			p->ainsn.boostable = 1;
 			goto no_change;
-		case 0xe8:		/* call relative - Fix return addr */
-			*tos = orig_eip + (*tos - copy_eip);
-			break;
-		case 0x9a:		/* call absolute -- same as call absolute, indirect */
-			*tos = orig_eip + (*tos - copy_eip);
-
-			if (!write_proc_vm_atomic(current, regs->EREG (sp), &tos_dword, sizeof(tos_dword)))
-				panic("failed to write dword to top of the user space stack %lx!\n", regs->EREG (sp));
-
+		}
+	case 0xf3:
+		if (insns[1] == 0xc3)
+			/* repz ret special handling: no more changes */
 			goto no_change;
-		case 0xff:
-			if ((insns[1] & 0x30) == 0x10) {
-				/*
-				 * call absolute, indirect
-				 * Fix return addr; eip is correct.
-				 * But this is not boostable
-				 */
-				*tos = orig_eip + (*tos - copy_eip);
-
-				if (!write_proc_vm_atomic(current, regs->EREG(sp), &tos_dword, sizeof(tos_dword)))
-					panic("failed to write dword to top of the user space stack %lx!\n", regs->EREG(sp));
-
-				goto no_change;
-			} else if (((insns[1] & 0x31) == 0x20) || /* jmp near, absolute indirect */
-				   ((insns[1] & 0x31) == 0x21)) {
-				/* jmp far, absolute indirect */
-				/* eip is correct. And this is boostable */
-				p->ainsn.boostable = 1;
-				goto no_change;
-			}
-		case 0xf3:
-			if (insns[1] == 0xc3)
-				/* repz ret special handling: no more changes */
-				goto no_change;
-			break;
-		default:
-			break;
+		break;
+	default:
+		break;
 	}
 
-	if (!write_proc_vm_atomic(current, regs->EREG(sp), &tos_dword, sizeof(tos_dword)))
-		panic("failed to write dword to top of the user space stack %lx!\n", regs->EREG(sp));
+	if (!write_proc_vm_atomic(current, regs->EREG(sp), &tos_dword,
+				  sizeof(tos_dword)))
+		panic("failed to write dword to top of the user space stack "
+		      "%lx!\n", regs->EREG(sp));
 
 	if (p->ainsn.boostable == 0) {
-		if ((regs->EREG(ip) > copy_eip) && (regs->EREG(ip) - copy_eip) + 5 < MAX_INSN_SIZE) {
+		if ((regs->EREG(ip) > copy_eip) && (regs->EREG(ip) - copy_eip) +
+		    5 < MAX_INSN_SIZE) {
 			/*
 			 * These instructions can be executed directly if it
 			 * jumps back to correct address.
 			 */
-			set_user_jmp_op((void *) regs->EREG(ip), (void *)orig_eip + (regs->EREG(ip) - copy_eip));
+			set_user_jmp_op((void *) regs->EREG(ip),
+					(void *)orig_eip +
+					(regs->EREG(ip) - copy_eip));
 			p->ainsn.boostable = 1;
 		} else {
 			p->ainsn.boostable = -1;
@@ -364,7 +391,7 @@ static int make_trampoline(struct uprobe *up)
 
 	tramp = swap_slot_alloc(up->sm);
 	if (tramp == 0) {
-		printk("trampoline out of memory\n");
+		printk(KERN_INFO "trampoline out of memory\n");
 		return -ENOMEM;
 	}
 
@@ -398,7 +425,7 @@ static int uprobe_handler(struct pt_regs *regs)
 
 		p = get_ukprobe_by_insn_slot(tramp_addr, tgid, regs);
 		if (p == NULL) {
-			printk("no_uprobe\n");
+			printk(KERN_INFO "no_uprobe\n");
 			return 0;
 		}
 
@@ -445,7 +472,8 @@ static int post_uprobe_handler(struct pt_regs *regs)
 	return 1;
 }
 
-static int uprobe_exceptions_notify(struct notifier_block *self, unsigned long val, void *data)
+static int uprobe_exceptions_notify(struct notifier_block *self,
+				    unsigned long val, void *data)
 {
 	struct die_args *args = (struct die_args *)data;
 	int ret = NOTIFY_DONE;
@@ -455,19 +483,19 @@ static int uprobe_exceptions_notify(struct notifier_block *self, unsigned long v
 
 	switch (val) {
 #ifdef CONFIG_KPROBES
-		case DIE_INT3:
+	case DIE_INT3:
 #else
-		case DIE_TRAP:
+	case DIE_TRAP:
 #endif
-			if (uprobe_handler(args->regs))
-				ret = NOTIFY_STOP;
-			break;
-		case DIE_DEBUG:
-			if (post_uprobe_handler(args->regs))
-				ret = NOTIFY_STOP;
-			break;
-		default:
-			break;
+		if (uprobe_handler(args->regs))
+			ret = NOTIFY_STOP;
+		break;
+	case DIE_DEBUG:
+		if (post_uprobe_handler(args->regs))
+			ret = NOTIFY_STOP;
+		break;
+	default:
+		break;
 	}
 
 	return ret;

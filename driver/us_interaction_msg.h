@@ -32,8 +32,8 @@
 
 #define CN_SWAP_IDX     0x22    /**< Should be unique throughout the system */
 #define CN_SWAP_VAL     0x1     /**< Just the same in kernel and user */
-#define CN_DAEMON_GROUP 0x1     /**< Listener group. Connector works a bit faster
-                                 * when using one */
+#define CN_DAEMON_GROUP 0x1     /**< Listener group. Connector works a bit
+				 * faster when using one */
 
 /**
  * @enum us_interaction_k2u_msg_t

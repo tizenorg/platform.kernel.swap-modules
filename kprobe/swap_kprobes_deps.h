@@ -32,7 +32,7 @@
 #ifndef _SWAP_KPROBES_DEPS_H
 #define _SWAP_KPROBES_DEPS_H
 
-#include <linux/version.h>	// LINUX_VERSION_CODE, KERNEL_VERSION()
+#include <linux/version.h>	/* LINUX_VERSION_CODE, KERNEL_VERSION() */
 #include <linux/hugetlb.h>
 #include <linux/mempolicy.h>
 #include <linux/highmem.h>
@@ -41,14 +41,20 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 #define DECLARE_NODE_PTR_FOR_HLIST(var_name)
-#define swap_hlist_for_each_entry_rcu(tpos, pos, head, member) hlist_for_each_entry_rcu(tpos, head, member)
-#define swap_hlist_for_each_entry_safe(tpos, pos, n, head, member) hlist_for_each_entry_safe(tpos, n, head, member)
-#define swap_hlist_for_each_entry(tpos, pos, head, member) hlist_for_each_entry(tpos, head, member)
+#define swap_hlist_for_each_entry_rcu(tpos, pos, head, member) \
+	hlist_for_each_entry_rcu(tpos, head, member)
+#define swap_hlist_for_each_entry_safe(tpos, pos, n, head, member) \
+	hlist_for_each_entry_safe(tpos, n, head, member)
+#define swap_hlist_for_each_entry(tpos, pos, head, member) \
+	hlist_for_each_entry(tpos, head, member)
 #else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 #define DECLARE_NODE_PTR_FOR_HLIST(var_name) struct hlist_node *var_name
-#define swap_hlist_for_each_entry_rcu(tpos, pos, head, member) hlist_for_each_entry_rcu(tpos, pos, head, member)
-#define swap_hlist_for_each_entry_safe(tpos, pos, n, head, member) hlist_for_each_entry_safe(tpos, pos, n, head, member)
-#define swap_hlist_for_each_entry(tpos, pos, head, member) hlist_for_each_entry(tpos, pos, head, member)
+#define swap_hlist_for_each_entry_rcu(tpos, pos, head, member) \
+	hlist_for_each_entry_rcu(tpos, pos, head, member)
+#define swap_hlist_for_each_entry_safe(tpos, pos, n, head, member) \
+	hlist_for_each_entry_safe(tpos, pos, n, head, member)
+#define swap_hlist_for_each_entry(tpos, pos, head, member) \
+	hlist_for_each_entry(tpos, pos, head, member)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12))
@@ -72,20 +78,20 @@ do { \
 #define swap_preempt_enable_no_resched() barrier()
 #endif /* CONFIG_PREEMPT_COUNT */
 
-#else /* !(defined(MODULE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)) */
+#else /* !(defined(MODULE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)) */
 
 #define swap_preempt_enable_no_resched() preempt_enable_no_resched()
 
-#endif /* !(defined(MODULE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)) */
+#endif /* !(defined(MODULE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)) */
 
 
-//--------------------- Declaration of module dependencies ------------------------//
+/* --------------------- Declaration of module dependencies ----------------- */
 
 #define DECLARE_MOD_FUNC_DEP(name, ret, ...) ret(*__ref_##name)(__VA_ARGS__)
 #define DECLARE_MOD_CB_DEP(name, ret, ...) ret(*name)(__VA_ARGS__)
 
 
-//----------------- Implementation of module dependencies wrappers -----------------//
+/* ---------------- Implementation of module dependencies wrappers ---------- */
 
 #define DECLARE_MOD_DEP_WRAPPER(name, ret, ...) ret name(__VA_ARGS__)
 #define IMP_MOD_DEP_WRAPPER(name, ...) \
@@ -94,24 +100,22 @@ do { \
 }
 
 
-//---------------------- Module dependencies initialization --------------------//
+/* --------------------- Module dependencies initialization ----------------- */
 
 #define INIT_MOD_DEP_VAR(dep, name) \
 { \
-	__ref_##dep = (void *) swap_ksyms (#name); \
-	if (!__ref_##dep) \
-	{ \
-		DBPRINTF (#name " is not found! Oops. Where is it?"); \
+	__ref_##dep = (void *) swap_ksyms(#name); \
+	if (!__ref_##dep) { \
+		DBPRINTF(#name " is not found! Oops. Where is it?"); \
 		return -ESRCH; \
 	} \
 }
 
 #define INIT_MOD_DEP_CB(dep, name) \
 { \
-	dep = (void *) swap_ksyms (#name); \
-	if (!dep) \
-	{ \
-		DBPRINTF (#name " is not found! Oops. Where is it?"); \
+	dep = (void *) swap_ksyms(#name); \
+	if (!dep) { \
+		DBPRINTF(#name " is not found! Oops. Where is it?"); \
 		return -ESRCH; \
 	} \
 }
@@ -119,11 +123,14 @@ do { \
 
 int init_module_dependencies(void);
 
-int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write);
+int access_process_vm_atomic(struct task_struct *tsk, unsigned long addr,
+			     void *buf, int len, int write);
 
-#define read_proc_vm_atomic(tsk, addr, buf, len)	access_process_vm_atomic (tsk, addr, buf, len, 0)
-#define write_proc_vm_atomic(tsk, addr, buf, len)	access_process_vm_atomic (tsk, addr, buf, len, 1)
-int page_present (struct mm_struct *mm, unsigned long addr);
+#define read_proc_vm_atomic(tsk, addr, buf, len) \
+	access_process_vm_atomic(tsk, addr, buf, len, 0)
+#define write_proc_vm_atomic(tsk, addr, buf, len) \
+	access_process_vm_atomic(tsk, addr, buf, len, 1)
+int page_present(struct mm_struct *mm, unsigned long addr);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 unsigned long swap_do_mmap_pgoff(struct file *file, unsigned long addr,

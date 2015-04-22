@@ -35,7 +35,8 @@
 static int calculation_hash_bits(int cnt)
 {
 	int bits;
-	for (bits = 1; cnt >>= 1; ++bits);
+	for (bits = 1; cnt >>= 1; ++bits)
+		;
 
 	return bits;
 }
@@ -60,14 +61,15 @@ struct sspt_file *sspt_file_create(struct dentry *dentry, int page_cnt)
 		obj->vm_start = 0;
 		obj->vm_end = 0;
 
-		obj->page_probes_hash_bits = calculation_hash_bits(page_cnt);//PAGE_PROBES_HASH_BITS;
+		obj->page_probes_hash_bits = calculation_hash_bits(page_cnt);
 		table_size = (1 << obj->page_probes_hash_bits);
 
-		obj->page_probes_table = kmalloc(sizeof(*obj->page_probes_table)*table_size, GFP_ATOMIC);
+		obj->page_probes_table =
+			kmalloc(sizeof(*obj->page_probes_table)*table_size,
+				GFP_ATOMIC);
 
-		for (i = 0; i < table_size; ++i) {
+		for (i = 0; i < table_size; ++i)
 			INIT_HLIST_HEAD(&obj->page_probes_table[i]);
-		}
 	}
 
 	return obj;
@@ -102,27 +104,31 @@ void sspt_file_free(struct sspt_file *file)
 static void sspt_add_page(struct sspt_file *file, struct sspt_page *page)
 {
 	page->file = file;
-	hlist_add_head(&page->hlist, &file->page_probes_table[hash_ptr((void *)page->offset,
-				file->page_probes_hash_bits)]);
+	hlist_add_head(&page->hlist,
+		       &file->page_probes_table[hash_ptr(
+				       (void *)page->offset,
+				       file->page_probes_hash_bits)]);
 }
 
-static struct sspt_page *sspt_find_page(struct sspt_file *file, unsigned long offset)
+static struct sspt_page *sspt_find_page(struct sspt_file *file,
+					unsigned long offset)
 {
 	struct hlist_head *head;
 	struct sspt_page *page;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
-	head = &file->page_probes_table[hash_ptr((void *)offset, file->page_probes_hash_bits)];
+	head = &file->page_probes_table[hash_ptr((void *)offset,
+						 file->page_probes_hash_bits)];
 	swap_hlist_for_each_entry(page, node, head, hlist) {
-		if (page->offset == offset) {
+		if (page->offset == offset)
 			return page;
-		}
 	}
 
 	return NULL;
 }
 
-static struct sspt_page *sspt_find_page_or_new(struct sspt_file *file, unsigned long offset)
+static struct sspt_page *sspt_find_page_or_new(struct sspt_file *file,
+					       unsigned long offset)
 {
 	struct sspt_page *page = sspt_find_page(file, offset);
 
@@ -141,14 +147,18 @@ static struct sspt_page *sspt_find_page_or_new(struct sspt_file *file, unsigned 
  * @param page Page address
  * @return Pointer to the sspt_page struct
  */
-struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long page)
+struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
+					unsigned long page)
 {
 	unsigned long offset;
 
 	if (file->vm_start > page || file->vm_end < page) {
-		// TODO: or panic?!
-		printk("ERROR: file_p[vm_start..vm_end] <> page: file_p[vm_start=%lx, vm_end=%lx, d_iname=%s] page=%lx\n",
-				file->vm_start, file->vm_end, file->dentry->d_iname, page);
+		/* TODO: or panic?! */
+		printk(KERN_INFO "ERROR: file_p[vm_start..vm_end] <> page: "
+		       "file_p[vm_start=%lx, vm_end=%lx, "
+		       "d_iname=%s] page=%lx\n",
+		       file->vm_start, file->vm_end,
+		       file->dentry->d_iname, page);
 		return NULL;
 	}
 
@@ -169,9 +179,10 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file, unsigned long pa
 void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
 		      const char *args, char ret_type)
 {
-	struct sspt_page *page = sspt_find_page_or_new(file, offset & PAGE_MASK);
+	struct sspt_page *page =
+		sspt_find_page_or_new(file, offset & PAGE_MASK);
 
-	// FIXME: delete ip
+	/* FIXME: delete ip */
 	struct us_ip *ip = create_ip(offset, args, ret_type);
 
 	sspt_add_ip(page, ip);
@@ -184,7 +195,8 @@ void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
  * @param offset_addr File offset
  * @return Pointer to the sspt_page struct
  */
-struct sspt_page *sspt_get_page(struct sspt_file *file, unsigned long offset_addr)
+struct sspt_page *sspt_get_page(struct sspt_file *file,
+				unsigned long offset_addr)
 {
 	unsigned long offset = offset_addr & PAGE_MASK;
 	struct sspt_page *page = sspt_find_page_or_new(file, offset);
@@ -225,9 +237,8 @@ int sspt_file_check_install_pages(struct sspt_file *file)
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
 		swap_hlist_for_each_entry_safe(page, node, tmp, head, hlist) {
-			if (sspt_page_is_installed(page)) {
+			if (sspt_page_is_installed(page))
 				return 1;
-			}
 		}
 	}
 
@@ -272,7 +283,9 @@ void sspt_file_install(struct sspt_file *file)
  * @param flag Action for probes
  * @return Void
  */
-int sspt_file_uninstall(struct sspt_file *file, struct task_struct *task, enum US_FLAGS flag)
+int sspt_file_uninstall(struct sspt_file *file,
+			struct task_struct *task,
+			enum US_FLAGS flag)
 {
 	int i, err = 0;
 	int table_size = (1 << file->page_probes_hash_bits);
@@ -283,18 +296,18 @@ int sspt_file_uninstall(struct sspt_file *file, struct task_struct *task, enum U
 
 	for (i = 0; i < table_size; ++i) {
 		head = &file->page_probes_table[i];
-		swap_hlist_for_each_entry_safe (page, node, tmp, head, hlist) {
+		swap_hlist_for_each_entry_safe(page, node, tmp, head, hlist) {
 			err = sspt_unregister_page(page, flag, task);
 			if (err != 0) {
-				printk("ERROR sspt_file_uninstall: err=%d\n", err);
+				printk(KERN_INFO "ERROR sspt_file_uninstall: "
+				       "err=%d\n", err);
 				return err;
 			}
 		}
 	}
 
-	if (flag != US_DISARM) {
+	if (flag != US_DISARM)
 		file->loaded = 0;
-	}
 
 	return err;
 }
@@ -310,8 +323,4 @@ void sspt_file_set_mapping(struct sspt_file *file, struct vm_area_struct *vma)
 {
 	file->vm_start = vma->vm_start;
 	file->vm_end = vma->vm_end;
-
-//	ptr_pack_task_event_info(task, DYN_LIB_PROBE_ID, RECORD_ENTRY, "dspdd",
-//				 task->tgid, file->dentry->d_iname, vma->vm_start,
-//				 vma->vm_end - vma->vm_start, 0);
 }

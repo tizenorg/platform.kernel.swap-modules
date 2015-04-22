@@ -93,7 +93,7 @@ static inline void arch_set_task_pc(struct task_struct *p, unsigned long val)
 
 static inline struct pt_regs *swap_get_syscall_uregs(unsigned long sp)
 {
-	return NULL; //FIXME currently not implemented for x86
+	return NULL; /* FIXME currently not implemented for x86 */
 }
 
 static inline unsigned long swap_get_stack_ptr(struct pt_regs *regs)
@@ -214,7 +214,9 @@ struct arch_specific_insn {
 /**
  * @brief Entry point.
  */
-typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long);
+typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long,
+					  unsigned long, unsigned long,
+					  unsigned long, unsigned long);
 
 int arch_init_module_deps(void);
 

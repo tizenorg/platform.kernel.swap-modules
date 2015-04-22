@@ -57,14 +57,14 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 
 	/* Get first 4 args from registers */
 	switch (args_in_regs) {
-		case 3:
-			args[3] = regs->ARM_r3;
-		case 2:
-			args[2] = regs->ARM_r2;
-		case 1:
-			args[1] = regs->ARM_r1;
-		case 0:
-			args[0] = regs->ARM_r0;
+	case 3:
+		args[3] = regs->ARM_r3;
+	case 2:
+		args[2] = regs->ARM_r2;
+	case 1:
+		args[1] = regs->ARM_r1;
+	case 0:
+		args[0] = regs->ARM_r0;
 	}
 
 	/* Get other args from stack */
@@ -72,7 +72,7 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 		unsigned long *args_in_sp = (unsigned long *)regs->ARM_sp +
 					    i - stack_args;
 		if (get_user(args[i], args_in_sp))
-			printk("failed to dereference a pointer, addr=%p\n",
+			printk(KERN_INFO "failed to dereference a pointer, addr=%p\n",
 			       args_in_sp);
 	}
 
@@ -98,8 +98,9 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
  * address should be put.
  * @return Pointer to the string with shared mem area name.
  */
-const char *get_shared_kmem(struct mm_struct *mm, unsigned long *start,
-                            unsigned long *end)
+const char *get_shared_kmem(struct mm_struct *mm,
+			    unsigned long *start,
+			    unsigned long *end)
 {
 	*start = CONFIG_VECTORS_BASE;
 	*end = CONFIG_VECTORS_BASE + PAGE_SIZE;
