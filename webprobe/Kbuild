@@ -1,4 +1,6 @@
 EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_webprobe.o
-swap_webprobe-y := webprobe.o
+swap_webprobe-y := webprobe.o \
+                   webprobe_debugfs.o \
+                   webprobe_prof.o

@@ -31,11 +31,21 @@
 #include <us_manager/us_manager.h>
 #include <us_manager/sspt/ip.h>
 #include <us_manager/probes/register_probes.h>
+#include <us_manager/sspt/sspt.h>
 #include <writer/swap_writer_module.h>
 #include <uprobe/swap_uprobes.h>
 #include <parser/msg_cmd.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <master/swap_initializer.h>
+
+#include "webprobe_debugfs.h"
+#include "webprobe_prof.h"
+
+
+static unsigned long inspserver_addr_local;
+static unsigned long willexecute_addr_local;
+static unsigned long didexecute_addr_local;
 
 static int webprobe_copy(struct probe_info *dest,
 			 const struct probe_info *source)
@@ -61,79 +71,84 @@ static int webprobe_register_probe(struct us_ip *ip)
 
 static void webprobe_unregister_probe(struct us_ip *ip, int disarm)
 {
+	if (ip->orig_addr == inspserver_addr_local)
+		web_func_inst_remove(web_prof_addr(INSPSERVER_START));
+	else if (ip->orig_addr == willexecute_addr_local)
+		web_func_inst_remove(web_prof_addr(WILL_EXECUTE));
+	else if (ip->orig_addr == didexecute_addr_local)
+		web_func_inst_remove(web_prof_addr(DID_EXECUTE));
+
 	__swap_unregister_uretprobe(&ip->retprobe, disarm);
 }
 
-static int entry_web_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
+static int web_entry_handler(struct uretprobe_instance *ri,
+			     struct pt_regs *regs)
 {
 	struct uretprobe *rp = ri->rp;
+	struct us_ip *ip;
+	unsigned long vaddr, page_vaddr;
+	struct vm_area_struct *vma;
 
-	if (rp && get_quiet() == QT_OFF) {
-		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
-		unsigned long addr = (unsigned long)ip->orig_addr;
+	if (rp == NULL)
+		return 0;
 
-		entry_web_event(addr, regs);
+	ip = container_of(rp, struct us_ip, retprobe);
+	vaddr = (unsigned long)ip->orig_addr;
+	page_vaddr = vaddr & PAGE_MASK;
+
+	vma = find_vma_intersection(current->mm, page_vaddr, page_vaddr + 1);
+	if (vma && check_vma(vma)) {
+		unsigned long addr = vaddr - vma->vm_start;
+		struct dentry *d = vma->vm_file->f_dentry;
+
+		if (addr == web_prof_addr(WILL_EXECUTE) &&
+		    d == web_prof_lib_dentry()) {
+			willexecute_addr_local = ip->orig_addr;
+			return entry_web_event(addr, regs);
+		} else if (addr == web_prof_addr(DID_EXECUTE) &&
+			   d == web_prof_lib_dentry()) {
+			didexecute_addr_local = ip->orig_addr;
+			return exit_web_event(addr, regs);
+		}
 	}
 
 	return 0;
 }
 
-static int exit_web_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
+
+static int web_ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct uretprobe *rp = ri->rp;
+	struct us_ip *ip;
+	unsigned long vaddr, page_vaddr;
+	struct vm_area_struct *vma;
 
-	if (rp && get_quiet() == QT_OFF) {
-		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
-		unsigned long addr = (unsigned long)ip->orig_addr;
+	if (rp == NULL)
+		return 0;
 
-		exit_web_event(addr, regs);
+	ip = container_of(rp, struct us_ip, retprobe);
+	vaddr = (unsigned long)ip->orig_addr;
+	page_vaddr = vaddr & PAGE_MASK;
+
+	vma = find_vma_intersection(current->mm, page_vaddr, page_vaddr + 1);
+	if (vma && check_vma(vma)) {
+		unsigned long addr = vaddr - vma->vm_start;
+		struct dentry *d = vma->vm_file->f_dentry;
+
+		if (addr == web_prof_addr(INSPSERVER_START) &&
+		    d == web_prof_lib_dentry()) {
+			inspserver_addr_local = ip->orig_addr;
+			set_wrt_launcher_port((int)regs_return_value(regs));
+		}
 	}
-
-	return 0;
-}
-
-static int ret_web_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
-{
-	set_wrt_launcher_port((int)regs_return_value(regs));
 
 	return 0;
 }
 
 static void webprobe_init(struct us_ip *ip)
 {
-	enum {
-		web_func_inspservstart,
-		web_func_willexecute,
-		web_func_didexecute
-	};
-	static int fnum = web_func_inspservstart;
-
-	/* FIXME: probes can be set more than once */
-	switch(fnum) {
-	case web_func_inspservstart:
-		ip->retprobe.entry_handler = NULL;
-		ip->retprobe.handler = ret_web_handler;
-		fnum = web_func_willexecute;
-		printk("SWAP_WEBPROBE: web function ewk_view_inspector_server_start\n");
-		break;
-	case web_func_willexecute:
-		/* TODO: use uprobe instead of uretprobe */
-		ip->retprobe.entry_handler = entry_web_handler;
-		ip->retprobe.handler = NULL;
-		fnum = web_func_didexecute;
-		printk("SWAP_WEBPROBE: web function willExecute\n");
-		break;
-	case web_func_didexecute:
-		/* TODO: use uprobe instead of uretprobe */
-		ip->retprobe.entry_handler = exit_web_handler;
-		ip->retprobe.handler = NULL;
-		fnum = web_func_inspservstart;
-		printk("SWAP_WEBPROBE: web function didExecute\n");
-		break;
-	default:
-		printk("SWAP_WEBPROBE: web functions more than necessary\n");
-	}
-
+	ip->retprobe.entry_handler = web_entry_handler;
+	ip->retprobe.handler = web_ret_handler;
 	ip->retprobe.maxactive = 0;
 }
 
@@ -153,19 +168,26 @@ static struct probe_iface webprobe_iface = {
 	.cleanup = webprobe_cleanup
 };
 
-static int __init webprobe_module_init(void)
+static int webprobe_module_init(void)
 {
-	return swap_register_probe_type(SWAP_WEBPROBE, &webprobe_iface);
+	int ret = 0;
+
+	ret = swap_register_probe_type(SWAP_WEBPROBE, &webprobe_iface);
+	if (ret)
+		pr_err("Cannot register probe type SWAP_WEBPROBE\n");
+
+	return ret;
 }
 
-static void __exit webprobe_module_exit(void)
+static void webprobe_module_exit(void)
 {
 	swap_unregister_probe_type(SWAP_WEBPROBE);
 }
 
-module_init(webprobe_module_init);
-module_exit(webprobe_module_exit);
+SWAP_LIGHT_INIT_MODULE(NULL, webprobe_module_init, webprobe_module_exit,
+		       webprobe_debugfs_init, webprobe_debugfs_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SWAP webprobe");
-MODULE_AUTHOR("Ruslan Soloviev <r.soloviev@samsung.com>");
+MODULE_AUTHOR("Ruslan Soloviev <r.soloviev@samsung.com>"
+	      "Anastasia Lyupa <a.lyupa@samsung.com>");
