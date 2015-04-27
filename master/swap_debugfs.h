@@ -1,5 +1,4 @@
 /**
- * driver/swap_debugfs.c
  * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
  * @section LICENSE
@@ -20,54 +19,23 @@
  *
  * @section COPYRIGHT
  *
- * Copyright (C) Samsung Electronics, 2013
+ * Copyright (C) Samsung Electronics, 2015
  *
  * @section DESCRIPTION
  *
- * Initializes root debugfs for all SWAP modules
+ * SWAP debugfs interface definition.
  */
 
+#ifndef _SWAP_DEBUGFS_H
+#define _SWAP_DEBUGFS_H
 
-#include <linux/module.h>
-#include <linux/debugfs.h>
+
+struct dentry;
+
+struct dentry *swap_debugfs_getdir(void);
+
+int swap_debugfs_init(void);
+void swap_debugfs_uninit(void);
 
 
-static struct dentry *swap_dir = NULL;
-
-/**
- * @brief Get debugfs dir.
- *
- * @return Pointer to dentry stuct.
- */
-struct dentry *get_swap_debugfs_dir(void)
-{
-	return swap_dir;
-}
-EXPORT_SYMBOL_GPL(get_swap_debugfs_dir);
-
-/**
- * @brief Initializes SWAP debugfs.
- *
- * @return 0 on success, negative error code on error.
- */
-int swap_debugfs_init(void)
-{
-	swap_dir = debugfs_create_dir("swap", NULL);
-	if (swap_dir == NULL)
-		return -ENOMEM;
-
-	return 0;
-}
-
-/**
- * @brief Deinitializes SWAP debugfs and recursively removes all its files.
- *
- * @return Void.
- */
-void swap_debugfs_exit(void)
-{
-	struct dentry *dir = swap_dir;
-
-	swap_dir = NULL;
-	debugfs_remove_recursive(dir);
-}
+#endif /* _SWAP_DEBUGFS_H */

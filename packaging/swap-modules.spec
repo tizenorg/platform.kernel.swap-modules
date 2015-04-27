@@ -16,7 +16,7 @@ BuildRequires: kernel-devel
 %else
 %define build_arch i386
 BuildRequires: emulator-kernel-devel
-%define kernel_path /usr/src/linux-kernel-build-3.12.18
+%define kernel_path /usr/src/linux-kernel-build-3.14.25
 %endif
 Provides: swap-modules
 %description
@@ -30,6 +30,7 @@ Kernel modules for SWAP
 
 %install
 mkdir -p %{buildroot}/opt/swap/sdk
+install -m 666 master/swap_master.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 buffer/swap_buffer.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 ksyms/swap_ksyms.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 driver/swap_driver.ko -t %{buildroot}/opt/swap/sdk
@@ -49,6 +50,7 @@ install -m 666 preload/swap_preload.ko -t %{buildroot}/opt/swap/sdk
 
 %files
 %defattr(-,root,root)
+/opt/swap/sdk/swap_master.ko
 /opt/swap/sdk/swap_buffer.ko
 /opt/swap/sdk/swap_ksyms.ko
 /opt/swap/sdk/swap_driver.ko

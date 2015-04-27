@@ -7,7 +7,7 @@
 #include <linux/mutex.h>
 #include <linux/limits.h>
 #include <asm/uaccess.h>
-#include <driver/swap_debugfs.h>
+#include <master/swap_debugfs.h>
 #include "preload.h"
 #include "preload_debugfs.h"
 #include "preload_module.h"
@@ -381,7 +381,7 @@ int preload_debugfs_init(void)
 		goto fail;
 
 	ret = -ENOENT;
-	swap_dentry = get_swap_debugfs_dir();
+	swap_dentry = swap_debugfs_getdir();
 	if (!swap_dentry)
 		goto fail;
 

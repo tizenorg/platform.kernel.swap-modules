@@ -450,7 +450,7 @@ static u64 feature_mask = 0;
  *
  * @return 0.
  */
-int init_features(void)
+int once_features(void)
 {
 	int i;
 	for (i = 0; i < SIZE_FEATURE_LIST; ++i) {
@@ -462,15 +462,6 @@ int init_features(void)
 	}
 
 	return 0;
-}
-
-/**
- * @brief Uninits features list.
- *
- * @return Void.
- */
-void uninit_features(void)
-{
 }
 
 static int do_set_features(struct conf_data *conf)

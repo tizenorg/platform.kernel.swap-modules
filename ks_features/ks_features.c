@@ -34,6 +34,7 @@
 #include <asm/errno.h>
 #include <ksyms/ksyms.h>
 #include <kprobe/swap_kprobes.h>
+#include <master/swap_initializer.h>
 #include <writer/swap_writer_module.h>
 #include <writer/event_filter.h>
 #include "ks_features.h"
@@ -538,7 +539,8 @@ static void uninit_syscall_features(void)
 	}
 }
 
-static int __init init_ks_feature(void)
+
+static int once(void)
 {
 	int ret;
 
@@ -547,20 +549,17 @@ static int __init init_ks_feature(void)
 		return ret;
 
 	ret = init_syscall_features();
-	if (ret)
-		exit_switch_context();
 
 	return ret;
 }
 
-static void __exit exit_ks_feature(void)
+static void core_uninit(void)
 {
 	uninit_syscall_features();
 	exit_switch_context();
 }
 
-module_init(init_ks_feature);
-module_exit(exit_ks_feature);
+SWAP_LIGHT_INIT_MODULE(once, NULL, core_uninit, NULL, NULL);
 
 MODULE_LICENSE("GPL");
 

@@ -1,9 +1,4 @@
-/**
- * @file driver/swap_debugfs.h
- * @author Vyacheslav Cherkashin <v.cherkashin@samsung.com>
- *
- * @section LICENSE
- *
+/*
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -18,24 +13,29 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * @section COPYRIGHT
+ * Copyright (C) Samsung Electronics, 2015
  *
- * Copyright (C) Samsung Electronics, 2013
+ * 2015         Vyacheslav Cherkashin <v.cherkashin@samsung.com>
  *
- * @section DESCRIPTION
- *
- * SWAP debugfs interface definition.
  */
 
 
-#ifndef _SWAP_DEBUG_FS_H
-#define _SWAP_DEBUG_FS_H
+#include <linux/module.h>
+#include "swap_debugfs.h"
+#include "swap_initializer.h"
 
-struct dentry;
 
+static int __init master_init(void)
+{
+	return swap_debugfs_init();
+}
 
-struct dentry *get_swap_debugfs_dir(void);
-int swap_debugfs_init(void);
-void swap_debugfs_exit(void);
+static void __exit master_exit(void)
+{
+	swap_debugfs_uninit();
+}
 
-#endif /* _SWAP_DEBUG_FS_H */
+module_init(master_init);
+module_exit(master_exit);
+
+MODULE_LICENSE("GPL");

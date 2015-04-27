@@ -42,6 +42,7 @@
 
 #include <asm/uaccess.h>
 
+#include <master/swap_initializer.h>
 #include <buffer/swap_buffer_module.h>
 #include <buffer/swap_buffer_errors.h>
 
@@ -1460,6 +1461,7 @@ EXPORT_SYMBOL_GPL(custom_exit_event);
 
 
 
+
 /* ============================================================================
  * =                              WEB APP EVENT                               =
  * ============================================================================
@@ -1615,29 +1617,12 @@ put_current_buf_return:
 }
 EXPORT_SYMBOL_GPL(exit_web_event);
 
-static int __init swap_writer_module_init(void)
-{
-	int ret;
 
-	ret = event_filter_init();
-	if (ret)
-		return ret;
 
-	ret = init_debugfs_writer();
-	if (ret)
-		event_filter_exit();
 
-	return ret;
-}
 
-static void __exit swap_writer_module_exit(void)
-{
-	exit_debugfs_writer();
-	event_filter_exit();
-}
-
-module_init(swap_writer_module_init);
-module_exit(swap_writer_module_exit);
+SWAP_LIGHT_INIT_MODULE(NULL, event_filter_init, event_filter_exit,
+		       init_debugfs_writer, exit_debugfs_writer);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SWAP Writer module");

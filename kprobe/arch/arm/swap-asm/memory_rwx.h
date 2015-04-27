@@ -29,8 +29,7 @@
 #define _MEMORY_RWX_H
 
 
-int mem_rwx_init(void);
-void mem_rwx_exit(void) {};
+int mem_rwx_once(void);
 void mem_rwx_write_u32(unsigned long addr, unsigned long val);
 
 

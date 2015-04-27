@@ -42,6 +42,7 @@
 #include <linux/pagemap.h>
 
 #include <ksyms/ksyms.h>
+#include <master/swap_initializer.h>
 #include <swap-asm/swap_kprobes.h>
 
 #include "swap_slots.h"
@@ -781,7 +782,7 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
-	preempt_enable_no_resched();
+	swap_preempt_enable_no_resched();
 
 	/*
 	 * By returning a non-zero value, we are telling
@@ -1097,48 +1098,55 @@ static int init_module_deps(void)
 	return arch_init_module_deps();
 }
 
-static int __init init_kprobes(void)
+static int once(void)
 {
-	int i, err = 0;
+	int i, ret;
+	const char *sym;
 
-	module_alloc = (void *)swap_ksyms("module_alloc");
-	if (!module_alloc) {
-		printk("module_alloc is not found! Oops.\n");
-		return -1;
-	}
-	module_free = (void *)swap_ksyms("module_free");
-	if (!module_alloc) {
-		printk("module_free is not found! Oops.\n");
-		return -1;
-	}
+	sym = "module_alloc";
+	module_alloc = (void *)swap_ksyms(sym);
+	if (module_alloc == NULL)
+		goto not_found;
 
-	init_sm();
+	sym = "module_free";
+	module_free = (void *)swap_ksyms(sym);
+	if (module_alloc == NULL)
+		goto not_found;
 
-	/* FIXME allocate the probe table, currently defined statically */
-	/* initialize all list heads */
+	ret = init_module_deps();
+	if (ret)
+		return ret;
+
+	/*
+	 * FIXME allocate the probe table, currently defined statically
+	 * initialize all list heads
+	 */
 	for (i = 0; i < KPROBE_TABLE_SIZE; ++i) {
 		INIT_HLIST_HEAD(&kprobe_table[i]);
 		INIT_HLIST_HEAD(&kretprobe_inst_table[i]);
 	}
-	atomic_set(&kprobe_count, 0);
 
-	err = init_module_deps();
-	if (err) {
-		return err;
-	}
+	return 0;
 
-	err = swap_arch_init_kprobes();
-
-	return err;
+not_found:
+	printk("ERROR: symbol '%s' not found\n", sym);
+	return -ESRCH;
 }
 
-static void __exit exit_kprobes(void)
+static int init_kprobes(void)
+{
+	init_sm();
+	atomic_set(&kprobe_count, 0);
+
+	return swap_arch_init_kprobes();
+}
+
+static void exit_kprobes(void)
 {
 	swap_arch_exit_kprobes();
 	exit_sm();
 }
 
-module_init(init_kprobes);
-module_exit(exit_kprobes);
+SWAP_LIGHT_INIT_MODULE(once, init_kprobes, exit_kprobes, NULL, NULL);
 
 MODULE_LICENSE("GPL");

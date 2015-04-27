@@ -909,7 +909,7 @@ int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 
 	preempt_disable();
 	ret = uprobe_handler(regs);
-	preempt_enable_no_resched();
+	swap_preempt_enable_no_resched();
 
 	local_irq_restore(flags);
 	return ret;

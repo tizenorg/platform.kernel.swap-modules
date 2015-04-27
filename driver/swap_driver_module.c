@@ -28,19 +28,14 @@
  */
 
 #include <linux/module.h>
-
+#include <master/swap_initializer.h>
 #include "driver_defs.h"
 #include "device_driver.h"
-#include "swap_debugfs.h"
 #include "us_interaction.h"
 
-static int __init swap_driver_init(void)
+static int fs_init(void)
 {
 	int ret;
-
-	ret = swap_debugfs_init();
-	if (ret)
-		return ret;
 
 	ret = swap_device_init();
 	if (ret)
@@ -55,22 +50,19 @@ static int __init swap_driver_init(void)
 	return 0;
 
 dev_init_fail:
-	swap_debugfs_exit();
 	swap_device_exit();
 
 	return ret;
 }
 
-static void __exit swap_driver_exit(void)
+static void fs_uninit(void)
 {
 	us_interaction_destroy();
 	swap_device_exit();
-	swap_debugfs_exit();
 	print_msg("Driver module uninitialized\n");
 }
 
-module_init(swap_driver_init);
-module_exit(swap_driver_exit);
+SWAP_LIGHT_INIT_MODULE(NULL, NULL, NULL, fs_init, fs_uninit);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SWAP device driver");

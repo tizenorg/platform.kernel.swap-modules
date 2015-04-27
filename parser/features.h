@@ -33,8 +33,7 @@
 
 struct conf_data;
 
-int init_features(void);
-void uninit_features(void);
+int once_features(void);
 
 int set_features(struct conf_data *conf);
 

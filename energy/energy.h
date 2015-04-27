@@ -43,6 +43,7 @@ enum parameter_energy {
 };
 
 
+int energy_once(void);
 int energy_init(void);
 void energy_uninit(void);
 

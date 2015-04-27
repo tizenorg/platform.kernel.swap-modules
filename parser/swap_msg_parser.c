@@ -41,6 +41,7 @@
 
 #include <driver/driver_to_msg.h>
 #include <driver/swap_ioctl.h>
+#include <master/swap_initializer.h>
 
 /**
  * @enum MSG_ID
@@ -152,39 +153,30 @@ uninit:
 	return ret;
 }
 
-static void register_msg_handler(void)
+static int reg_msg_handler(void)
 {
 	set_msg_handler(msg_handler);
+	return 0;
 }
 
-static void unregister_msg_handler(void)
+static void unreg_msg_handler(void)
 {
 	set_msg_handler(NULL);
 }
 
-static int __init swap_parser_init(void)
+static int once(void)
 {
 	int ret;
 
-	ret = init_cpu_deps();
+	ret = once_cmd();
 	if (ret)
-		goto out;
+		return ret;
 
-	register_msg_handler();
+	ret = init_cpu_deps();
 
-	ret = init_cmd();
-
-out:
 	return ret;
 }
 
-static void __exit swap_parser_exit(void)
-{
-	uninit_cmd();
-	unregister_msg_handler();
-}
-
-module_init(swap_parser_init);
-module_exit(swap_parser_exit);
+SWAP_LIGHT_INIT_MODULE(once, reg_msg_handler, unreg_msg_handler, NULL, NULL);
 
 MODULE_LICENSE("GPL");

@@ -31,8 +31,7 @@ static inline int is_kthread(struct task_struct *task)
 	return !task->mm;
 }
 
-int init_helper(void);
-void uninit_helper(void);
+int once_helper(void);
 
 int register_helper(void);
 void unregister_helper_top(void);

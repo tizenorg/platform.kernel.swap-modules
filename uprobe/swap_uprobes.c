@@ -35,6 +35,7 @@
 #include <linux/mempolicy.h>
 #include <linux/module.h>
 
+#include <master/swap_initializer.h>
 #include <kprobe/swap_slots.h>
 #include <kprobe/swap_kdebug.h>
 #include <kprobe/swap_kprobes_deps.h>
@@ -997,21 +998,16 @@ void swap_ujprobe_return(void)
 }
 EXPORT_SYMBOL_GPL(swap_ujprobe_return);
 
-static int __init init_uprobes(void)
+static int once(void)
 {
 	init_uprobe_table();
 	init_uprobes_insn_slots();
 	init_uretprobe_inst_table();
 
-	return swap_arch_init_uprobes();
+	return 0;
 }
 
-static void __exit exit_uprobes(void)
-{
-	swap_arch_exit_uprobes();
-}
-
-module_init(init_uprobes);
-module_exit(exit_uprobes);
+SWAP_LIGHT_INIT_MODULE(once, swap_arch_init_uprobes, swap_arch_exit_uprobes,
+		       NULL, NULL);
 
 MODULE_LICENSE ("GPL");

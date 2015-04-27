@@ -650,69 +650,50 @@ void unregister_helper_bottom(void)
  *
  * @return Error code
  */
-int init_helper(void)
+int once_helper(void)
 {
-	unsigned long addr;
+	const char *sym;
 
-	addr = swap_ksyms("do_page_fault");
-	if (addr == 0) {
-		printk("Cannot find address for handle_mm_fault function!\n");
-		return -EINVAL;
-	}
-	mf_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
+	sym = "do_page_fault";
+	mf_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (mf_kretprobe.kp.addr == NULL)
+		goto not_found;
 
-	addr = swap_ksyms_substr("copy_process");
-	if (addr == 0) {
-		printk("Cannot find address for copy_process function!\n");
-		return -EINVAL;
-	}
-	cp_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
+	sym = "copy_process";
+	cp_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms_substr(sym);
+	if (cp_kretprobe.kp.addr == NULL)
+		goto not_found;
 
-	addr = swap_ksyms("mm_release");
-	if (addr == 0) {
-		printk("Cannot find address for mm_release function!\n");
-		return -EINVAL;
-	}
-	mr_kprobe.addr = (kprobe_opcode_t *)addr;
+	sym = "mm_release";
+	mr_kprobe.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (mr_kprobe.addr == NULL)
+		goto not_found;
 
-	addr = swap_ksyms("do_munmap");
-	if (addr == 0) {
-		printk("Cannot find address for do_munmap function!\n");
-		return -EINVAL;
-	}
-	unmap_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
+	sym = "do_munmap";
+	unmap_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (unmap_kretprobe.kp.addr == NULL)
+		goto not_found;
 
-	addr = swap_ksyms("do_mmap_pgoff");
-	if (addr == 0) {
-		printk("Cannot find address for do_mmap_pgoff function!\n");
-		return -EINVAL;
-	}
-	mmap_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
+	sym = "do_mmap_pgoff";
+	mmap_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (mmap_kretprobe.kp.addr == NULL)
+		goto not_found;
 
-	addr = swap_ksyms("set_task_comm");
-	if (addr == 0) {
-		printk("Cannot find address for set_task_comm function!\n");
-		return -EINVAL;
-	}
-	comm_kretprobe.kp.addr = (kprobe_opcode_t *)addr;
+	sym = "set_task_comm";
+	comm_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (comm_kretprobe.kp.addr == NULL)
+		goto not_found;
 
 #ifdef CONFIG_ARM
-	addr = swap_ksyms("ret_to_user");
-	if (addr == 0) {
-		printk("Cannot find address for ret_to_user function!\n");
-		return -EINVAL;
-	}
-	ctx_task_kprobe.addr = (kprobe_opcode_t *)addr;
+	sym = "ret_to_user";
+	ctx_task_kprobe.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (ctx_task_kprobe.addr == NULL)
+		goto not_found;
 #endif /* CONFIG_ARM */
 
 	return 0;
-}
 
-/**
- * @brief Uninitialization of helper
- *
- * @return Void
- */
-void uninit_helper(void)
-{
+not_found:
+	printk("ERROR: symbol '%s' not found\n", sym);
+	return -ESRCH;
 }
