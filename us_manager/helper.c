@@ -49,20 +49,21 @@ struct pf_data {
 	unsigned long addr;
 };
 
-static int entry_handler_mf(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct pf_data *data = (struct pf_data *)ri->data;
 
-#ifdef CONFIG_ARM
+#if defined(CONFIG_ARM)
 	data->addr = swap_get_karg(regs, 0);
-#else /* CONFIG_ARM */
-	data->addr = swap_get_karg(regs, 2);
-#endif /* CONFIG_ARM */
+#elif defined(CONFIG_X86_32)
+	data->addr = read_cr2();
+#else
+	#error "this architecture is not supported"
+#endif /* CONFIG_arch */
 
 	return 0;
 }
 
-#ifdef CONFIG_ARM
 static unsigned long cb_pf(void *data)
 {
 	unsigned long page_addr = *(unsigned long *)data;
@@ -71,34 +72,31 @@ static unsigned long cb_pf(void *data)
 
 	return 0;
 }
-#endif /* CONFIG_ARM */
 
 /* Detects when IPs are really loaded into phy mem and installs probes. */
-static int ret_handler_mf(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct task_struct *task = current;
 	unsigned long page_addr;
+	int ret;
 
 	if (is_kthread(task))
 		return 0;
 
 	/* TODO: check return value */
 	page_addr = ((struct pf_data *)ri->data)->addr & PAGE_MASK;
+	ret = set_jump_cb((unsigned long)ri->ret_addr, regs, cb_pf,
+			  &page_addr, sizeof(page_addr));
 
-#ifdef CONFIG_ARM
-	set_jump_cb((unsigned long)ri->ret_addr, regs, cb_pf,
-		    &page_addr, sizeof(page_addr));
-	ri->ret_addr = (unsigned long *)get_jump_addr();
-#else /* CONFIG_ARM */
-	call_page_fault(task, page_addr);
-#endif /* CONFIG_ARM */
+	if (ret == 0)
+		ri->ret_addr = (unsigned long *)get_jump_addr();
 
 	return 0;
 }
 
 static struct kretprobe mf_kretprobe = {
-	.entry_handler = entry_handler_mf,
-	.handler = ret_handler_mf,
+	.entry_handler = entry_handler_pf,
+	.handler = ret_handler_pf,
 	.data_size = sizeof(struct pf_data)
 };
 
@@ -656,11 +654,7 @@ int once_helper(void)
 {
 	const char *sym;
 
-#ifdef CONFIG_ARM
 	sym = "do_page_fault";
-#else /* CONFIG_ARM */
-	sym = "handle_mm_fault";
-#endif /* CONFIG_ARM */
 	mf_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
 	if (mf_kretprobe.kp.addr == NULL)
 		goto not_found;
@@ -669,7 +663,6 @@ int once_helper(void)
 	cp_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms_substr(sym);
 	if (cp_kretprobe.kp.addr == NULL)
 		goto not_found;
-
 
 	sym = "mm_release";
 	mr_kprobe.addr = (kprobe_opcode_t *)swap_ksyms(sym);
