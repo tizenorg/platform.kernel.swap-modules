@@ -439,11 +439,12 @@ static struct feature_item *feature_list[] = {
  * @brief SIZE_FEATURE_LIST definition.
  */
 enum {
-	SIZE_FEATURE_LIST = sizeof(feature_list) / sizeof(struct feature_item *),
+	SIZE_FEATURE_LIST =
+	sizeof(feature_list) / sizeof(struct feature_item *),
 };
 
-static u64 feature_inst = 0;
-static u64 feature_mask = 0;
+static u64 feature_inst;
+static u64 feature_mask;
 
 /**
  * @brief Inits features list.
@@ -454,10 +455,12 @@ int once_features(void)
 {
 	int i;
 	for (i = 0; i < SIZE_FEATURE_LIST; ++i) {
-		printk("### f init_feature_mask[%2d]=%p\n", i, feature_list[i]);
+		printk(KERN_INFO "### f init_feature_mask[%2d]=%p\n", i,
+		       feature_list[i]);
 		if (feature_list[i] != NULL) {
 			feature_mask |= ((u64)1) << i;
-			printk("### f name=%s\n", feature_list[i]->name);
+			printk(KERN_INFO "### f name=%s\n",
+			       feature_list[i]->name);
 		}
 	}
 

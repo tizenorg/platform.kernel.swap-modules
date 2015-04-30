@@ -239,7 +239,7 @@ static void *fops_key_func(void *data)
 
 static int fops_cmp_func(void *key_a, void *key_b)
 {
-	return (key_a - key_b);
+	return key_a - key_b;
 }
 
 static inline struct map *__get_map(void)
@@ -316,7 +316,7 @@ static int fops_dinsert(struct dentry *dentry)
 		__fops_dput(dentry);
 
 	/* it's ok if dentry is already inserted */
-	return (ret == -EEXIST ? 0: ret);
+	return ret == -EEXIST ? 0 : ret;
 }
 
 static struct dentry *fops_dsearch(struct dentry *dentry)
@@ -361,10 +361,10 @@ static int fops_fcheck(struct task_struct *task, struct file *file)
 
 	if (check_event(task))
 		/* it is 'our' task: just add the dentry to the map */
-		return (fops_dinsert(dentry) ? : -EAGAIN);
+		return fops_dinsert(dentry) ? : -EAGAIN;
 	else
 		/* not 'our' task: check if the file is 'interesting' */
-		return (fops_dsearch(dentry) ? 0: -ESRCH);
+		return fops_dsearch(dentry) ? 0 : -ESRCH;
 }
 
 static char *fops_fpath(struct file *file, char *buf, int buflen)
@@ -566,8 +566,9 @@ static int lock_entry_handler(struct kretprobe_instance *ri,
 			filepath = fops_fpath(file, buf, PATH_LEN);
 
 			if (lock_arg_init(fprobe->id, regs, &arg) == 0) {
-				subtype = (arg.type == F_UNLCK ? FOPS_LOCK_RELEASE:
-								 FOPS_LOCK_START);
+				subtype = (arg.type == F_UNLCK ?
+					   FOPS_LOCK_RELEASE :
+					   FOPS_LOCK_START);
 
 				custom_entry_event(F_ADDR(rp), regs, PT_FILE,
 						   subtype, "Sxddxx",
@@ -602,7 +603,7 @@ static int lock_ret_handler(struct kretprobe_instance *ri,
 	if (rp && priv->dentry) {
 		int subtype;
 		if (priv->subtype == FOPS_LOCK_START)
-			subtype = FOPS_LOCK_END; /* lock ret marked as lock_end */
+			subtype = FOPS_LOCK_END;
 		else
 			subtype = priv->subtype;
 
@@ -716,7 +717,7 @@ static int __fops_dput_wrapper(void *data, void *arg)
 	struct inode *inode = dentry->d_inode;
 
 	printk(FOPS_PREFIX "Releasing dentry(%p/%p/%d): %s\n",
-	       dentry, inode, inode ? inode->i_nlink: 0,
+	       dentry, inode, inode ? inode->i_nlink : 0,
 	      __fops_dpath(dentry, buf, PATH_LEN));
 	__fops_dput(dentry);
 

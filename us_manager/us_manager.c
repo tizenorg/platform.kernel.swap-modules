@@ -98,7 +98,7 @@ int usm_stop(void)
 	int ret = 0;
 
 	if (usm_get_status() == ST_OFF) {
-		printk("US instrumentation is not running!\n");
+		printk(KERN_INFO "US instrumentation is not running!\n");
 		ret = -EINVAL;
 		goto put;
 	}
@@ -124,7 +124,7 @@ int usm_start(void)
 
 	st = usm_get_status();
 	if (st == ST_ON) {
-		printk("US instrumentation is already run!\n");
+		printk(KERN_INFO "US instrumentation is already run!\n");
 		goto put;
 	}
 
@@ -237,4 +237,4 @@ static void exit_us_manager(void)
 SWAP_LIGHT_INIT_MODULE(once_helper, init_us_manager, exit_us_manager,
 		       init_debugfs_us_manager, exit_debugfs_us_manager);
 
-MODULE_LICENSE ("GPL");
+MODULE_LICENSE("GPL");

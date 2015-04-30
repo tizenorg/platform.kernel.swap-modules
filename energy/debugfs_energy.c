@@ -225,7 +225,7 @@ enum {
  * ===                              INIT/EXIT                               ===
  * ============================================================================
  */
-static struct dentry *energy_dir = NULL;
+static struct dentry *energy_dir;
 
 /**
  * @brief Destroy debugfs for LCD

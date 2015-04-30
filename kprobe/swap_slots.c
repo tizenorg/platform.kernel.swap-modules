@@ -75,13 +75,15 @@ struct chunk {
  * @var fixed_alloc::chunk
  * Chunk.
  */
-struct fixed_alloc
-{
+struct fixed_alloc {
 	struct hlist_node hlist;
 	struct chunk chunk;
 };
 
-static void chunk_init(struct chunk *chunk, void *data, size_t size, size_t size_block)
+static void chunk_init(struct chunk *chunk,
+		       void *data,
+		       size_t size,
+		       size_t size_block)
 {
 	unsigned long i;
 	unsigned long *p;
@@ -92,12 +94,12 @@ static void chunk_init(struct chunk *chunk, void *data, size_t size, size_t size
 	chunk->count_available = size / size_block;
 	chunk->size = chunk->count_available;
 
-	chunk->index = kmalloc(sizeof(*chunk->index)*chunk->count_available, GFP_ATOMIC);
+	chunk->index = kmalloc(sizeof(*chunk->index)*chunk->count_available,
+			       GFP_ATOMIC);
 
 	p = chunk->index;
-	for (i = 0; i != chunk->count_available; ++p) {
+	for (i = 0; i != chunk->count_available; ++p)
 		*p = ++i;
-	}
 }
 
 static void chunk_uninit(struct chunk *chunk)
@@ -105,13 +107,12 @@ static void chunk_uninit(struct chunk *chunk)
 	kfree(chunk->index);
 }
 
-static void* chunk_allocate(struct chunk *chunk, size_t size_block)
+static void *chunk_allocate(struct chunk *chunk, size_t size_block)
 {
 	unsigned long *ret;
 
-	if (!chunk->count_available) {
+	if (!chunk->count_available)
 		return NULL;
-	}
 
 	spin_lock(&chunk->lock);
 	ret = chunk->data + chunk->first_available*size_block;
@@ -135,10 +136,9 @@ static void chunk_deallocate(struct chunk *chunk, void *p, size_t size_block)
 
 static inline int chunk_check_ptr(struct chunk *chunk, void *p, size_t size)
 {
-	if (( chunk->data                             <= (unsigned long *)p) &&
-	    ((chunk->data + size/sizeof(chunk->data))  > (unsigned long *)p)) {
+	if ((chunk->data                             <= (unsigned long *)p) &&
+	    ((chunk->data + size/sizeof(chunk->data))  > (unsigned long *)p))
 		return 1;
-	}
 
 	return 0;
 }
@@ -154,17 +154,17 @@ static struct fixed_alloc *create_fixed_alloc(struct slot_manager *sm)
 	struct fixed_alloc *fa;
 
 	fa = kmalloc(sizeof(*fa), GFP_ATOMIC);
-	if (fa == NULL) {
+	if (fa == NULL)
 		return NULL;
-	}
 
 	data = sm->alloc(sm);
-	if(data == NULL) {
+	if (data == NULL) {
 		kfree(fa);
 		return NULL;
 	}
 
-	chunk_init(&fa->chunk, data, PAGE_SIZE/sizeof(unsigned long), sm->slot_size);
+	chunk_init(&fa->chunk, data,
+		   PAGE_SIZE/sizeof(unsigned long), sm->slot_size);
 
 	return fa;
 }
@@ -196,7 +196,7 @@ void *swap_slot_alloc(struct slot_manager *sm)
 	}
 
 	fa = create_fixed_alloc(sm);
-	if(fa == NULL)
+	if (fa == NULL)
 		return NULL;
 
 	INIT_HLIST_NODE(&fa->hlist);

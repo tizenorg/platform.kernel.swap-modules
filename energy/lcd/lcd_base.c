@@ -49,7 +49,7 @@ int read_val(const char *path)
 
 	f = filp_open(path, O_RDONLY, 0);
 	if (IS_ERR(f)) {
-		printk("cannot open file \'%s\'", path);
+		printk(KERN_INFO "cannot open file \'%s\'", path);
 		return PTR_ERR(f);
 	}
 
@@ -99,14 +99,15 @@ static void *create_lcd_priv(struct lcd_ops *ops, size_t tms_brt_cnt)
 	struct lcd_priv_data *lcd;
 
 	if (tms_brt_cnt <= 0) {
-		printk("error variable tms_brt_cnt=%d\n", tms_brt_cnt);
+		printk(KERN_INFO "error variable tms_brt_cnt=%d\n",
+		       tms_brt_cnt);
 		return NULL;
 	}
 
 	lcd = kmalloc(sizeof(*lcd) + sizeof(*lcd->tms_brt) * tms_brt_cnt,
 		      GFP_KERNEL);
 	if (lcd == NULL) {
-		printk("error: %s - out of memory\n", __func__);
+		printk(KERN_INFO "error: %s - out of memory\n", __func__);
 		return NULL;
 	}
 
@@ -158,7 +159,7 @@ static void clean_brightness(struct lcd_ops *ops)
 static int get_brt_num_of_array(struct lcd_priv_data *lcd, int brt)
 {
 	if (brt > lcd->max_brt || brt < lcd->min_brt) {
-		printk("LCD energy error: set brightness=%d, "
+		printk(KERN_INFO "LCD energy error: set brightness=%d, "
 		       "when brightness[%d..%d]\n",
 		       brt, lcd->min_brt, lcd->max_brt);
 		brt = brt > lcd->max_brt ? lcd->max_brt : lcd->min_brt;
@@ -234,7 +235,7 @@ static void set_power(struct lcd_ops *ops, int val)
 		set_power_off(lcd);
 		break;
 	default:
-		printk("LCD energy error: set power=%d\n", val);
+		printk(KERN_INFO "LCD energy error: set power=%d\n", val);
 		break;
 	}
 
@@ -252,7 +253,7 @@ static int func_notifier_lcd(struct lcd_ops *ops, enum lcd_action_type action,
 		set_power(ops, (int)data);
 		break;
 	default:
-		printk("LCD energy error: action=%d\n", action);
+		printk(KERN_INFO "LCD energy error: action=%d\n", action);
 		return -EINVAL;
 	}
 
@@ -388,18 +389,18 @@ static int do_lcd_init(void)
 	for (i = 0; i < lcd_ops_cnt; ++i) {
 		ops = lcd_ops[i]();
 		if (ops == NULL) {
-			printk("error %s [ops == NULL]\n", __func__);
+			printk(KERN_INFO "error %s [ops == NULL]\n", __func__);
 			continue;
 		}
 
 		if (0 == ops->check(ops)) {
-			printk("error checking %s\n", ops->name);
+			printk(KERN_INFO "error checking %s\n", ops->name);
 			continue;
 		}
 
 		ret = register_lcd(ops);
 		if (ret) {
-			printk("error register_lcd %s\n", ops->name);
+			printk(KERN_INFO "error register_lcd %s\n", ops->name);
 			continue;
 		}
 
@@ -423,7 +424,7 @@ int lcd_init(void)
 
 	energy_dir = get_energy_dir();
 	if (energy_dir == NULL) {
-		printk("Cannot energy_dir\n");
+		printk(KERN_INFO "Cannot energy_dir\n");
 		return -ENOENT;
 	}
 
@@ -433,7 +434,7 @@ int lcd_init(void)
 
 	ret = do_lcd_init();
 	if (ret) {
-		printk("LCD is not supported\n");
+		printk(KERN_INFO "LCD is not supported\n");
 		exit_lcd_debugfs();
 	}
 
@@ -463,7 +464,8 @@ int lcd_set_energy(void)
 		if (stat_lcd_ops[i] & SLO_REGISTER) {
 			ret = ops->set(ops);
 			if (ret) {
-				printk("error %s set LCD energy", ops->name);
+				printk(KERN_INFO "error %s set LCD energy",
+				       ops->name);
 				continue;
 			}
 
@@ -495,7 +497,8 @@ void lcd_unset_energy(void)
 		if (stat_lcd_ops[i] & SLO_SET) {
 			ret = ops->unset(ops);
 			if (ret)
-				printk("error %s unset LCD energy", ops->name);
+				printk(KERN_INFO "error %s unset LCD energy",
+				       ops->name);
 
 			clean_brightness(ops);
 			stat_lcd_ops[i] &= ~SLO_SET;

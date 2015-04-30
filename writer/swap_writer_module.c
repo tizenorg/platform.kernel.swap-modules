@@ -77,8 +77,8 @@ enum MSG_ID {
 };
 
 static char *cpu_buf[NR_CPUS];
-static u32 seq_num = 0;
-static unsigned int discarded = 0;
+static u32 seq_num;
+static unsigned int discarded;
 
 /**
  * @brief Initializes new message.
@@ -174,17 +174,16 @@ struct basic_msg_fmt {
 	u64 time;               /**< Message time */
 	u32 len;                /**< Message length */
 	char payload[0];        /**< Message itself */
-} __attribute__((packed));
+} __packed;
 
 #if 0 /* debug */
 static void print_hex(char *ptr, int len)
 {
 	int i;
 
-	printk("print_hex:\n");
-	for (i = 0; i < len; ++i) {
-		printk("[%x]  [%3d]=%2x\n", &ptr[i], i, ptr[i]);
-	}
+	printk(KERN_INFO "print_hex:\n");
+	for (i = 0; i < len; ++i)
+		printk(KERN_INFO "[%x]  [%3d]=%2x\n", &ptr[i], i, ptr[i]);
 }
 #endif
 
@@ -194,9 +193,8 @@ static int write_to_buffer(void *data)
 	struct basic_msg_fmt *bmf = (struct basic_msg_fmt *)data;
 
 	result = swap_buffer_write(bmf, bmf->len + sizeof(*bmf));
-	if (result < 0) {
+	if (result < 0)
 		discarded++;
-	}
 
 	return result;
 }
@@ -221,7 +219,7 @@ static inline void set_time(struct basic_msg_fmt *bmf)
 	bmf->time = timespec2time(&ts);
 }
 
-static char* pack_basic_msg_fmt(char *buf, enum MSG_ID id)
+static char *pack_basic_msg_fmt(char *buf, enum MSG_ID id)
 {
 	struct basic_msg_fmt *bmf = (struct basic_msg_fmt *)buf;
 
@@ -248,7 +246,7 @@ static char* pack_basic_msg_fmt(char *buf, enum MSG_ID id)
 struct proc_info_top {
 	u32 pid;                    /**< Process PID */
 	char comm[0];               /**< Message */
-} __attribute__((packed));
+} __packed;
 
 /**
  * @struct proc_info_bottom
@@ -261,7 +259,7 @@ struct proc_info_bottom {
 	u64 low_addr;               /**< Low address */
 	u64 high_addr;              /**< High address */
 	char bin_path[0];           /**< Binary path */
-} __attribute__((packed));
+} __packed;
 
 /**
  * @struct proc_info_part
@@ -270,7 +268,7 @@ struct proc_info_bottom {
 struct proc_info_part {
 	u32 lib_cnt;                /**< Library count */
 	char libs[0];               /**< Libraries */
-} __attribute__((packed));
+} __packed;
 
 /**
  * @struct lib_obj
@@ -280,7 +278,7 @@ struct lib_obj {
 	u64 low_addr;               /**< Low library address */
 	u64 high_addr;              /**< High library address */
 	char lib_path[0];           /**< Library path */
-} __attribute__((packed));
+} __packed;
 
 static char *pack_path(char *buf, struct file *file)
 {
@@ -322,7 +320,8 @@ static int check_vma(struct vm_area_struct *vma)
 		 !(vma->vm_flags & (VM_READ | VM_MAYREAD)));
 }
 
-static struct vm_area_struct *find_vma_exe_by_dentry(struct mm_struct *mm, struct dentry *dentry)
+static struct vm_area_struct *find_vma_exe_by_dentry(struct mm_struct *mm,
+						     struct dentry *dentry)
 {
 	struct vm_area_struct *vma;
 
@@ -338,8 +337,9 @@ out:
 	return vma;
 }
 
-static char *pack_shared_kmem(char *lib_obj, struct mm_struct *mm,
-                              u32 *lib_cnt_p)
+static char *pack_shared_kmem(char *lib_obj,
+			      struct mm_struct *mm,
+			      u32 *lib_cnt_p)
 {
 	struct lib_obj *so = (struct lib_obj *)lib_obj;
 	char *so_obj;
@@ -484,7 +484,7 @@ EXPORT_SYMBOL_GPL(proc_info_msg);
  */
 struct proc_terminate {
 	u32 pid;                /**< Process ID */
-} __attribute__((packed));
+} __packed;
 
 static char *pack_proc_terminate(char *payload, struct task_struct *task)
 {
@@ -533,7 +533,7 @@ struct proc_map {
 	u64 low_addr;               /**< Low address */
 	u64 high_addr;              /**< High address */
 	char bin_path[0];           /**< Binary path */
-} __attribute__((packed));
+} __packed;
 
 static char *pack_proc_map(char *payload, struct vm_area_struct *vma)
 {
@@ -584,7 +584,7 @@ struct proc_unmap {
 	u32 pid;                /**< Process ID */
 	u64 low_addr;           /**< Low address */
 	u64 high_addr;          /**< High address */
-} __attribute__((packed));
+} __packed;
 
 static char *pack_proc_unmap(char *payload, unsigned long start,
 			     unsigned long end)
@@ -636,11 +636,11 @@ EXPORT_SYMBOL_GPL(proc_unmap_msg);
 struct proc_comm {
 	u32 pid;                /**< Process ID */
 	char comm[0];           /**< Comm */
-} __attribute__((packed));
+} __packed;
 
 static char *pack_proc_comm(char *data, struct task_struct *task)
 {
-	struct proc_comm *pcomm= (struct proc_comm *)data;
+	struct proc_comm *pcomm = (struct proc_comm *)data;
 
 	pcomm->pid = task->tgid;
 
@@ -686,7 +686,7 @@ struct sample {
 	u64 pc_addr;            /**< Instruction pointer address */
 	u32 tid;                /**< Thread ID */
 	u32 cpu_num;            /**< CPU number */
-} __attribute__((packed));
+} __packed;
 
 static char *pack_sample(char *payload, struct pt_regs *regs)
 {
@@ -747,7 +747,7 @@ struct msg_func_entry {
 	u32 cpu_num;            /**< CPU number */
 	u32 cnt_args;           /**< Count of args */
 	char args[0];           /**< Args format string */
-} __attribute__((packed));
+} __packed;
 
 static char *pack_msg_func_entry(char *payload, const char *fmt,
 				 unsigned long func_addr, struct pt_regs *regs,
@@ -886,7 +886,7 @@ int entry_event(const char *fmt, unsigned long func_addr, struct pt_regs *regs,
 	/* FIXME: len = 1024 */
 	ret = pack_args(args, 1024, fmt, regs);
 	if (ret < 0) {
-		printk("ERROR: !!!!!\n");
+		printk(KERN_INFO "ERROR: !!!!!\n");
 		goto put_buf;
 	}
 
@@ -925,7 +925,7 @@ struct msg_func_exit {
 	u64 caller_pc_addr;     /**< Return address */
 	u32 cpu_num;            /**< CPU number */
 	char ret_val[0];        /**< Return value */
-} __attribute__((packed));
+} __packed;
 
 static int pack_msg_ret_val(char *buf, int len, char ret_type,
 			      struct pt_regs *regs)
@@ -1027,7 +1027,8 @@ static int pack_msg_func_exit(char *buf, int len, char ret_type,
 
 	ret = pack_msg_ret_val(mfe->ret_val, len, ret_type, regs);
 	if (ret < 0) {
-		printk("ERROR: packing MSG_FUNCTION_EXIT (ret=%d)\n", ret);
+		printk(KERN_INFO "ERROR: packing MSG_FUNCTION_EXIT (ret=%d)\n",
+		       ret);
 		return ret;
 	}
 
@@ -1088,7 +1089,7 @@ struct msg_context_switch {
 	u32 pid;                /**< PID */
 	u32 tid;                /**< TID */
 	u32 cpu_num;            /**< CPU number */
-} __attribute__((packed));
+} __packed;
 
 static char *pack_msg_context_switch(char *payload, struct pt_regs *regs)
 {
@@ -1157,7 +1158,7 @@ EXPORT_SYMBOL_GPL(switch_exit);
  */
 struct msg_err {
 	char msg[0];            /**< Error message string */
-} __attribute__((packed));
+} __packed;
 
 static char *pack_msg_err(char *payload, const char *fmt, va_list args)
 {
@@ -1477,7 +1478,7 @@ struct MStringImpl {
 		const unsigned short *m_data16;
 	};
 	union {
-		void* m_buffer;
+		void *m_buffer;
 		struct MStringImpl *m_substringBuffer;
 		unsigned short *m_copyData16;
 	};

@@ -106,7 +106,7 @@ static int register_mf(void)
 
 	ret = swap_register_kretprobe(&mf_kretprobe);
 	if (ret)
-		printk("swap_register_kretprobe(handle_mm_fault) ret=%d!\n",
+		printk(KERN_INFO "swap_register_kretprobe(handle_mm_fault) ret=%d!\n",
 		       ret);
 
 	return ret;
@@ -156,7 +156,8 @@ static int register_ctx_task(void)
 
 	ret = swap_register_kprobe(&ctx_task_kprobe);
 	if (ret)
-		printk("swap_register_kprobe(workaround) ret=%d!\n", ret);
+		printk(KERN_INFO "swap_register_kprobe(workaround) ret=%d!\n",
+		       ret);
 
 	return ret;
 }
@@ -178,7 +179,8 @@ static void unregister_ctx_task(void)
  */
 static atomic_t copy_process_cnt = ATOMIC_INIT(0);
 
-static void recover_child(struct task_struct *child_task, struct sspt_proc *proc)
+static void recover_child(struct task_struct *child_task,
+			  struct sspt_proc *proc)
 {
 	sspt_proc_uninstall(proc, child_task, US_DISARM);
 	swap_disarm_urp_inst_for_task(current, child_task);
@@ -210,12 +212,13 @@ static int entry_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 /* Delete uprobs in children at fork */
 static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct task_struct *task = (struct task_struct *)regs_return_value(regs);
+	struct task_struct *task =
+		(struct task_struct *)regs_return_value(regs);
 
-	if(!task || IS_ERR(task))
+	if (!task || IS_ERR(task))
 		goto out;
 
-	if(task->mm != current->mm) {	/* check flags CLONE_VM */
+	if (task->mm != current->mm) {	/* check flags CLONE_VM */
 		rm_uprobes_child(task);
 	}
 out:
@@ -235,7 +238,8 @@ static int register_cp(void)
 
 	ret = swap_register_kretprobe(&cp_kretprobe);
 	if (ret)
-		printk("swap_register_kretprobe(copy_process) ret=%d!\n", ret);
+		printk(KERN_INFO
+		       "swap_register_kretprobe(copy_process) ret=%d!\n", ret);
 
 	return ret;
 }
@@ -289,7 +293,8 @@ static int register_mr(void)
 
 	ret = swap_register_kprobe(&mr_kprobe);
 	if (ret)
-		printk("swap_register_kprobe(mm_release) ret=%d!\n", ret);
+		printk(KERN_INFO
+		       "swap_register_kprobe(mm_release) ret=%d!\n", ret);
 
 	return ret;
 }
@@ -331,11 +336,9 @@ static void __remove_unmap_probes(struct sspt_proc *proc,
 			if (file->vm_start >= end)
 				continue;
 
-			if (file->vm_start >= start) {
+			if (file->vm_start >= start)
 				sspt_file_uninstall(file, task, US_UNINSTALL);
-			} else {
-				/* TODO: uninstall pages: start..file->vm_end */
-			}
+			/* TODO: else: uninstall pages: * start..file->vm_end */
 		}
 
 		sspt_proc_insert_files(proc, &head);
@@ -405,7 +408,8 @@ static int register_unmap(void)
 
 	ret = swap_register_kretprobe(&unmap_kretprobe);
 	if (ret)
-		printk("swap_register_kprobe(do_munmap) ret=%d!\n", ret);
+		printk(KERN_INFO "swap_register_kprobe(do_munmap) ret=%d!\n",
+		       ret);
 
 	return ret;
 }
@@ -465,7 +469,8 @@ static int register_mmap(void)
 
 	ret = swap_register_kretprobe(&mmap_kretprobe);
 	if (ret)
-		printk("swap_register_kretprobe(do_mmap_pgoff) ret=%d!\n", ret);
+		printk(KERN_INFO "swap_register_kretprobe(do_mmap_pgoff) ret=%d!\n",
+		       ret);
 
 	return ret;
 }
@@ -488,7 +493,8 @@ struct comm_data {
 	struct task_struct *task;
 };
 
-static int entry_handler_comm(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int entry_handler_comm(struct kretprobe_instance *ri,
+			      struct pt_regs *regs)
 {
 	struct comm_data *data = (struct comm_data *)ri->data;
 
@@ -523,7 +529,7 @@ static int register_comm(void)
 
 	ret = swap_register_kretprobe(&comm_kretprobe);
 	if (ret)
-		printk("swap_register_kretprobe(set_task_comm) ret=%d!\n",
+		printk(KERN_INFO "swap_register_kretprobe(set_task_comm) ret=%d!\n",
 		       ret);
 
 	return ret;
@@ -694,6 +700,6 @@ int once_helper(void)
 	return 0;
 
 not_found:
-	printk("ERROR: symbol '%s' not found\n", sym);
+	printk(KERN_INFO "ERROR: symbol '%s' not found\n", sym);
 	return -ESRCH;
 }

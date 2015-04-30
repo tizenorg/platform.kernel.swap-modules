@@ -59,16 +59,16 @@
 /* Regs manipulations */
 #if defined(CONFIG_ARM)
 
-#define get_regs_ip(regs)           regs->ARM_pc    /**< Get pc reg. */
-#define get_regs_ret_func(regs)     regs->ARM_lr    /**< Get lr reg. */
-#define get_regs_ret_val(regs)      regs->ARM_r0    /**< Get ret val. */
-#define get_regs_stack_ptr(regs)    regs->ARM_sp    /**< Get stack pointer. */
+#define get_regs_ip(regs)           (regs->ARM_pc)    /**< Get pc reg. */
+#define get_regs_ret_func(regs)     (regs->ARM_lr)    /**< Get lr reg. */
+#define get_regs_ret_val(regs)      (regs->ARM_r0)    /**< Get ret val. */
+#define get_regs_stack_ptr(regs)    (regs->ARM_sp)    /**< Get stack pointer. */
 
 #elif defined(CONFIG_X86_32)
 
-#define get_regs_ip(regs)           regs->ip - 1    /**< Get ip. */
-#define get_regs_ret_val(regs)      regs->ax        /**< Get ret val. */
-#define get_regs_stack_ptr(regs)    regs->sp        /**< Get stack pointer. */
+#define get_regs_ip(regs)           (regs->ip - 1)    /**< Get ip. */
+#define get_regs_ret_val(regs)      (regs->ax)        /**< Get ret val. */
+#define get_regs_stack_ptr(regs)    (regs->sp)        /**< Get stack pointer. */
 
 static inline u32 get_regs_ret_func(struct pt_regs *regs)
 {
@@ -77,7 +77,7 @@ static inline u32 get_regs_ret_func(struct pt_regs *regs)
 	if (user_mode(regs)) {
 		sp = (u32 *)regs->sp;
 		if (get_user(addr, sp))
-			printk("failed to dereference a pointer, sp=%p, "
+			printk(KERN_INFO "failed to dereference a pointer, sp=%p, "
 			       "pc=%lx\n", sp, get_regs_ip(regs));
 	} else {
 		sp = (u32 *)kernel_stack_pointer(regs);

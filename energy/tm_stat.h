@@ -86,9 +86,9 @@ static inline u64 tm_stat_running(struct tm_stat *tm)
 static inline u64 tm_stat_current_running(struct tm_stat *tm, u64 now)
 {
 	if (unlikely(now < tm->timestamp))
-		printk("XXX %p WARNING now(%llu) < tmstmp(%llu)\n",
+		printk(KERN_INFO "XXX %p WARNING now(%llu) < tmstmp(%llu)\n",
 		       tm, now, tm->timestamp);
-	return tm->timestamp ? tm->running + now - tm->timestamp: tm->running;
+	return tm->timestamp ? tm->running + now - tm->timestamp : tm->running;
 }
 
 #endif /* _TM_STAT_H */

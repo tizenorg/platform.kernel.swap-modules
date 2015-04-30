@@ -52,21 +52,23 @@ static unsigned char swap_buffer_status = BUFFER_FREE;
 typedef int(*subbuffer_callback_type)(void);
 
 /* Callback that is called when full subbuffer appears */
-static subbuffer_callback_type subbuffer_callback = NULL;
+static subbuffer_callback_type subbuffer_callback;
 
 /* One subbuffer size */
-static size_t subbuffers_size = 0;
+static size_t subbuffers_size;
 
 /* Subbuffers count */
-static unsigned int subbuffers_num = 0;
+static unsigned int subbuffers_num;
 
-static unsigned int enough_writable_bufs = 0;
-static unsigned int min_writable_bufs = 0;
-static int (*low_mem_cb)(void) = NULL;
-static int (*enough_mem_cb)(void) = NULL;
+static unsigned int enough_writable_bufs;
+static unsigned int min_writable_bufs;
+static int (*low_mem_cb)(void);
+static int (*enough_mem_cb)(void);
 
 
-static inline int areas_overlap(const void *area1,const void *area2, size_t size)
+static inline int areas_overlap(const void *area1,
+				const void *area2,
+				size_t size)
 {
 	int i;
 
@@ -98,7 +100,8 @@ int swap_buffer_init(struct buffer_init_t *buf_init)
 	swap_buffer_status &= ~BUFFER_WORK;
 	print_debug("status buffer stop = %d\n", swap_buffer_status);
 
-	if ((buf_init->top_threshold > 100) || (buf_init->lower_threshold > 100) ||
+	if ((buf_init->top_threshold > 100) ||
+	    (buf_init->lower_threshold > 100) ||
 	    (buf_init->top_threshold < buf_init->lower_threshold))
 		return -E_SB_WRONG_THRESHOLD;
 
@@ -217,8 +220,8 @@ ssize_t swap_buffer_write(void *data, size_t size)
 	}
 
 	/* Copy data to buffer */
-	/* XXX Think of using memmove instead - useless, anyway overlapping means
-	 * that something went wrong. */
+	/* XXX Think of using memmove instead - useless, anyway overlapping
+	 * means that something went wrong. */
 	memcpy(ptr_to_write, data, size);
 
 	result = size;
@@ -330,9 +333,8 @@ int swap_buffer_callback(void *buffer)
 {
 	int result;
 
-	if (!subbuffer_callback) {
+	if (!subbuffer_callback)
 		return -E_SB_NO_CALLBACK;
-	}
 
 	result = subbuffer_callback();
 	if (result < 0)

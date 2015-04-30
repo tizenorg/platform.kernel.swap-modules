@@ -70,7 +70,7 @@ void free_img_ip(struct img_ip *ip)
 void img_ip_print(struct img_ip *ip)
 {
 	if (ip->probe_i.probe_type == SWAP_RETPROBE)
-		printk("###            addr=8%lx, args=%s\n", ip->addr,
-			   ip->probe_i.rp_i.args);
+		printk(KERN_INFO "###            addr=8%lx, args=%s\n",
+		       ip->addr, ip->probe_i.rp_i.args);
 }
 /* debug */

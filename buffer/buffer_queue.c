@@ -28,7 +28,7 @@
  */
 
 /* For all memory allocation/deallocation operations, except buffer memory
- * allocation/deallocation should be used 
+ * allocation/deallocation should be used
  *  memory_allocation(size_t memory_size)
  *  memory_free(void *ptr)
  * defines.
@@ -97,16 +97,16 @@ struct queue_t read_queue = {
 };
 
 /* Pointers array. Points to busy buffers */
-static struct swap_subbuffer **queue_busy = NULL;
+static struct swap_subbuffer **queue_busy;
 
 /* Store last busy element */
 static unsigned int queue_busy_last_element;
 
 /* Subbuffers count */
-static unsigned int queue_subbuffer_count = 0;
+static unsigned int queue_subbuffer_count;
 
 /* One subbuffer size */
-static size_t queue_subbuffer_size = 0;
+static size_t queue_subbuffer_size;
 
 /* Busy list sync */
 static struct sync_t buffer_busy_sync = {
@@ -114,7 +114,7 @@ static struct sync_t buffer_busy_sync = {
 };
 
 /* Memory pages count in one subbuffer */
-static int pages_order_in_subbuffer = 0;
+static int pages_order_in_subbuffer;
 
 /**
  * @brief Allocates memory for swap_subbuffer structures and subbuffers.
@@ -150,7 +150,8 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	sync_init(&buffer_busy_sync);
 
 	/* Memory allocation for queue_busy */
-	queue_busy = memory_allocation(sizeof(*queue_busy) * queue_subbuffer_count);
+	queue_busy =
+		memory_allocation(sizeof(*queue_busy) * queue_subbuffer_count);
 
 	if (!queue_busy) {
 		result = -E_SB_NO_MEM_QUEUE_BUSY;
@@ -160,7 +161,8 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	/* Memory allocation for swap_subbuffer structures */
 
 	/* Allocation for first structure. */
-	write_queue.start_ptr = memory_allocation(sizeof(*write_queue.start_ptr));
+	write_queue.start_ptr =
+		memory_allocation(sizeof(*write_queue.start_ptr));
 
 	if (!write_queue.start_ptr) {
 		result = -E_SB_NO_MEM_BUFFER_STRUCT;
@@ -173,7 +175,8 @@ int buffer_queue_allocation(size_t subbuffer_size,
 
 	write_queue.end_ptr->next_in_queue = NULL;
 	write_queue.end_ptr->full_buffer_part = 0;
-	write_queue.end_ptr->data_buffer = buffer_allocation(queue_subbuffer_size);
+	write_queue.end_ptr->data_buffer =
+		buffer_allocation(queue_subbuffer_size);
 	if (!write_queue.end_ptr->data_buffer) {
 		print_err("Cannot allocate memory for buffer 1\n");
 		result = -E_SB_NO_MEM_DATA_BUFFER;
@@ -184,12 +187,14 @@ int buffer_queue_allocation(size_t subbuffer_size,
 	sync_init(&write_queue.end_ptr->buffer_sync);
 
 	/* Buffer initialization */
-	memset(buffer_address(write_queue.end_ptr->data_buffer), 0, queue_subbuffer_size);
+	memset(buffer_address(write_queue.end_ptr->data_buffer), 0,
+	       queue_subbuffer_size);
 
 	/* Allocation for other structures. */
 	for (i = 1; i < queue_subbuffer_count; i++) {
 		write_queue.end_ptr->next_in_queue =
-		    memory_allocation(sizeof(*write_queue.end_ptr->next_in_queue));
+		    memory_allocation(
+			    sizeof(*write_queue.end_ptr->next_in_queue));
 		if (!write_queue.end_ptr->next_in_queue) {
 			result = -E_SB_NO_MEM_BUFFER_STRUCT;
 			goto buffer_allocation_error_free;
@@ -201,7 +206,7 @@ int buffer_queue_allocation(size_t subbuffer_size,
 
 		write_queue.end_ptr->next_in_queue = NULL;
 		write_queue.end_ptr->full_buffer_part = 0;
-		write_queue.end_ptr->data_buffer = 
+		write_queue.end_ptr->data_buffer =
 			buffer_allocation(queue_subbuffer_size);
 		if (!write_queue.end_ptr->data_buffer) {
 			result = -E_SB_NO_MEM_DATA_BUFFER;
@@ -229,11 +234,13 @@ buffer_allocation_error_free:
 	for (j = 0; j < allocated_structs; j++) {
 		clean_tmp_struct = write_queue.start_ptr;
 		if (allocated_buffers) {
-			buffer_free(clean_tmp_struct->data_buffer, queue_subbuffer_size);
+			buffer_free(clean_tmp_struct->data_buffer,
+				    queue_subbuffer_size);
 			allocated_buffers--;
 		}
 		if (write_queue.start_ptr != write_queue.end_ptr)
-			write_queue.start_ptr = write_queue.start_ptr->next_in_queue;
+			write_queue.start_ptr =
+				write_queue.start_ptr->next_in_queue;
 		memory_free(clean_tmp_struct);
 	}
 	write_queue.end_ptr = NULL;
@@ -256,26 +263,28 @@ int buffer_queue_reset(void)
 {
 	struct swap_subbuffer *buffer = read_queue.start_ptr;
 
-	/* Check if there are some subbuffers in busy list. If so - return error */
+	/* Check if there are some subbuffers in busy list.
+	 * If so - return error */
 	if (get_busy_buffers_count())
 		return -E_SB_UNRELEASED_BUFFERS;
 
 	/* Lock read sync primitive */
 	sync_lock(&read_queue.queue_sync);
 
-	/* Set all subbuffers in read list to write list and reinitialize them */
+	/* Set all subbuffers in read list to write list
+	 * and reinitialize them */
 	while (read_queue.start_ptr) {
 
-		/* Lock buffer sync primitive to prevent writing to buffer if it had
-		 * been selected for writing, but still wasn't wrote. */
+		/* Lock buffer sync primitive to prevent writing to buffer if it
+		 * had been selected for writing, but still wasn't wrote. */
 		sync_lock(&buffer->buffer_sync);
 
 		buffer = read_queue.start_ptr;
 
 		/* If we reached end of the list */
-		if (read_queue.start_ptr == read_queue.end_ptr) {
+		if (read_queue.start_ptr == read_queue.end_ptr)
 			read_queue.end_ptr = NULL;
-		}
+
 		read_queue.start_ptr = read_queue.start_ptr->next_in_queue;
 
 		/* Reinit full buffer part */
@@ -343,10 +352,11 @@ void buffer_queue_free(void)
 static unsigned int is_buffer_enough(struct swap_subbuffer *subbuffer,
 				     size_t size)
 {
-	/* XXX Think about checking full_buffer_part for correctness 
-	 * (<queue_subbuffer_size). It should be true, but if isn't (due to sources
-	 * chaning, etc.) this function should be true! */
-	return ((queue_subbuffer_size-subbuffer->full_buffer_part) >= size) ? 1 : 0;
+	/* XXX Think about checking full_buffer_part for correctness
+	 * (<queue_subbuffer_size). It should be true, but if isn't (due to
+	 * sources chaning, etc.) this function should be true! */
+	return ((queue_subbuffer_size-subbuffer->full_buffer_part) >= size) ?
+		1 : 0;
 }
 
 static void next_queue_element(struct queue_t *queue)
@@ -426,7 +436,7 @@ int add_to_read_list_with_callback(struct swap_subbuffer *subbuffer)
 	int result = 0;
 
 	add_to_read_list(subbuffer);
-	// TODO Handle ret value
+	/* TODO Handle ret value */
 	result = swap_buffer_callback(subbuffer);
 
 	return result;
@@ -447,15 +457,16 @@ unsigned int get_readable_buf_cnt(void)
  * @brief Get first writable subbuffer from write list.
  *
  * @param size Minimum amount of free space in subbuffer.
- * @param[out] ptr_to_write Pointer to the variable where pointer to the beginning
- * of memory for writing should be stored.
+ * @param[out] ptr_to_write Pointer to the variable where pointer to the
+ * beginning of memory for writing should be stored.
  * @return Found swap_subbuffer.
  */
 struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 {
 	struct swap_subbuffer *result = NULL;
 
-	/* Callbacks are called at the end of the function to prevent deadlocks */
+	/* Callbacks are called at the end of the function
+	 * to prevent deadlocks */
 	struct queue_t callback_queue = {
 		.start_ptr = NULL,
 		.end_ptr = NULL,
@@ -477,15 +488,18 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 		if (is_buffer_enough(write_queue.start_ptr, size)) {
 
 			result = write_queue.start_ptr;
-			*ptr_to_write = (void *)((unsigned long)
-						 (buffer_address(result->data_buffer)) +
-						 result->full_buffer_part);
+			*ptr_to_write =
+				(void *)((unsigned long)
+					 (buffer_address(result->data_buffer)) +
+					 result->full_buffer_part);
 
-			/* Add data size to full_buffer_part. Very important to do it in
+			/* Add data size to full_buffer_part.
+			 * Very important to do it in
 			 * write_queue.queue_sync spinlock */
 			write_queue.start_ptr->full_buffer_part += size;
 
-			/* Lock rw sync. Should be unlocked in swap_buffer_write() */
+			/* Lock rw sync.
+			 * Should be unlocked in swap_buffer_write() */
 			sync_lock_no_flags(&result->buffer_sync);
 			break;
 		/* This subbuffer is not enough => it goes to read list */
@@ -515,7 +529,8 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 			callback_queue.end_ptr = NULL;
 
 		tmp_buffer = callback_queue.start_ptr;
-		callback_queue.start_ptr = callback_queue.start_ptr->next_in_queue;
+		callback_queue.start_ptr =
+			callback_queue.start_ptr->next_in_queue;
 
 		add_to_read_list_with_callback(tmp_buffer);
 	}
@@ -589,7 +604,7 @@ void add_to_busy_list(struct swap_subbuffer *subbuffer)
  */
 int remove_from_busy_list(struct swap_subbuffer *subbuffer)
 {
-	int result = -E_SB_NO_SUBBUFFER_IN_BUSY; // For sanitization
+	int result = -E_SB_NO_SUBBUFFER_IN_BUSY;  /* For sanitization */
 	int i;
 
 	/* Lock busy list sync primitive */
@@ -627,8 +642,8 @@ void buffer_queue_flush(void)
 	while (write_queue.start_ptr &&
 	       write_queue.start_ptr->full_buffer_part) {
 
-		/* Lock buffer sync primitive to prevent writing to buffer if it had
-		 * been selected for writing, but still wasn't wrote. */
+		/* Lock buffer sync primitive to prevent writing to buffer if it
+		 * had been selected for writing, but still wasn't wrote. */
 		sync_lock(&buffer->buffer_sync);
 
 		buffer = write_queue.start_ptr;
@@ -666,6 +681,8 @@ int get_busy_buffers_count(void)
  */
 int get_pages_count_in_subbuffer(void)
 {
-/* Return 1 if pages order 0, or 2 of power pages_order_in_subbuffer otherwise */
-	return (pages_order_in_subbuffer) ? 2 << (pages_order_in_subbuffer - 1) : 1;
+/* Return 1 if pages order 0,
+ * or 2 of power pages_order_in_subbuffer otherwise */
+	return (pages_order_in_subbuffer) ?
+		2 << (pages_order_in_subbuffer - 1) : 1;
 }

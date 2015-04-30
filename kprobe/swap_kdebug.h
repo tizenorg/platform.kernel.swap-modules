@@ -33,16 +33,17 @@
 #ifndef _SWAP_KPROBE_DEBUG_H
 #define _SWAP_KPROBE_DEBUG_H
 
-//#define _DEBUG
+/* #define _DEBUG */
 
 #ifdef _DEBUG
 #define DBPRINTF(format, args...) do { \
-		if( 1 ){ \
+		if (1) { \
 			char *f = __FILE__; \
 			char *n = strrchr(f, '/'); \
-			printk("%s : %u : %s : " format "\n" , (n) ? n+1 : f, __LINE__, __FUNCTION__, ##args); \
+			printk(KERN_INFO "%s : %u : %s : " format "\n" , \
+			       (n) ? n+1 : f, __LINE__, __func__, ##args); \
 		} \
-	} while(0)
+	} while (0)
 #else
 #define DBPRINTF(format, args...)
 #endif

@@ -76,7 +76,7 @@ static const struct file_operations fops_tasks = {
  * ============================================================================
  */
 
-static struct dentry *us_manager_dir = NULL;
+static struct dentry *us_manager_dir;
 
 /**
  * @brief Destroy debugfs for us_manager
@@ -108,8 +108,8 @@ int init_debugfs_us_manager(void)
 	if (us_manager_dir == NULL)
 		return -ENOMEM;
 
-	dentry = debugfs_create_file(US_MANAGER_TASKS, 0600, us_manager_dir, NULL,
-				 &fops_tasks);
+	dentry = debugfs_create_file(US_MANAGER_TASKS, 0600, us_manager_dir,
+				     NULL, &fops_tasks);
 	if (dentry == NULL)
 		goto fail;
 

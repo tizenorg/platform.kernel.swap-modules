@@ -33,18 +33,18 @@
 
 /** Prints debug message.*/
 #define print_debug(msg, args...) \
-    printk(KERN_DEBUG "SWAP_DRIVER DEBUG : " msg, ##args)
+	printk(KERN_DEBUG "SWAP_DRIVER DEBUG : " msg, ##args)
 /** Prints info message.*/
 #define print_msg(msg, args...)   \
-    printk(KERN_INFO "SWAP_DRIVER : " msg, ##args)
+	printk(KERN_INFO "SWAP_DRIVER : " msg, ##args)
 /** Prints warning message.*/
 #define print_warn(msg, args...)  \
-    printk(KERN_WARNING "SWAP_DRIVER WARNING : " msg, ##args)
+	printk(KERN_WARNING "SWAP_DRIVER WARNING : " msg, ##args)
 /** Prints error message.*/
 #define print_err(msg, args...)   \
-    printk(KERN_ERR "SWAP_DRIVER ERROR : " msg, ##args)
+	printk(KERN_ERR "SWAP_DRIVER ERROR : " msg, ##args)
 /** Prints critical error message.*/
 #define print_crit(msg, args...)  \
-    printk(KERN_CRIT "SWAP_DRIVER CRITICAL : " msg, ##args)
+	printk(KERN_CRIT "SWAP_DRIVER CRITICAL : " msg, ##args)
 
 #endif /* __SWAP_DRIVER_DEVICE_DEFS_H__ */

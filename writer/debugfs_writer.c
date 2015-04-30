@@ -43,7 +43,7 @@
  * ===                               BUFFER                                 ===
  * ============================================================================
  */
-static char *common_buf = NULL;
+static char *common_buf;
 enum { subbuf_size = 8*1024 };
 enum { common_buf_size = subbuf_size * NR_CPUS };
 
@@ -235,7 +235,7 @@ static const struct file_operations fops_filter = {
  * ===                              INIT/EXIT                               ===
  * ============================================================================
  */
-static struct dentry *writer_dir = NULL;
+static struct dentry *writer_dir;
 
 /**
  * @brief Removes writer debugfs.
@@ -278,11 +278,13 @@ int init_debugfs_writer(void)
 	if (dentry == NULL)
 		goto fail;
 
-	dentry = debugfs_create_file("available_filters", 0600, writer_dir, NULL, &fops_available_filters);
+	dentry = debugfs_create_file("available_filters", 0600, writer_dir,
+				     NULL, &fops_available_filters);
 	if (dentry == NULL)
 		goto fail;
 
-	dentry = debugfs_create_file("filter", 0600, writer_dir, NULL, &fops_filter);
+	dentry = debugfs_create_file("filter", 0600,
+				     writer_dir, NULL, &fops_filter);
 	if (dentry == NULL)
 		goto fail;
 

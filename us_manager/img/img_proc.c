@@ -72,7 +72,8 @@ static void img_del_file_by_list(struct img_file *file)
 	list_del(&file->list);
 }
 
-static struct img_file *find_img_file(struct img_proc *proc, struct dentry *dentry)
+static struct img_file *find_img_file(struct img_proc *proc,
+				      struct dentry *dentry)
 {
 	struct img_file *file;
 
@@ -107,11 +108,11 @@ int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 
 	ret = img_file_add_ip(file, addr, probe_i);
 	if (ret) {
-		printk("Cannot add ip to img file\n");
+		printk(KERN_INFO "Cannot add ip to img file\n");
 		free_img_file(file);
-	}
-	else
+	} else {
 		img_add_file_by_list(proc, file);
+	}
 
 	return ret;
 }
@@ -124,7 +125,9 @@ int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
  * @param args Function address
  * @return Error code
  */
-int img_proc_del_ip(struct img_proc *proc, struct dentry *dentry, unsigned long addr)
+int img_proc_del_ip(struct img_proc *proc,
+		    struct dentry *dentry,
+		    unsigned long addr)
 {
 	int ret;
 	struct img_file *file;
@@ -154,7 +157,7 @@ void img_proc_print(struct img_proc *proc)
 {
 	struct img_file *file;
 
-	printk("### img_proc_print:\n");
+	printk(KERN_INFO "### img_proc_print:\n");
 	list_for_each_entry(file, &proc->file_list, list) {
 		img_file_print(file);
 	}

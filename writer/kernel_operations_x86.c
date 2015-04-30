@@ -60,18 +60,18 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 		stack_args = 6;
 
 		switch (args_in_regs) {
-			case 5:
-				args[5] = regs->bp;
-			case 4:
-				args[4] = regs->di;
-			case 3:
-				args[3] = regs->si;
-			case 2:
-				args[2] = regs->dx;
-			case 1:
-				args[1] = regs->cx;
-			case 0:
-				args[0] = regs->bx;
+		case 5:
+			args[5] = regs->bp;
+		case 4:
+			args[4] = regs->di;
+		case 3:
+			args[3] = regs->si;
+		case 2:
+			args[2] = regs->dx;
+		case 1:
+			args[1] = regs->cx;
+		case 0:
+			args[0] = regs->bx;
 		}
 	}
 
@@ -80,7 +80,7 @@ int get_args(unsigned long args[], int cnt, struct pt_regs *regs)
 		unsigned long *args_in_sp = (unsigned long *)regs->sp +
 					    1 + i - stack_args;
 		if (get_user(args[i], args_in_sp))
-			printk("failed to dereference a pointer, addr=%p\n",
+			printk(KERN_INFO "failed to dereference a pointer, addr=%p\n",
 			       args_in_sp);
 	}
 

@@ -36,14 +36,12 @@ static int check_dentry(struct task_struct *task, struct dentry *dentry)
 	struct vm_area_struct *vma;
 	struct mm_struct *mm = task->mm;
 
-	if (mm == NULL) {
+	if (mm == NULL)
 		return 0;
-	}
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if (check_vma(vma) && vma->vm_file->f_dentry == dentry) {
+		if (check_vma(vma) && vma->vm_file->f_dentry == dentry)
 			return 1;
-		}
 	}
 
 	return 0;

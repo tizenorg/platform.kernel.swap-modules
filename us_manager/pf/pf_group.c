@@ -448,11 +448,10 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	}
 
 	if (proc) {
-		if (pfg_first) {
+		if (pfg_first)
 			first_install(task, proc, pfg_first);
-		} else {
+		else
 			subsequent_install(task, proc, page_addr);
-		}
 	}
 }
 

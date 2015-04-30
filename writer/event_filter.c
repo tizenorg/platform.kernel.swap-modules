@@ -168,5 +168,5 @@ int event_filter_init(void)
  */
 void event_filter_exit(void)
 {
-	event_filter_unregister(&filter_none);;
+	event_filter_unregister(&filter_none);
 }

@@ -26,7 +26,7 @@
 
 struct sspt_feature;
 
-typedef void * sspt_feature_id_t;	/**< @brief sspt feature ID type */
+typedef void *sspt_feature_id_t;	/**< @brief sspt feature ID type */
 #define SSPT_FEATURE_ID_BAD	NULL	/**< @def SSPT_FEATURE_ID_BAD */
 
 struct sspt_feature *sspt_create_feature(void);

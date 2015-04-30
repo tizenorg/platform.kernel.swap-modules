@@ -153,7 +153,8 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 
 /* ====================== SWITCH_CONTEXT ======================= */
-static int switch_entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int switch_entry_handler(struct kretprobe_instance *ri,
+				struct pt_regs *regs)
 {
 	if (check_event(current))
 		switch_entry(regs);
@@ -161,7 +162,8 @@ static int switch_entry_handler(struct kretprobe_instance *ri, struct pt_regs *r
 	return 0;
 }
 
-static int switch_ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
+static int switch_ret_handler(struct kretprobe_instance *ri,
+			      struct pt_regs *regs)
 {
 	if (check_event(current))
 		switch_exit(regs);
@@ -179,7 +181,7 @@ struct kretprobe switch_rp = {
 };
 
 static DEFINE_MUTEX(mutex_sc_enable);
-static int sc_enable = 0;
+static int sc_enable;
 
 /**
  * @brief Get scheduler address.
@@ -192,7 +194,7 @@ int init_switch_context(void)
 
 	addr = swap_ksyms("__switch_to");
 	if (addr == 0) {
-		printk("ERROR: not found '__switch_to'\n");
+		printk(KERN_INFO "ERROR: not found '__switch_to'\n");
 		return -EINVAL;
 	}
 
@@ -218,7 +220,7 @@ static int register_switch_context(void)
 
 	mutex_lock(&mutex_sc_enable);
 	if (sc_enable) {
-		printk("switch context profiling is already run!\n");
+		printk(KERN_INFO "switch context profiling is already run!\n");
 		goto unlock;
 	}
 
@@ -238,7 +240,7 @@ static int unregister_switch_context(void)
 
 	mutex_lock(&mutex_sc_enable);
 	if (sc_enable == 0) {
-		printk("switch context profiling is not running!\n");
+		printk(KERN_INFO "switch context profiling is not running!\n");
 		ret = -EINVAL;
 		goto unlock;
 	}
@@ -260,7 +262,7 @@ unlock:
 static int register_syscall(size_t id)
 {
 	int ret;
-	printk("register_syscall: %s\n", get_sys_name(id));
+	printk(KERN_INFO "register_syscall: %s\n", get_sys_name(id));
 
 	if (ksp[id].rp.kp.addr == NULL)
 		return 0;
@@ -276,7 +278,7 @@ static int register_syscall(size_t id)
 
 static int unregister_syscall(size_t id)
 {
-	printk("unregister_syscall: %s\n", get_sys_name(id));
+	printk(KERN_INFO "unregister_syscall: %s\n", get_sys_name(id));
 
 	if (ksp[id].rp.kp.addr == NULL)
 		return 0;
@@ -304,7 +306,7 @@ static int unregister_multiple_syscalls(size_t *id_p, size_t cnt)
 			ret = unregister_syscall(id_p[cnt]);
 			if (ret)
 				return ret;
-        }
+		}
 		return ret;
 	}
 
@@ -347,7 +349,7 @@ static void do_uninstall_features(struct feature *f, size_t i)
 		id = f->feature_list[i];
 
 		if (get_counter(id) == 0) {
-			printk("syscall %s not installed\n",
+			printk(KERN_INFO "syscall %s not installed\n",
 			       get_sys_name(id));
 			kfree(id_p);
 			BUG();
@@ -362,7 +364,7 @@ static void do_uninstall_features(struct feature *f, size_t i)
 			} else {
 				ret = unregister_syscall(id);
 				if (ret)
-					printk("syscall %s uninstall error, ret=%d\n",
+					printk(KERN_INFO "syscall %s uninstall error, ret=%d\n",
 						   get_sys_name(id), ret);
 			}
 		}
@@ -388,7 +390,7 @@ static int do_install_features(struct feature *f)
 		if (get_counter(id) == 0) {
 			ret = register_syscall(id);
 			if (ret) {
-				printk("syscall %s install error, ret=%d\n",
+				printk(KERN_INFO "syscall %s install error, ret=%d\n",
 				       get_sys_name(id), ret);
 
 				do_uninstall_features(f, --i);
@@ -410,7 +412,7 @@ static int install_features(struct feature *f)
 
 	mutex_lock(&mutex_features);
 	if (f->enable) {
-		printk("energy profiling is already run!\n");
+		printk(KERN_INFO "energy profiling is already run!\n");
 		ret = -EINVAL;
 		goto unlock;
 	}
@@ -429,7 +431,8 @@ static int uninstall_features(struct feature *f)
 
 	mutex_lock(&mutex_features);
 	if (f->enable == 0) {
-		printk("feature[%d] is not running!\n", feature_index(f));
+		printk(KERN_INFO "feature[%d] is not running!\n",
+		       feature_index(f));
 		ret = -EINVAL;
 		goto unlock;
 	}
@@ -469,7 +472,7 @@ int set_feature(enum feature_id id)
 		break;
 	default:
 		f = get_feature(id);
-		ret = f ? install_features(f): -EINVAL;
+		ret = f ? install_features(f) : -EINVAL;
 		break;
 	}
 
@@ -497,7 +500,7 @@ int unset_feature(enum feature_id id)
 		break;
 	default:
 		f = get_feature(id);
-		ret = f ? uninstall_features(f): -EINVAL;
+		ret = f ? uninstall_features(f) : -EINVAL;
 		break;
 	}
 
@@ -517,9 +520,9 @@ static int init_syscall_features(void)
 		name = get_sys_name(i);
 		addr = swap_ksyms(name);
 		if (addr == 0) {
-			printk("INFO: %s() not found\n", name);
+			printk(KERN_INFO "INFO: %s() not found\n", name);
 		} else if (ni_syscall == addr) {
-			printk("INFO: %s is not install\n", name);
+			printk(KERN_INFO "INFO: %s is not install\n", name);
 			addr = 0;
 		}
 
@@ -568,9 +571,9 @@ static void print_feature(struct feature *f)
 {
 	size_t i;
 
-	for (i = 0; i < f->cnt; ++i) {
-		printk("    feature[%3u]: %s\n", i, get_sys_name(f->feature_list[i]));
-	}
+	for (i = 0; i < f->cnt; ++i)
+		printk(KERN_INFO "    feature[%3u]: %s\n", i,
+		       get_sys_name(f->feature_list[i]));
 }
 
 /**
@@ -582,9 +585,9 @@ void print_features(void)
 {
 	int i;
 
-	printk("print_features:\n");
+	printk(KERN_INFO "print_features:\n");
 	for (i = 0; i < feature_cnt; ++i) {
-		printk("feature: %d\n", i);
+		printk(KERN_INFO "feature: %d\n", i);
 		print_feature(&features[i]);
 	}
 }
@@ -598,9 +601,9 @@ void print_all_syscall(void)
 {
 	int i;
 
-	printk("SYSCALL:\n");
-	for (i = 0; i < syscall_name_cnt; ++i) {
-		printk("    [%2d] %s\n", get_counter(i), get_sys_name(i));
-	}
+	printk(KERN_INFO "SYSCALL:\n");
+	for (i = 0; i < syscall_name_cnt; ++i)
+		printk(KERN_INFO "    [%2d] %s\n",
+		       get_counter(i), get_sys_name(i));
 }
 /* debug */

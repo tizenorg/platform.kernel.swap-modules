@@ -108,7 +108,7 @@ static const struct file_operations fops_enable = {
 };
 
 
-static struct dentry *swap_dir = NULL;
+static struct dentry *swap_dir;
 
 /**
  * @brief Get debugfs dir.
