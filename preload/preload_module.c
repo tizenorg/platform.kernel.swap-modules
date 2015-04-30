@@ -14,6 +14,7 @@
 #include <us_manager/sspt/sspt_proc.h>
 #include <us_manager/sspt/ip.h>
 #include <writer/kernel_operations.h>
+#include <master/swap_initializer.h>
 #include <task_data/task_data.h>
 #include "preload.h"
 #include "preload_probe.h"
@@ -726,7 +727,7 @@ void preload_unset(void)
 
 }
 
-static int __init preload_module_init(void)
+static int preload_module_init(void)
 {
 	int ret;
 
@@ -783,7 +784,7 @@ out_err:
 	return ret;
 }
 
-static void __exit preload_module_exit(void)
+static void preload_module_exit(void)
 {
 	unregister_preload_probes();
 	preload_threads_exit();
@@ -796,8 +797,8 @@ static void __exit preload_module_exit(void)
 	WARN(get_put_counter, "Bad GET/PUT balance: %d\n", get_put_counter);
 }
 
-module_init(preload_module_init);
-module_exit(preload_module_exit);
+SWAP_LIGHT_INIT_MODULE(NULL, preload_module_init, preload_module_exit,
+		       NULL, NULL);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SWAP Preload Module");

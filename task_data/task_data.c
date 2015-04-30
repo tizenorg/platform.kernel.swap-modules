@@ -5,6 +5,7 @@
 #include <linux/slab.h>
 #include <kprobe/swap_kprobes.h>
 #include <ksyms/ksyms.h>
+#include <master/swap_initializer.h>
 #include "task_data.h"
 
 /* lower bits are used as flags */
@@ -166,7 +167,7 @@ static int __task_data_exit(void *data)
 	return 0;
 }
 
-static int __init task_data_init(void)
+static int task_data_init(void)
 {
 	int ret;
 
@@ -178,7 +179,7 @@ static int __init task_data_init(void)
 	return ret;
 }
 
-static void __exit task_data_exit(void)
+static void task_data_exit(void)
 {
 	int ret;
 
@@ -193,8 +194,8 @@ static void __exit task_data_exit(void)
 	}
 }
 
-module_init(task_data_init);
-module_exit(task_data_exit);
+SWAP_LIGHT_INIT_MODULE(NULL, task_data_init, task_data_exit, NULL, NULL);
+
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SWAP Task Data Module");
