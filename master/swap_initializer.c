@@ -335,7 +335,7 @@ int swap_init_register(struct swap_init_struct *init)
 		ret = sis_init(init);
 
 	if (ret == 0)
-		list_add(&init->list, &init_list);
+		list_add_tail(&init->list, &init_list);
 	mutex_unlock(&inst_mutex);
 
 	return ret;
