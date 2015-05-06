@@ -32,7 +32,7 @@
 #include <linux/debugfs.h>
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <master/swap_debugfs.h>
 #include <master/swap_initializer.h>
 #include "swap_writer_module.h"

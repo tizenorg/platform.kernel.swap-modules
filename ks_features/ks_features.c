@@ -30,8 +30,7 @@
 
 #include <linux/module.h>
 #include <linux/slab.h>
-
-#include <asm/errno.h>
+#include <linux/errno.h>
 #include <ksyms/ksyms.h>
 #include <kprobe/swap_kprobes.h>
 #include <master/swap_initializer.h>
@@ -300,7 +299,7 @@ static int unregister_multiple_syscalls(size_t *id_p, size_t cnt)
 
 	--cnt;
 
-	rpp = kmalloc(GFP_KERNEL, sizeof(&(((struct ks_probe *) 0)->rp)) * cnt);
+	rpp = kmalloc(sizeof(*rpp) * cnt, GFP_KERNEL);
 	if (rpp == NULL) {
 		for (; cnt != end; --cnt) {
 			ret = unregister_syscall(id_p[cnt]);

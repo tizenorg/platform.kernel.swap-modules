@@ -33,7 +33,7 @@
 #define __KERNEL_OPERATIONS_H__
 
 #include <linux/kernel.h>
-#include <asm/ptrace.h>
+#include <linux/ptrace.h>
 
 /* MESSAGES */
 

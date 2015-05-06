@@ -28,7 +28,7 @@
  * Timer-based sampling module.
  */
 
-#include <asm/ptrace.h>
+#include <linux/ptrace.h>
 #include <linux/jiffies.h>
 #include <linux/sched.h>
 #include <linux/notifier.h>

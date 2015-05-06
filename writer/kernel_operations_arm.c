@@ -27,9 +27,8 @@
  * ARM arch-dependent operations.
  */
 
-#include <asm/ptrace.h>
-#include <asm/uaccess.h>
-#include <asm/page.h>
+#include <linux/ptrace.h>
+#include <linux/uaccess.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <generated/autoconf.h>

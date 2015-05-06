@@ -34,7 +34,7 @@
 #include <linux/semaphore.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
-#include <asm/fcntl.h>
+#include <linux/fcntl.h>
 
 /**
  * @def KSYMS_ERR

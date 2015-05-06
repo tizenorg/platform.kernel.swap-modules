@@ -27,9 +27,9 @@
  * X86 arch-dependent operations.
  */
 
-#include <asm/ptrace.h>
-#include <asm/uaccess.h>
-#include <asm/elf.h>
+#include <linux/ptrace.h>
+#include <linux/uaccess.h>
+#include <linux/elf.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
