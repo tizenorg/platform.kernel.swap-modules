@@ -21,14 +21,43 @@
 
 
 #include <linux/fs.h>
+#include <linux/stat.h>
 #include <linux/sched.h>
 #include <linux/dcache.h>
-
+#include <linux/fdtable.h>
 #include <writer/swap_msg.h>
 #include <us_manager/sspt/sspt.h>	/* ... check_vma() */
 
 
 #define USM_PREFIX      KERN_INFO "[USM] "
+
+
+static struct files_struct *(*swap_get_files_struct)(struct task_struct *);
+static void (*swap_put_files_struct)(struct files_struct *fs);
+
+int usm_msg_once(void)
+{
+	const char *sym;
+
+	sym = "get_files_struct";
+	swap_get_files_struct = (void *)swap_ksyms(sym);
+	if (swap_get_files_struct == NULL)
+		goto not_found;
+
+	sym = "put_files_struct";
+	swap_put_files_struct = (void *)swap_ksyms(sym);
+	if (swap_put_files_struct == NULL)
+		goto not_found;
+
+	return 0;
+
+not_found:
+	printk("ERROR: symbol '%s' not found\n", sym);
+	return -ESRCH;
+}
+
+
+
 
 
 struct kmem_info {
@@ -459,5 +488,124 @@ void usm_msg_comm(struct task_struct *task)
 	get_task_comm(c->comm, task);
 
 	swap_msg_flush(m, sizeof(*c) + strlen(c->comm) + 1);
+	swap_msg_put(m);
+}
+
+
+
+
+
+/* ============================================================================
+ * =                          MSG_PROCESS_STATUS_INFO                         =
+ * ============================================================================
+ */
+struct ofile {
+	u32 fd;
+	u64 size;
+	char path[0];
+} __packed;
+
+static int pack_ofile(void *data, size_t size, int fd, struct file *file,
+		      loff_t fsize)
+{
+	int ret;
+	struct ofile *ofile;
+
+	if (size < sizeof(*ofile))
+		return -ENOMEM;
+
+	ofile = (struct ofile *)data;
+	ofile->fd = (u32)fd;
+	ofile->size = (u64)fsize;
+
+	ret = pack_path(ofile->path, size - sizeof(*ofile), file);
+	if (ret < 0)
+		return ret;
+
+	return sizeof(*ofile) + ret;
+}
+
+static int pack_status_info(void *data, size_t size, struct task_struct *task)
+{
+	int ret, fd;
+	u32 *file_cnt;
+	struct files_struct *files;
+	const size_t old_size = size;
+
+	files = swap_get_files_struct(task);
+	if (files == NULL) {
+		ret = -EIO;
+		goto put_fstruct;
+	}
+
+	/* pack pid */
+	*((u32 *)data) = (u32)task->tgid;
+	data += 4;
+	size -= 4;
+
+	/* pack file count */
+	file_cnt = (u32 *)data;
+	*file_cnt = 0;
+	data += 4;
+	size -= 4;
+
+	/* pack file list */
+	rcu_read_lock();
+	for (fd = 0; fd < files_fdtable(files)->max_fds; ++fd) {
+		struct file *file;
+		struct inode *inode;
+		loff_t fsize;
+
+		file = fcheck_files(files, fd);
+		if (file == NULL)
+                        continue;
+
+		inode = file->f_path.dentry->d_inode;
+		/* check inode and if it is a regular file */
+		if (inode == NULL || !S_ISREG(inode->i_mode))
+			continue;
+
+		fsize = inode->i_size;
+		rcu_read_unlock();
+
+		ret = pack_ofile(data, size, fd, file, fsize);
+		if (ret < 0)
+			goto put_fstruct;
+
+		data += ret;
+		size -= ret;
+		++(*file_cnt);
+
+		rcu_read_lock();
+	}
+	rcu_read_unlock();
+	ret = old_size - size;
+
+put_fstruct:
+	swap_put_files_struct(files);
+	return ret;
+}
+
+void usm_msg_status_info(struct task_struct *task)
+{
+	int ret;
+	void *data;
+	size_t size;
+	struct swap_msg *m;
+
+	m = swap_msg_get(MSG_PROCESS_STATUS_INFO);
+
+	data = swap_msg_payload(m);
+	size = swap_msg_size(m);
+	ret = pack_status_info(data, size, task);
+	if (ret < 0) {
+		printk(USM_PREFIX "ERROR: MSG_PROCESS_STATUS_INFO "
+		       "packing, ret=%d\n", ret);
+		goto put_msg;
+	}
+
+	swap_msg_flush(m, ret);
+
+put_msg:
 	swap_msg_put(m);
 }

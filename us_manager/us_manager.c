@@ -28,6 +28,7 @@
 #include "sspt/sspt_proc.h"
 #include "helper.h"
 #include "us_manager.h"
+#include "usm_msg.h"
 #include "debugfs_us_manager.h"
 #include <writer/event_filter.h>
 #include <master/swap_initializer.h>
@@ -205,6 +206,17 @@ static void exit_us_filter(void)
 
 
 
+static int usm_once(void)
+{
+	int ret;
+
+	ret = once_helper();
+	if (ret)
+		return ret;
+
+	return usm_msg_once();
+}
+
 static int init_us_manager(void)
 {
 	int ret;
@@ -222,7 +234,7 @@ static void exit_us_manager(void)
 	exit_us_filter();
 }
 
-SWAP_LIGHT_INIT_MODULE(once_helper, init_us_manager, exit_us_manager,
+SWAP_LIGHT_INIT_MODULE(usm_once, init_us_manager, exit_us_manager,
 		       init_debugfs_us_manager, exit_debugfs_us_manager);
 
 MODULE_LICENSE("GPL");

@@ -191,6 +191,7 @@ static void first_install(struct task_struct *task, struct sspt_proc *proc,
 
 	down_write(&task->mm->mmap_sem);
 	usm_msg_info(task, dentry);
+	usm_msg_status_info(task);
 	sspt_proc_install(proc);
 	up_write(&task->mm->mmap_sem);
 }

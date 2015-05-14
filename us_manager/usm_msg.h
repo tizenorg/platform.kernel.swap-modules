@@ -28,12 +28,14 @@ struct dentry;
 struct task_struct;
 struct vm_area_struct;
 
+int usm_msg_once(void);
 
 void usm_msg_info(struct task_struct *task, struct dentry *dentry);
 void usm_msg_term(struct task_struct *task);
 void usm_msg_map(struct vm_area_struct *vma);
 void usm_msg_unmap(unsigned long start, unsigned long end);
 void usm_msg_comm(struct task_struct *task);
+void usm_msg_status_info(struct task_struct *task);
 
 
 #endif /* _USM_MSG_H */
