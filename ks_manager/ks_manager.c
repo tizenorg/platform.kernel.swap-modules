@@ -144,7 +144,7 @@ EXPORT_SYMBOL_GPL(ksm_unregister_probe_all);
 
 static int __init init_ks_manager(void)
 {
-       return 0;
+	return 0;
 }
 
 static void __exit exit_ks_manager(void)
@@ -155,4 +155,4 @@ static void __exit exit_ks_manager(void)
 module_init(init_ks_manager);
 module_exit(exit_ks_manager);
 
-MODULE_LICENSE ("GPL");
+MODULE_LICENSE("GPL");

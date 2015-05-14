@@ -62,12 +62,12 @@
 
 /* swap_device driver routines */
 static ssize_t swap_device_read(struct file *filp, char __user *buf,
-								size_t count, loff_t *f_pos);
+				size_t count, loff_t *f_pos);
 static long swap_device_ioctl(struct file *filp, unsigned int cmd,
-							 unsigned long arg);
+			      unsigned long arg);
 static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
-									   struct pipe_inode_info *pipe, size_t len,
-									   unsigned int flags);
+				       struct pipe_inode_info *pipe, size_t len,
+				       unsigned int flags);
 
 /**
  * @var swap_device_fops
@@ -90,22 +90,22 @@ typedef ssize_t(*splice_to_pipe_p_t)(struct pipe_inode_info *pipe,
 typedef int(*splice_grow_spd_p_t)(const struct pipe_inode_info *pipe,
 					struct splice_pipe_desc *spd);
 
-static splice_to_pipe_p_t splice_to_pipe_p = NULL;
-static splice_grow_spd_p_t splice_grow_spd_p = NULL;
+static splice_to_pipe_p_t splice_to_pipe_p;
+static splice_grow_spd_p_t splice_grow_spd_p;
 
-static msg_handler_t msg_handler = NULL;
+static msg_handler_t msg_handler;
 
 /* Device numbers */
-static dev_t swap_device_no = 0;
+static dev_t swap_device_no;
 
 /* Device cdev struct */
-static struct cdev *swap_device_cdev = NULL;
+static struct cdev *swap_device_cdev;
 
 /* Device class struct */
-static struct class *swap_device_class = NULL;
+static struct class *swap_device_class;
 
 /* Device device struct */
-static struct device *swap_device_device = NULL;
+static struct device *swap_device_device;
 
 /* Reading tasks queue */
 static DECLARE_WAIT_QUEUE_HEAD(swap_device_wait);
@@ -145,7 +145,7 @@ static void exit_w_wake_up(void)
  * @return Void.
  */
 void swap_device_splice_shrink_spd(struct pipe_inode_info *pipe,
-                                   struct splice_pipe_desc *spd)
+				   struct splice_pipe_desc *spd)
 {
 	if (pipe->buffers <= PIPE_DEF_BUFFERS)
 		return;
@@ -162,7 +162,7 @@ void swap_device_splice_shrink_spd(struct pipe_inode_info *pipe,
  *
  * @return 0 on success, negative error code otherwise.
  */
- int swap_device_init(void)
+int swap_device_init(void)
 {
 	int result;
 
@@ -174,8 +174,8 @@ void swap_device_splice_shrink_spd(struct pipe_inode_info *pipe,
 		goto init_fail;
 	}
 
-	/* Creating device class. Using IS_ERR, because class_create returns ERR_PTR
-	 * on error. */
+	/* Creating device class. Using IS_ERR, because class_create
+	 * returns ERR_PTR on error. */
 	swap_device_class = class_create(THIS_MODULE, SWAP_DEVICE_NAME);
 	if (IS_ERR(swap_device_class)) {
 		print_crit("Class creation has failed\n");
@@ -203,8 +203,9 @@ void swap_device_splice_shrink_spd(struct pipe_inode_info *pipe,
 	}
 
 	/* Create device struct */
-	swap_device_device = device_create(swap_device_class, NULL, swap_device_no,
-									   "%s", SWAP_DEVICE_NAME);
+	swap_device_device = device_create(swap_device_class, NULL,
+					   swap_device_no,
+					   "%s", SWAP_DEVICE_NAME);
 	if (IS_ERR(swap_device_device)) {
 		print_crit("Device struct creating has failed\n");
 		result = -E_SD_DEVICE_CREATE_FAIL;
@@ -229,15 +230,12 @@ void swap_device_splice_shrink_spd(struct pipe_inode_info *pipe,
 	return 0;
 
 init_fail:
-	if (swap_device_cdev) {
+	if (swap_device_cdev)
 		cdev_del(swap_device_cdev);
-	}
-	if (swap_device_class) {
+	if (swap_device_class)
 		class_destroy(swap_device_class);
-	}
-	if (swap_device_no) {
+	if (swap_device_no)
 		unregister_chrdev_region(swap_device_no, 1);
-	}
 	return result;
 }
 
@@ -262,28 +260,29 @@ void swap_device_exit(void)
 }
 
 static ssize_t swap_device_read(struct file *filp, char __user *buf,
-								size_t count, loff_t *f_pos)
+				size_t count, loff_t *f_pos)
 {
 	/* Wait queue item that consists current task. It is used to be added in
 	 * swap_device_wait queue if there is no data to be read. */
 	DEFINE_WAIT(wait);
 	int result;
 
-	//TODO : Think about spin_locks to prevent reading race condition.
-	while((result = driver_to_buffer_next_buffer_to_read()) != E_SD_SUCCESS) {
+	/* TODO : Think about spin_locks to prevent reading race condition. */
+	while ((result =
+		driver_to_buffer_next_buffer_to_read()) != E_SD_SUCCESS) {
 
-		/* Add process to the swap_device_wait queue and set the current task
-		 * state TASK_INTERRUPTIBLE. If there is any data to be read, then the
-		 * current task is removed from the swap_device_wait queue and its state
-		 * is changed to this. */
+		/* Add process to the swap_device_wait queue and set the current
+		 * task state TASK_INTERRUPTIBLE. If there is any data to be
+		 * read, then the current task is removed from the
+		 * swap_device_wait queue and its state is changed to this. */
 		prepare_to_wait(&swap_device_wait, &wait, TASK_INTERRUPTIBLE);
 
 		if (result < 0) {
 			result = 0;
 			goto swap_device_read_error;
 		} else if (result == E_SD_NO_DATA_TO_READ) {
-			/* Yes, E_SD_NO_DATA_TO_READ should be positive, cause it's not
-			 * really an error */
+			/* Yes, E_SD_NO_DATA_TO_READ should be positive,
+			 * cause it's not really an error */
 			if (filp->f_flags & O_NONBLOCK) {
 				result = -EAGAIN;
 				goto swap_device_read_error;
@@ -316,88 +315,88 @@ static long swap_device_ioctl(struct file *filp, unsigned int cmd,
 {
 	int result;
 
-	switch(cmd) {
-		case SWAP_DRIVER_BUFFER_INITIALIZE:
-		{
-			struct buffer_initialize initialize_struct;
+	switch (cmd) {
+	case SWAP_DRIVER_BUFFER_INITIALIZE:
+	{
+		struct buffer_initialize initialize_struct;
 
-			result = copy_from_user(&initialize_struct, (void*)arg,
-									sizeof(struct buffer_initialize));
-			if (result) {
-				break;
-			}
+		result = copy_from_user(&initialize_struct, (void *)arg,
+					sizeof(struct buffer_initialize));
+		if (result)
+			break;
 
-			if (initialize_struct.size > MAXIMUM_SUBBUFFER_SIZE) {
-				print_err("Wrong subbuffer size\n");
-				result = -E_SD_WRONG_ARGS;
-				break;
-			}
+		if (initialize_struct.size > MAXIMUM_SUBBUFFER_SIZE) {
+			print_err("Wrong subbuffer size\n");
+			result = -E_SD_WRONG_ARGS;
+			break;
+		}
 
-			result = driver_to_buffer_initialize(initialize_struct.size,
-												 initialize_struct.count);
-			if (result < 0) {
-				print_err("Buffer initialization failed %d\n", result);
-				break;
-			}
-			result = E_SD_SUCCESS;
+		result = driver_to_buffer_initialize(initialize_struct.size,
+						     initialize_struct.count);
+		if (result < 0) {
+			print_err("Buffer initialization failed %d\n", result);
+			break;
+		}
+		result = E_SD_SUCCESS;
 
-			break;
+		break;
+	}
+	case SWAP_DRIVER_BUFFER_UNINITIALIZE:
+	{
+		result = driver_to_buffer_uninitialize();
+		if (result < 0)
+			print_err("Buffer uninitialization failed %d\n",
+				  result);
+		break;
+	}
+	case SWAP_DRIVER_NEXT_BUFFER_TO_READ:
+	{
+		/* Use this carefully */
+		result = driver_to_buffer_next_buffer_to_read();
+		if (result == E_SD_NO_DATA_TO_READ) {
+			/* TODO Do what we usually do when there are no
+			 * subbuffers to read (make daemon sleep ?) */
 		}
-		case SWAP_DRIVER_BUFFER_UNINITIALIZE:
-		{
-			result = driver_to_buffer_uninitialize();
-			if (result < 0)
-				print_err("Buffer uninitialization failed %d\n", result);
-			break;
-		}
-		case SWAP_DRIVER_NEXT_BUFFER_TO_READ:
-		{
-			/* Use this carefully */
-			result = driver_to_buffer_next_buffer_to_read();
-			if (result == E_SD_NO_DATA_TO_READ) {
-				/* TODO Do what we usually do when there are no subbuffers to
-				 * read (make daemon sleep ?) */
-			}
-			break;
-		}
-		case SWAP_DRIVER_FLUSH_BUFFER:
-		{
-			result = driver_to_buffer_flush();
-			break;
-		}
-		case SWAP_DRIVER_MSG:
-		{
-			if (msg_handler) {
-				result = msg_handler((void __user *)arg);
-			} else {
-				print_warn("msg_handler() is not register\n");
-				result = -EINVAL;
-			}
-			break;
-		}
-		case SWAP_DRIVER_WAKE_UP:
-		{
-			swap_device_wake_up_process();
-			result = E_SD_SUCCESS;
-			break;
-		}
-		default:
-			print_warn("Unknown command %d\n", cmd);
+		break;
+	}
+	case SWAP_DRIVER_FLUSH_BUFFER:
+	{
+		result = driver_to_buffer_flush();
+		break;
+	}
+	case SWAP_DRIVER_MSG:
+	{
+		if (msg_handler) {
+			result = msg_handler((void __user *)arg);
+		} else {
+			print_warn("msg_handler() is not register\n");
 			result = -EINVAL;
-			break;
+		}
+		break;
+	}
+	case SWAP_DRIVER_WAKE_UP:
+	{
+		swap_device_wake_up_process();
+		result = E_SD_SUCCESS;
+		break;
+	}
+	default:
+		print_warn("Unknown command %d\n", cmd);
+		result = -EINVAL;
+		break;
 
 	}
 	return result;
 }
 
 static void swap_device_pipe_buf_release(struct pipe_inode_info *inode,
-										 struct pipe_buffer *pipe)
+					 struct pipe_buffer *pipe)
 {
 	__free_page(pipe->page);
 }
 
 static void swap_device_page_release(struct splice_pipe_desc *spd,
-									 unsigned int i)
+				     unsigned int i)
 {
 	__free_page(spd->pages[i]);
 }
@@ -413,8 +412,8 @@ static const struct pipe_buf_operations swap_device_pipe_buf_ops = {
 };
 
 static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
-									   struct pipe_inode_info *pipe,
-									   size_t len, unsigned int flags)
+				       struct pipe_inode_info *pipe,
+				       size_t len, unsigned int flags)
 {
 	/* Wait queue item that consists current task. It is used to be added in
 	 * swap_device_wait queue if there is no data to be read. */
@@ -436,17 +435,19 @@ static ssize_t swap_device_splice_read(struct file *filp, loff_t *ppos,
 	};
 
 	/* Get next buffer to read */
-	//TODO : Think about spin_locks to prevent reading race condition.
-	while((result = driver_to_buffer_next_buffer_to_read()) != E_SD_SUCCESS) {
+	/* TODO : Think about spin_locks to prevent reading race condition.*/
+	while ((result =
+		driver_to_buffer_next_buffer_to_read()) != E_SD_SUCCESS) {
 
-		/* Add process to the swap_device_wait queue and set the current task
-		 * state TASK_INTERRUPTIBLE. If there is any data to be read, then the
-		 * current task is removed from the swap_device_wait queue and its state
-		 * is changed. */
+		/* Add process to the swap_device_wait queue and set the current
+		 * task state TASK_INTERRUPTIBLE. If there is any data to be
+		 * read, then the current task is removed from the
+		 * swap_device_wait queue and its state is changed. */
 		prepare_to_wait(&swap_device_wait, &wait, TASK_INTERRUPTIBLE);
 		if (result < 0) {
-			print_err("driver_to_buffer_next_buffer_to_read error %d\n", result);
-			//TODO Error return to OS
+			print_err("driver_to_buffer_next_buffer_to_read error "
+				  "%d\n", result);
+			/* TODO Error return to OS */
 			result = 0;
 			goto swap_device_splice_read_error;
 		} else if (result == E_SD_NO_DATA_TO_READ) {

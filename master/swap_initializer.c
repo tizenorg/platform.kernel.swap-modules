@@ -159,7 +159,7 @@ static void sis_uninit(struct swap_init_struct *init)
 
 static LIST_HEAD(init_list);
 static DEFINE_MUTEX(inst_mutex);
-static unsigned init_flag = 0;
+static unsigned init_flag;
 
 static int do_once(void)
 {

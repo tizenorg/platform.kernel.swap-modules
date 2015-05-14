@@ -128,7 +128,8 @@ int img_file_del_ip(struct img_file *file, unsigned long addr)
 
 	ip = find_img_ip(file, addr);
 	if (ip == NULL) {
-		printk("Warning: no ip found in img, addr = %lx\n", addr);
+		printk(KERN_INFO "Warning: no ip found in img, addr = %lx\n",
+		       addr);
 		return -EINVAL;
 	}
 
@@ -162,7 +163,7 @@ void img_file_print(struct img_file *file)
 {
 	struct img_ip *ip;
 
-	printk("###      d_iname=%s\n", file->dentry->d_iname);
+	printk(KERN_INFO "###      d_iname=%s\n", file->dentry->d_iname);
 
 	list_for_each_entry(ip, &file->ip_list, list) {
 		img_ip_print(ip);

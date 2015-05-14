@@ -84,7 +84,8 @@ static inline int arch_opcode_analysis_uretprobe(struct uretprobe *rp)
 	return 0;
 }
 
-void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs);
+void arch_prepare_uretprobe(struct uretprobe_instance *ri,
+			    struct pt_regs *regs);
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 			 struct task_struct *task);
 unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs);
@@ -98,20 +99,22 @@ static inline unsigned long swap_get_uarg(struct pt_regs *regs, unsigned long n)
 	/* 1 - return address saved on top of the stack */
 	ptr = (u32 *)regs->sp + n + 1;
 	if (get_user(addr, ptr))
-		printk("failed to dereference a pointer, ptr=%p\n", ptr);
+		printk(KERN_INFO "failed to dereference a pointer, ptr=%p\n",
+		       ptr);
 
 	return addr;
 }
 
 static inline void swap_put_uarg(struct pt_regs *regs, unsigned long n,
-                                 unsigned long val)
+				 unsigned long val)
 {
 	u32 *ptr;
 
 	/* 1 - return address saved on top of the stack */
 	ptr = (u32 *)regs->sp + n + 1;
 	if (put_user(val, ptr))
-		printk("failed to dereference a pointer, ptr=%p\n", ptr);
+		printk(KERN_INFO "failed to dereference a pointer, ptr=%p\n",
+		       ptr);
 }
 
 int swap_arch_init_uprobes(void);

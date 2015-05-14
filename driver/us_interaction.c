@@ -47,7 +47,7 @@ static struct cb_id cn_swap_id = {CN_SWAP_IDX, CN_SWAP_VAL};
 static const char cn_swap_name[] = "cn_swap";
 
 /* Send messages counter */
-static u32 msg_counter = 0;
+static u32 msg_counter;
 
 /**
  * @brief Sends message to userspace via netlink.
@@ -99,7 +99,9 @@ int us_interaction_create(void)
 {
 	int res;
 
-	res = cn_add_callback(&cn_swap_id, cn_swap_name, us_interaction_recv_msg);
+	res = cn_add_callback(&cn_swap_id,
+			      cn_swap_name,
+			      us_interaction_recv_msg);
 	if (res)
 		return -E_SD_NL_INIT_ERR;
 

@@ -40,7 +40,7 @@ int __init swap_ksyms_init(void)
 {
 	int ret = ksyms_init();
 
-	printk("SWAP_KSYMS: Module initialized\n");
+	printk(KERN_INFO "SWAP_KSYMS: Module initialized\n");
 
 	return ret;
 }
@@ -54,7 +54,7 @@ void __exit swap_ksyms_exit(void)
 {
 	ksyms_exit();
 
-	printk("SWAP_KSYMS: Module uninitialized\n");
+	printk(KERN_INFO "SWAP_KSYMS: Module uninitialized\n");
 }
 
 module_init(swap_ksyms_init);

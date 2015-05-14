@@ -148,8 +148,10 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 	if (list_empty(&page->ip_list_no_inst)) {
 		struct task_struct *task = page->file->proc->task;
 
-		printk("page %lx in %s task[tgid=%u, pid=%u] already installed\n",
-				page->offset, file->dentry->d_iname, task->tgid, task->pid);
+		printk(KERN_INFO "page %lx in %s task[tgid=%u, pid=%u] "
+		       "already installed\n",
+		       page->offset, file->dentry->d_iname,
+		       task->tgid, task->pid);
 		goto unlock;
 	}
 
@@ -212,12 +214,13 @@ int sspt_unregister_page(struct sspt_page *page,
 	list_for_each_entry(ip, &ip_list_tmp, list) {
 		err = sspt_unregister_usprobe(task, ip, flag);
 		if (err != 0) {
-			//TODO: ERROR
+			/* TODO: ERROR */
 			break;
 		}
 	}
 
-	head = (flag == US_DISARM) ? &page->ip_list_inst : &page->ip_list_no_inst;
+	head = (flag == US_DISARM) ?
+		&page->ip_list_inst : &page->ip_list_no_inst;
 
 	spin_lock(&page->lock);
 

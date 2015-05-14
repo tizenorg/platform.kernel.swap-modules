@@ -33,7 +33,7 @@
 #include "sampler_timers.h"
 
 
-static u64 sampler_timer_quantum = 0;
+static u64 sampler_timer_quantum;
 static DEFINE_PER_CPU(struct hrtimer, swap_hrtimer);
 static int swap_hrtimer_running;
 

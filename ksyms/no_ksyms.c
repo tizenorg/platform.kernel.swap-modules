@@ -44,8 +44,9 @@
 	do { \
 		char *f = __FILE__; \
 		char *n = strrchr(f, '/'); \
-		printk("%s:%u \'%s\' ERROR: " format "\n" , (n) ? n+1 : f, __LINE__, __FUNCTION__, ##args); \
-	} while(0)
+		printk(KERN_INFO "%s:%u \'%s\' ERROR: " format "\n" ,  \
+		       (n) ? n+1 : f, __LINE__, __func__, ##args); \
+	} while (0)
 
 /**
  * @struct sys_map_item
@@ -64,7 +65,7 @@ struct sys_map_item {
 	char *name;
 };
 
-static char* sm_path = NULL;
+static char *sm_path;
 module_param(sm_path, charp, 0);
 
 /**
@@ -72,9 +73,9 @@ module_param(sm_path, charp, 0);
  * List of sys_map_item.
  */
 LIST_HEAD(smi_list);
-static struct file *file = NULL;
+static struct file *file;
 
-static int cnt_init_sm = 0;
+static int cnt_init_sm;
 
 /**
  * @var cnt_init_sm_lock
@@ -103,7 +104,8 @@ static void file_close(void)
 		file = NULL;
 
 		if (ret) {
-			KSYMS_ERR("while closing file \'%s\' err=%d", sm_path, ret);
+			KSYMS_ERR("while closing file \'%s\' err=%d",
+				  sm_path, ret);
 		}
 	}
 }
@@ -111,9 +113,8 @@ static void file_close(void)
 static int file_check(void)
 {
 	int ret = file_open();
-	if (ret == 0) {
+	if (ret == 0)
 		file_close();
-	}
 
 	return ret;
 }
@@ -121,17 +122,14 @@ static int file_check(void)
 static long file_size(struct file *file)
 {
 	struct kstat st;
-	if (vfs_getattr(file->f_path.mnt, file->f_path.dentry, &st)) {
+	if (vfs_getattr(file->f_path.mnt, file->f_path.dentry, &st))
 		return -1;
-	}
 
-	if (!S_ISREG(st.mode)) {
+	if (!S_ISREG(st.mode))
 		return -1;
-	}
 
-	if (st.size != (long)st.size) {
+	if (st.size != (long)st.size)
 		return -1;
-	}
 
 	return st.size;
 }
@@ -201,9 +199,8 @@ static struct sys_map_item *get_sys_map_item(char *begin, char *end)
 
 	kfree(line);
 
-	if (is_symbol_attr(attr)) {
+	if (is_symbol_attr(attr))
 		smi = create_smi(addr, name);
-	}
 
 	return smi;
 }
@@ -220,9 +217,8 @@ static void parsing(char *buf, int size)
 	for (c = start; c < end; ++c) {
 		if (is_endline(*c)) {
 			smi = get_sys_map_item(start, c);
-			if (smi) {
+			if (smi)
 				add_smi(smi);
-			}
 
 			for (start = c; c < end; ++c) {
 				if (!is_endline(*c)) {
@@ -240,9 +236,8 @@ static int create_sys_map(void)
 	long size;
 	int ret = file_open();
 
-	if (ret) {
+	if (ret)
 		return ret;
-	}
 
 	size = file_size(file);
 	if (size < 0) {
@@ -294,9 +289,8 @@ int swap_get_ksyms(void)
 	int ret = 0;
 
 	down(&cnt_init_sm_lock);
-	if (cnt_init_sm == 0) {
+	if (cnt_init_sm == 0)
 		ret = create_sys_map();
-	}
 
 	++cnt_init_sm;
 	up(&cnt_init_sm_lock);
@@ -314,9 +308,8 @@ void swap_put_ksyms(void)
 {
 	down(&cnt_init_sm_lock);
 	--cnt_init_sm;
-	if (cnt_init_sm == 0)  {
+	if (cnt_init_sm == 0)
 		free_sys_map();
-	}
 
 	if (cnt_init_sm < 0) {
 		KSYMS_ERR("cnt_init_sm=%d", cnt_init_sm);
@@ -338,9 +331,8 @@ unsigned long swap_ksyms(const char *name)
 	struct sys_map_item *smi;
 
 	list_for_each_entry(smi, &smi_list, list) {
-		if (strcmp(name, smi->name) == 0) {
+		if (strcmp(name, smi->name) == 0)
 			return smi->addr;
-		}
 	}
 
 	return 0;
@@ -382,11 +374,11 @@ int ksyms_init(void)
 	}
 
 	ret = file_check();
-	if (ret) {
+	if (ret)
 		return -EINVAL;
-	}
 
-	// TODO: calling func 'swap_get_ksyms' in module used func 'swap_ksyms'
+	/* TODO: calling func 'swap_get_ksyms' in
+	 * module used func 'swap_ksyms' */
 	swap_get_ksyms();
 
 	return 0;
@@ -401,9 +393,8 @@ void ksyms_exit(void)
 {
 	down(&cnt_init_sm_lock);
 
-	if (cnt_init_sm > 0)  {
+	if (cnt_init_sm > 0)
 		free_sys_map();
-	}
 
 	up(&cnt_init_sm_lock);
 }

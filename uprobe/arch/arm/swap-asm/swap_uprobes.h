@@ -79,7 +79,8 @@ static inline int longjmp_break_uhandler(struct kprobe *p, struct pt_regs *regs)
 }
 
 void arch_opcode_analysis_uretprobe(struct uretprobe *rp);
-void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs);
+void arch_prepare_uretprobe(struct uretprobe_instance *ri,
+			    struct pt_regs *regs);
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 			 struct task_struct *task);
 
@@ -104,7 +105,8 @@ static inline unsigned long swap_get_uarg(struct pt_regs *regs, unsigned long n)
 
 	ptr = (u32 *)regs->ARM_sp + n - 4;
 	if (get_user(addr, ptr))
-		printk("failed to dereference a pointer, ptr=%p\n", ptr);
+		printk(KERN_INFO "failed to dereference a pointer, ptr=%p\n",
+		       ptr);
 
 	return addr;
 }
@@ -127,7 +129,8 @@ static inline void swap_put_uarg(struct pt_regs *regs, unsigned long n,
 
 	ptr = (u32 *)regs->ARM_sp + n - 4;
 	if (put_user(val, ptr))
-		printk("failed to dereference a pointer, ptr=%p\n", ptr);
+		printk(KERN_INFO "failed to dereference a pointer, ptr=%p\n",
+		       ptr);
 }
 
 int swap_arch_init_uprobes(void);

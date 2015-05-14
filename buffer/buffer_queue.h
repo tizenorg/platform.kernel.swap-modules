@@ -34,7 +34,8 @@
 
 #include "buffer_description.h"
 
-int buffer_queue_allocation(size_t subbuffer_size, unsigned int subbuffers_count);
+int buffer_queue_allocation(size_t subbuffer_size,
+			    unsigned int subbuffers_count);
 void buffer_queue_free(void);
 int buffer_queue_reset(void);
 void buffer_queue_flush(void);

@@ -55,7 +55,7 @@ struct us_ip *create_ip(unsigned long offset, const struct probe_info *probe_i,
 		probe_info_copy(probe_i, &ip->probe_i);
 		probe_info_init(&ip->probe_i, ip);
 	} else {
-		printk("Cannot kmalloc in create_ip function!\n");
+		printk(KERN_INFO "Cannot kmalloc in create_ip function!\n");
 	}
 
 	return ip;

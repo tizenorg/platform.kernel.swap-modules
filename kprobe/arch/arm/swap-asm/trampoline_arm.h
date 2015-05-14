@@ -2,9 +2,12 @@
  * @file kprobe/arch/asm-arm/trampoline_arm.h
  * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: initial implementation for ARM/MIPS
  * @author Alexey Gerenkov <a.gerenkov@samsung.com> User-Space
- * Probes initial implementation; Support x86/ARM/MIPS for both user and kernel spaces.
- * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>: redesign module for separating core and arch parts
- * @author Alexander Shirshikov <a.shirshikov@samsung.com>: initial implementation for Thumb
+ * Probes initial implementation;
+ * Support x86/ARM/MIPS for both user and kernel spaces.
+ * @author Ekaterina Gorelkina <e.gorelkina@samsung.com>:
+ * redesign module for separating core and arch parts
+ * @author Alexander Shirshikov <a.shirshikov@samsung.com>:
+ * initial implementation for Thumb
  *
  * @section LICENSE
  *

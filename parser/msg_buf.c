@@ -46,7 +46,7 @@ int init_mb(struct msg_buf *mb, size_t size)
 	if (size) {
 		mb->begin = vmalloc(size);
 		if (mb->begin == NULL) {
-			printk("Cannot alloc memory!\n");
+			printk(KERN_INFO "Cannot alloc memory!\n");
 			return -ENOMEM;
 		}
 

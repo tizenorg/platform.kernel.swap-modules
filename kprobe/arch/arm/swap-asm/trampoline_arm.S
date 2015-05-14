@@ -11,7 +11,7 @@ gen_insn_execbuf:
 		nop
 		nop			//original instruction
 		nop
-		ldr	pc, [pc, #4]	//ssbreak 
+		ldr	pc, [pc, #4]	//ssbreak
 		nop			//retbreak
 		nop
 		nop			//stored PC-4(next insn addr)

@@ -35,7 +35,7 @@
 #ifndef _SWAP_KPROBES_H
 #define _SWAP_KPROBES_H
 
-#include <linux/version.h>	// LINUX_VERSION_CODE, KERNEL_VERSION()
+#include <linux/version.h>	/*  LINUX_VERSION_CODE, KERNEL_VERSION() */
 #include <linux/notifier.h>
 #include <linux/percpu.h>
 #include <linux/spinlock.h>
@@ -71,7 +71,7 @@
 /** Invalid value */
 #define INVALID_VALUE           0xFFFFFFFF
 /** Invalid pointer */
-#define INVALID_POINTER         (void*)INVALID_VALUE
+#define INVALID_POINTER         (void *)INVALID_VALUE
 
 /** Jprobe entry */
 #define JPROBE_ENTRY(pentry)    (kprobe_opcode_t *)pentry
@@ -97,25 +97,29 @@ typedef int (*kprobe_break_handler_t) (struct kprobe *, struct pt_regs *);
 /**
  * @brief Kprobe post handler pointer.
  */
-typedef void (*kprobe_post_handler_t) (struct kprobe *, struct pt_regs *, unsigned long flags);
+typedef void (*kprobe_post_handler_t) (struct kprobe *,
+				       struct pt_regs *,
+				       unsigned long flags);
 
 /**
  * @brief Kprobe fault handler pointer.
  */
-typedef int (*kprobe_fault_handler_t) (struct kprobe *, struct pt_regs *, int trapnr);
+typedef int (*kprobe_fault_handler_t) (struct kprobe *,
+				       struct pt_regs *,
+				       int trapnr);
 
 /**
  * @brief Kretprobe handler pointer.
  */
-typedef int (*kretprobe_handler_t) (struct kretprobe_instance *, struct pt_regs *);
+typedef int (*kretprobe_handler_t) (struct kretprobe_instance *,
+				    struct pt_regs *);
 
 /**
  * @struct kprobe
  * @brief Main kprobe struct.
  */
-struct kprobe
-{
-	struct hlist_node				hlist;              /**< Hash list.*/
+struct kprobe {
+	struct hlist_node				hlist; /**< Hash list.*/
 	/** List of probes to search by instruction slot.*/
 	struct hlist_node				is_hlist;
 	/** List of kprobes for multi-handler support.*/
@@ -142,7 +146,7 @@ struct kprobe
 	kprobe_opcode_t					opcode;
 	/** Copy of the original instruction.*/
 	struct arch_specific_insn			ainsn;
-	/** Override single-step target address, may be used to redirect 
+	/** Override single-step target address, may be used to redirect
 	 * control-flow to arbitrary address after probe point without
 	 * invocation of original instruction; useful for functions
 	 * replacement. If jprobe.entry should return address of function or
@@ -160,7 +164,8 @@ struct kprobe
 /**
  * @brief Kprobe pre-entry handler pointer.
  */
-typedef unsigned long (*kprobe_pre_entry_handler_t) (void *priv_arg, struct pt_regs * regs);
+typedef unsigned long (*kprobe_pre_entry_handler_t) (void *priv_arg,
+						     struct pt_regs *regs);
 
 
 /**
@@ -173,9 +178,8 @@ typedef unsigned long (*kprobe_pre_entry_handler_t) (void *priv_arg, struct pt_r
  * Because of the way compilers allocate stack space for local variables
  * etc upfront, regardless of sub-scopes within a function, this mirroring
  * principle currently works only for probes placed on function entry points.
- */ 
-struct jprobe
-{
+ */
+struct jprobe {
 	struct kprobe kp;                   /**< This probes kprobe.*/
 	kprobe_opcode_t *entry;             /**< Probe handling code to jump to.*/
 	/** Handler which will be called before 'entry'. */
@@ -188,9 +192,8 @@ struct jprobe
  * @struct jprobe_instance
  * @brief Jprobe instance struct.
  */
-struct jprobe_instance
-{
-	// either on free list or used list
+struct jprobe_instance {
+	/*  either on free list or used list */
 	struct hlist_node uflist;            /**< Jprobes hash list. */
 	struct hlist_node hlist;             /**< Jprobes hash list. */
 	struct jprobe *jp;                   /**< Pointer to the target jprobe. */
@@ -207,8 +210,7 @@ struct jprobe_instance
  * @brief Function-return probe
  * Note: User needs to provide a handler function, and initialize maxactive.
  */
-struct kretprobe
-{
+struct kretprobe {
 	struct kprobe kp;                    /**< Kprobe of this kretprobe.*/
 	kretprobe_handler_t handler;         /**< Handler of this kretprobe.*/
 	kretprobe_handler_t entry_handler;   /**< Entry handler of this kretprobe.*/
@@ -225,8 +227,8 @@ struct kretprobe
 	struct hlist_head used_instances;
 
 #ifdef CONFIG_ARM
-	unsigned					arm_noret:1;    /**< No-return flag for ARM.*/
-	unsigned					thumb_noret:1;  /**< No-return flag for Thumb.*/
+	unsigned arm_noret:1;    /**< No-return flag for ARM.*/
+	unsigned thumb_noret:1;  /**< No-return flag for Thumb.*/
 #endif
 
 };
@@ -235,9 +237,8 @@ struct kretprobe
  * @struct kretprobe_instance
  * @brief Instance of kretprobe.
  */
-struct kretprobe_instance
-{
-	// either on free list or used list
+struct kretprobe_instance {
+	/*  either on free list or used list */
 	struct hlist_node uflist;       /**< Kretprobe hash list.*/
 	struct hlist_node hlist;        /**< Kretprobe hash list.*/
 	struct kretprobe *rp;           /**< Pointer to this instance's kretprobe.*/
@@ -250,11 +251,11 @@ struct kretprobe_instance
 
 extern void swap_kprobes_inc_nmissed_count(struct kprobe *p);
 
-//
-// Large value for fast but memory consuming implementation
-// it is good when a lot of probes are instrumented
-//
-//#define KPROBE_HASH_BITS 6
+/*
+ * Large value for fast but memory consuming implementation
+ * it is good when a lot of probes are instrumented
+ */
+/* #define KPROBE_HASH_BITS 6 */
 #define KPROBE_HASH_BITS 16
 #define KPROBE_TABLE_SIZE (1 << KPROBE_HASH_BITS)
 
@@ -293,7 +294,8 @@ void swap_unregister_kretprobe_bottom(struct kretprobe *rp);
 void swap_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size);
 
 
-int swap_disarm_urp_inst_for_task(struct task_struct *parent, struct task_struct *task);
+int swap_disarm_urp_inst_for_task(struct task_struct *parent,
+				  struct task_struct *task);
 
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 

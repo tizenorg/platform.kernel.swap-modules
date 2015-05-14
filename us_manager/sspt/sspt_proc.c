@@ -37,7 +37,6 @@
 static LIST_HEAD(proc_probes_list);
 static DEFINE_RWLOCK(sspt_proc_rwlock);
 
-void sspt_proc_del_all_filters(struct sspt_proc *proc);
 
 /**
  * @brief Global read lock for sspt_proc
@@ -152,9 +151,8 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 	struct sspt_proc *proc, *tmp;
 
 	list_for_each_entry_safe(proc, tmp, &proc_probes_list, list) {
-		if (proc->tgid == task->tgid) {
+		if (proc->tgid == task->tgid)
 			return proc;
-		}
 	}
 
 	return NULL;
@@ -203,9 +201,8 @@ struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
 					       void *priv)
 {
 	struct sspt_proc *proc = sspt_proc_get_by_task(task);
-	if (proc == NULL) {
+	if (proc == NULL)
 		proc = sspt_proc_create(task, priv);
-	}
 
 	return proc;
 }
@@ -258,14 +255,14 @@ struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
  * @param dentry Dentry of file
  * @return Pointer on the sspt_file struct
  */
-struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc, struct dentry *dentry)
+struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc,
+				      struct dentry *dentry)
 {
 	struct sspt_file *file;
 
 	list_for_each_entry(file, &proc->file_list, list) {
-		if (dentry == file->dentry) {
+		if (dentry == file->dentry)
 			return file;
-		}
 	}
 
 	return NULL;
@@ -295,9 +292,8 @@ void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 			}
 
 			page = sspt_find_page_mapped(file, page_addr);
-			if (page) {
+			if (page)
 				sspt_register_page(page, file);
-			}
 		}
 	}
 }
@@ -318,7 +314,8 @@ void sspt_proc_install(struct sspt_proc *proc)
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (check_vma(vma)) {
 			struct dentry *dentry = vma->vm_file->f_dentry;
-			struct sspt_file *file = sspt_proc_find_file(proc, dentry);
+			struct sspt_file *file =
+				sspt_proc_find_file(proc, dentry);
 			if (file) {
 				if (!file->loaded) {
 					file->loaded = 1;
@@ -339,7 +336,9 @@ void sspt_proc_install(struct sspt_proc *proc)
  * @param flag Action for probes
  * @return Error code
  */
-int sspt_proc_uninstall(struct sspt_proc *proc, struct task_struct *task, enum US_FLAGS flag)
+int sspt_proc_uninstall(struct sspt_proc *proc,
+			struct task_struct *task,
+			enum US_FLAGS flag)
 {
 	int err = 0;
 	struct sspt_file *file;
@@ -347,7 +346,8 @@ int sspt_proc_uninstall(struct sspt_proc *proc, struct task_struct *task, enum U
 	list_for_each_entry_rcu(file, &proc->file_list, list) {
 		err = sspt_file_uninstall(file, task, flag);
 		if (err != 0) {
-			printk("ERROR sspt_proc_uninstall: err=%d\n", err);
+			printk(KERN_INFO "ERROR sspt_proc_uninstall: err=%d\n",
+			       err);
 			return err;
 		}
 	}

@@ -67,13 +67,16 @@ struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
 					       void *priv);
 void sspt_proc_free_all(void);
 
-struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc, struct dentry *dentry);
+struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc,
+				      struct dentry *dentry);
 struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
 					     struct dentry *dentry);
 
 void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr);
 void sspt_proc_install(struct sspt_proc *proc);
-int sspt_proc_uninstall(struct sspt_proc *proc, struct task_struct *task, enum US_FLAGS flag);
+int sspt_proc_uninstall(struct sspt_proc *proc,
+			struct task_struct *task,
+			enum US_FLAGS flag);
 
 int sspt_proc_get_files_by_region(struct sspt_proc *proc,
 				  struct list_head *head,

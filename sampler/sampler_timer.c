@@ -33,7 +33,7 @@
 
 
 
-static unsigned long sampler_timer_quantum = 0;
+static unsigned long sampler_timer_quantum;
 static DEFINE_PER_CPU(struct timer_list, swap_timer);
 static int swap_timer_running;
 

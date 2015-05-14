@@ -51,7 +51,8 @@ struct sspt_feature_data {
 static DEFINE_SPINLOCK(feature_img_lock);
 static LIST_HEAD(feature_img_list);
 
-static struct sspt_feature_data *create_feature_data(struct sspt_feature_img *img)
+static struct sspt_feature_data *create_feature_data(
+	struct sspt_feature_img *img)
 {
 	struct sspt_feature_data *fd;
 
@@ -144,7 +145,7 @@ static struct sspt_feature_img *create_feature_img(void *(*alloc)(void),
 	struct sspt_feature_img *fi;
 
 	fi = kmalloc(sizeof(*fi), GFP_ATOMIC);
-	if(fi) {
+	if (fi) {
 		INIT_LIST_HEAD(&fi->list);
 		fi->alloc = alloc;
 		fi->free = free;
@@ -210,7 +211,8 @@ EXPORT_SYMBOL_GPL(sspt_get_feature_data);
  * @param free Callback to release data
  * @return Feature ID
  */
-sspt_feature_id_t sspt_register_feature(void *(*alloc)(void), void (*free)(void *data))
+sspt_feature_id_t sspt_register_feature(void *(*alloc)(void),
+					void (*free)(void *data))
 {
 	struct sspt_feature_img *fi;
 

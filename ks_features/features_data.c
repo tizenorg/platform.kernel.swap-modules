@@ -195,7 +195,7 @@ static enum syscall_id id_process[] = {
  *	id_sys_clone,
  *	id_sys_clone,
  */
-    id_sys_execve
+	id_sys_execve
 };
 
 static enum syscall_id id_signal[] = {
@@ -285,8 +285,8 @@ static enum syscall_id id_desc[] = {
  * @def CREATE_FEATURE
  * Feature initialization.
  */
-#define CREATE_FEATURE(x, subtype) 				\
-{ 								\
+#define CREATE_FEATURE(x, subtype)				\
+{								\
 	.cnt = sizeof(x) / sizeof(enum syscall_id),		\
 	.feature_list = x,					\
 	.sub_type = subtype,					\

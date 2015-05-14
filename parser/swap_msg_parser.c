@@ -64,7 +64,7 @@ enum MSG_ID {
 struct basic_msg_fmt {
 	u32 msg_id;                         /**< Message ID. */
 	u32 len;                            /**< Message length. */
-} __attribute__((packed));
+} __packed;
 
 static int msg_handler(void __user *msg)
 {
@@ -76,13 +76,14 @@ static int msg_handler(void __user *msg)
 	struct basic_msg_fmt bmf;
 	enum { size_max = 128 * 1024 * 1024 };
 
-	ret = copy_from_user(&bmf, (void*)msg, sizeof(bmf));
+	ret = copy_from_user(&bmf, (void *)msg, sizeof(bmf));
 	if (ret)
 		return ret;
 
 	size = bmf.len;
 	if (size >= size_max) {
-		printk("%s: too large message, size=%u\n", __func__, size);
+		printk(KERN_INFO "%s: too large message, size=%u\n",
+		       __func__, size);
 		return -ENOMEM;
 	}
 
@@ -92,7 +93,7 @@ static int msg_handler(void __user *msg)
 
 	payload = msg + sizeof(bmf);
 	if (size) {
-		ret = copy_from_user(mb.begin, (void*)payload, size);
+		ret = copy_from_user(mb.begin, (void *)payload, size);
 		if (ret)
 			goto uninit;
 	}

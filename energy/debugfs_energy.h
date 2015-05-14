@@ -39,7 +39,7 @@ struct dentry;
 #define SWAP_DEFINE_SIMPLE_ATTRIBUTE(__fops, __get, __set, __fmt)	\
 static int __fops ## _open(struct inode *inode, struct file *file)	\
 {									\
-	int ret; 							\
+	int ret;							\
 									\
 	ret = swap_init_simple_open(inode, file);			\
 	if (ret)							\

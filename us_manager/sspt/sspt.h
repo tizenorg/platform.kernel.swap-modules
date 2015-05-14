@@ -54,7 +54,7 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	up = probe_info_get_uprobe(&ip->probe_i, ip);
 
 	if (!up) {
-		printk("SWAP US_MANAGER: failed getting uprobe!\n");
+		printk(KERN_INFO "SWAP US_MANAGER: failed getting uprobe!\n");
 		return -EINVAL;
 	}
 
@@ -68,14 +68,17 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 		unsigned long addr = (unsigned long)up->kp.addr;
 		unsigned long offset = addr - file->vm_start;
 
-		printk("swap_register_uretprobe() failure %d (%s:%lx|%lx)\n",
-		       ret, name, offset, (unsigned long)ip->retprobe.up.kp.opcode);
+		printk(KERN_INFO "swap_register_uretprobe() failure %d "
+		       "(%s:%lx|%lx)\n", ret, name, offset,
+		       (unsigned long)ip->retprobe.up.kp.opcode);
 	}
 
 	return ret;
 }
 
-static inline int sspt_unregister_usprobe(struct task_struct *task, struct us_ip *ip, enum US_FLAGS flag)
+static inline int sspt_unregister_usprobe(struct task_struct *task,
+					  struct us_ip *ip,
+					  enum US_FLAGS flag)
 {
 	struct uprobe *up = NULL;
 

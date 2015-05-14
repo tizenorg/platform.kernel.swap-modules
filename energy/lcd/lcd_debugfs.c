@@ -68,7 +68,7 @@ static int get_system(void *data, u64 *val)
 SWAP_DEFINE_SIMPLE_ATTRIBUTE(fops_get_system, get_system, NULL, "%llu\n");
 
 
-static struct dentry *lcd_dir = NULL;
+static struct dentry *lcd_dir;
 
 /**
  * @brief Register LCD in debugfs

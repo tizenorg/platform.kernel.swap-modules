@@ -39,7 +39,7 @@
 #include "us_inst.h"
 #include <us_manager/us_manager.h>
 
-static int wrt_launcher_port = 0;
+static int wrt_launcher_port;
 
 static int set_config(struct conf_data *conf)
 {
@@ -82,9 +82,8 @@ int msg_start(struct msg_buf *mb)
 	reset_discarded();
 
 	us_inst = create_us_inst_data(mb);
-	if (us_inst == NULL) {
+	if (us_inst == NULL)
 		return -EINVAL;
-	}
 
 	if (!is_end_mb(mb)) {
 		print_err("to long message, remained=%u", remained_mb(mb));
@@ -94,7 +93,7 @@ int msg_start(struct msg_buf *mb)
 
 	ret = mod_us_inst(us_inst, MT_ADD);
 	if (ret) {
-		printk("Cannot mod us inst, ret = %d\n", ret);
+		printk(KERN_INFO "Cannot mod us inst, ret = %d\n", ret);
 		ret = -EINVAL;
 		goto free_us_inst;
 	}
@@ -137,10 +136,10 @@ int msg_stop(struct msg_buf *mb)
 	conf.use_features1 = 0;
 	ret = set_config(&conf);
 	if (ret)
-		printk("Cannot set config, ret = %d\n", ret);
+		printk(KERN_INFO "Cannot set config, ret = %d\n", ret);
 
 	discarded = get_discarded_count();
-	printk("discarded messages: %d\n", discarded);
+	printk(KERN_INFO "discarded messages: %d\n", discarded);
 	reset_discarded();
 
 	return ret;
@@ -193,9 +192,8 @@ int msg_swap_inst_add(struct msg_buf *mb)
 	struct us_inst_data *us_inst;
 
 	us_inst = create_us_inst_data(mb);
-	if (us_inst == NULL) {
+	if (us_inst == NULL)
 		return -EINVAL;
-	}
 
 	if (!is_end_mb(mb)) {
 		print_err("to long message, remained=%u", remained_mb(mb));
@@ -223,9 +221,8 @@ int msg_swap_inst_remove(struct msg_buf *mb)
 	struct us_inst_data *us_inst;
 
 	us_inst = create_us_inst_data(mb);
-	if (us_inst == NULL) {
+	if (us_inst == NULL)
 		return -EINVAL;
-	}
 
 	if (!is_end_mb(mb)) {
 		print_err("to long message, remained=%u", remained_mb(mb));
