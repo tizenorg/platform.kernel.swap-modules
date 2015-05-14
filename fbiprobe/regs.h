@@ -36,7 +36,7 @@
 #ifndef __REGS_H__
 #define __REGS_H__
 
-#include <asm/ptrace.h>
+#include <uapi/asm/ptrace.h>
 
 #include "fbi_probe_module.h"
 /* This function is used to compare register number and its name on x86 arch.
@@ -52,26 +52,17 @@
  * sp       7
  */
 
-#if defined(CONFIG_X86)
-
 static inline unsigned long *get_ptr_by_num(struct pt_regs *regs,
 					    unsigned char reg_num)
 {
 	unsigned long *reg = NULL;
-	if (reg_num < sizeof(struct pt_regs) / sizeof(regs->ax))
+	/* FIXME: bad way to use "sizeof(long) " */
+	if (reg_num < sizeof(struct pt_regs) / sizeof(long)) {
 		reg = (unsigned long *)regs;
+		reg =  &reg[reg_num];
+	}
 
-	return &reg[reg_num];
+	return reg;
 }
-
-#elif defined(CONFIG_ARM)
-
-static inline unsigned long *get_ptr_by_num(struct pt_regs *regs,
-					    unsigned char reg_num)
-{
-	return &regs->uregs[reg_num];
-}
-
-#endif /* CONFIG_arch */
 
 #endif /* __REGS_H__ */

@@ -54,14 +54,17 @@ struct fbi_var_data {
 	 * It is expected that the offset is not null only when we're taking
 	 * var value from stack.
 	 */
-	uint64_t var_id;           /* Variable identifier. Used to specify var */
+	uint64_t var_id;           /* Variable identifier
+				    * Used to specify var */
 	uint64_t reg_offset;       /* Offset relative to the registers value
 				    * address, specified with reg_n */
 	uint8_t reg_n;             /* Register number. Hope times of cpu
-				    * with more than 2 million ones are very far from us */
+				    * with more than 2 million ones are very
+				    * far from us */
 	uint32_t data_size;        /* Data size to be read */
 
-	uint8_t steps_count;	   /* Count of steps to extract variable value */
+	uint8_t steps_count;	   /* Count of steps to extract variable
+				    * value */
 	struct fbi_step *steps;    /* extract steps */
 };
 

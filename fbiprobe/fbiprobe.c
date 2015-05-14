@@ -59,8 +59,9 @@
 #define DIRECT_ADDR (0xFF)
 #define MAX_STRING_LEN (512)
 
+/* on fails. return NULL, set size to 0 */
 /* you shoud free allocated data buffer */
-static char *fbi_probe_alloc_and_read_from_addr(const struct fbi_var_data *fbi_i,
+static char *fbi_probe_alloc_and_read_from_addr(const struct fbi_var_data *fbid,
 						unsigned long addr,
 						uint32_t *size)
 {
@@ -71,27 +72,30 @@ static char *fbi_probe_alloc_and_read_from_addr(const struct fbi_var_data *fbi_i
 	*size = 0;
 
 	/* get final variable address */
-	step = fbi_i->steps;
-	for (i = 0; i != fbi_i->steps_count; i++) {
+	step = fbid->steps;
+	for (i = 0; i != fbid->steps_count; i++) {
 		/* dereference */
 		for (j = 0; j != step->ptr_order; j++) {
 			unsigned long new_addr;
 			/* equel to: addr = *addr */
-			if (!read_proc_vm_atomic(current, addr, &new_addr, sizeof(new_addr))) {
-				print_warn("Wrong read! (0x%lx) step #%d ptr_order #%d\n",
+			if (!read_proc_vm_atomic(current, addr, &new_addr,
+						 sizeof(new_addr))) {
+				print_warn("p = 0x%lx step #%d ptr_order #%d\n",
 					   addr, i + 1, j + 1);
-				goto fail_exit;
+				goto exit_fail;
 			}
 			addr = new_addr;
+			print_debug("dereference addr = 0x%lx;\n", addr);
 		}
 
 		/* offset */
 		addr += step->data_offset;
+		print_debug("addr + offset = 0x%lx;\n", addr);
 		step++;
 	}
 
 	/* calculate data size */
-	if (fbi_i->data_size == 0) {
+	if (fbid->data_size == 0) {
 		/*
 		 * that mean variable is string and
 		 * we need to calculate string length
@@ -100,26 +104,26 @@ static char *fbi_probe_alloc_and_read_from_addr(const struct fbi_var_data *fbi_i
 		*size = strnlen_user((const char __user *)addr, MAX_STRING_LEN);
 		if (*size == 0) {
 			print_warn("Cannot get string from 0x%lx\n", addr);
-			goto fail_exit;
+			goto exit_fail;
 		}
 	} else {
 		/* else use size from fbi struct */
-		*size = fbi_i->data_size;
+		*size = fbid->data_size;
 	}
 
 	buf = kmalloc(*size, GFP_KERNEL);
 	if (buf == NULL) {
 		print_warn("Not enough memory\n");
-		goto size_0;
+		goto exit_fail_size_0;
 	}
 
 	if (!read_proc_vm_atomic(current, addr, buf, *size)) {
 		print_warn("Error reading data at 0x%lx, task %d\n",
 			   addr, current->pid);
-		goto free_buf;
+		goto exit_fail_free_buf;
 	}
 
-	if (fbi_i->data_size == 0) {
+	if (fbid->data_size == 0) {
 		/*
 		 * that mean variable is string and
 		 * we need to add terminate '\0'
@@ -129,12 +133,12 @@ static char *fbi_probe_alloc_and_read_from_addr(const struct fbi_var_data *fbi_i
 
 	return buf;
 
-free_buf:
+exit_fail_free_buf:
 	kfree(buf);
 	buf = NULL;
-size_0:
+exit_fail_size_0:
 	*size = 0;
-fail_exit:
+exit_fail:
 	return NULL;
 
 }
@@ -161,21 +165,32 @@ static int fbi_probe_get_data_from_ptrs(const struct fbi_var_data *fbi_i,
 	unsigned long *reg_ptr;
 	unsigned long addr;
 	uint32_t size = 0;
-	void *buf;
+	void *buf = NULL;
 
 	reg_ptr = get_ptr_by_num(regs, fbi_i->reg_n);
 	if (reg_ptr == NULL) {
 		print_err("fbi_probe_get_data_from_ptrs: Wrong register number!\n");
-		return 0;
+		goto send_msg;
 	}
 
 	addr = *reg_ptr + fbi_i->reg_offset;
+	print_warn("reg = %p; off = 0x%llx; addr = 0x%lx!\n", reg_ptr,
+		   fbi_i->reg_offset, addr);
 
 	buf = fbi_probe_alloc_and_read_from_addr(fbi_i, addr, &size);
-	if (buf != NULL) {
-		fbi_msg(fbi_i->var_id, size, buf);
+
+send_msg:
+	/* If buf is NULL size will be 0.
+	 * That mean we cannot get data for this probe.
+	 * But we should send probe message with packed data size 0
+	 * as error message.
+	 */
+	fbi_msg(fbi_i->var_id, size, buf);
+
+	if (buf != NULL)
 		kfree(buf);
-	}
+	else
+		print_err("cannot get data from ptrs\n");
 
 	return 0;
 }
@@ -223,8 +238,14 @@ static int fbi_probe_get_data_from_direct_addr(const struct fbi_var_data *fbi_i,
 	print_debug("DIRECT_ADDR res_addr   = %lx\n", addr);
 
 	buf = fbi_probe_alloc_and_read_from_addr(fbi_i, addr, &size);
+	/* If buf is NULL size will be 0.
+	 * That mean we cannot get data for this probe.
+	 * But we should send probe message with packed data size 0
+	 * as error message.
+	 */
+	fbi_msg(fbi_i->var_id, size, buf);
+
 	if (buf != NULL) {
-		fbi_msg(fbi_i->var_id, size, buf);
 		kfree(buf);
 	} else {
 		print_warn("get data by direct addr failed (0x%lx :0x%llx)\n",
@@ -251,7 +272,8 @@ static int fbi_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	for (i = 0; i != fbi_i->var_count; i++) {
 		fbi_d = &fbi_i->vars[i];
 		if (fbi_d->reg_n == DIRECT_ADDR) {
-			if (0 != fbi_probe_get_data_from_direct_addr(fbi_d, ip, regs))
+			if (0 != fbi_probe_get_data_from_direct_addr(fbi_d, ip,
+								     regs))
 				print_err("fbi_probe_get_data_from_direct_addr error\n");
 		} else if (fbi_d->steps_count == 0) {
 			if (0 != fbi_probe_get_data_from_reg(fbi_d, regs))
@@ -280,10 +302,8 @@ void fbi_probe_cleanup(struct probe_info *probe_i)
 		}
 	}
 
-	if (fbi_i->vars) {
-		kfree(fbi_i->vars);
-		fbi_i->vars = NULL;
-	}
+	kfree(fbi_i->vars);
+	fbi_i->vars = NULL;
 }
 
 void fbi_probe_init(struct us_ip *ip)
