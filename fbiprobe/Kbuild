@@ -1,4 +1,5 @@
 EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_fbiprobe.o
-swap_fbiprobe-y := fbiprobe.o
+swap_fbiprobe-y := fbiprobe.o \
+                   fbi_msg.o
