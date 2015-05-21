@@ -144,17 +144,25 @@ void set_pf_by_tgid(struct proc_filter *pf, pid_t tgid, void *priv)
  * @param pf Pointer to the proc_filter struct
  * @param comm Task comm
  * @param priv Private data
- * @return Void
+ * @return 0 on suceess, error code on error.
  */
-void set_pf_by_comm(struct proc_filter *pf, char *comm, void *priv)
+int set_pf_by_comm(struct proc_filter *pf, char *comm, void *priv)
 {
 	size_t len = strnlen(comm, TASK_COMM_LEN);
+	char *new_comm = kmalloc(len, GFP_KERNEL);
+
+	if (new_comm == NULL)
+		return -ENOMEM;
+
+	/* copy comm */
+	memcpy(new_comm, comm, len - 1);
+	new_comm[len - 1] = '\0';
 
 	pf->call = &call_by_comm;
-	pf->data = kmalloc(len, GFP_KERNEL);
-	memset(pf->data, 0, len);
-	memcpy(pf->data, comm, len - 1);
+	pf->data = new_comm;
 	pf->priv = priv;
+
+	return 0;
 }
 
 /**
@@ -228,7 +236,7 @@ int check_pf_by_tgid(struct proc_filter *filter, pid_t tgid)
 int check_pf_by_comm(struct proc_filter *filter, char *comm)
 {
 	return ((filter->call == &call_by_comm) && (filter->data != NULL) &&
-		(!strncmp(filter->data, comm, TASK_COMM_LEN)));
+		(!strncmp(filter->data, comm, TASK_COMM_LEN - 1)));
 }
 
 /**

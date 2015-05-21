@@ -305,6 +305,7 @@ EXPORT_SYMBOL_GPL(get_pf_group_by_tgid);
  */
 struct pf_group *get_pf_group_by_comm(char *comm, void *priv)
 {
+	int ret;
 	struct pf_group *pfg;
 
 	list_for_each_entry(pfg, &pfg_list, list) {
@@ -316,7 +317,12 @@ struct pf_group *get_pf_group_by_comm(char *comm, void *priv)
 	if (pfg == NULL)
 		return NULL;
 
-	set_pf_by_comm(&pfg->filter, comm, priv);
+	ret = set_pf_by_comm(&pfg->filter, comm, priv);
+	if (ret) {
+		printk(KERN_ERR "ERROR: set_pf_by_comm, ret=%d\n", ret);
+		free_pfg(pfg);
+		return NULL;
+	}
 
 	add_pfg_by_list(pfg);
 

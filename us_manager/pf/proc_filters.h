@@ -54,7 +54,7 @@ struct proc_filter {
 void set_pf_by_dentry(struct proc_filter *pf, struct dentry *dentry,
 		      void *priv);
 void set_pf_by_tgid(struct proc_filter *pf, pid_t tgid, void *priv);
-void set_pf_by_comm(struct proc_filter *pf, char *comm, void *priv);
+int set_pf_by_comm(struct proc_filter *pf, char *comm, void *priv);
 void set_pf_dumb(struct proc_filter *pf, void *priv);
 
 
