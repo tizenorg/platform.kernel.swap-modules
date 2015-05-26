@@ -28,15 +28,9 @@
 #include <linux/types.h>
 
 struct dentry;
+struct sspt_proc;
 struct probe_info;
 
-/**
- * @struct img_proc
- * @breaf Image of process
- */
-struct img_proc {
-	struct list_head file_list;	/**< For img_file */
-};
 
 struct img_proc *create_img_proc(void);
 void free_img_proc(struct img_proc *proc);
@@ -46,6 +40,8 @@ int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 int img_proc_del_ip(struct img_proc *proc,
 		    struct dentry *dentry,
 		    unsigned long addr);
+
+void img_proc_copy_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc);
 
 /* debug */
 void img_proc_print(struct img_proc *proc);

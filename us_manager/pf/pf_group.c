@@ -80,20 +80,6 @@ static void del_pl_struct(struct pl_struct *pls)
 	list_del(&pls->list);
 }
 
-void copy_proc_form_img_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc)
-{
-	struct sspt_file *file;
-	struct img_file *i_file;
-	struct img_ip *i_ip;
-
-	list_for_each_entry(i_file, &i_proc->file_list, list) {
-		file = sspt_proc_find_file_or_new(proc, i_file->dentry);
-
-		list_for_each_entry(i_ip, &i_file->ip_list, list)
-			sspt_file_add_ip(file, i_ip->addr, i_ip->info);
-	}
-}
-
 static struct pl_struct *find_pl_struct(struct pf_group *pfg,
 					struct task_struct *task)
 {
@@ -126,7 +112,7 @@ static struct sspt_proc *new_proc_by_pfg(struct pf_group *pfg,
 	struct sspt_proc *proc;
 
 	proc = sspt_proc_get_by_task_or_new(task, pfg->filter.priv);
-	copy_proc_form_img_to_sspt(pfg->i_proc, proc);
+	img_proc_copy_to_sspt(pfg->i_proc, proc);
 	sspt_proc_add_filter(proc, pfg);
 
 	pls = create_pl_struct(proc);
@@ -471,7 +457,7 @@ void check_task_and_install(struct task_struct *task)
 		proc = get_proc_by_pfg(pfg, task);
 		if (proc) {
 			if (sspt_proc_is_filter_new(proc, pfg)) {
-				copy_proc_form_img_to_sspt(pfg->i_proc, proc);
+				img_proc_copy_to_sspt(pfg->i_proc, proc);
 				sspt_proc_add_filter(proc, pfg);
 			} else {
 				printk(KERN_ERR "SWAP US_MANAGER: Error! Trying"
@@ -516,7 +502,7 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 		proc = get_proc_by_pfg(pfg, task);
 		if (proc) {
 			if (sspt_proc_is_filter_new(proc, pfg)) {
-				copy_proc_form_img_to_sspt(pfg->i_proc, proc);
+				img_proc_copy_to_sspt(pfg->i_proc, proc);
 				sspt_proc_add_filter(proc, pfg);
 			}
 			break;

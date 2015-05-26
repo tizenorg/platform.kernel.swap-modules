@@ -23,9 +23,21 @@
  */
 
 
+#include <linux/slab.h>
+#include <linux/list.h>
+#include <linux/spinlock.h>
+#include <us_manager/sspt/sspt_proc.h>
+#include <us_manager/sspt/sspt_file.h>
+#include "img_ip.h"
 #include "img_proc.h"
 #include "img_file.h"
-#include <linux/slab.h>
+
+
+struct img_proc {
+	struct list_head file_list;
+	rwlock_t rwlock;
+};
+
 
 static void img_del_file_by_list(struct img_file *file);
 
@@ -39,7 +51,10 @@ struct img_proc *create_img_proc(void)
 	struct img_proc *proc;
 
 	proc = kmalloc(sizeof(*proc), GFP_KERNEL);
-	INIT_LIST_HEAD(&proc->file_list);
+	if (proc) {
+		INIT_LIST_HEAD(&proc->file_list);
+		rwlock_init(&proc->rwlock);
+	}
 
 	return proc;
 }
@@ -50,28 +65,31 @@ struct img_proc *create_img_proc(void)
  * @param file remove object
  * @return Void
  */
-void free_img_proc(struct img_proc *ip)
+void free_img_proc(struct img_proc *proc)
 {
 	struct img_file *file, *tmp;
 
-	list_for_each_entry_safe(file, tmp, &ip->file_list, list) {
+	list_for_each_entry_safe(file, tmp, &proc->file_list, list) {
 		img_del_file_by_list(file);
 		free_img_file(file);
 	}
 
-	kfree(ip);
+	kfree(proc);
 }
 
+/* called with write_[lock/unlock](&proc->rwlock) */
 static void img_add_file_by_list(struct img_proc *proc, struct img_file *file)
 {
 	list_add(&file->list, &proc->file_list);
 }
 
+/* called with write_[lock/unlock](&proc->rwlock) */
 static void img_del_file_by_list(struct img_file *file)
 {
 	list_del(&file->list);
 }
 
+/* called with read_[lock/unlock](&proc->rwlock) */
 static struct img_file *find_img_file(struct img_proc *proc,
 				      struct dentry *dentry)
 {
@@ -100,11 +118,18 @@ int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 	int ret;
 	struct img_file *file;
 
+	write_lock(&proc->rwlock);
 	file = find_img_file(proc, dentry);
-	if (file)
-		return img_file_add_ip(file, addr, probe_i);
+	if (file) {
+		ret = img_file_add_ip(file, addr, probe_i);
+		goto unlock;
+	}
 
 	file = create_img_file(dentry);
+	if (file == NULL) {
+		ret = -ENOMEM;
+		goto unlock;
+	}
 
 	ret = img_file_add_ip(file, addr, probe_i);
 	if (ret) {
@@ -114,6 +139,8 @@ int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 		img_add_file_by_list(proc, file);
 	}
 
+unlock:
+	write_unlock(&proc->rwlock);
 	return ret;
 }
 
@@ -132,9 +159,12 @@ int img_proc_del_ip(struct img_proc *proc,
 	int ret;
 	struct img_file *file;
 
+	write_lock(&proc->rwlock);
 	file = find_img_file(proc, dentry);
-	if (file == NULL)
-		return -EINVAL;
+	if (file == NULL) {
+		ret = -EINVAL;
+		goto unlock;
+	}
 
 	ret = img_file_del_ip(file, addr);
 	if (ret == 0 && img_file_empty(file)) {
@@ -142,7 +172,25 @@ int img_proc_del_ip(struct img_proc *proc,
 		free_img_file(file);
 	}
 
+unlock:
+	write_unlock(&proc->rwlock);
 	return ret;
+}
+
+void img_proc_copy_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc)
+{
+	struct sspt_file *file;
+	struct img_file *i_file;
+	struct img_ip *i_ip;
+
+	read_lock(&i_proc->rwlock);
+	list_for_each_entry(i_file, &i_proc->file_list, list) {
+		file = sspt_proc_find_file_or_new(proc, i_file->dentry);
+
+		list_for_each_entry(i_ip, &i_file->ip_list, list)
+			sspt_file_add_ip(file, i_ip->addr, i_ip->info);
+	}
+	read_unlock(&i_proc->rwlock);
 }
 
 /**
@@ -158,8 +206,11 @@ void img_proc_print(struct img_proc *proc)
 	struct img_file *file;
 
 	printk(KERN_INFO "### img_proc_print:\n");
+
+	read_lock(&proc->rwlock);
 	list_for_each_entry(file, &proc->file_list, list) {
 		img_file_print(file);
 	}
+	read_unlock(&proc->rwlock);
 }
 /* debug */
