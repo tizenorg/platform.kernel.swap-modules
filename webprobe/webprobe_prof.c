@@ -127,6 +127,9 @@ int web_prof_data_set(char *app_path, char *app_id)
 	if (web_data->lib_dentry == NULL)
 		return -EFAULT;
 
+	if (web_data->pfg)
+		put_pf_group(web_data->pfg);
+
 	web_data->pfg = get_pf_group_by_comm(app_id, web_data->app_dentry);
 	if (web_data->pfg == NULL)
 		return -EFAULT;
@@ -212,5 +215,8 @@ int web_prof_init(void)
 
 void web_prof_exit(void)
 {
+	if (web_data->pfg)
+		put_pf_group(web_data->pfg);
+
 	kfree(web_data);
 }

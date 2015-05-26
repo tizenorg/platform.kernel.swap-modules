@@ -35,6 +35,7 @@
 #include <asm/uaccess.h>
 
 #include "parser_defs.h"
+#include "us_inst.h"
 #include "msg_buf.h"
 #include "msg_cmd.h"
 #include "cpu_ctrl.h"
@@ -163,6 +164,7 @@ static int reg_msg_handler(void)
 static void unreg_msg_handler(void)
 {
 	set_msg_handler(NULL);
+	pfg_put_all();
 }
 
 static int once(void)

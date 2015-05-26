@@ -40,6 +40,7 @@ struct pf_group {
 	struct list_head list;
 	struct img_proc *i_proc;
 	struct proc_filter filter;
+	atomic_t usage;
 
 	/* TODO: proc_list*/
 	struct list_head proc_list;
@@ -51,6 +52,7 @@ struct pl_struct {
 };
 
 static LIST_HEAD(pfg_list);
+static DEFINE_RWLOCK(pfg_list_lock);
 
 /* struct pl_struct */
 static struct pl_struct *create_pl_struct(struct sspt_proc *proc)
@@ -148,6 +150,7 @@ static struct pf_group *create_pfg(void)
 	INIT_LIST_HEAD(&pfg->list);
 	memset(&pfg->filter, 0, sizeof(pfg->filter));
 	INIT_LIST_HEAD(&pfg->proc_list);
+	atomic_set(&pfg->usage, 1);
 
 	return pfg;
 
@@ -169,11 +172,13 @@ static void free_pfg(struct pf_group *pfg)
 	kfree(pfg);
 }
 
+/* called with pfg_list_lock held */
 static void add_pfg_by_list(struct pf_group *pfg)
 {
 	list_add(&pfg->list, &pfg_list);
 }
 
+/* called with pfg_list_lock held */
 static void del_pfg_by_list(struct pf_group *pfg)
 {
 	list_del(&pfg->list);
@@ -251,19 +256,24 @@ struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv)
 {
 	struct pf_group *pfg;
 
+	write_lock(&pfg_list_lock);
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_pf_by_dentry(&pfg->filter, dentry))
-			return pfg;
+		if (check_pf_by_dentry(&pfg->filter, dentry)) {
+			atomic_inc(&pfg->usage);
+			goto unlock;
+		}
 	}
 
 	pfg = create_pfg();
 	if (pfg == NULL)
-		return NULL;
+		goto unlock;
 
 	set_pf_by_dentry(&pfg->filter, dentry, priv);
 
 	add_pfg_by_list(pfg);
 
+unlock:
+	write_unlock(&pfg_list_lock);
 	return pfg;
 }
 EXPORT_SYMBOL_GPL(get_pf_group_by_dentry);
@@ -279,19 +289,24 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv)
 {
 	struct pf_group *pfg;
 
+	write_lock(&pfg_list_lock);
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_pf_by_tgid(&pfg->filter, tgid))
-			return pfg;
+		if (check_pf_by_tgid(&pfg->filter, tgid)) {
+			atomic_inc(&pfg->usage);
+			goto unlock;
+		}
 	}
 
 	pfg = create_pfg();
 	if (pfg == NULL)
-		return NULL;
+		goto unlock;
 
 	set_pf_by_tgid(&pfg->filter, tgid, priv);
 
 	add_pfg_by_list(pfg);
 
+unlock:
+	write_unlock(&pfg_list_lock);
 	return pfg;
 }
 EXPORT_SYMBOL_GPL(get_pf_group_by_tgid);
@@ -308,24 +323,29 @@ struct pf_group *get_pf_group_by_comm(char *comm, void *priv)
 	int ret;
 	struct pf_group *pfg;
 
+	write_lock(&pfg_list_lock);
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_pf_by_comm(&pfg->filter, comm))
-			return pfg;
+		if (check_pf_by_comm(&pfg->filter, comm)) {
+			atomic_inc(&pfg->usage);
+			goto unlock;
+		}
 	}
 
 	pfg = create_pfg();
 	if (pfg == NULL)
-		return NULL;
+		goto unlock;
 
 	ret = set_pf_by_comm(&pfg->filter, comm, priv);
 	if (ret) {
 		printk(KERN_ERR "ERROR: set_pf_by_comm, ret=%d\n", ret);
 		free_pfg(pfg);
-		return NULL;
+		pfg = NULL;
+		goto unlock;
 	}
 
 	add_pfg_by_list(pfg);
-
+unlock:
+	write_unlock(&pfg_list_lock);
 	return pfg;
 }
 EXPORT_SYMBOL_GPL(get_pf_group_by_comm);
@@ -340,19 +360,24 @@ struct pf_group *get_pf_group_dumb(void *priv)
 {
 	struct pf_group *pfg;
 
+	write_lock(&pfg_list_lock);
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_pf_dumb(&pfg->filter))
-			return pfg;
+		if (check_pf_dumb(&pfg->filter)) {
+			atomic_inc(&pfg->usage);
+			goto unlock;
+		}
 	}
 
 	pfg = create_pfg();
 	if (pfg == NULL)
-		return NULL;
+		goto unlock;
 
 	set_pf_dumb(&pfg->filter, priv);
 
 	add_pfg_by_list(pfg);
 
+unlock:
+	write_unlock(&pfg_list_lock);
 	return pfg;
 }
 EXPORT_SYMBOL_GPL(get_pf_group_dumb);
@@ -365,7 +390,13 @@ EXPORT_SYMBOL_GPL(get_pf_group_dumb);
  */
 void put_pf_group(struct pf_group *pfg)
 {
+	if (atomic_dec_and_test(&pfg->usage)) {
+		write_lock(&pfg_list_lock);
+		del_pfg_by_list(pfg);
+		write_unlock(&pfg_list_lock);
 
+		free_pfg(pfg);
+	}
 }
 
 /**
@@ -411,10 +442,12 @@ int check_task_on_filters(struct task_struct *task)
 {
 	struct pf_group *pfg;
 
+	read_lock(&pfg_list_lock);
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_task_f(&pfg->filter, task))
 			return 1;
 	}
+	read_unlock(&pfg_list_lock);
 
 	return 0;
 }
@@ -430,6 +463,7 @@ void check_task_and_install(struct task_struct *task)
 	struct pf_group *pfg;
 	struct sspt_proc *proc = NULL;
 
+	read_lock(&pfg_list_lock);
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_task_f(&pfg->filter, task) == NULL)
 			continue;
@@ -443,7 +477,8 @@ void check_task_and_install(struct task_struct *task)
 				printk(KERN_ERR "SWAP US_MANAGER: Error! Trying"
 						" to first install filter that "
 						"already exists in proc!\n");
-				return;
+				proc = NULL;
+				goto unlock;
 			}
 			break;
 		}
@@ -453,6 +488,9 @@ void check_task_and_install(struct task_struct *task)
 			break;
 		}
 	}
+
+unlock:
+	read_unlock(&pfg_list_lock);
 
 	if (proc)
 		first_install(task, proc, pfg);
@@ -470,6 +508,7 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	struct pf_group *pfg, *pfg_first = NULL;
 	struct sspt_proc *proc = NULL;
 
+	read_lock(&pfg_list_lock);
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if ((check_task_f(&pfg->filter, task) == NULL))
 			continue;
@@ -489,6 +528,7 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 			break;
 		}
 	}
+	read_unlock(&pfg_list_lock);
 
 	if (proc) {
 		if (pfg_first)
@@ -512,6 +552,7 @@ void uninstall_proc(struct sspt_proc *proc)
 	struct pf_group *pfg;
 	struct pl_struct *pls;
 
+	read_lock(&pfg_list_lock);
 	list_for_each_entry(pfg, &pfg_list, list) {
 		pls = find_pl_struct(pfg, task);
 		if (pls) {
@@ -519,6 +560,7 @@ void uninstall_proc(struct sspt_proc *proc)
 			free_pl_struct(pls);
 		}
 	}
+	read_unlock(&pfg_list_lock);
 
 	task_lock(task);
 	BUG_ON(task->mm == NULL);
@@ -588,16 +630,6 @@ void install_all(void)
 #endif /* CONFIG_ARM */
 }
 
-static void clean_pfg(void)
-{
-	struct pf_group *pfg, *n;
-
-	list_for_each_entry_safe(pfg, n, &pfg_list, list) {
-		del_pfg_by_list(pfg);
-		free_pfg(pfg);
-	}
-}
-
 static void on_each_uninstall_proc(struct sspt_proc *proc, void *data)
 {
 	uninstall_proc(proc);
@@ -613,8 +645,6 @@ void uninstall_all(void)
 	sspt_proc_write_lock();
 	on_each_proc_no_lock(on_each_uninstall_proc, NULL);
 	sspt_proc_write_unlock();
-
-	clean_pfg();
 }
 
 /**

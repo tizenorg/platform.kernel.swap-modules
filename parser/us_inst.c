@@ -28,6 +28,7 @@
  */
 
 
+#include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/version.h>
 #include <linux/errno.h>
@@ -37,6 +38,88 @@
 #include "msg_parser.h"
 #include "us_inst.h"
 
+
+struct pfg_item {
+	struct list_head list;
+	struct pf_group *pfg;
+};
+
+
+static LIST_HEAD(pfg_item_list);
+static DEFINE_SPINLOCK(pfg_item_lock);
+
+
+static struct pfg_item *pfg_item_create(struct pf_group *pfg)
+{
+	struct pfg_item *item;
+
+	item = kmalloc(sizeof(*item), GFP_KERNEL);
+	if (item) {
+		INIT_LIST_HEAD(&item->list);
+		item->pfg = pfg;
+	}
+
+	return item;
+}
+
+static void pfg_item_free(struct pfg_item *item)
+{
+	kfree(item);
+}
+
+/* called with pfg_item_lock held */
+static bool pfg_check(struct pf_group *pfg)
+{
+	struct pfg_item *item;
+
+	list_for_each_entry(item, &pfg_item_list, list) {
+		if (item->pfg == pfg)
+			return true;
+	}
+
+	return false;
+}
+
+static int pfg_add(struct pf_group *pfg)
+{
+	bool already;
+
+	spin_lock(&pfg_item_lock);
+	already = pfg_check(pfg);
+	spin_unlock(&pfg_item_lock);
+
+	if (already) {
+		put_pf_group(pfg);
+	} else {
+		struct pfg_item *item;
+
+		item = pfg_item_create(pfg);
+		if (item == NULL)
+			return -ENOMEM;
+
+		spin_lock(&pfg_item_lock);
+		list_add(&item->list, &pfg_item_list);
+		spin_unlock(&pfg_item_lock);
+	}
+
+	return 0;
+}
+
+void pfg_put_all(void)
+{
+	LIST_HEAD(tmp_list);
+	struct pfg_item *item, *n;
+
+	spin_lock(&pfg_item_lock);
+	list_splice_init(&pfg_item_list, &tmp_list);
+	spin_unlock(&pfg_item_lock);
+
+	list_for_each_entry_safe(item, n, &tmp_list, list) {
+		list_del(&item->list);
+		put_pf_group(item->pfg);
+		pfg_item_free(item);
+	}
+}
 
 static int mod_func_inst(struct func_inst_data *func, struct pf_group *pfg,
 			 struct dentry *dentry, enum MOD_TYPE mt)
@@ -127,6 +210,13 @@ static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 	ret = get_pfg_by_app_info(app_inst->app_info, &pfg);
 	if (ret) {
 		printk(KERN_INFO "Cannot get pfg by app info, ret = %d\n", ret);
+		return ret;
+	}
+
+	ret = pfg_add(pfg);
+	if (ret) {
+		put_pf_group(pfg);
+		printk(KERN_INFO "Cannot pfg_add, ret=%d\n", ret);
 		return ret;
 	}
 

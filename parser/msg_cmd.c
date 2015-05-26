@@ -133,6 +133,8 @@ int msg_stop(struct msg_buf *mb)
 	if (ret)
 		return ret;
 
+	pfg_put_all();
+
 	conf.use_features0 = 0;
 	conf.use_features1 = 0;
 	ret = set_config(&conf);

@@ -42,5 +42,6 @@ enum MOD_TYPE {
 struct us_inst_data;
 
 int mod_us_inst(struct us_inst_data *us_inst, enum MOD_TYPE mt);
+void pfg_put_all(void);
 
 #endif /* _US_INST_H */
