@@ -179,7 +179,7 @@ static void do_uninit_level(enum init_level level)
 {
 	struct swap_init_struct *init;
 
-	list_for_each_entry(init, &init_list, list)
+	list_for_each_entry_reverse(init, &init_list, list)
 		sis_uninit_level(init, level);
 }
 
