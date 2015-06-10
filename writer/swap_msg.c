@@ -107,16 +107,13 @@ u64 swap_msg_timespec2time(struct timespec *ts)
 
 struct swap_msg *swap_msg_get(enum swap_msg_id id)
 {
-	struct timespec ts;
 	struct swap_msg *m;
-
-	getnstimeofday(&ts);
 
 	m = (struct swap_msg *)cpu_buf[get_cpu()];
 
 	m->msg_id = (u32)id;
 	m->seq_num = atomic_inc_return(&seq_num);
-	m->time = swap_msg_spec2time(&ts);
+	m->time = swap_msg_current_time();
 
 	return m;
 }

@@ -49,6 +49,7 @@ install -m 666 task_data/swap_task_data.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 preload/swap_preload.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 fbiprobe/swap_fbiprobe.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 wsp/swap_wsp.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 nsp/swap_nsp.ko -t %{buildroot}/opt/swap/sdk
 
 %files
 %defattr(-,root,root)
@@ -71,3 +72,4 @@ install -m 666 wsp/swap_wsp.ko -t %{buildroot}/opt/swap/sdk
 /opt/swap/sdk/swap_preload.ko
 /opt/swap/sdk/swap_fbiprobe.ko
 /opt/swap/sdk/swap_wsp.ko
+/opt/swap/sdk/swap_nsp.ko

@@ -20,6 +20,7 @@
  */
 
 
+#include <uprobe/swap_uaccess.h>
 #include <us_manager/sspt/sspt.h>
 #include <us_manager/probes/probe_info_new.h>
 #include "wsp.h"
@@ -50,28 +51,6 @@ static const char ewebkit_path[] = "/usr/lib/libewebkit2.so";
 	.probe.info = _info		\
 }
 
-
-static const char *strdup_from_user(const char __user *user_s)
-{
-	enum { max_str_len = 1024 };
-	char *str;
-	int len_s, ret;
-
-	len_s = strnlen_user(user_s, max_str_len - 1);
-	str = kmalloc(len_s + 1, GFP_ATOMIC);
-	if (str == NULL)
-		return NULL;
-
-	ret = strncpy_from_user(str, user_s, len_s);
-	if (ret < 0) {
-		kfree(str);
-		return NULL;
-	}
-
-	str[ret] = '\0';
-
-	return str;
-}
 
 static void do_res_processing_begin(void *data, void *ptr, enum wsp_res_t type)
 {
@@ -107,6 +86,7 @@ static void do_res_finish(struct wsp_res *res)
 static int soup_req_handle(struct kprobe *p, struct pt_regs *regs)
 {
 	enum { max_str_len = 512 };
+	const char __user *user_s;
 	const char *path;
 	struct wsp_res *res;
 
@@ -116,7 +96,13 @@ static int soup_req_handle(struct kprobe *p, struct pt_regs *regs)
 		return 0;
 	}
 
-	path = strdup_from_user((const char __user *)swap_get_uarg(regs, 1));
+	user_s = (const char __user *)swap_get_uarg(regs, 1);
+	path = strdup_from_user(user_s, GFP_ATOMIC);
+	if (path == NULL) {
+		pr_warn("soup_req_handle: invalid path\n");
+		return 0;
+	}
+
 	wsp_msg(WSP_RES_LOAD_BEGIN, res->id, path);
 	wsp_res_stat_set_next(res, WRS_SOUP_REQ);
 	kfree(path);

@@ -47,6 +47,7 @@ enum swap_msg_id {
 	MSG_PROC_COMM			= 0x0014,
 	MSG_WEB_FUNCTION_ENTRY		= 0x0015,
 	MSG_WEB_FUNCTION_EXIT		= 0x0016,
+	MSG_NSP				= 0x0019,
 	MSG_WSP				= 0x001a,
 	MSG_FBI				= 0x0020
 };
@@ -64,6 +65,13 @@ struct swap_msg;
 static inline u64 swap_msg_spec2time(struct timespec *ts)
 {
 	return ((u64)ts->tv_nsec) << 32 | ts->tv_sec;
+}
+
+static inline u64 swap_msg_current_time(void)
+{
+	struct timespec ts;
+	getnstimeofday(&ts);
+	return swap_msg_spec2time(&ts);
 }
 
 struct swap_msg *swap_msg_get(enum swap_msg_id id);
