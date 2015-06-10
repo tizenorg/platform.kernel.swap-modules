@@ -23,6 +23,7 @@
 #include <linux/module.h>
 #include <us_manager/sspt/ip.h>
 #include <us_manager/pf/pf_group.h>
+#include <us_manager/sspt/sspt_proc.h>
 #include "probes.h"
 #include "probe_info_new.h"
 #include "register_probes.h"
@@ -80,6 +81,23 @@ static int uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 
 
 
+void pin_set_probe(struct probe_info_otg *otg, unsigned long vaddr)
+{
+	struct sspt_proc *proc;
+	struct task_struct *task = current;
+
+	otg->info.probe_type = otg->data->type;
+	otg->info.size = sizeof(struct probe_info_new *);
+
+	proc = sspt_proc_get_by_task(task);
+	if (proc) {
+		sspt_proc_install_probe(proc, vaddr, &otg->info);
+	} else {
+		pr_err("task[%u %u %s] not in sspt\n",
+		       task->tgid, task->pid, task->comm);
+	}
+}
+EXPORT_SYMBOL_GPL(pin_set_probe);
 
 /*
  * register/unregister interface

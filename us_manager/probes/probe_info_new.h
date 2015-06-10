@@ -25,6 +25,7 @@
 
 #include <kprobe/swap_kprobes.h>
 #include <uprobe/swap_uprobes.h>
+#include "probes.h"
 
 
 struct dentry;
@@ -74,6 +75,12 @@ struct probe_new {
 		.data_size = _size			\
 	}
 
+struct probe_info_otg {
+	struct probe_info info;
+	struct probe_info_new *data;	/* field 'data[0]' in probe_info struct */
+};
+
+void pin_set_probe(struct probe_info_otg *otg, unsigned long vaddr);
 
 int pin_register(struct probe_new *probe, struct pf_group *pfg,
 		 struct dentry *dentry);
