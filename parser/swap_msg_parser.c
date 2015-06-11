@@ -32,7 +32,7 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 #include <linux/cpumask.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #include "parser_defs.h"
 #include "us_inst.h"

@@ -22,7 +22,7 @@
 
 #include <linux/module.h>
 #include <linux/debugfs.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include "swap_initializer.h"
 
 

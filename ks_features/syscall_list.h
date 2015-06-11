@@ -64,7 +64,7 @@
 	X(sys_fchownat, dsddd), \
 	X(sys_fgetxattr, dspx), \
 	X(sys_flistxattr, dpx), \
-	X(sys_fork,), \
+	X(sys_fork, /* empty */), \
 	X(sys_fremovexattr, ds), \
 	X(sys_fstat64, xp), \
 	X(sys_ftruncate64, dx), \
@@ -75,7 +75,7 @@
 	X(sys_getsockopt, dddpd), \
 	X(sys_getxattr, sspx), \
 	X(sys_inotify_add_watch, dsd), \
-	X(sys_inotify_init,), \
+	X(sys_inotify_init, /* empty */), \
 	X(sys_inotify_init1, d), \
 	X(sys_inotify_rm_watch, dd), \
 	X(sys_ipc, ddxxpx), \
@@ -102,7 +102,7 @@
 	X(sys_openat, dsdd), \
 	X(sys_open_by_handle_at, dpd), \
 	X(sys_open, sdd), \
-	X(sys_pause,), \
+	X(sys_pause, /* empty */), \
 	X(sys_pipe2, dd), \
 	X(sys_ppoll, pdpp), \
 	X(sys_pread64, dpxx), \
@@ -180,7 +180,7 @@
 	X(sys_utimensat, dspd), \
 	X(sys_utime, pp), \
 	X(sys_utimes, pp), \
-	X(sys_vfork,), \
+	X(sys_vfork, /* empty */), \
 	X(sys_vmsplice, dpxd), \
 	X(sys_wait4, dddp), \
 	X(sys_waitid, ddpdp)

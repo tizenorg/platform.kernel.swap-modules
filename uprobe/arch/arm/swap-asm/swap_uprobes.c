@@ -34,7 +34,7 @@
 #include <linux/init.h>			/* need for asm/traps.h */
 #include <linux/sched.h>		/* need for asm/traps.h */
 
-#include <asm/ptrace.h>			/* need for asm/traps.h */
+#include <linux/ptrace.h>		/* need for asm/traps.h */
 #include <asm/traps.h>
 
 #include <kprobe/swap_slots.h>
@@ -180,73 +180,59 @@ static int prep_pc_dep_insn_execbuf_thumb(kprobe_opcode_t *insns,
 	unsigned char mreg = 0;
 	unsigned char reg = 0;
 
-	if (THUMB_INSN_MATCH(APC, insn) || THUMB_INSN_MATCH(LRO3, insn)) {
+	if (THUMB_INSN_MATCH(APC, insn) ||
+	    THUMB_INSN_MATCH(LRO3, insn)) {
 		reg = ((insn & 0xffff) & uregs) >> 8;
-	} else {
-		if (THUMB_INSN_MATCH(MOV3, insn)) {
-			if (((((unsigned char)insn) & 0xff) >> 3) == 15)
-				reg = (insn & 0xffff) & uregs;
-			else
-				return 0;
-		} else {
-			if (THUMB2_INSN_MATCH(ADR, insn)) {
-				reg = ((insn >> 16) & uregs) >> 8;
-				if (reg == 15)
-					return 0;
-			} else {
-				if (THUMB2_INSN_MATCH(LDRW, insn) ||
-				    THUMB2_INSN_MATCH(LDRW1, insn) ||
-				    THUMB2_INSN_MATCH(LDRHW, insn) ||
-				    THUMB2_INSN_MATCH(LDRHW1, insn) ||
-				    THUMB2_INSN_MATCH(LDRWL, insn)) {
-					reg = ((insn >> 16) & uregs) >> 12;
-					if (reg == 15)
-						return 0;
-				} else {
-					/* LDRB.W PC, [PC, #immed] =>
-					   PLD [PC, #immed],
-					   so Rt == PC is skipped */
-					if (THUMB2_INSN_MATCH(LDRBW, insn) ||
-					    THUMB2_INSN_MATCH(LDRBW1, insn) ||
-					    THUMB2_INSN_MATCH(LDREX, insn)) {
-						reg = ((insn >> 16) & uregs) >> 12;
-					} else {
-						if (THUMB2_INSN_MATCH(DP, insn)) {
-							reg = ((insn >> 16) & uregs) >> 12;
-							if (reg == 15)
-								return 0;
-						} else {
-							if (THUMB2_INSN_MATCH(RSBW, insn)) {
-								reg = ((insn >> 12) & uregs) >> 8;
-								if (reg == 15)
-									return 0;
-							} else {
-								if (THUMB2_INSN_MATCH(RORW, insn)) {
-									reg = ((insn >> 12) & uregs) >> 8;
-									if (reg == 15)
-										return 0;
-								} else {
-									if (THUMB2_INSN_MATCH(ROR, insn) || THUMB2_INSN_MATCH(LSLW1, insn) ||
-									    THUMB2_INSN_MATCH(LSLW2, insn) || THUMB2_INSN_MATCH(LSRW1, insn) ||
-									    THUMB2_INSN_MATCH(LSRW2, insn)) {
-										reg = ((insn >> 12) & uregs) >> 8;
-										if (reg == 15)
-											return 0;
-									} else {
-										if (THUMB2_INSN_MATCH(TEQ1, insn) || THUMB2_INSN_MATCH(TST1, insn)) {
-											reg = 15;
-										} else {
-											if (THUMB2_INSN_MATCH(TEQ2, insn) || THUMB2_INSN_MATCH(TST2, insn))
-												reg = THUMB2_INSN_REG_RM(insn);
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
+	} else if (THUMB_INSN_MATCH(MOV3, insn)) {
+		if (((((unsigned char)insn) & 0xff) >> 3) == 15)
+			reg = (insn & 0xffff) & uregs;
+		else
+			return 0;
+	} else if (THUMB2_INSN_MATCH(ADR, insn)) {
+		reg = ((insn >> 16) & uregs) >> 8;
+		if (reg == 15)
+			return 0;
+	} else if (THUMB2_INSN_MATCH(LDRW, insn) ||
+		   THUMB2_INSN_MATCH(LDRW1, insn) ||
+		   THUMB2_INSN_MATCH(LDRHW, insn) ||
+		   THUMB2_INSN_MATCH(LDRHW1, insn) ||
+		   THUMB2_INSN_MATCH(LDRWL, insn)) {
+		reg = ((insn >> 16) & uregs) >> 12;
+		if (reg == 15)
+			return 0;
+	/*
+	 * LDRB.W PC, [PC, #immed] => PLD [PC, #immed], so Rt == PC is skipped
+	 */
+	} else if (THUMB2_INSN_MATCH(LDRBW, insn) ||
+		   THUMB2_INSN_MATCH(LDRBW1, insn) ||
+		   THUMB2_INSN_MATCH(LDREX, insn)) {
+		reg = ((insn >> 16) & uregs) >> 12;
+	} else if (THUMB2_INSN_MATCH(DP, insn)) {
+		reg = ((insn >> 16) & uregs) >> 12;
+		if (reg == 15)
+			return 0;
+	} else if (THUMB2_INSN_MATCH(RSBW, insn)) {
+		reg = ((insn >> 12) & uregs) >> 8;
+		if (reg == 15)
+			return 0;
+	} else if (THUMB2_INSN_MATCH(RORW, insn)) {
+		reg = ((insn >> 12) & uregs) >> 8;
+		if (reg == 15)
+			return 0;
+	} else if (THUMB2_INSN_MATCH(ROR, insn) ||
+		   THUMB2_INSN_MATCH(LSLW1, insn) ||
+		   THUMB2_INSN_MATCH(LSLW2, insn) ||
+		   THUMB2_INSN_MATCH(LSRW1, insn) ||
+		   THUMB2_INSN_MATCH(LSRW2, insn)) {
+		reg = ((insn >> 12) & uregs) >> 8;
+		if (reg == 15)
+			return 0;
+	} else if (THUMB2_INSN_MATCH(TEQ1, insn) ||
+		   THUMB2_INSN_MATCH(TST1, insn)) {
+		reg = 15;
+	} else if (THUMB2_INSN_MATCH(TEQ2, insn) ||
+		   THUMB2_INSN_MATCH(TST2, insn)) {
+		reg = THUMB2_INSN_REG_RM(insn);
 	}
 
 	if ((THUMB2_INSN_MATCH(STRW, insn) ||
@@ -285,100 +271,95 @@ static int prep_pc_dep_insn_execbuf_thumb(kprobe_opcode_t *insns,
 	if (THUMB_INSN_MATCH(APC, insn)) {
 		/* ADD Rd, PC, #immed_8*4 -> ADD Rd, SP, #immed_8*4 */
 		*((unsigned short *)insns + 4) = ((insn & 0xffff) | 0x800);
-	} else {
-		if (THUMB_INSN_MATCH(LRO3, insn)) {
-			/* LDR Rd, [PC, #immed_8*4] ->
-			 * LDR Rd, [SP, #immed_8*4] */
-			*((unsigned short *)insns + 4) =
-				((insn & 0xffff) + 0x5000);
-		} else {
-			if (THUMB_INSN_MATCH(MOV3, insn)) {
-				/* MOV Rd, PC -> MOV Rd, SP */
-				*((unsigned short *)insns + 4) =
-					((insn & 0xffff) ^ 0x10);
-			} else {
-				if (THUMB2_INSN_MATCH(ADR, insn)) {
-					/* ADDW Rd,PC,#imm -> ADDW Rd,SP,#imm */
-					insns[2] = (insn & 0xfffffff0) | 0x0d;
-				} else {
-					if (THUMB2_INSN_MATCH(LDRW, insn) ||
-					    THUMB2_INSN_MATCH(LDRBW, insn) ||
-					    THUMB2_INSN_MATCH(LDRHW, insn)) {
-						/* LDR.W Rt, [PC, #-<imm_12>] ->
-						 * LDR.W Rt, [SP, #-<imm_8>]
-						 * !!!!!!!!!!!!!!!!!!!!!!!!
-						 * !!! imm_12 vs. imm_8 !!!
-						 * !!!!!!!!!!!!!!!!!!!!!!!! */
-						insns[2] = (insn & 0xf0fffff0) | 0x0c00000d;
-					} else {
-						if (THUMB2_INSN_MATCH(LDRW1, insn) ||
-						    THUMB2_INSN_MATCH(LDRBW1, insn) ||
-						    THUMB2_INSN_MATCH(LDRHW1, insn) ||
-						    THUMB2_INSN_MATCH(LDRD, insn) ||
-						    THUMB2_INSN_MATCH(LDRD1, insn) ||
-						    THUMB2_INSN_MATCH(LDREX, insn)) {
-							/* LDRx.W Rt, [PC, #+<imm_12>] ->
-							 * LDRx.W Rt, [SP, #+<imm_12>]
-							 (+/-imm_8 for LDRD Rt, Rt2, [PC, #<imm_8>] */
-							insns[2] = (insn & 0xfffffff0) | 0xd;
-						} else {
-							if (THUMB2_INSN_MATCH(MUL, insn)) {
-								insns[2] = (insn & 0xfff0ffff) | 0x000d0000; /* MUL Rd, Rn, SP */
-							} else {
-								if (THUMB2_INSN_MATCH(DP, insn)) {
-									if (THUMB2_INSN_REG_RM(insn) == 15)
-										insns[2] = (insn & 0xfff0ffff) | 0x000d0000; /* DP Rd, Rn, PC */
-									else if (THUMB2_INSN_REG_RN(insn) == 15)
-										insns[2] = (insn & 0xfffffff0) | 0xd; /* DP Rd, PC, Rm */
-								} else {
-									if (THUMB2_INSN_MATCH(LDRWL, insn)) {
-										/* LDRx.W Rt, [PC, #<imm_12>] ->
-										 * LDRx.W Rt, [SP, #+<imm_12>]
-										 * (+/-imm_8 for LDRD Rt, Rt2, [PC, #<imm_8>] */
-										insns[2] = (insn & 0xfffffff0) | 0xd;
-									} else {
-										if (THUMB2_INSN_MATCH(RSBW, insn)) {
-											insns[2] = (insn & 0xfffffff0) | 0xd;									/*  RSB{S}.W Rd, PC, #<const> -> RSB{S}.W Rd, SP, #<const> */
-										} else {
-											if (THUMB2_INSN_MATCH(RORW, insn) || THUMB2_INSN_MATCH(LSLW1, insn) || THUMB2_INSN_MATCH(LSRW1, insn)) {
-												if ((THUMB2_INSN_REG_RM(insn) == 15) && (THUMB2_INSN_REG_RN(insn) == 15))
-													insns[2] = (insn & 0xfffdfffd);								/*  ROR.W Rd, PC, PC */
-												else if (THUMB2_INSN_REG_RM(insn) == 15)
-													insns[2] = (insn & 0xfff0ffff) | 0xd0000;						/*  ROR.W Rd, Rn, PC */
-												else if (THUMB2_INSN_REG_RN(insn) == 15)
-													insns[2] = (insn & 0xfffffff0) | 0xd;							/*  ROR.W Rd, PC, Rm */
-											} else {
-												if (THUMB2_INSN_MATCH(ROR, insn) || THUMB2_INSN_MATCH(LSLW2, insn) || THUMB2_INSN_MATCH(LSRW2, insn))
-													insns[2] = (insn & 0xfff0ffff) | 0xd0000;						/*  ROR{S} Rd, PC, #<const> -> ROR{S} Rd, SP, #<const> */
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
+	} else if (THUMB_INSN_MATCH(LRO3, insn)) {
+		/* LDR Rd, [PC, #immed_8*4] ->
+		 * LDR Rd, [SP, #immed_8*4] */
+		*((unsigned short *)insns + 4) =
+			((insn & 0xffff) + 0x5000);
+	} else if (THUMB_INSN_MATCH(MOV3, insn)) {
+		/* MOV Rd, PC -> MOV Rd, SP */
+		*((unsigned short *)insns + 4) =
+			((insn & 0xffff) ^ 0x10);
+	} else if (THUMB2_INSN_MATCH(ADR, insn)) {
+		/* ADDW Rd,PC,#imm -> ADDW Rd,SP,#imm */
+		insns[2] = (insn & 0xfffffff0) | 0x0d;
+	} else if (THUMB2_INSN_MATCH(LDRW, insn) ||
+		   THUMB2_INSN_MATCH(LDRBW, insn) ||
+		   THUMB2_INSN_MATCH(LDRHW, insn)) {
+		/* LDR.W Rt, [PC, #-<imm_12>] ->
+		 * LDR.W Rt, [SP, #-<imm_8>]
+		 * !!!!!!!!!!!!!!!!!!!!!!!!
+		 * !!! imm_12 vs. imm_8 !!!
+		 * !!!!!!!!!!!!!!!!!!!!!!!! */
+		insns[2] = (insn & 0xf0fffff0) | 0x0c00000d;
+	} else if (THUMB2_INSN_MATCH(LDRW1, insn) ||
+		   THUMB2_INSN_MATCH(LDRBW1, insn) ||
+		   THUMB2_INSN_MATCH(LDRHW1, insn) ||
+		   THUMB2_INSN_MATCH(LDRD, insn) ||
+		   THUMB2_INSN_MATCH(LDRD1, insn) ||
+		   THUMB2_INSN_MATCH(LDREX, insn)) {
+		/* LDRx.W Rt, [PC, #+<imm_12>] ->
+		 * LDRx.W Rt, [SP, #+<imm_12>]
+		 (+/-imm_8 for LDRD Rt, Rt2, [PC, #<imm_8>] */
+		insns[2] = (insn & 0xfffffff0) | 0xd;
+	} else if (THUMB2_INSN_MATCH(MUL, insn)) {
+		/* MUL Rd, Rn, SP */
+		insns[2] = (insn & 0xfff0ffff) | 0x000d0000;
+	} else if (THUMB2_INSN_MATCH(DP, insn)) {
+		if (THUMB2_INSN_REG_RM(insn) == 15)
+			/* DP Rd, Rn, PC */
+			insns[2] = (insn & 0xfff0ffff) | 0x000d0000;
+		else if (THUMB2_INSN_REG_RN(insn) == 15)
+			/* DP Rd, PC, Rm */
+			insns[2] = (insn & 0xfffffff0) | 0xd;
+	} else if (THUMB2_INSN_MATCH(LDRWL, insn)) {
+		/* LDRx.W Rt, [PC, #<imm_12>] ->
+		 * LDRx.W Rt, [SP, #+<imm_12>]
+		 * (+/-imm_8 for LDRD Rt, Rt2, [PC, #<imm_8>] */
+		insns[2] = (insn & 0xfffffff0) | 0xd;
+	} else if (THUMB2_INSN_MATCH(RSBW, insn)) {
+		/*  RSB{S}.W Rd, PC, #<const> -> RSB{S}.W Rd, SP, #<const> */
+		insns[2] = (insn & 0xfffffff0) | 0xd;
+	} else if (THUMB2_INSN_MATCH(RORW, insn) ||
+		   THUMB2_INSN_MATCH(LSLW1, insn) ||
+		   THUMB2_INSN_MATCH(LSRW1, insn)) {
+		if ((THUMB2_INSN_REG_RM(insn) == 15) &&
+		    (THUMB2_INSN_REG_RN(insn) == 15))
+			/*  ROR.W Rd, PC, PC */
+			insns[2] = (insn & 0xfffdfffd);
+		else if (THUMB2_INSN_REG_RM(insn) == 15)
+			/*  ROR.W Rd, Rn, PC */
+			insns[2] = (insn & 0xfff0ffff) | 0xd0000;
+		else if (THUMB2_INSN_REG_RN(insn) == 15)
+			/*  ROR.W Rd, PC, Rm */
+			insns[2] = (insn & 0xfffffff0) | 0xd;
+	} else if (THUMB2_INSN_MATCH(ROR, insn) ||
+		   THUMB2_INSN_MATCH(LSLW2, insn) ||
+		   THUMB2_INSN_MATCH(LSRW2, insn)) {
+		/*  ROR{S} Rd, PC, #<const> -> ROR{S} Rd, SP, #<const> */
+		insns[2] = (insn & 0xfff0ffff) | 0xd0000;
 	}
 
-	if (THUMB2_INSN_MATCH(STRW, insn) || THUMB2_INSN_MATCH(STRBW, insn)) {
-		insns[2] = (insn & 0xfff0ffff) | 0x000d0000;								/*  STRx.W Rt, [Rn, SP] */
-	} else {
-		if (THUMB2_INSN_MATCH(STRD, insn) || THUMB2_INSN_MATCH(STRHT, insn) ||
-		    THUMB2_INSN_MATCH(STRT, insn) || THUMB2_INSN_MATCH(STRHW1, insn)) {
-			if (THUMB2_INSN_REG_RN(insn) == 15)
-				insns[2] = (insn & 0xfffffff0) | 0xd;							/*  STRD/T/HT{.W} Rt, [SP, ...] */
-			else
-				insns[2] = insn;
-		} else {
-			if (THUMB2_INSN_MATCH(STRHW, insn) && (THUMB2_INSN_REG_RN(insn) == 15)) {
-				if (THUMB2_INSN_REG_RN(insn) == 15)
-					insns[2] = (insn & 0xf0fffff0) | 0x0c00000d;					/*  STRH.W Rt, [SP, #-<imm_8>] */
-				else
-					insns[2] = insn;
-			}
-		}
+	if (THUMB2_INSN_MATCH(STRW, insn) ||
+	    THUMB2_INSN_MATCH(STRBW, insn)) {
+		/*  STRx.W Rt, [Rn, SP] */
+		insns[2] = (insn & 0xfff0ffff) | 0x000d0000;
+	} else if (THUMB2_INSN_MATCH(STRD, insn) ||
+		   THUMB2_INSN_MATCH(STRHT, insn) ||
+		   THUMB2_INSN_MATCH(STRT, insn) ||
+		   THUMB2_INSN_MATCH(STRHW1, insn)) {
+		if (THUMB2_INSN_REG_RN(insn) == 15)
+			/*  STRD/T/HT{.W} Rt, [SP, ...] */
+			insns[2] = (insn & 0xfffffff0) | 0xd;
+		else
+			insns[2] = insn;
+	} else if (THUMB2_INSN_MATCH(STRHW, insn) &&
+		   (THUMB2_INSN_REG_RN(insn) == 15)) {
+		if (THUMB2_INSN_REG_RN(insn) == 15)
+			/*  STRH.W Rt, [SP, #-<imm_8>] */
+			insns[2] = (insn & 0xf0fffff0) | 0x0c00000d;
+		else
+			insns[2] = insn;
 	}
 
 	/*  STRx PC, xxx */
@@ -392,19 +373,22 @@ static int prep_pc_dep_insn_execbuf_thumb(kprobe_opcode_t *insns,
 		insns[2] = (insns[2] & 0x0fffffff) | 0xd0000000;
 	}
 
-	if (THUMB2_INSN_MATCH(TEQ1, insn) || THUMB2_INSN_MATCH(TST1, insn)) {
-		insns[2] = (insn & 0xfffffff0) | 0xd;									/*  TEQ SP, #<const> */
-	} else {
-		if (THUMB2_INSN_MATCH(TEQ2, insn) ||
-		    THUMB2_INSN_MATCH(TST2, insn)) {
-			if ((THUMB2_INSN_REG_RN(insn) == 15) &&
-			    (THUMB2_INSN_REG_RM(insn) == 15))
-				insns[2] = (insn & 0xfffdfffd);								/*  TEQ/TST PC, PC */
-			else if (THUMB2_INSN_REG_RM(insn) == 15)
-				insns[2] = (insn & 0xfff0ffff) | 0xd0000;						/*  TEQ/TST Rn, PC */
-			else if (THUMB2_INSN_REG_RN(insn) == 15)
-				insns[2] = (insn & 0xfffffff0) | 0xd;							/*  TEQ/TST PC, Rm */
-		}
+	if (THUMB2_INSN_MATCH(TEQ1, insn) ||
+	    THUMB2_INSN_MATCH(TST1, insn)) {
+		/*  TEQ SP, #<const> */
+		insns[2] = (insn & 0xfffffff0) | 0xd;
+	} else if (THUMB2_INSN_MATCH(TEQ2, insn) ||
+		   THUMB2_INSN_MATCH(TST2, insn)) {
+		if ((THUMB2_INSN_REG_RN(insn) == 15) &&
+		    (THUMB2_INSN_REG_RM(insn) == 15))
+			/*  TEQ/TST PC, PC */
+			insns[2] = (insn & 0xfffdfffd);
+		else if (THUMB2_INSN_REG_RM(insn) == 15)
+			/*  TEQ/TST Rn, PC */
+			insns[2] = (insn & 0xfff0ffff) | 0xd0000;
+		else if (THUMB2_INSN_REG_RN(insn) == 15)
+			/*  TEQ/TST PC, Rm */
+			insns[2] = (insn & 0xfffffff0) | 0xd;
 	}
 
 	return 0;

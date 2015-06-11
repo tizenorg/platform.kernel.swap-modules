@@ -30,8 +30,7 @@
 
 #include <linux/module.h>
 #include <linux/slab.h>
-
-#include <asm/errno.h>
+#include <linux/errno.h>
 #include <ksyms/ksyms.h>
 #include <kprobe/swap_kprobes.h>
 #include <master/swap_initializer.h>

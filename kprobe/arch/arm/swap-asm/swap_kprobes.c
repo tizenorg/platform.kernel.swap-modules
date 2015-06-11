@@ -48,7 +48,7 @@
 
 #include <asm/cacheflush.h>
 #include <asm/traps.h>
-#include <asm/ptrace.h>
+#include <linux/ptrace.h>
 #include <linux/list.h>
 #include <linux/hash.h>
 
