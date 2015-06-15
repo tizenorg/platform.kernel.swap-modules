@@ -682,6 +682,11 @@ static int __fops_dput_wrapper(void *data, void *arg)
 	return 0;
 }
 
+bool file_ops_is_init(void)
+{
+	return fops_enabled;
+}
+
 int file_ops_init(void)
 {
 	int ret = -EINVAL;

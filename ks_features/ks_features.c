@@ -464,7 +464,7 @@ int set_feature(enum feature_id id)
 	int ret;
 
 	switch (id) {
-	case FID_FILE:
+	case FID_SYSFILE_ACTIVITY:
 		ret = file_ops_init();
 		break;
 	case FID_SWITCH:
@@ -492,7 +492,7 @@ int unset_feature(enum feature_id id)
 	int ret = 0;
 
 	switch (id) {
-	case FID_FILE:
+	case FID_SYSFILE_ACTIVITY:
 		file_ops_exit();
 		break;
 	case FID_SWITCH:
@@ -560,6 +560,9 @@ static void core_uninit(void)
 {
 	uninit_syscall_features();
 	exit_switch_context();
+
+	if (file_ops_is_init())
+		file_ops_exit();
 }
 
 SWAP_LIGHT_INIT_MODULE(once, NULL, core_uninit, NULL, NULL);

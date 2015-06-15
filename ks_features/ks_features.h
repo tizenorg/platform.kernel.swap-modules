@@ -36,13 +36,14 @@
  * Features ids
  */
 enum feature_id {
-	FID_FILE = 1,     /**< File probes */
-	FID_IPC = 2,      /**< Hz probes */
-	FID_PROCESS = 3,  /**< Process probes */
-	FID_SIGNAL = 4,   /**< Signal probes */
-	FID_NET = 5,      /**< Network probes */
-	FID_DESC = 6,     /**< Description probes */
-	FID_SWITCH = 7    /**< Switch context probes */
+	FID_FILE = 1,			/**< File probes */
+	FID_IPC = 2,			/**< Hz probes */
+	FID_PROCESS = 3,		/**< Process probes */
+	FID_SIGNAL = 4,			/**< Signal probes */
+	FID_NET = 5,			/**< Network probes */
+	FID_DESC = 6,			/**< Description probes */
+	FID_SWITCH = 7,			/**< Switch context probes */
+	FID_SYSFILE_ACTIVITY = 8	/**< System file activity */
 };
 
 int set_feature(enum feature_id id);

@@ -358,6 +358,16 @@ static int unset_func_energy(void)
 	return unset_energy();
 }
 
+static int set_sysfile_activity(struct conf_data *conf)
+{
+	return set_feature(FID_SYSFILE_ACTIVITY);
+}
+
+static int unset_sysfile_activity(void)
+{
+	return unset_feature(FID_SYSFILE_ACTIVITY);
+}
+
 /**
  * @struct feature_item
  * @brief Struct that describes feature.
@@ -434,6 +444,12 @@ static struct feature_item feature_func_energy = {
 	.unset = unset_func_energy
 };
 
+static struct feature_item feature_sysfile_activity = {
+	.name = "system file activity",
+	.set = set_sysfile_activity,
+	.unset = unset_sysfile_activity
+};
+
 static struct feature_item *feature_list[] = {
  /*  0 */	NULL,
  /*  1 */	NULL,
@@ -461,7 +477,29 @@ static struct feature_item *feature_list[] = {
  /* 23 */	NULL,
  /* 24 */	NULL,
  /* 25 */	NULL,
- /* 26 */	&feature_func_energy
+ /* 26 */	&feature_func_energy,
+ /* 27 */	NULL,
+ /* 28 */	NULL,
+ /* 29 */	NULL,
+ /* 30 */	NULL,
+ /* 31 */	NULL,
+ /* 32 */	NULL,
+ /* 33 */	NULL,
+ /* 34 */	NULL,
+ /* 35 */	NULL,
+ /* 36 */	NULL,
+ /* 37 */	NULL,
+ /* 38 */	NULL,
+ /* 39 */	NULL,
+ /* 40 */	NULL,
+ /* 41 */	NULL,
+ /* 42 */	NULL,
+ /* 43 */	NULL,
+ /* 44 */	NULL,
+ /* 45 */	NULL,
+ /* 46 */	NULL,
+ /* 47 */	NULL,
+ /* 48 */	&feature_sysfile_activity,
 };
 
 /**
@@ -523,7 +561,7 @@ static int do_set_features(struct conf_data *conf)
 
 				return ret;
 			}
-			f_mask = ~(1 << i);
+			f_mask = ~((u64)1 << i);
 			feature_inst = (feature_inst & f_mask) |
 				       (features_backup & ~f_mask);
 		}
