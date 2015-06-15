@@ -29,7 +29,7 @@
 
 
 #include <linux/types.h>
-
+#include <linux/string.h>
 #include <writer/swap_msg.h>
 
 struct msg_fbi {
