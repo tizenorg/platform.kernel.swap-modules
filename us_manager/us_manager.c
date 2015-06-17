@@ -31,6 +31,7 @@
 #include "us_manager.h"
 #include "usm_msg.h"
 #include "debugfs_us_manager.h"
+#include "callbacks.h"
 #include <writer/event_filter.h>
 #include <master/swap_initializer.h>
 
@@ -41,6 +42,8 @@ static enum status_type status = ST_OFF;
 
 static void do_usm_stop(void)
 {
+	exec_cbs(STOP_CB);
+
 	unregister_helper_top();
 	uninstall_all();
 	unregister_helper_bottom();
@@ -56,6 +59,8 @@ static int do_usm_start(void)
 		return ret;
 
 	install_all();
+
+	exec_cbs(START_CB);
 
 	return 0;
 }
@@ -237,6 +242,8 @@ static void exit_us_manager(void)
 {
 	if (status == ST_ON)
 		do_usm_stop();
+
+	remove_all_cbs();
 
 	exit_us_filter();
 	pin_exit();
