@@ -38,14 +38,14 @@ int nsp_init(void);
 void nsp_exit(void);
 
 int nsp_set_offset(enum offset_t os, unsigned long offset);
-int nsp_set_lpad_info(const char *path, unsigned long dlopen,
-		      unsigned long dlsym);
+int nsp_set_lpad_info(bool is_process_pool, const char *path,
+		      unsigned long dlopen, unsigned long dlsym);
 int nsp_set_appcore_info(const char *path, unsigned long appcore_efl_main);
 
 int nsp_set_stat(enum nsp_stat st);
 enum nsp_stat nsp_get_stat(void);
 
-int nsp_add(const char *app_path);
+int nsp_add(bool is_process_pool, const char *app_path);
 int nsp_rm(const char *app_path);
 int nsp_rm_all(void);
 
