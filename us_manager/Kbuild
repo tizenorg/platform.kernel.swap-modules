@@ -11,4 +11,5 @@ swap_us_manager-y := us_manager.o us_slot_manager.o helper.o debugfs_us_manager.
                      img/img_proc.o img/img_file.o img/img_ip.o \
                      probes/probes.o \
                      probes/probe_info_new.o \
-                     usm_msg.o
+                     usm_msg.o \
+                     callbacks.o

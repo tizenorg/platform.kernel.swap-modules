@@ -13,6 +13,7 @@
 #include <us_manager/sspt/sspt_file.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include <us_manager/sspt/ip.h>
+#include <us_manager/callbacks.h>
 #include <writer/kernel_operations.h>
 #include <master/swap_initializer.h>
 #include <task_data/task_data.h>
@@ -52,6 +53,9 @@ enum {
 };
 
 static enum preload_status_t __preload_status = SWAP_PRELOAD_NOT_READY;
+
+static int __preload_cbs_start_h = -1;
+static int __preload_cbs_stop_h = -1;
 
 static inline struct process_data *__get_process_data(struct uretprobe *rp)
 {
@@ -372,6 +376,108 @@ static bool __should_we_preload_handlers(struct task_struct *task,
 
 
 
+enum mmap_type_t {
+	MMAP_LOADER,
+	MMAP_HANDLERS,
+	MMAP_SKIP
+};
+
+struct mmap_priv {
+	enum mmap_type_t type;
+};
+
+static inline bool check_prot(unsigned long prot)
+{
+	return !!((prot & PROT_READ) && (prot & PROT_EXEC));
+}
+
+static int mmap_entry_handler(struct kretprobe_instance *ri,
+			      struct pt_regs *regs)
+{
+	struct file *file = (struct file *)swap_get_karg(regs, 0);
+	unsigned long prot = swap_get_karg(regs, 3);
+	struct mmap_priv *priv = (struct mmap_priv *)ri->data;
+	struct dentry *dentry, *loader_dentry;
+	struct bin_info *hi;
+
+	priv->type = MMAP_SKIP;
+	if (!check_prot(prot))
+		return 0;
+
+	if (!file)
+		return 0;
+	dentry = file->f_dentry;
+	if (dentry == NULL)
+		return 0;
+
+	hi = preload_storage_get_handlers_info();
+	loader_dentry = preload_debugfs_get_loader_dentry();
+	if (dentry == loader_dentry)
+		priv->type = MMAP_LOADER;
+	else if (hi->dentry != NULL && dentry == hi->dentry)
+		priv->type = MMAP_HANDLERS;
+
+	if (hi != NULL)
+		preload_storage_put_handlers_info(hi);
+
+	return 0;
+}
+
+static int mmap_ret_handler(struct kretprobe_instance *ri,
+			    struct pt_regs *regs)
+{
+	struct mmap_priv *priv = (struct mmap_priv *)ri->data;
+	struct task_struct *task = current->group_leader;
+	struct sspt_proc *proc;
+	unsigned long vaddr;
+
+	if (!task->mm)
+		return 0;
+
+	vaddr = (unsigned long)regs_return_value(regs);
+	if (IS_ERR_VALUE(vaddr))
+		return 0;
+
+	proc = sspt_proc_get_by_task(task);
+	if (!proc)
+		return 0;
+
+	switch (priv->type) {
+	case MMAP_LOADER:
+		preload_pd_set_loader_base(proc->private_data, vaddr);
+		break;
+	case MMAP_HANDLERS:
+		preload_pd_set_handlers_base(proc->private_data, vaddr);
+		break;
+	case MMAP_SKIP:
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static struct kretprobe mmap_rp = {
+	.kp.symbol_name = "do_mmap_pgoff",
+	.data_size = sizeof(struct mmap_priv),
+	.entry_handler = mmap_entry_handler,
+	.handler = mmap_ret_handler
+};
+
+static void preload_start_cb(void)
+{
+	int res;
+
+	res = swap_register_kretprobe(&mmap_rp);
+	if (res != 0)
+		printk(KERN_ERR PRELOAD_PREFIX "Registering do_mmap_pgoff probe failed\n");
+}
+
+static void preload_stop_cb(void)
+{
+	swap_unregister_kretprobe(&mmap_rp);
+}
+
 static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct process_data *pd = __get_process_data(ri->rp);
@@ -521,86 +627,6 @@ static int preload_us_ret(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
-enum mmap_type_t {
-	MMAP_LOADER,
-	MMAP_HANDLERS,
-	MMAP_SKIP
-};
-
-struct mmap_priv {
-	enum mmap_type_t type;
-};
-
-static inline bool check_prot(unsigned long prot)
-{
-	return !!((prot & PROT_READ) && (prot & PROT_EXEC));
-}
-
-static int mmap_entry_handler(struct kretprobe_instance *ri,
-			      struct pt_regs *regs)
-{
-	struct file *file = (struct file *)swap_get_karg(regs, 0);
-	unsigned long prot = swap_get_karg(regs, 3);
-	struct mmap_priv *priv = (struct mmap_priv *)ri->data;
-	struct dentry *dentry, *loader_dentry;
-	struct bin_info *hi;
-
-	priv->type = MMAP_SKIP;
-	if (!check_prot(prot))
-		return 0;
-
-	if (!file)
-		return 0;
-	dentry = file->f_dentry;
-	if (dentry == NULL)
-		return 0;
-
-	hi = preload_storage_get_handlers_info();
-	loader_dentry = preload_debugfs_get_loader_dentry();
-	if (dentry == loader_dentry)
-		priv->type = MMAP_LOADER;
-	else if (hi->dentry != NULL && dentry == hi->dentry) 
-		priv->type = MMAP_HANDLERS;
-
-	if (hi != NULL)
-		preload_storage_put_handlers_info(hi);
-
-	return 0;
-}
-
-static int mmap_ret_handler(struct kretprobe_instance *ri,
-			    struct pt_regs *regs)
-{
-	struct mmap_priv *priv = (struct mmap_priv *)ri->data;
-	struct task_struct *task = current->group_leader;
-	struct sspt_proc *proc;
-	unsigned long vaddr;
-
-	if (!task->mm)
-		return 0;
-
-	vaddr = (unsigned long)regs_return_value(regs);
-	if (IS_ERR_VALUE(vaddr))
-		return 0;
-
-	proc = sspt_proc_get_by_task(task);
-	if (!proc)
-		return 0;
-
-	switch (priv->type) {
-	case MMAP_LOADER:
-		preload_pd_set_loader_base(proc->private_data, vaddr);
-		break;
-	case MMAP_HANDLERS:
-		preload_pd_set_handlers_base(proc->private_data, vaddr);
-		break;
-	case MMAP_SKIP:
-	default:
-		break;
-	}
-
-	return 0;
-}
 
 
 static int get_caller_handler(struct kprobe *p, struct pt_regs *regs)
@@ -666,14 +692,6 @@ void preload_module_get_call_type_exit(struct us_ip *ip)
 {
 }
 
-
-static struct kretprobe mmap_rp = {
-	.kp.symbol_name = "do_mmap_pgoff",
-	.data_size = sizeof(struct mmap_priv),
-	.entry_handler = mmap_entry_handler,
-	.handler = mmap_ret_handler
-};
-
 int preload_module_uprobe_init(struct us_ip *ip)
 {
 	struct uretprobe *rp = &ip->retprobe;
@@ -686,18 +704,13 @@ int preload_module_uprobe_init(struct us_ip *ip)
 			return ret;
 	}
 
-	preload_pd_inc_refs(proc->private_data);
-
 	rp->entry_handler = preload_us_entry;
 	rp->handler = preload_us_ret;
 	/* FIXME actually additional data_size is needed only when we jump
 	 * to dlopen */
 	rp->data_size = sizeof(struct us_priv);
 
-	ret = swap_register_kretprobe(&mmap_rp);
-	if (ret == 0) {
-		return -EFAULT; /* failed to get THIS_MODULE */
-	}
+	preload_pd_inc_refs(proc->private_data);
 
 	return 0;
 }
@@ -707,8 +720,6 @@ void preload_module_uprobe_exit(struct us_ip *ip)
 	struct sspt_proc *proc = ip_to_proc(ip);
 
 	preload_pd_dec_refs(proc->private_data);
-
-	swap_unregister_kretprobe(&mmap_rp);
 }
 
 int preload_set(void)
@@ -760,7 +771,21 @@ static int preload_module_init(void)
 	if (ret)
 		goto exit_threads;
 
+	__preload_cbs_start_h = us_manager_reg_cb(START_CB, preload_start_cb);
+	if (__preload_cbs_start_h < 0)
+		goto exit_start_cb;
+
+	__preload_cbs_stop_h = us_manager_reg_cb(STOP_CB, preload_stop_cb);
+	if (__preload_cbs_stop_h < 0)
+		goto exit_stop_cb;
+
 	return 0;
+
+exit_stop_cb:
+	us_manager_unreg_cb(__preload_cbs_start_h);
+
+exit_start_cb:
+	unregister_preload_probes();
 
 exit_threads:
 	preload_threads_exit();
@@ -786,6 +811,8 @@ out_err:
 
 static void preload_module_exit(void)
 {
+	us_manager_unreg_cb(__preload_cbs_start_h);
+	us_manager_unreg_cb(__preload_cbs_stop_h);
 	unregister_preload_probes();
 	preload_threads_exit();
 	preload_control_exit();
