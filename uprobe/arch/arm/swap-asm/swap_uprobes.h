@@ -35,6 +35,7 @@
 #define _ARM_SWAP_UPROBES_H
 
 
+#include <linux/uaccess.h>
 #include <swap-asm/swap_kprobes.h>	/* FIXME: for UPROBES_TRAMP_LEN */
 
 

@@ -69,7 +69,7 @@ struct kmem_info {
 static void kmem_info_fill(struct kmem_info *info, struct mm_struct *mm)
 {
 #if defined(CONFIG_ARM)
-	info->name = "[vectors]"
+	info->name = "[vectors]";
 	info->start = CONFIG_VECTORS_BASE;
 	info->end = CONFIG_VECTORS_BASE + PAGE_SIZE;
 #elif defined(CONFIG_X86_32)

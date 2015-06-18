@@ -25,6 +25,7 @@
 #include <linux/spinlock.h>
 #include <writer/swap_msg.h>
 #include <kprobe/swap_kprobes.h>
+#include <ksyms/ksyms.h>
 #include "nsp_tdata.h"
 #include "nsp_print.h"
 
