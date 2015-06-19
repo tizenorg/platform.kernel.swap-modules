@@ -41,16 +41,16 @@ static void rm_endline_symbols(char *buf, size_t len)
 
 /*
  * format:
- *	is_process_pool:app_path
+ *	app_path
  *
  * sample:
- *	1:/bin/app_sample
+ *	/bin/app_sample
  */
 static int do_add(const char *buf, size_t len)
 {
-	int n, ret, pool;
+	int n, ret;
 	char *app_path;
-	const char fmt[] = "%%d:/%%%ds";
+	const char fmt[] = "/%%%ds";
 	char fmt_buf[64];
 
 	n = snprintf(fmt_buf, sizeof(fmt_buf), fmt, PATH_MAX - 2);
@@ -61,21 +61,16 @@ static int do_add(const char *buf, size_t len)
 	if (app_path == NULL)
 		return -ENOMEM;
 
-	n = sscanf(buf, fmt_buf, &pool, app_path + 1);
-	if (n != 2) {
+	n = sscanf(buf, fmt_buf, app_path + 1);
+	if (n != 1) {
 		ret = -EINVAL;
-		goto free_app_info;
+		goto free_app_path;
 	}
 	app_path[0] = '/';
 
-	if (pool != 0 && pool != 1) {
-		ret = -EINVAL;
-		goto free_app_info;
-	}
+	ret = nsp_add(app_path);
 
-	ret = nsp_add(pool, app_path);
-
-free_app_info:
+free_app_path:
 	kfree(app_path);
 	return ret;
 }
@@ -140,18 +135,18 @@ par_free:
 
 /*
  * format:
- *	is_process_pool:dlopen_addr@plt:dlsym_addr@plt:launchpad_path
+ *	dlopen_addr@plt:dlsym_addr@plt:launchpad_path
  *
  * sample:
- *	1:0x000234:0x000342:/usr/bin/launchpad-loader
+ *	0x000234:0x000342:/usr/bin/launchpad-loader
  */
 static int do_set_lpad_info(const char *data, size_t len)
 {
-	int n, ret, pool;
+	int n, ret;
 	unsigned long dlopen_addr;
 	unsigned long dlsym_addr;
 	char *lpad_path;
-	const char fmt[] = "%%d:%%lx:%%lx:/%%%ds";
+	const char fmt[] = "%%lx:%%lx:/%%%ds";
 	char fmt_buf[64];
 
 	n = snprintf(fmt_buf, sizeof(fmt_buf), fmt, PATH_MAX - 2);
@@ -162,20 +157,14 @@ static int do_set_lpad_info(const char *data, size_t len)
 	if (lpad_path == NULL)
 		return -ENOMEM;
 
-	n = sscanf(data, fmt_buf, &pool, &dlopen_addr, &dlsym_addr,
-		   lpad_path + 1);
-	if (n != 4) {
+	n = sscanf(data, fmt_buf, &dlopen_addr, &dlsym_addr, lpad_path + 1);
+	if (n != 3) {
 		ret = -EINVAL;
 		goto free_lpad_path;
 	}
 	lpad_path[0] = '/';
 
-	if (pool != 0 && pool != 1) {
-		ret = -EINVAL;
-		goto free_lpad_path;
-	}
-
-	ret = nsp_set_lpad_info(pool, lpad_path, dlopen_addr, dlsym_addr);
+	ret = nsp_set_lpad_info(lpad_path, dlopen_addr, dlsym_addr);
 
 free_lpad_path:
 	kfree(lpad_path);
@@ -302,10 +291,10 @@ static ssize_t read_cmd(struct file *file, char __user *user_buf,
 {
 	const char help[] =
 			"use:\n"
-			"\ta $process_pool:$app_path - add\n"
+			"\ta $app_path - add\n"
 			"\tr $app_path - remove\n"
 			"\tc - remove all\n"
-			"\tb $process_pool:$dlopen_addr@plt:$dlsym_addr@plt:$launchpad_path\n"
+			"\tb $dlopen_addr@plt:$dlsym_addr@plt:$launchpad_path\n"
 			"\tl $appcore_efl_main:$libappcore-efl_path\n"
 			"\ts $param $val - set parameter";
 	ssize_t ret;

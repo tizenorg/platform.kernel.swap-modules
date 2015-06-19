@@ -42,10 +42,7 @@
 static int dlopen_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static int dlopen_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static struct probe_info_new pin_dlopen = MAKE_URPROBE(dlopen_eh, dlopen_rh, 0);
-struct probe_new p_dlopen_pool = {
-	.info = &pin_dlopen
-};
-struct probe_new p_dlopen_daemon = {
+struct probe_new p_dlopen = {
 	.info = &pin_dlopen
 };
 
@@ -53,10 +50,7 @@ struct probe_new p_dlopen_daemon = {
 static int dlsym_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static int dlsym_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static struct probe_info_new pin_dlsym = MAKE_URPROBE(dlsym_eh, dlsym_rh, 0);
-struct probe_new p_dlsym_pool = {
-	.info = &pin_dlsym
-};
-struct probe_new p_dlsym_daemon = {
+struct probe_new p_dlsym = {
 	.info = &pin_dlsym
 };
 
@@ -98,11 +92,8 @@ static struct probe_info_otg pin_reset_otg = {
  * =                the variables are initialized by the user                 =
  * ============================================================================
  */
-static const char *lpad_path_pool;
-static struct dentry *lpad_dentry_pool;
-
-static const char *lpad_path_daemon;
-static struct dentry *lpad_dentry_daemon;
+static const char *lpad_path;
+static struct dentry *lpad_dentry;
 
 static const char *libappcore_path;
 static struct dentry *libappcore_dentry;
@@ -116,7 +107,7 @@ static struct {
 
 static bool is_init(void)
 {
-	return lpad_dentry_pool && lpad_dentry_daemon && libappcore_dentry &&
+	return lpad_dentry && libappcore_dentry &&
 	       cb_offset.flag_create && cb_offset.flag_reset;
 }
 
@@ -138,8 +129,8 @@ static int do_set_offset(enum offset_t os, unsigned long offset)
 	return -EINVAL;
 }
 
-static int do_set_lpad_info(bool is_process_pool, const char *path,
-			    unsigned long dlopen, unsigned long dlsym)
+static int do_set_lpad_info(const char *path, unsigned long dlopen,
+			    unsigned long dlsym)
 {
 	struct dentry *dentry;
 	const char *new_path;
@@ -156,19 +147,12 @@ static int do_set_lpad_info(bool is_process_pool, const char *path,
 		return -ENOMEM;
 	}
 
-	if (is_process_pool) {
-		kfree(lpad_path_pool);
-		lpad_path_pool = new_path;
-		lpad_dentry_pool = dentry;
-		p_dlopen_pool.offset = dlopen;
-		p_dlsym_pool.offset = dlsym;
-	} else {
-		kfree(lpad_path_daemon);
-		lpad_path_daemon = new_path;
-		lpad_dentry_daemon = dentry;
-		p_dlopen_daemon.offset = dlopen;
-		p_dlsym_daemon.offset = dlsym;
-	}
+	kfree(lpad_path);
+
+	lpad_path = new_path;
+	lpad_dentry = dentry;
+	p_dlopen.offset = dlopen;
+	p_dlsym.offset = dlsym;
 
 	return 0;
 }
@@ -215,16 +199,11 @@ struct nsp_data {
 	struct dentry *app_dentry;
 
 	struct pf_group *pfg;
-
-	struct dentry *lpad_dentry;
-	struct probe_new *p_dlopen;
-	struct probe_new *p_dlsym;
 };
 
 static LIST_HEAD(nsp_data_list);
 
-static struct nsp_data *nsp_data_create(bool is_process_pool,
-					const char *app_path)
+static struct nsp_data *nsp_data_create(const char *app_path)
 {
 	struct dentry *dentry;
 	struct nsp_data *data;
@@ -245,16 +224,6 @@ static struct nsp_data *nsp_data_create(bool is_process_pool,
 
 	data->app_dentry = dentry;
 	data->pfg = NULL;
-
-	if (is_process_pool) {
-		data->lpad_dentry = lpad_dentry_pool;
-		data->p_dlopen = &p_dlopen_pool;
-		data->p_dlsym = &p_dlsym_pool;
-	} else {
-		data->lpad_dentry = lpad_dentry_daemon;
-		data->p_dlopen = &p_dlopen_daemon;
-		data->p_dlsym = &p_dlsym_daemon;
-	}
 
 	return data;
 }
@@ -304,16 +273,15 @@ static int nsp_data_inst(struct nsp_data *data)
 	int ret;
 	struct pf_group *pfg;
 
-	pfg = get_pf_group_by_dentry(data->lpad_dentry,
-				    (void *)data->app_dentry);
+	pfg = get_pf_group_by_dentry(lpad_dentry, (void *)data->app_dentry);
 	if (pfg == NULL)
 		return -ENOMEM;
 
-	ret = pin_register(data->p_dlsym, pfg, data->lpad_dentry);
+	ret = pin_register(&p_dlsym, pfg, lpad_dentry);
 	if (ret)
 		goto put_g;
 
-	ret = pin_register(data->p_dlopen, pfg, data->lpad_dentry);
+	ret = pin_register(&p_dlopen, pfg, lpad_dentry);
 	if (ret)
 		goto ur_dlsym;
 
@@ -325,9 +293,9 @@ static int nsp_data_inst(struct nsp_data *data)
 
 	return 0;
 ur_dlopen:
-	pin_unregister(data->p_dlopen, pfg, data->lpad_dentry);
+	pin_unregister(&p_dlopen, pfg, lpad_dentry);
 ur_dlsym:
-	pin_unregister(data->p_dlsym, pfg, data->lpad_dentry);
+	pin_unregister(&p_dlsym, pfg, lpad_dentry);
 put_g:
 	put_pf_group(pfg);
 	return ret;
@@ -336,21 +304,20 @@ put_g:
 static void nsp_data_uninst(struct nsp_data *data)
 {
 	pin_unregister(&p_appcore, data->pfg, libappcore_dentry);
-	pin_unregister(data->p_dlopen, data->pfg, data->lpad_dentry);
-	pin_unregister(data->p_dlsym, data->pfg, data->lpad_dentry);
-
+	pin_unregister(&p_dlopen, data->pfg, lpad_dentry);
+	pin_unregister(&p_dlsym, data->pfg, lpad_dentry);
 	put_pf_group(data->pfg);
 	data->pfg = NULL;
 }
 
-static int __nsp_add(bool is_process_pool, const char *app_path)
+static int __nsp_add(const char *app_path)
 {
 	struct nsp_data *data;
 
 	if (nsp_data_find_by_path(app_path))
 		return -EEXIST;
 
-	data = nsp_data_create(is_process_pool, app_path);
+	data = nsp_data_create(app_path);
 	if (IS_ERR(data))
 		return PTR_ERR(data);
 
@@ -431,7 +398,6 @@ fail:
 #define F_ARG1(m, t, a)		m(t, a)
 #define F_ARG2(m, t, a, ...)	m(t, a), F_ARG1(m, __VA_ARGS__)
 #define F_ARG3(m, t, a, ...)	m(t, a), F_ARG2(m, __VA_ARGS__)
-#define F_ARG4(m, t, a, ...)	m(t, a), F_ARG3(m, __VA_ARGS__)
 #define F_ARG(n, m, ...)	F_ARG##n(m, __VA_ARGS__)
 
 #define M_TYPE_AND_ARG(t, a)	t a
@@ -456,19 +422,17 @@ unlock:							\
 #define DECLARE_SAFE_FUNC1(name, _do, ...)	DECLARE_SAFE_FUNC(1, name, _do, __VA_ARGS__);
 #define DECLARE_SAFE_FUNC2(name, _do, ...)	DECLARE_SAFE_FUNC(2, name, _do, __VA_ARGS__);
 #define DECLARE_SAFE_FUNC3(name, _do, ...)	DECLARE_SAFE_FUNC(3, name, _do, __VA_ARGS__);
-#define DECLARE_SAFE_FUNC4(name, _do, ...)	DECLARE_SAFE_FUNC(4, name, _do, __VA_ARGS__);
 
 
 static DEFINE_MUTEX(stat_mutex);
 static enum nsp_stat stat = NS_OFF;
 
-DECLARE_SAFE_FUNC2(nsp_add, __nsp_add, bool, is_process_pool,
-		   const char *, app_path);
+DECLARE_SAFE_FUNC1(nsp_add, __nsp_add, const char *, app_path);
 DECLARE_SAFE_FUNC1(nsp_rm, __nsp_rm, const char *, app_path);
 DECLARE_SAFE_FUNC0(nsp_rm_all, __nsp_rm_all);
 DECLARE_SAFE_FUNC2(nsp_set_offset, do_set_offset,
 		   enum offset_t, os, unsigned long, offset);
-DECLARE_SAFE_FUNC4(nsp_set_lpad_info, do_set_lpad_info, bool, is_process_pool,
+DECLARE_SAFE_FUNC3(nsp_set_lpad_info, do_set_lpad_info,
 		   const char *, path, unsigned long, dlopen,
 		   unsigned long, dlsym);
 DECLARE_SAFE_FUNC2(nsp_set_appcore_info, do_set_appcore_info,
