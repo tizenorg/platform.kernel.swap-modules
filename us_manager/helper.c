@@ -127,6 +127,8 @@ static void unregister_mf(void)
  *                       workaround for already running                       *
  ******************************************************************************
  */
+static unsigned long cb_check_and_install(void *data);
+
 static int ctx_task_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct sspt_proc *proc;
@@ -141,9 +143,8 @@ static int ctx_task_pre_handler(struct kprobe *p, struct pt_regs *regs)
 		return 0;
 
 	page_addr = 0;
-	set_kjump_cb(regs, cb_pf, &page_addr, sizeof(page_addr));
 
-	return 0;
+	return set_kjump_cb(regs, cb_check_and_install, NULL, 0);
 }
 
 static struct kprobe ctx_task_kprobe = {
@@ -492,6 +493,13 @@ struct comm_data {
 	struct task_struct *task;
 };
 
+static unsigned long cb_check_and_install(void *data)
+{
+	check_task_and_install(current);
+
+	return 0;
+}
+
 static int entry_handler_comm(struct kretprobe_instance *ri,
 			      struct pt_regs *regs)
 {
@@ -505,13 +513,19 @@ static int entry_handler_comm(struct kretprobe_instance *ri,
 static int ret_handler_comm(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct task_struct *task;
+	int ret;
 
 	if (is_kthread(current))
 		return 0;
 
 	task = ((struct comm_data *)ri->data)->task;
+	if (task != current)
+		return 0;
 
-	check_task_and_install(task);
+	ret = set_jump_cb((unsigned long)ri->ret_addr, regs,
+			  cb_check_and_install, NULL, 0);
+	if (ret == 0)
+		ri->ret_addr = (unsigned long *)get_jump_addr();
 
 	return 0;
 }
