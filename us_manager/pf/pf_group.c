@@ -427,15 +427,19 @@ EXPORT_SYMBOL_GPL(pf_unregister_probe);
  */
 int check_task_on_filters(struct task_struct *task)
 {
+	int ret = 0;
 	struct pf_group *pfg;
 
 	read_lock(&pfg_list_lock);
 	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_task_f(&pfg->filter, task))
-			return 1;
+		if (check_task_f(&pfg->filter, task)) {
+			ret = 1;
+			goto unlock;
+		}
 	}
-	read_unlock(&pfg_list_lock);
 
+unlock:
+	read_unlock(&pfg_list_lock);
 	return 0;
 }
 
