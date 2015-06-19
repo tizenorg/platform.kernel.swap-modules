@@ -1058,10 +1058,13 @@ int set_jump_cb(unsigned long ret_addr, struct pt_regs *regs,
 		return -ENOMEM;
 
 	/* save data */
+	if (size)
+		memcpy(cb_data->data, data, size);
+
+	/* save info for restore */
 	cb_data->ret_addr = ret_addr;
 	cb_data->cb = cb;
 	cb_data->bx = regs->bx;
-	memcpy(cb_data->data, data, size);
 
 	/* save cb_data to bx */
 	regs->bx = (long)cb_data;

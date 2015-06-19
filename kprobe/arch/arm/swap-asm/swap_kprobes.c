@@ -678,6 +678,10 @@ int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb, void *data, size_t size)
 	if (cb_data == NULL)
 		return -ENOMEM;
 
+	/* save data */
+	if (size)
+		memcpy(cb_data->data, data, size);
+
 	p = swap_kprobe_running();
 	p->ss_addr[smp_processor_id()] = (kprobe_opcode_t *)&kjump_trampoline;
 
@@ -686,8 +690,6 @@ int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb, void *data, size_t size)
 
 	/* save regs */
 	memcpy(&cb_data->regs, regs, sizeof(*regs));
-
-	memcpy(cb_data->data, data, size);
 
 	/* save cb_data to r10 */
 	regs->ARM_r10 = (long)cb_data;
@@ -815,12 +817,17 @@ int set_jump_cb(unsigned long ret_addr, struct pt_regs *regs,
 	struct cb_data *cb_data;
 
 	cb_data = kmalloc(sizeof(*cb_data) + size, GFP_ATOMIC);
+	if (cb_data == NULL)
+		return -ENOMEM;
 
 	/* save data */
+	if (size)
+		memcpy(cb_data->data, data, size);
+
+	/* save info for restore */
 	cb_data->ret_addr = ret_addr;
 	cb_data->cb = cb;
 	cb_data->r0 = regs->ARM_r0;
-	memcpy(cb_data->data, data, size);
 
 	/* save cb_data to r0 */
 	regs->ARM_r0 = (long)cb_data;
