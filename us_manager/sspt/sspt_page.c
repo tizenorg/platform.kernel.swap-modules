@@ -141,8 +141,6 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 	int err = 0;
 	struct us_ip *ip, *n;
 	struct list_head ip_list_tmp;
-	struct uprobe *up;
-	unsigned long addr;
 
 	spin_lock(&page->lock);
 	if (list_empty(&page->ip_list_no_inst)) {
@@ -160,12 +158,8 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 	spin_unlock(&page->lock);
 
 	list_for_each_entry_safe(ip, n, &ip_list_tmp, list) {
-		/* set uprobe address */
-		addr = file->vm_start + page->offset + ip->offset;
-
-		ip->orig_addr = addr;
-		up = probe_info_get_uprobe(ip->info, ip);
-		up->kp.addr = (kprobe_opcode_t *)addr;
+		/* set virtual address */
+		ip->orig_addr = file->vm_start + page->offset + ip->offset;
 
 		err = sspt_register_usprobe(ip);
 		if (err) {
