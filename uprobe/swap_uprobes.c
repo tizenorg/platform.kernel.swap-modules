@@ -64,15 +64,15 @@ void print_uprobe_hash_table(void)
 {
 	int i;
 	struct hlist_head *head;
-	struct kprobe *p;
+	struct uprobe *p;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	/* print uprobe table */
 	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
 		head = &uprobe_insn_slot_table[i];
-		swap_hlist_for_each_entry_rcu(p, node, head, is_hlist_arm) {
-			printk(KERN_INFO "####### find U tgid=%u, addr=%x\n",
-					p->tgid, p->addr);
+		swap_hlist_for_each_entry_rcu(p, node, head, is_hlist) {
+			printk(KERN_INFO "####### find U tgid=%u, addr=0x%lx\n",
+					p->task->tgid, (unsigned long)p->addr);
 		}
 	}
 }
@@ -81,7 +81,7 @@ void print_uprobe_hash_table(void)
 /*
  * Keep all fields in the uprobe consistent
  */
-static inline void copy_uprobe(struct kprobe *old_p, struct kprobe *p)
+static inline void copy_uprobe(struct uprobe *old_p, struct uprobe *p)
 {
 	memcpy(&p->opcode, &old_p->opcode, sizeof(kprobe_opcode_t));
 	memcpy(&p->ainsn, &old_p->ainsn, sizeof(struct arch_specific_insn));
@@ -95,14 +95,14 @@ static inline void copy_uprobe(struct kprobe *old_p, struct kprobe *p)
  * Aggregate handlers for multiple uprobes support - these handlers
  * take care of invoking the individual uprobe handlers on p->list
  */
-static int aggr_pre_uhandler(struct kprobe *p, struct pt_regs *regs)
+static int aggr_pre_uhandler(struct uprobe *p, struct pt_regs *regs)
 {
-	struct kprobe *kp;
+	struct uprobe *up;
 	int ret;
 
-	list_for_each_entry_rcu(kp, &p->list, list) {
-		if (kp->pre_handler) {
-			ret = kp->pre_handler(kp, regs);
+	list_for_each_entry_rcu(up, &p->list, list) {
+		if (up->pre_handler) {
+			ret = up->pre_handler(up, regs);
 			if (ret)
 				return ret;
 		}
@@ -111,25 +111,25 @@ static int aggr_pre_uhandler(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-static void aggr_post_uhandler(struct kprobe *p, struct pt_regs *regs,
+static void aggr_post_uhandler(struct uprobe *p, struct pt_regs *regs,
 			       unsigned long flags)
 {
-	struct kprobe *kp;
+	struct uprobe *up;
 
-	list_for_each_entry_rcu(kp, &p->list, list) {
-		if (kp->post_handler)
-			kp->post_handler(kp, regs, flags);
+	list_for_each_entry_rcu(up, &p->list, list) {
+		if (up->post_handler)
+			up->post_handler(up, regs, flags);
 	}
 }
 
-static int aggr_fault_uhandler(struct kprobe *p,
+static int aggr_fault_uhandler(struct uprobe *p,
 			       struct pt_regs *regs,
 			       int trapnr)
 {
 	return 0;
 }
 
-static int aggr_break_uhandler(struct kprobe *p, struct pt_regs *regs)
+static int aggr_break_uhandler(struct uprobe *p, struct pt_regs *regs)
 {
 	return 0;
 }
@@ -138,7 +138,7 @@ static int aggr_break_uhandler(struct kprobe *p, struct pt_regs *regs)
  * Add the new probe to old_p->list. Fail if this is the
  * second ujprobe at the address - two ujprobes can't coexist
  */
-static int add_new_uprobe(struct kprobe *old_p, struct kprobe *p)
+static int add_new_uprobe(struct uprobe *old_p, struct uprobe *p)
 {
 	if (p->break_handler) {
 		if (old_p->break_handler)
@@ -160,7 +160,7 @@ static int add_new_uprobe(struct kprobe *old_p, struct kprobe *p)
  * Fill in the required fields of the "manager uprobe". Replace the
  * earlier uprobe in the hlist with the manager uprobe
  */
-static inline void add_aggr_uprobe(struct kprobe *ap, struct kprobe *p)
+static inline void add_aggr_uprobe(struct uprobe *ap, struct uprobe *p)
 {
 	copy_uprobe(p, ap);
 
@@ -184,10 +184,9 @@ static inline void add_aggr_uprobe(struct kprobe *ap, struct kprobe *p)
  * This is the second or subsequent uprobe at the address - handle
  * the intricacies
  */
-static int register_aggr_uprobe(struct kprobe *old_p, struct kprobe *p)
+static int register_aggr_uprobe(struct uprobe *old_p, struct uprobe *p)
 {
 	int ret = 0;
-	struct kprobe *ap;
 
 	if (old_p->pre_handler == aggr_pre_uhandler) {
 		copy_uprobe(old_p, p);
@@ -197,11 +196,10 @@ static int register_aggr_uprobe(struct kprobe *old_p, struct kprobe *p)
 		if (!uap)
 			return -ENOMEM;
 
-		uap->task = kp2up(p)->task;
-		ap = up2kp(uap);
-		add_aggr_uprobe(ap, old_p);
-		copy_uprobe(ap, p);
-		ret = add_new_uprobe(ap, p);
+		uap->task = p->task;
+		add_aggr_uprobe(uap, old_p);
+		copy_uprobe(uap, p);
+		ret = add_new_uprobe(uap, p);
 	}
 
 	return ret;
@@ -210,11 +208,11 @@ static int register_aggr_uprobe(struct kprobe *old_p, struct kprobe *p)
 static int arm_uprobe(struct uprobe *p)
 {
 	kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
-	int ret = write_proc_vm_atomic(p->task, (unsigned long)p->kp.addr,
+	int ret = write_proc_vm_atomic(p->task, (unsigned long)p->addr,
 				       &insn, sizeof(insn));
 	if (!ret) {
 		printk("arm_uprobe: failed to write memory "
-		       "tgid=%u addr=%p!\n", p->task->tgid, p->kp.addr);
+		       "tgid=%u addr=%p!\n", p->task->tgid, p->addr);
 
 		return -EACCES;
 	}
@@ -225,11 +223,11 @@ static int arm_uprobe(struct uprobe *p)
 /**
  * @brief Disarms uprobe.
  *
- * @param p Pointer to the uprobe's kprobe.
+ * @param p Pointer to the uprobe.
  * @param task Pointer to the target task.
  * @return Void.
  */
-void disarm_uprobe(struct kprobe *p, struct task_struct *task)
+void disarm_uprobe(struct uprobe *p, struct task_struct *task)
 {
 	int ret = write_proc_vm_atomic(task, (unsigned long)p->addr,
 				       &p->opcode, sizeof(p->opcode));
@@ -262,22 +260,22 @@ static void init_uretprobe_inst_table(void)
 }
 
 /**
- * @brief Gets uprobe's kprobe.
+ * @brief Gets uprobe.
  *
  * @param addr Probe's address.
  * @param tgid Probes's thread group ID.
- * @return Pointer to the kprobe on success,\n
+ * @return Pointer to the uprobe on success,\n
  * NULL otherwise.
  */
-struct kprobe *get_ukprobe(void *addr, pid_t tgid)
+struct uprobe *get_uprobe(void *addr, pid_t tgid)
 {
 	struct hlist_head *head;
-	struct kprobe *p;
+	struct uprobe *p;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	head = &uprobe_table[hash_ptr(addr, UPROBE_HASH_BITS)];
 	swap_hlist_for_each_entry_rcu(p, node, head, hlist) {
-		if (p->addr == addr && kp2up(p)->task->tgid == tgid)
+		if (p->addr == addr && p->task->tgid == tgid)
 			return p;
 	}
 
@@ -287,10 +285,10 @@ struct kprobe *get_ukprobe(void *addr, pid_t tgid)
 /**
  * @brief Adds uprobe to hlist when trampoline have been made.
  *
- * @param p Pointer to the uprobe's kprobe.
+ * @param p Pointer to the uprobe.
  * @return Void.
  */
-void add_uprobe_table(struct kprobe *p)
+void add_uprobe_table(struct uprobe *p)
 {
 	write_lock(&st_lock);
 	hlist_add_head(&p->is_hlist,
@@ -298,7 +296,7 @@ void add_uprobe_table(struct kprobe *p)
 	write_unlock(&st_lock);
 }
 
-static void del_uprobe_table(struct kprobe *p)
+static void del_uprobe_table(struct uprobe *p)
 {
 	write_lock(&st_lock);
 	if (!hlist_unhashed(&p->is_hlist))
@@ -307,26 +305,26 @@ static void del_uprobe_table(struct kprobe *p)
 }
 
 /**
- * @brief Gets kprobe by insn slot.
+ * @brief Gets uprobe by insn slot.
  *
  * @param addr Probe's address.
  * @param tgit Probe's thread group ID.
  * @param regs Pointer to CPU registers data.
- * @return Pointer to the kprobe on success,\n
+ * @return Pointer to the uprobe on success,\n
  * NULL otherwise.
  */
-struct kprobe *get_ukprobe_by_insn_slot(void *addr,
-					pid_t tgid,
-					struct pt_regs *regs)
+struct uprobe *get_uprobe_by_insn_slot(void *addr,
+				       pid_t tgid,
+				       struct pt_regs *regs)
 {
 	struct hlist_head *head;
-	struct kprobe *p;
+	struct uprobe *p;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	read_lock(&st_lock);
 	head = &slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
 	swap_hlist_for_each_entry(p, node, head, is_hlist) {
-		if (p->ainsn.insn == addr && kp2up(p)->task->tgid == tgid) {
+		if (p->ainsn.insn == addr && p->task->tgid == tgid) {
 			read_unlock(&st_lock);
 			return p;
 		}
@@ -339,7 +337,7 @@ struct kprobe *get_ukprobe_by_insn_slot(void *addr,
 
 static void remove_uprobe(struct uprobe *up)
 {
-	del_uprobe_table(&up->kp);
+	del_uprobe_table(up);
 	arch_remove_uprobe(up);
 }
 
@@ -478,12 +476,11 @@ static struct uretprobe_instance *get_free_urp_inst(struct uretprobe *rp)
  * @return 0 on success,\n
  * negative error code on error.
  */
-int swap_register_uprobe(struct uprobe *up)
+int swap_register_uprobe(struct uprobe *p)
 {
 	int ret = 0;
-	struct kprobe *p, *old_p;
+	struct uprobe *old_p;
 
-	p = &up->kp;
 	if (!p->addr)
 		return -EINVAL;
 
@@ -498,8 +495,6 @@ int swap_register_uprobe(struct uprobe *up)
 #endif
 
 	p->ainsn.insn = NULL;
-	p->mod_refcounted = 0;
-	p->nmissed = 0;
 	INIT_LIST_HEAD(&p->list);
 #ifdef KPROBES_PROFILE
 	p->start_tm.tv_sec = p->start_tm.tv_usec = 0;
@@ -508,9 +503,9 @@ int swap_register_uprobe(struct uprobe *up)
 #endif
 
 	/* get the first item */
-	old_p = get_ukprobe(p->addr, kp2up(p)->task->tgid);
+	old_p = get_uprobe(p->addr, p->task->tgid);
 	if (old_p) {
-		struct task_struct *task = up->task;
+		struct task_struct *task = p->task;
 
 		/* TODO: add support many uprobes on address */
 		printk(KERN_INFO "uprobe on task[%u %u %s] vaddr=%p is there\n",
@@ -528,7 +523,7 @@ int swap_register_uprobe(struct uprobe *up)
 
 	INIT_HLIST_NODE(&p->is_hlist);
 
-	ret = arch_prepare_uprobe(up);
+	ret = arch_prepare_uprobe(p);
 	if (ret) {
 		DBPRINTF("goto out\n", ret);
 		goto out;
@@ -541,11 +536,11 @@ int swap_register_uprobe(struct uprobe *up)
 	hlist_add_head_rcu(&p->hlist,
 			   &uprobe_table[hash_ptr(p->addr, UPROBE_HASH_BITS)]);
 
-	ret = arm_uprobe(up);
+	ret = arm_uprobe(p);
 	if (ret) {
 		hlist_del_rcu(&p->hlist);
 		synchronize_rcu();
-		remove_uprobe(up);
+		remove_uprobe(p);
 	}
 
 out:
@@ -561,13 +556,12 @@ EXPORT_SYMBOL_GPL(swap_register_uprobe);
  * @param disarm Disarm flag. When true uprobe is disarmed.
  * @return Void.
  */
-void __swap_unregister_uprobe(struct uprobe *up, int disarm)
+void __swap_unregister_uprobe(struct uprobe *p, int disarm)
 {
-	struct kprobe *p, *old_p, *list_p;
+	struct uprobe *old_p, *list_p;
 	int cleanup_p;
 
-	p = &up->kp;
-	old_p = get_ukprobe(p->addr, kp2up(p)->task->tgid);
+	old_p = get_uprobe(p->addr, p->task->tgid);
 	if (unlikely(!old_p))
 		return;
 
@@ -587,7 +581,7 @@ valid_p:
 	    (p->list.next == &old_p->list) && (p->list.prev == &old_p->list))) {
 		/* Only probe on the hash list */
 		if (disarm)
-			disarm_uprobe(&up->kp, up->task);
+			disarm_uprobe(p, p->task);
 
 		hlist_del_rcu(&old_p->hlist);
 		cleanup_p = 1;
@@ -605,7 +599,7 @@ valid_p:
 		if (!in_atomic())
 			synchronize_sched();
 
-		remove_uprobe(up);
+		remove_uprobe(p);
 	} else {
 		if (p->break_handler)
 			old_p->break_handler = NULL;
@@ -649,8 +643,8 @@ int swap_register_ujprobe(struct ujprobe *jp)
 	int ret = 0;
 
 	/* Todo: Verify probepoint is a function entry point */
-	jp->up.kp.pre_handler = setjmp_upre_handler;
-	jp->up.kp.break_handler = longjmp_break_uhandler;
+	jp->up.pre_handler = setjmp_upre_handler;
+	jp->up.break_handler = longjmp_break_uhandler;
 
 	ret = swap_register_uprobe(&jp->up);
 
@@ -687,14 +681,14 @@ EXPORT_SYMBOL_GPL(swap_unregister_ujprobe);
 /**
  * @brief Trampoline uprobe handler.
  *
- * @param p Pointer to the uprobe's kprobe.
+ * @param p Pointer to the uprobe.
  * @param regs Pointer to CPU register data.
  * @return 1
  */
-int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
+int trampoline_uprobe_handler(struct uprobe *p, struct pt_regs *regs)
 {
 	struct uretprobe_instance *ri = NULL;
-	struct kprobe *kp;
+	struct uprobe *up;
 	struct hlist_head *head;
 	unsigned long flags, tramp_addr, orig_ret_addr = 0;
 	struct hlist_node *tmp;
@@ -724,9 +718,9 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 			continue;
 		}
 
-		kp = NULL;
+		up = NULL;
 		if (ri->rp) {
-			kp = up2kp(&ri->rp->up);
+			up = &ri->rp->up;
 
 			if (ri->rp->handler)
 				ri->rp->handler(ri, regs);
@@ -735,7 +729,7 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 		orig_ret_addr = (unsigned long)ri->ret_addr;
 		recycle_urp_inst(ri);
 
-		if ((orig_ret_addr != tramp_addr && kp == p) || kp == NULL) {
+		if ((orig_ret_addr != tramp_addr && up == p) || up == NULL) {
 			/*
 			 * This is the real return address. Any other
 			 * instances associated with this task are for
@@ -754,10 +748,9 @@ int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 	return 1;
 }
 
-static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
+static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 {
-	struct uprobe *up = container_of(p, struct uprobe, kp);
-	struct uretprobe *rp = container_of(up, struct uretprobe, up);
+	struct uretprobe *rp = container_of(p, struct uretprobe, up);
 #ifdef CONFIG_ARM
 	int noret = thumb_mode(regs) ? rp->thumb_noret : rp->arm_noret;
 #endif
@@ -816,10 +809,10 @@ int swap_register_uretprobe(struct uretprobe *rp)
 
 	DBPRINTF("START\n");
 
-	rp->up.kp.pre_handler = pre_handler_uretprobe;
-	rp->up.kp.post_handler = NULL;
-	rp->up.kp.fault_handler = NULL;
-	rp->up.kp.break_handler = NULL;
+	rp->up.pre_handler = pre_handler_uretprobe;
+	rp->up.post_handler = NULL;
+	rp->up.fault_handler = NULL;
+	rp->up.break_handler = NULL;
 
 	/* Pre-allocate memory for max kretprobe instances */
 	if (rp->maxactive <= 0) {
@@ -908,7 +901,7 @@ void swap_discard_pending_uretprobes(struct task_struct *task)
 		if (ri->task == task) {
 			printk(KERN_INFO "%s (%d/%d): pending urp inst: %08lx\n",
 			       task->comm, task->tgid, task->pid,
-			       (unsigned long)ri->rp->up.kp.addr);
+			       (unsigned long)ri->rp->up.addr);
 			arch_disarm_urp_inst(ri, task);
 			recycle_urp_inst(ri);
 		}
@@ -938,7 +931,7 @@ void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 			printk(KERN_INFO "%s (%d/%d): "
 			       "cannot disarm urp instance (%08lx)\n",
 			       ri->task->comm, ri->task->tgid, ri->task->pid,
-			       (unsigned long)rp->up.kp.addr);
+			       (unsigned long)rp->up.addr);
 		recycle_urp_inst(ri);
 	}
 
@@ -974,7 +967,7 @@ EXPORT_SYMBOL_GPL(swap_unregister_uretprobe);
 void swap_unregister_all_uprobes(struct task_struct *task)
 {
 	struct hlist_head *head;
-	struct kprobe *p;
+	struct uprobe *p;
 	int i;
 	struct hlist_node *tnode;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
@@ -982,14 +975,12 @@ void swap_unregister_all_uprobes(struct task_struct *task)
 	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
 		head = &uprobe_table[i];
 		swap_hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
-			if (kp2up(p)->task->tgid == task->tgid) {
-				struct uprobe *up =
-					container_of(p, struct uprobe, kp);
+			if (p->task->tgid == task->tgid) {
 				printk(KERN_INFO "%s: delete uprobe at %p[%lx]"
 				       " for %s/%d\n", __func__, p->addr,
 				       (unsigned long)p->opcode,
 				       task->comm, task->pid);
-				swap_unregister_uprobe(up);
+				swap_unregister_uprobe(p);
 			}
 		}
 	}

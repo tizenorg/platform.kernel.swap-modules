@@ -100,13 +100,12 @@ static int is_thumb2(kprobe_opcode_t insn)
 		(insn & 0xf800) == 0xf800);
 }
 
-static int arch_copy_trampoline_arm_uprobe(struct uprobe *up)
+static int arch_copy_trampoline_arm_uprobe(struct uprobe *p)
 {
 	int ret;
-	struct kprobe *p = up2kp(up);
 	unsigned long insn = p->opcode;
 	unsigned long vaddr = (unsigned long)p->addr;
-	unsigned long *tramp = up->atramp.tramp_arm;
+	unsigned long *tramp = p->atramp.tramp_arm;
 
 	ret = arch_make_trampoline_arm(vaddr, insn, tramp);
 	p->safe_arm = !!ret;
@@ -394,20 +393,19 @@ static int prep_pc_dep_insn_execbuf_thumb(kprobe_opcode_t *insns,
 	return 0;
 }
 
-static int arch_copy_trampoline_thumb_uprobe(struct uprobe *up)
+static int arch_copy_trampoline_thumb_uprobe(struct uprobe *p)
 {
 	int uregs, pc_dep;
-	struct kprobe *p = up2kp(up);
 	unsigned int addr;
 	unsigned long vaddr = (unsigned long)p->addr;
 	unsigned long insn = p->opcode;
-	unsigned long *tramp = up->atramp.tramp_thumb;
-	enum { tramp_len = sizeof(up->atramp.tramp_thumb) };
+	unsigned long *tramp = p->atramp.tramp_thumb;
+	enum { tramp_len = sizeof(p->atramp.tramp_thumb) };
 
 	p->safe_thumb = 1;
 	if (vaddr & 0x01) {
 		printk(KERN_INFO "Error in %s at %d: attempt to register "
-		       "kprobe at an unaligned address\n", __FILE__, __LINE__);
+		       "uprobe at an unaligned address\n", __FILE__, __LINE__);
 		return -EINVAL;
 	}
 
@@ -610,10 +608,9 @@ static int arch_copy_trampoline_thumb_uprobe(struct uprobe *up)
  * @return 0 on success,\n
  * negative error code on error.
  */
-int arch_prepare_uprobe(struct uprobe *up)
+int arch_prepare_uprobe(struct uprobe *p)
 {
-	struct kprobe *p = up2kp(up);
-	struct task_struct *task = up->task;
+	struct task_struct *task = p->task;
 	unsigned long vaddr = (unsigned long)p->addr;
 	unsigned long insn;
 
@@ -631,8 +628,8 @@ int arch_prepare_uprobe(struct uprobe *up)
 
 	p->opcode = insn;
 
-	arch_copy_trampoline_arm_uprobe(up);
-	arch_copy_trampoline_thumb_uprobe(up);
+	arch_copy_trampoline_arm_uprobe(p);
+	arch_copy_trampoline_thumb_uprobe(p);
 
 	if ((p->safe_arm) && (p->safe_thumb)) {
 		printk(KERN_INFO "Error in %s at %d: failed "
@@ -642,8 +639,8 @@ int arch_prepare_uprobe(struct uprobe *up)
 		return -EFAULT;
 	}
 
-	up->atramp.utramp = swap_slot_alloc(up->sm);
-	if (up->atramp.utramp == NULL) {
+	p->atramp.utramp = swap_slot_alloc(p->sm);
+	if (p->atramp.utramp == NULL) {
 		printk(KERN_INFO "Error: swap_slot_alloc failed (%08lx)\n",
 		       vaddr);
 		return -ENOMEM;
@@ -661,13 +658,13 @@ int arch_prepare_uprobe(struct uprobe *up)
 void arch_opcode_analysis_uretprobe(struct uretprobe *rp)
 {
 	/* Remove retprobe if first insn overwrites lr */
-	rp->thumb_noret = !!(THUMB2_INSN_MATCH(BL, rp->up.kp.opcode) ||
-			     THUMB2_INSN_MATCH(BLX1, rp->up.kp.opcode) ||
-			     THUMB_INSN_MATCH(BLX2, rp->up.kp.opcode));
+	rp->thumb_noret = !!(THUMB2_INSN_MATCH(BL, rp->up.opcode) ||
+			     THUMB2_INSN_MATCH(BLX1, rp->up.opcode) ||
+			     THUMB_INSN_MATCH(BLX2, rp->up.opcode));
 
-	rp->arm_noret = !!(ARM_INSN_MATCH(BL, rp->up.kp.opcode) ||
-			   ARM_INSN_MATCH(BLX1, rp->up.kp.opcode) ||
-			   ARM_INSN_MATCH(BLX2, rp->up.kp.opcode));
+	rp->arm_noret = !!(ARM_INSN_MATCH(BL, rp->up.opcode) ||
+			   ARM_INSN_MATCH(BLX1, rp->up.opcode) ||
+			   ARM_INSN_MATCH(BLX2, rp->up.opcode));
 }
 
 /**
@@ -686,12 +683,12 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 	ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
 
 	if (ri->preload_thumb) {
-		regs->ARM_lr = (unsigned long)(ri->rp->up.kp.ainsn.insn) + 0x1b;
+		regs->ARM_lr = (unsigned long)(ri->rp->up.ainsn.insn) + 0x1b;
 	} else {
 		if (thumb_mode(regs))
-			regs->ARM_lr = (unsigned long)(ri->rp->up.kp.ainsn.insn) + 0x1b;
+			regs->ARM_lr = (unsigned long)(ri->rp->up.ainsn.insn) + 0x1b;
 		else
-			regs->ARM_lr = (unsigned long)(ri->rp->up.kp.ainsn.insn +
+			regs->ARM_lr = (unsigned long)(ri->rp->up.ainsn.insn +
 						       UPROBES_TRAMP_RET_BREAK_IDX);
 	}
 
@@ -721,9 +718,9 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 	/* Understand function mode */
 	if ((long)ri->sp & 1) {
 		tramp = (unsigned long *)
-			((unsigned long)ri->rp->up.kp.ainsn.insn + 0x1b);
+			((unsigned long)ri->rp->up.ainsn.insn + 0x1b);
 	} else {
-		tramp = (unsigned long *)(ri->rp->up.kp.ainsn.insn +
+		tramp = (unsigned long *)(ri->rp->up.ainsn.insn +
 					  UPROBES_TRAMP_RET_BREAK_IDX);
 	}
 
@@ -755,7 +752,7 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 	       "%08lx (%08lx /%+d) - %p\n",
 	       task->comm, task->tgid, task->pid,
 	       (unsigned long)found, (unsigned long)sp,
-	       found - sp, ri->rp->up.kp.addr);
+	       found - sp, ri->rp->up.addr);
 	retval = write_proc_vm_atomic(task, (unsigned long)found,
 				      &ri->ret_addr,
 				      sizeof(ri->ret_addr));
@@ -773,14 +770,14 @@ check_lr: /* check lr anyway */
 		printk(KERN_INFO "---> %s (%d/%d): trampoline found at "
 		       "lr = %08lx - %p\n",
 		       task->comm, task->tgid, task->pid,
-		       ra, ri->rp->up.kp.addr);
+		       ra, ri->rp->up.addr);
 		swap_set_ret_addr(uregs, (unsigned long)ri->ret_addr);
 		retval = 0;
 	} else if (retval) {
 		printk(KERN_INFO "---> %s (%d/%d): trampoline NOT found at "
 		       "sp = %08lx, lr = %08lx - %p\n",
 		       task->comm, task->tgid, task->pid,
-		       (unsigned long)sp, ra, ri->rp->up.kp.addr);
+		       (unsigned long)sp, ra, ri->rp->up.addr);
 	}
 
 	return retval;
@@ -789,17 +786,16 @@ check_lr: /* check lr anyway */
 /**
  * @brief Jump pre-handler.
  *
- * @param p Pointer to the kprobe.
+ * @param p Pointer to the uprobe.
  * @param regs Pointer to CPU register data.
  * @return 0.
  */
-int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
+int setjmp_upre_handler(struct uprobe *p, struct pt_regs *regs)
 {
-	struct uprobe *up = container_of(p, struct uprobe, kp);
-	struct ujprobe *jp = container_of(up, struct ujprobe, up);
+	struct ujprobe *jp = container_of(p, struct ujprobe, up);
 
-	kprobe_pre_entry_handler_t pre_entry =
-		(kprobe_pre_entry_handler_t)jp->pre_entry;
+	uprobe_pre_entry_handler_t pre_entry =
+		(uprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
 
 	if (pre_entry) {
@@ -820,11 +816,11 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 /**
  * @brief Gets trampoline address.
  *
- * @param p Pointer to the kprobe.
+ * @param p Pointer to the uprobe.
  * @param regs Pointer to CPU register data.
  * @return Trampoline address.
  */
-unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs)
+unsigned long arch_get_trampoline_addr(struct uprobe *p, struct pt_regs *regs)
 {
 	return thumb_mode(regs) ?
 			(unsigned long)(p->ainsn.insn) + 0x1b :
@@ -861,7 +857,7 @@ void arch_remove_uprobe(struct uprobe *up)
 	swap_slot_free(up->sm, up->atramp.utramp);
 }
 
-static void restore_opcode_for_thumb(struct kprobe *p, struct pt_regs *regs)
+static void restore_opcode_for_thumb(struct uprobe *p, struct pt_regs *regs)
 {
 	if (thumb_mode(regs) && !is_thumb2(p->opcode)) {
 		u16 tmp = p->opcode >> 16;
@@ -871,10 +867,9 @@ static void restore_opcode_for_thumb(struct kprobe *p, struct pt_regs *regs)
 	}
 }
 
-static int make_trampoline(struct uprobe *up, struct pt_regs *regs)
+static int make_trampoline(struct uprobe *p, struct pt_regs *regs)
 {
 	unsigned long *tramp, *utramp;
-	struct kprobe *p = up2kp(up);
 	int sw;
 
 	/*
@@ -890,13 +885,13 @@ static int make_trampoline(struct uprobe *up, struct pt_regs *regs)
 	/* ARM */
 	case 0b110:
 	case 0b010:
-		tramp = up->atramp.tramp_arm;
+		tramp = p->atramp.tramp_arm;
 		break;
 	/* THUMB */
 	case 0b111:
 	case 0b101:
 		restore_opcode_for_thumb(p, regs);
-		tramp = up->atramp.tramp_thumb;
+		tramp = p->atramp.tramp_thumb;
 		break;
 	default:
 		printk(KERN_INFO "Error in %s at %d: we are in arm mode "
@@ -904,14 +899,14 @@ static int make_trampoline(struct uprobe *up, struct pt_regs *regs)
 		       "(%0lX instruction at %p address)!\n",
 		       __FILE__, __LINE__, p->opcode, p->addr);
 
-		disarm_uprobe(p, up->task);
+		disarm_uprobe(p, p->task);
 
 		return 1;
 	}
 
-	utramp = up->atramp.utramp;
+	utramp = p->atramp.utramp;
 
-	if (!write_proc_vm_atomic(up->task, (unsigned long)utramp, tramp,
+	if (!write_proc_vm_atomic(p->task, (unsigned long)utramp, tramp,
 				  UPROBES_TRAMP_LEN * sizeof(*tramp))) {
 		printk(KERN_ERR "failed to write memory %p!\n", utramp);
 		return -EINVAL;
@@ -923,21 +918,41 @@ static int make_trampoline(struct uprobe *up, struct pt_regs *regs)
 	return 0;
 }
 
+/**
+ * @brief Prepares singlestep for current CPU.
+ *
+ * @param p Pointer to uprobe.
+ * @param regs Pointer to CPU registers data.
+ * @return Void.
+ */
+
+static void uprobe_prepare_singlestep(struct uprobe *p, struct pt_regs *regs)
+{
+	int cpu = smp_processor_id();
+
+	if (p->ss_addr[cpu]) {
+		regs->ARM_pc = (unsigned long)p->ss_addr[cpu];
+		p->ss_addr[cpu] = NULL;
+	} else {
+		regs->ARM_pc = (unsigned long)p->ainsn.insn;
+	}
+}
+
 static int uprobe_handler(struct pt_regs *regs)
 {
 	kprobe_opcode_t *addr = (kprobe_opcode_t *)(regs->ARM_pc);
 	struct task_struct *task = current;
 	pid_t tgid = task->tgid;
-	struct kprobe *p;
+	struct uprobe *p;
 
-	p = get_ukprobe(addr, tgid);
+	p = get_uprobe(addr, tgid);
 	if (p == NULL) {
 		unsigned long offset_bp = thumb_mode(regs) ?
 					  0x1a :
 					  4 * UPROBES_TRAMP_RET_BREAK_IDX;
 		void *tramp_addr = (void *)addr - offset_bp;
 
-		p = get_ukprobe_by_insn_slot(tramp_addr, tgid, regs);
+		p = get_uprobe_by_insn_slot(tramp_addr, tgid, regs);
 		if (p == NULL) {
 			printk(KERN_INFO "no_uprobe: Not one of ours: let "
 			       "kernel handle it %p\n", addr);
@@ -947,9 +962,8 @@ static int uprobe_handler(struct pt_regs *regs)
 		trampoline_uprobe_handler(p, regs);
 	} else {
 		if (p->ainsn.insn == NULL) {
-			struct uprobe *up = kp2up(p);
 
-			if (make_trampoline(up, regs)) {
+			if (make_trampoline(p, regs)) {
 				printk(KERN_INFO "no_uprobe live\n");
 				return 0;
 			}
@@ -959,7 +973,7 @@ static int uprobe_handler(struct pt_regs *regs)
 		}
 
 		if (!p->pre_handler || !p->pre_handler(p, regs))
-			prepare_singlestep(p, regs);
+			uprobe_prepare_singlestep(p, regs);
 	}
 
 	return 0;

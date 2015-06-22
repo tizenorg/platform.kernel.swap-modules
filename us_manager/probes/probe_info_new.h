@@ -36,7 +36,7 @@ struct probe_info_new {
 	enum probe_t type;
 	union {
 		struct {
-			kprobe_pre_handler_t handler;
+			uprobe_pre_handler_t handler;
 		} p;
 
 		struct {

@@ -38,16 +38,71 @@
 
 #include <swap-asm/swap_uprobes.h>
 
+/**
+ * @brief Uprobe pre-handler pointer.
+ */
+typedef int (*uprobe_pre_handler_t) (struct uprobe *, struct pt_regs *);
+
+/**
+ * @brief Uprobe break handler pointer.
+ */
+typedef int (*uprobe_break_handler_t) (struct uprobe *, struct pt_regs *);
+
+/**
+ * @brief Uprobe post handler pointer.
+ */
+typedef void (*uprobe_post_handler_t) (struct uprobe *,
+				       struct pt_regs *,
+				       unsigned long flags);
+
+/**
+ * @brief Uprobe fault handler pointer.
+ */
+typedef int (*uprobe_fault_handler_t) (struct uprobe *,
+				       struct pt_regs *,
+				       int trapnr);
 
 /**
  * @struct uprobe
- * @brief Stores uprobe data, based on kprobe.
+ * @brief Stores uprobe data.
  */
 struct uprobe {
-	struct kprobe kp;                   /**< Kprobe for this uprobe */
-	struct task_struct *task;           /**< Pointer to the task struct */
-	struct slot_manager *sm;            /**< Pointer to slot manager */
-	struct arch_specific_tramp atramp;  /**< Stores trampoline */
+	struct hlist_node hlist; /**< Hash list.*/
+	/** List of probes to search by instruction slot.*/
+	struct hlist_node is_hlist;
+	/** List of uprobes for multi-handler support.*/
+	struct list_head list;
+	/** Location of the probe point. */
+	kprobe_opcode_t *addr;
+	/** Called before addr is executed.*/
+	uprobe_pre_handler_t pre_handler;
+	/** Called after addr is executed, unless...*/
+	uprobe_post_handler_t post_handler;
+	/** ... called if executing addr causes a fault (eg. page fault).*/
+	uprobe_fault_handler_t fault_handler;
+	/** Return 1 if it handled fault, otherwise kernel will see it.*/
+	uprobe_break_handler_t break_handler;
+	/** Saved opcode (which has been replaced with breakpoint).*/
+	kprobe_opcode_t opcode;
+	/** Copy of the original instruction.*/
+	struct arch_specific_insn ainsn;
+	/** Override single-step target address, may be used to redirect
+	 * control-flow to arbitrary address after probe point without
+	 * invocation of original instruction; useful for functions
+	 * replacement. If jprobe.entry should return address of function or
+	 * NULL if original function should be called.
+	 * Not supported for X86, not tested for MIPS. */
+	kprobe_opcode_t *ss_addr[NR_CPUS];
+#ifdef CONFIG_ARM
+	/** Safe/unsafe to use probe on ARM.*/
+	unsigned safe_arm:1;
+	/** Safe/unsafe to use probe on Thumb.*/
+	unsigned safe_thumb:1;
+#endif
+
+	struct task_struct *task;            /**< Pointer to the task struct */
+	struct slot_manager *sm;             /**< Pointer to slot manager */
+	struct arch_specific_tramp atramp;   /**< Stores trampoline */
 };
 
 /**
@@ -143,25 +198,15 @@ void swap_unregister_all_uprobes(struct task_struct *task);
 void swap_discard_pending_uretprobes(struct task_struct *task);
 
 void swap_ujprobe_return(void);
-struct kprobe *get_ukprobe(void *addr, pid_t tgid);
-struct kprobe *get_ukprobe_by_insn_slot(void *addr,
+struct uprobe *get_uprobe(void *addr, pid_t tgid);
+struct uprobe *get_uprobe_by_insn_slot(void *addr,
 					pid_t tgid,
 					struct pt_regs *regs);
 
-static inline struct uprobe *kp2up(struct kprobe *p)
-{
-	return container_of(p, struct uprobe, kp);
-}
+void disarm_uprobe(struct uprobe *p, struct task_struct *task);
 
-static inline struct kprobe *up2kp(struct uprobe *p)
-{
-	return &p->kp;
-}
+int trampoline_uprobe_handler(struct uprobe *p, struct pt_regs *regs);
 
-void disarm_uprobe(struct kprobe *p, struct task_struct *task);
-
-int trampoline_uprobe_handler(struct kprobe *p, struct pt_regs *regs);
-
-void add_uprobe_table(struct kprobe *p);
+void add_uprobe_table(struct uprobe *p);
 
 #endif /*  _SWAP_UPROBES_H */

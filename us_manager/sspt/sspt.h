@@ -58,7 +58,7 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 		return -EINVAL;
 	}
 
-	up->kp.addr = (kprobe_opcode_t *)ip->orig_addr;
+	up->addr = (kprobe_opcode_t *)ip->orig_addr;
 	up->task = ip->page->file->proc->task;
 	up->sm = ip->page->file->proc->sm;
 
@@ -66,12 +66,12 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	if (ret) {
 		struct sspt_file *file = ip->page->file;
 		char *name = file->dentry->d_iname;
-		unsigned long addr = (unsigned long)up->kp.addr;
+		unsigned long addr = (unsigned long)up->addr;
 		unsigned long offset = addr - file->vm_start;
 
 		printk(KERN_INFO "swap_register_uretprobe() failure %d "
 		       "(%s:%lx|%lx)\n", ret, name, offset,
-		       (unsigned long)ip->retprobe.up.kp.opcode);
+		       (unsigned long)ip->retprobe.up.opcode);
 	}
 
 	return ret;
@@ -89,7 +89,7 @@ static inline int sspt_unregister_usprobe(struct task_struct *task,
 		break;
 	case US_DISARM:
 		up = probe_info_get_uprobe(ip->info, ip);
-		disarm_uprobe(&up->kp, task);
+		disarm_uprobe(up, task);
 		break;
 	case US_UNINSTALL:
 		probe_info_unregister(ip->info, ip, 0);

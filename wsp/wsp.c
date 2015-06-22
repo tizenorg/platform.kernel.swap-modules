@@ -83,7 +83,7 @@ static void do_res_finish(struct wsp_res *res)
 /*
  * soup_req
  */
-static int soup_req_handle(struct kprobe *p, struct pt_regs *regs)
+static int soup_req_handle(struct uprobe *p, struct pt_regs *regs)
 {
 	enum { max_str_len = 512 };
 	const char __user *user_s;
@@ -116,7 +116,7 @@ static struct probe_info_new soup_req = MAKE_UPROBE(soup_req_handle);
 /*
  * main_res_req
  */
-static int mres_req_handle(struct kprobe *p, struct pt_regs *regs)
+static int mres_req_handle(struct uprobe *p, struct pt_regs *regs)
 {
 	void *ptr = (void *)swap_get_uarg(regs, 0);
 	struct wsp_res *res;
@@ -162,7 +162,7 @@ static struct probe_info_new mres_adata =
 /*
  * main_res_finish
  */
-static int mres_finish_handle(struct kprobe *p, struct pt_regs *regs)
+static int mres_finish_handle(struct uprobe *p, struct pt_regs *regs)
 {
 	void *ptr = (void *)swap_get_uarg(regs, 0);
 	struct wsp_res *res;
@@ -182,7 +182,7 @@ static struct probe_info_new mres_finish = MAKE_UPROBE(mres_finish_handle);
 /*
  * res_request
  */
-static int res_request_handle(struct kprobe *p, struct pt_regs *regs)
+static int res_request_handle(struct uprobe *p, struct pt_regs *regs)
 {
 	void *ptr = (void *)swap_get_uarg(regs, 0);
 	struct wsp_res *res;

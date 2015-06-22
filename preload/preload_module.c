@@ -140,7 +140,7 @@ static inline void __prepare_ujump(struct uretprobe_instance *ri,
 				   struct pt_regs *regs,
 				   unsigned long vaddr)
 {
-	ri->rp->up.kp.ss_addr[smp_processor_id()] = (kprobe_opcode_t *)vaddr;
+	ri->rp->up.ss_addr[smp_processor_id()] = (kprobe_opcode_t *)vaddr;
 
 #ifdef CONFIG_ARM
 	if (thumb_mode(regs)) {
@@ -201,7 +201,7 @@ static inline void print_regs(const char *prefix, struct pt_regs *regs,
 	       "sp(%08lx), lr(%08lx), pc(%08lx)\n",
 	       current->comm, current->tgid, current->pid,
 	       (int)preload_pd_get_state(__get_process_data(ri->rp)),
-	       prefix, (unsigned long)ri->rp->up.kp.addr,
+	       prefix, (unsigned long)ri->rp->up.addr,
 	       regs->ARM_r0, regs->ARM_r1, regs->ARM_r2, regs->ARM_r3,
 	       regs->ARM_r4, regs->ARM_r5, regs->ARM_r6, regs->ARM_r7,
 	       regs->ARM_sp, regs->ARM_lr, regs->ARM_pc);
@@ -210,7 +210,7 @@ static inline void print_regs(const char *prefix, struct pt_regs *regs,
 	       "ip(%08lx), arg0(%08lx), arg1(%08lx), raddr(%08lx)\n",
 	       current->comm, current->tgid, current->pid,
 	       (int)preload_pd_get_state(__get_process_data(ri->rp)),
-	       prefix, (unsigned long)ri->rp->up.kp.addr,
+	       prefix, (unsigned long)ri->rp->up.addr,
 	       regs->EREG(ip), swap_get_arg(regs, 0), swap_get_arg(regs, 1),
 	       swap_get_ret_addr(regs));
 #endif /* CONFIG_ARM */
@@ -715,7 +715,7 @@ static int preload_us_ret(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 
 
-static int get_caller_handler(struct kprobe *p, struct pt_regs *regs)
+static int get_caller_handler(struct uprobe *p, struct pt_regs *regs)
 {
 	unsigned long caller;
 	int ret;
@@ -732,7 +732,7 @@ static int get_caller_handler(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-static int get_call_type_handler(struct kprobe *p, struct pt_regs *regs)
+static int get_call_type_handler(struct uprobe *p, struct pt_regs *regs)
 {
 	unsigned char call_type;
 	int ret;
@@ -749,7 +749,7 @@ static int get_call_type_handler(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-static int write_msg_handler(struct kprobe *p, struct pt_regs *regs)
+static int write_msg_handler(struct uprobe *p, struct pt_regs *regs)
 {
 	char *user_buf;
 	char *buf;
@@ -819,7 +819,7 @@ int preload_module_get_caller_init(struct us_ip *ip)
 {
 	struct uprobe *up = &ip->uprobe;
 
-	up->kp.pre_handler = get_caller_handler;
+	up->pre_handler = get_caller_handler;
 
 	return 0;
 }
@@ -832,7 +832,7 @@ int preload_module_get_call_type_init(struct us_ip *ip)
 {
 	struct uprobe *up = &ip->uprobe;
 
-	up->kp.pre_handler = get_call_type_handler;
+	up->pre_handler = get_call_type_handler;
 
 	return 0;
 }
@@ -845,7 +845,7 @@ int preload_module_write_msg_init(struct us_ip *ip)
 {
 	struct uprobe *up = &ip->uprobe;
 
-	up->kp.pre_handler = write_msg_handler;
+	up->pre_handler = write_msg_handler;
 
 	return 0;
 }

@@ -39,7 +39,6 @@
 #include <swap-asm/swap_kprobes.h>	/* FIXME: for UPROBES_TRAMP_LEN */
 
 
-struct kprobe;
 struct task_struct;
 struct uprobe;
 struct uretprobe;
@@ -73,8 +72,8 @@ static inline void arch_ujprobe_return(void)
 
 int arch_prepare_uprobe(struct uprobe *up);
 
-int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs);
-static inline int longjmp_break_uhandler(struct kprobe *p, struct pt_regs *regs)
+int setjmp_upre_handler(struct uprobe *p, struct pt_regs *regs);
+static inline int longjmp_break_uhandler(struct uprobe *p, struct pt_regs *regs)
 {
 	return 0;
 }
@@ -84,7 +83,7 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs);
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 			 struct task_struct *task);
 
-unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs);
+unsigned long arch_get_trampoline_addr(struct uprobe *p, struct pt_regs *regs);
 void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs);
 void arch_remove_uprobe(struct uprobe *up);
 

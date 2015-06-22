@@ -45,12 +45,12 @@
  */
 struct uprobe_ctlblk {
 	unsigned long flags;            /**< Flags */
-	struct kprobe *p;               /**< Pointer to the uprobe's kprobe */
+	struct uprobe *p;               /**< Pointer to the uprobe */
 };
 
 static unsigned long trampoline_addr(struct uprobe *up)
 {
-	return (unsigned long)(up->kp.ainsn.insn +
+	return (unsigned long)(up->ainsn.insn +
 			       UPROBES_TRAMP_RET_BREAK_IDX);
 }
 
@@ -60,12 +60,12 @@ static struct uprobe_ctlblk *current_ucb(void)
 	return (struct uprobe_ctlblk *)(end_of_stack(current) + 20);
 }
 
-static struct kprobe *get_current_probe(void)
+static struct uprobe *get_current_probe(void)
 {
 	return current_ucb()->p;
 }
 
-static void set_current_probe(struct kprobe *p)
+static void set_current_probe(struct uprobe *p)
 {
 	current_ucb()->p = p;
 }
@@ -88,11 +88,10 @@ static void restore_current_flags(struct pt_regs *regs, unsigned long flags)
  * @return 0 on success,\n
  * -1 on error.
  */
-int arch_prepare_uprobe(struct uprobe *up)
+int arch_prepare_uprobe(struct uprobe *p)
 {
-	struct kprobe *p = up2kp(up);
-	struct task_struct *task = up->task;
-	u8 *tramp = up->atramp.tramp;
+	struct task_struct *task = p->task;
+	u8 *tramp = p->atramp.tramp;
 	enum { call_relative_opcode = 0xe8 };
 
 	if (!read_proc_vm_atomic(task, (unsigned long)p->addr,
@@ -113,15 +112,15 @@ int arch_prepare_uprobe(struct uprobe *up)
 
 	p->ainsn.boostable = swap_can_boost(tramp) ? 0 : -1;
 
-	p->ainsn.insn = swap_slot_alloc(up->sm);
+	p->ainsn.insn = swap_slot_alloc(p->sm);
 	if (p->ainsn.insn == NULL) {
 		printk(KERN_ERR "trampoline out of memory\n");
 		return -ENOMEM;
 	}
 
 	if (!write_proc_vm_atomic(task, (unsigned long)p->ainsn.insn,
-				  tramp, sizeof(up->atramp.tramp))) {
-		swap_slot_free(up->sm, p->ainsn.insn);
+				  tramp, sizeof(p->atramp.tramp))) {
+		swap_slot_free(p->sm, p->ainsn.insn);
 		printk(KERN_INFO "failed to write memory %p!\n", tramp);
 		return -EINVAL;
 	}
@@ -135,16 +134,15 @@ int arch_prepare_uprobe(struct uprobe *up)
 /**
  * @brief Jump pre-handler.
  *
- * @param p Pointer to the uprobe's kprobe.
+ * @param p Pointer to the uprobe.
  * @param regs Pointer to CPU register data.
  * @return 0.
  */
-int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
+int setjmp_upre_handler(struct uprobe *p, struct pt_regs *regs)
 {
-	struct uprobe *up = container_of(p, struct uprobe, kp);
-	struct ujprobe *jp = container_of(up, struct ujprobe, up);
-	kprobe_pre_entry_handler_t pre_entry =
-		(kprobe_pre_entry_handler_t)jp->pre_entry;
+	struct ujprobe *jp = container_of(p, struct ujprobe, up);
+	uprobe_pre_entry_handler_t pre_entry =
+		(uprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
 	unsigned long args[6];
 
@@ -189,7 +187,7 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 	if (!read_proc_vm_atomic(current, regs->EREG(sp), &(ri->ret_addr),
 				 sizeof(ri->ret_addr))) {
 		printk(KERN_ERR "failed to read user space func ra %lx addr=%p!\n",
-				regs->EREG(sp), ri->rp->up.kp.addr);
+				regs->EREG(sp), ri->rp->up.addr);
 		return -EINVAL;
 	}
 
@@ -245,13 +243,13 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 /**
  * @brief Gets trampoline address.
  *
- * @param p Pointer to the uprobe's kprobe.
+ * @param p Pointer to the uprobe.
  * @param regs Pointer to CPU register data.
  * @return Trampoline address.
  */
-unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs)
+unsigned long arch_get_trampoline_addr(struct uprobe *p, struct pt_regs *regs)
 {
-	return trampoline_addr(kp2up(p));
+	return trampoline_addr(p);
 }
 
 /**
@@ -272,11 +270,9 @@ void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
  * @param up Pointer to the target uprobe.
  * @return Void.
  */
-void arch_remove_uprobe(struct uprobe *up)
+void arch_remove_uprobe(struct uprobe *p)
 {
-	struct kprobe *p = up2kp(up);
-
-	swap_slot_free(up->sm, p->ainsn.insn);
+	swap_slot_free(p->sm, p->ainsn.insn);
 }
 
 static void set_user_jmp_op(void *from, void *to)
@@ -295,7 +291,7 @@ static void set_user_jmp_op(void *from, void *to)
 		       "failed to write jump opcode to user space %p\n", from);
 }
 
-static void resume_execution(struct kprobe *p,
+static void resume_execution(struct uprobe *p,
 			     struct pt_regs *regs,
 			     unsigned long flags)
 {
@@ -420,7 +416,7 @@ no_change:
 	return;
 }
 
-static bool prepare_ss_addr(struct kprobe *p, struct pt_regs *regs)
+static bool prepare_ss_addr(struct uprobe *p, struct pt_regs *regs)
 {
 	unsigned long *ss_addr = (long *)&p->ss_addr[smp_processor_id()];
 
@@ -441,9 +437,35 @@ static void prepare_ss(struct pt_regs *regs)
 	regs->flags &= ~IF_MASK;
 }
 
+/**
+ * @brief Prepares singlestep for current CPU.
+ *
+ * @param p Pointer to uprobe.
+ * @param regs Pointer to CPU registers data.
+ * @return Void.
+ */
+static void uprobe_prepare_singlestep(struct uprobe *p, struct pt_regs *regs)
+{
+	int cpu = smp_processor_id();
+
+	if (p->ss_addr[cpu]) {
+		regs->EREG(ip) = (unsigned long)p->ss_addr[cpu];
+		p->ss_addr[cpu] = NULL;
+	} else {
+		regs->EREG(flags) |= TF_MASK;
+		regs->EREG(flags) &= ~IF_MASK;
+		/* single step inline if the instruction is an int3 */
+		if (p->opcode == BREAKPOINT_INSTRUCTION) {
+			regs->EREG(ip) = (unsigned long) p->addr;
+			/* printk(KERN_INFO "break_insn!!!\n"); */
+		} else
+			regs->EREG(ip) = (unsigned long) p->ainsn.insn;
+	}
+}
+
 static int uprobe_handler(struct pt_regs *regs)
 {
-	struct kprobe *p;
+	struct uprobe *p;
 	kprobe_opcode_t *addr;
 	struct task_struct *task = current;
 	pid_t tgid = task->tgid;
@@ -451,12 +473,12 @@ static int uprobe_handler(struct pt_regs *regs)
 	save_current_flags(regs);
 
 	addr = (kprobe_opcode_t *)(regs->EREG(ip) - sizeof(kprobe_opcode_t));
-	p = get_ukprobe(addr, tgid);
+	p = get_uprobe(addr, tgid);
 
 	if (p == NULL) {
 		void *tramp_addr = (void *)addr - UPROBES_TRAMP_RET_BREAK_IDX;
 
-		p = get_ukprobe_by_insn_slot(tramp_addr, tgid, regs);
+		p = get_uprobe_by_insn_slot(tramp_addr, tgid, regs);
 		if (p == NULL) {
 			printk(KERN_INFO "no_uprobe\n");
 			return 0;
@@ -475,6 +497,8 @@ static int uprobe_handler(struct pt_regs *regs)
 				set_current_probe(p);
 				prepare_ss(regs);
 			}
+
+			uprobe_prepare_singlestep(p, regs);
 		}
 	}
 
@@ -483,7 +507,7 @@ static int uprobe_handler(struct pt_regs *regs)
 
 static int post_uprobe_handler(struct pt_regs *regs)
 {
-	struct kprobe *p = get_current_probe();
+	struct uprobe *p = get_current_probe();
 	unsigned long flags = current_ucb()->flags;
 
 	if (p == NULL) {

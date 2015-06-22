@@ -255,10 +255,9 @@ exit:
 	return 0;
 }
 
-static int fbi_probe_handler(struct kprobe *p, struct pt_regs *regs)
+static int fbi_probe_handler(struct uprobe *p, struct pt_regs *regs)
 {
-	struct uprobe *up = container_of(p, struct uprobe, kp);
-	struct us_ip *ip = container_of(up, struct us_ip, uprobe);
+	struct us_ip *ip = container_of(p, struct us_ip, uprobe);
 	struct fbi_info *fbi_i = &ip->info->fbi_i;
 	struct fbi_var_data *fbi_d = NULL;
 	uint8_t i;
@@ -308,7 +307,7 @@ void fbi_probe_cleanup(struct probe_info *probe_i)
 
 void fbi_probe_init(struct us_ip *ip)
 {
-	ip->uprobe.kp.pre_handler = (kprobe_pre_handler_t)fbi_probe_handler;
+	ip->uprobe.pre_handler = (uprobe_pre_handler_t)fbi_probe_handler;
 }
 
 void fbi_probe_uninit(struct us_ip *ip)

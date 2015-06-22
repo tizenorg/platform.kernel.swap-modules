@@ -65,10 +65,9 @@ static int urp_ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
-static int uprobe_handler(struct kprobe *p, struct pt_regs *regs)
+static int uprobe_handler(struct uprobe *p, struct pt_regs *regs)
 {
-	struct uprobe *up = container_of(p, struct uprobe, kp);
-	struct us_ip *ip = container_of(up, struct us_ip, uprobe);
+	struct us_ip *ip = container_of(p, struct us_ip, uprobe);
 	struct probe_info_new *info_new;
 
 	info_new = probe_info_get_val(ip->info, struct probe_info_new *);
@@ -178,7 +177,7 @@ static void up_unregister_probe(struct us_ip *ip, int disarm)
 
 static void up_init(struct us_ip *ip)
 {
-	ip->uprobe.kp.pre_handler = uprobe_handler;
+	ip->uprobe.pre_handler = uprobe_handler;
 }
 
 static void up_uninit(struct us_ip *ip)

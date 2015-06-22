@@ -47,7 +47,7 @@ static inline void print_ip(struct us_ip *ip, int i)
 
 		printk(KERN_INFO "###       addr[%2d]=%lx, R_addr=%lx\n",
 		       i, (unsigned long)ip->offset,
-		       (unsigned long)rp->up.kp.addr);
+		       (unsigned long)rp->up.addr);
 		print_retprobe(rp);
 	}
 }

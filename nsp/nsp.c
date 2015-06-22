@@ -60,7 +60,7 @@ static int main_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static struct probe_info_new pin_main = MAKE_URPROBE(main_eh, main_rh, 0);
 
 /* appcore_efl_main */
-static int ac_efl_main_h(struct kprobe *p, struct pt_regs *regs);
+static int ac_efl_main_h(struct uprobe *p, struct pt_regs *regs);
 static struct probe_info_new pin_ac_efl_main = MAKE_UPROBE(ac_efl_main_h);
 static struct probe_new p_ac_efl_main = {
 	.info = &pin_ac_efl_main
@@ -74,7 +74,7 @@ static struct probe_new p_ac_init = {
 };
 
 /* elm_run@plt */
-static int elm_run_h(struct kprobe *p, struct pt_regs *regs);
+static int elm_run_h(struct uprobe *p, struct pt_regs *regs);
 static struct probe_info_new pin_elm_run = MAKE_UPROBE(elm_run_h);
 static struct probe_new p_elm_run = {
 	.info = &pin_elm_run
@@ -673,7 +673,7 @@ static void stage_end(enum nsp_proc_stat priv, enum nsp_proc_stat cur,
 	}
 }
 
-static int main_h(struct kprobe *p, struct pt_regs *regs)
+static int main_h(struct uprobe *p, struct pt_regs *regs)
 {
 	struct tdata *tdata;
 	u64 time_start;
@@ -708,7 +708,7 @@ static int main_eh(struct uretprobe_instance *ri, struct pt_regs *regs)
 	struct uretprobe *rp = ri->rp;
 
 	if (rp) {
-		main_h(&rp->up.kp, regs);
+		main_h(&rp->up, regs);
 
 		if (get_quiet() == QT_OFF) {
 			struct us_ip *ip;
@@ -743,7 +743,7 @@ static int main_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
-static int ac_efl_main_h(struct kprobe *p, struct pt_regs *regs)
+static int ac_efl_main_h(struct uprobe *p, struct pt_regs *regs)
 {
 	stage_end(NPS_MAIN_E, NPS_AC_EFL_MAIN_E, NMS_MAIN);
 	return 0;
@@ -755,7 +755,7 @@ static int ac_init_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
-static int elm_run_h(struct kprobe *p, struct pt_regs *regs)
+static int elm_run_h(struct uprobe *p, struct pt_regs *regs)
 {
 	stage_end(NPS_AC_INIT_R, NPS_ELM_RUN_E, NMS_CREATE);
 	return 0;
