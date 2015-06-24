@@ -242,6 +242,11 @@ static struct vm_area_struct *__get_linker_vma(struct task_struct *task)
 	struct bin_info *ld_info;
 
 	ld_info = preload_storage_get_linker_info();
+	if (ld_info == NULL) {
+		printk(PRELOAD_PREFIX "Cannot get linker info [%u %u %s]!\n",
+		       task->tgid, task->pid, task->comm);
+		return NULL;
+	}
 
 	for (vma = task->mm->mmap; vma; vma = vma->vm_next) {
 		if (vma->vm_file && vma->vm_flags & VM_EXEC
