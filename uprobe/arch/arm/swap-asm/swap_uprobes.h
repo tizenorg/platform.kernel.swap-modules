@@ -44,6 +44,8 @@ struct uprobe;
 struct uretprobe;
 struct uretprobe_instance;
 
+typedef unsigned long uprobe_opcode_t;
+
 /**
  * @struct arch_specific_tramp
  * @brief Stores arch-dependent trampolines.

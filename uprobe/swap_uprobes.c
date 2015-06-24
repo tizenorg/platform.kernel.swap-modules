@@ -83,7 +83,7 @@ void print_uprobe_hash_table(void)
  */
 static inline void copy_uprobe(struct uprobe *old_p, struct uprobe *p)
 {
-	memcpy(&p->opcode, &old_p->opcode, sizeof(kprobe_opcode_t));
+	memcpy(&p->opcode, &old_p->opcode, sizeof(uprobe_opcode_t));
 	memcpy(&p->ainsn, &old_p->ainsn, sizeof(struct arch_specific_insn));
 #ifdef CONFIG_ARM
 	p->safe_arm = old_p->safe_arm;
@@ -207,7 +207,7 @@ static int register_aggr_uprobe(struct uprobe *old_p, struct uprobe *p)
 
 static int arm_uprobe(struct uprobe *p)
 {
-	kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
+	uprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
 	int ret = write_proc_vm_atomic(p->task, (unsigned long)p->addr,
 				       &insn, sizeof(insn));
 	if (!ret) {
@@ -490,7 +490,7 @@ int swap_register_uprobe(struct uprobe *p)
 #if defined(CONFIG_ARM)
 	/* TODO: must be corrected in 'bundle' */
 	if ((unsigned long) p->addr & 0x01)
-		p->addr = (kprobe_opcode_t *)((unsigned long)p->addr &
+		p->addr = (uprobe_opcode_t *)((unsigned long)p->addr &
 					      0xfffffffe);
 #endif
 

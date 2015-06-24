@@ -73,7 +73,7 @@ struct uprobe {
 	/** List of uprobes for multi-handler support.*/
 	struct list_head list;
 	/** Location of the probe point. */
-	kprobe_opcode_t *addr;
+	uprobe_opcode_t *addr;
 	/** Called before addr is executed.*/
 	uprobe_pre_handler_t pre_handler;
 	/** Called after addr is executed, unless...*/
@@ -83,7 +83,7 @@ struct uprobe {
 	/** Return 1 if it handled fault, otherwise kernel will see it.*/
 	uprobe_break_handler_t break_handler;
 	/** Saved opcode (which has been replaced with breakpoint).*/
-	kprobe_opcode_t opcode;
+	uprobe_opcode_t opcode;
 	/** Copy of the original instruction.*/
 	struct arch_specific_insn ainsn;
 	/** Override single-step target address, may be used to redirect
@@ -92,7 +92,7 @@ struct uprobe {
 	 * replacement. If jprobe.entry should return address of function or
 	 * NULL if original function should be called.
 	 * Not supported for X86, not tested for MIPS. */
-	kprobe_opcode_t *ss_addr[NR_CPUS];
+	uprobe_opcode_t *ss_addr[NR_CPUS];
 #ifdef CONFIG_ARM
 	/** Safe/unsafe to use probe on ARM.*/
 	unsigned safe_arm:1;
@@ -168,8 +168,8 @@ struct uretprobe_instance {
 	struct hlist_node uflist;           /**< Free list */
 	struct hlist_node hlist;            /**< Used list */
 	struct uretprobe *rp;               /**< Pointer to the parent uretprobe */
-	kprobe_opcode_t *ret_addr;          /**< Return address */
-	kprobe_opcode_t *sp;                /**< Pointer to stack */
+	uprobe_opcode_t *ret_addr;          /**< Return address */
+	uprobe_opcode_t *sp;                /**< Pointer to stack */
 	struct task_struct *task;           /**< Pointer to the task struct */
 #ifdef CONFIG_ARM
 	/* FIXME Preload: if this flag is set then ignore the thumb_mode(regs)

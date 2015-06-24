@@ -57,14 +57,14 @@
 	flush_icache_range((unsigned long)(addr),		\
 			   (unsigned long)(addr) + (size))
 
-static inline long branch_t16_dest(kprobe_opcode_t insn, unsigned int insn_addr)
+static inline long branch_t16_dest(uprobe_opcode_t insn, unsigned int insn_addr)
 {
 	long offset = insn & 0x3ff;
 	offset -= insn & 0x400;
 	return insn_addr + 4 + offset * 2;
 }
 
-static inline long branch_cond_t16_dest(kprobe_opcode_t insn,
+static inline long branch_cond_t16_dest(uprobe_opcode_t insn,
 					unsigned int insn_addr)
 {
 	long offset = insn & 0x7f;
@@ -72,7 +72,7 @@ static inline long branch_cond_t16_dest(kprobe_opcode_t insn,
 	return insn_addr + 4 + offset * 2;
 }
 
-static inline long branch_t32_dest(kprobe_opcode_t insn, unsigned int insn_addr)
+static inline long branch_t32_dest(uprobe_opcode_t insn, unsigned int insn_addr)
 {
 	unsigned int poff = insn & 0x3ff;
 	unsigned int offset = (insn & 0x07fe0000) >> 17;
@@ -85,7 +85,7 @@ static inline long branch_t32_dest(kprobe_opcode_t insn, unsigned int insn_addr)
 	return (insn_addr + 4 + (poff << 12) + offset * 4) & ~3;
 }
 
-static inline long cbz_t16_dest(kprobe_opcode_t insn, unsigned int insn_addr)
+static inline long cbz_t16_dest(uprobe_opcode_t insn, unsigned int insn_addr)
 {
 	unsigned int i = (insn & 0x200) >> 3;
 	unsigned int offset = (insn & 0xf8) >> 2;
@@ -93,7 +93,7 @@ static inline long cbz_t16_dest(kprobe_opcode_t insn, unsigned int insn_addr)
 }
 
 /* is instruction Thumb2 and NOT a branch, etc... */
-static int is_thumb2(kprobe_opcode_t insn)
+static int is_thumb2(uprobe_opcode_t insn)
 {
 	return ((insn & 0xf800) == 0xe800 ||
 		(insn & 0xf800) == 0xf000 ||
@@ -173,8 +173,8 @@ static int arch_check_insn_thumb(unsigned long insn)
 	return ret;
 }
 
-static int prep_pc_dep_insn_execbuf_thumb(kprobe_opcode_t *insns,
-					  kprobe_opcode_t insn, int uregs)
+static int prep_pc_dep_insn_execbuf_thumb(uprobe_opcode_t *insns,
+					  uprobe_opcode_t insn, int uregs)
 {
 	unsigned char mreg = 0;
 	unsigned char reg = 0;
@@ -676,11 +676,11 @@ void arch_opcode_analysis_uretprobe(struct uretprobe *rp)
  */
 int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
-	ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
-	ri->sp = (kprobe_opcode_t *)regs->ARM_sp;
+	ri->ret_addr = (uprobe_opcode_t *)regs->ARM_lr;
+	ri->sp = (uprobe_opcode_t *)regs->ARM_sp;
 
 	/* Set flag of current mode */
-	ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
+	ri->sp = (uprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
 
 	if (ri->preload_thumb) {
 		regs->ARM_lr = (unsigned long)(ri->rp->up.ainsn.insn) + 0x1b;
@@ -799,7 +799,7 @@ int setjmp_upre_handler(struct uprobe *p, struct pt_regs *regs)
 	entry_point_t entry = (entry_point_t)jp->entry;
 
 	if (pre_entry) {
-		p->ss_addr[smp_processor_id()] = (kprobe_opcode_t *)
+		p->ss_addr[smp_processor_id()] = (uprobe_opcode_t *)
 						 pre_entry(jp->priv_arg, regs);
 	}
 
@@ -940,7 +940,7 @@ static void uprobe_prepare_singlestep(struct uprobe *p, struct pt_regs *regs)
 
 static int uprobe_handler(struct pt_regs *regs)
 {
-	kprobe_opcode_t *addr = (kprobe_opcode_t *)(regs->ARM_pc);
+	uprobe_opcode_t *addr = (uprobe_opcode_t *)(regs->ARM_pc);
 	struct task_struct *task = current;
 	pid_t tgid = task->tgid;
 	struct uprobe *p;

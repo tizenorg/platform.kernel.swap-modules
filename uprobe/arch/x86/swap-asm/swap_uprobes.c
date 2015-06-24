@@ -160,7 +160,7 @@ int setjmp_upre_handler(struct uprobe *p, struct pt_regs *regs)
 		       regs->sp + 4);
 
 	if (pre_entry)
-		p->ss_addr[smp_processor_id()] = (kprobe_opcode_t *)
+		p->ss_addr[smp_processor_id()] = (uprobe_opcode_t *)
 						 pre_entry(jp->priv_arg, regs);
 
 	if (entry)
@@ -182,7 +182,7 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	/* Replace the return addr with trampoline addr */
 	unsigned long ra = trampoline_addr(&ri->rp->up);
-	ri->sp = (kprobe_opcode_t *)regs->sp;
+	ri->sp = (uprobe_opcode_t *)regs->sp;
 
 	if (!read_proc_vm_atomic(current, regs->EREG(sp), &(ri->ret_addr),
 				 sizeof(ri->ret_addr))) {
@@ -298,7 +298,7 @@ static void resume_execution(struct uprobe *p,
 	unsigned long *tos, tos_dword = 0;
 	unsigned long copy_eip = (unsigned long)p->ainsn.insn;
 	unsigned long orig_eip = (unsigned long)p->addr;
-	kprobe_opcode_t insns[2];
+	uprobe_opcode_t insns[2];
 
 	regs->EREG(flags) &= ~TF_MASK;
 
@@ -312,7 +312,7 @@ static void resume_execution(struct uprobe *p,
 	}
 
 	if (!read_proc_vm_atomic(current, (unsigned long)p->ainsn.insn, insns,
-				 2 * sizeof(kprobe_opcode_t))) {
+				 2 * sizeof(uprobe_opcode_t))) {
 		printk(KERN_WARNING
 		       "failed to read first 2 opcodes of instruction copy from user space %p!\n",
 		       p->ainsn.insn);
@@ -466,13 +466,13 @@ static void uprobe_prepare_singlestep(struct uprobe *p, struct pt_regs *regs)
 static int uprobe_handler(struct pt_regs *regs)
 {
 	struct uprobe *p;
-	kprobe_opcode_t *addr;
+	uprobe_opcode_t *addr;
 	struct task_struct *task = current;
 	pid_t tgid = task->tgid;
 
 	save_current_flags(regs);
 
-	addr = (kprobe_opcode_t *)(regs->EREG(ip) - sizeof(kprobe_opcode_t));
+	addr = (uprobe_opcode_t *)(regs->EREG(ip) - sizeof(uprobe_opcode_t));
 	p = get_uprobe(addr, tgid);
 
 	if (p == NULL) {

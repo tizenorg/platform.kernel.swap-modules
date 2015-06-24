@@ -41,6 +41,8 @@ struct uprobe;
 struct uretprobe;
 struct uretprobe_instance;
 
+typedef u8 uprobe_opcode_t;
+
 /**
  * @struct arch_specific_tramp
  * @brief Stores x86 trampoline
