@@ -87,7 +87,7 @@ static int copy_process_ret_handler(struct kretprobe_instance *ri,
 	struct task_struct *task;
 
 	task = (struct task_struct *)regs_return_value(regs);
-	if (task)
+	if (!IS_ERR(task))
 		swap_task_data_clean(task);
 
 	return 0;
