@@ -84,7 +84,7 @@ void print_uprobe_hash_table(void)
 static inline void copy_uprobe(struct uprobe *old_p, struct uprobe *p)
 {
 	memcpy(&p->opcode, &old_p->opcode, sizeof(uprobe_opcode_t));
-	memcpy(&p->ainsn, &old_p->ainsn, sizeof(struct arch_specific_insn));
+	memcpy(&p->ainsn, &old_p->ainsn, sizeof(struct arch_insn));
 #ifdef CONFIG_ARM
 	p->safe_arm = old_p->safe_arm;
 	p->safe_thumb = old_p->safe_thumb;

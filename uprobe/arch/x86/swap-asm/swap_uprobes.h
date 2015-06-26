@@ -44,10 +44,24 @@ struct uretprobe_instance;
 typedef u8 uprobe_opcode_t;
 
 /**
- * @struct arch_specific_tramp
+ * @struct arch_insn
+ * @brief Architecture depend copy of original instruction.
+ * @var arch_insn::insn
+ * Copy of the original instruction.
+ * @var arch_insn::boostable
+ * If this flag is not 0, this kprobe can be boost when its
+ * post_handler and break_handler is not set.
+ */
+struct arch_insn {
+	uprobe_opcode_t *insn;
+	int boostable;
+};
+
+/**
+ * @struct arch_tramp
  * @brief Stores x86 trampoline
  */
-struct arch_specific_tramp {
+struct arch_tramp {
 	u8 tramp[UPROBES_TRAMP_LEN + BP_INSN_SIZE]; /**< BP for uretprobe */
 };
 

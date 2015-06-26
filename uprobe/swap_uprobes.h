@@ -84,8 +84,6 @@ struct uprobe {
 	uprobe_break_handler_t break_handler;
 	/** Saved opcode (which has been replaced with breakpoint).*/
 	uprobe_opcode_t opcode;
-	/** Copy of the original instruction.*/
-	struct arch_specific_insn ainsn;
 	/** Override single-step target address, may be used to redirect
 	 * control-flow to arbitrary address after probe point without
 	 * invocation of original instruction; useful for functions
@@ -99,10 +97,10 @@ struct uprobe {
 	/** Safe/unsafe to use probe on Thumb.*/
 	unsigned safe_thumb:1;
 #endif
-
+	struct arch_insn ainsn;              /**< Copy of the original instruction.*/
+	struct arch_tramp atramp;            /**< Stores trampoline */
 	struct task_struct *task;            /**< Pointer to the task struct */
 	struct slot_manager *sm;             /**< Pointer to slot manager */
-	struct arch_specific_tramp atramp;   /**< Stores trampoline */
 };
 
 /**

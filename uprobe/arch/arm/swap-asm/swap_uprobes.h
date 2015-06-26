@@ -47,10 +47,20 @@ struct uretprobe_instance;
 typedef unsigned long uprobe_opcode_t;
 
 /**
- * @struct arch_specific_tramp
+ * @struct arch_insn
+ * @brief Architecture depend copy of original instruction.
+ * @var arch_insn::insn
+ * Copy of the original instruction.
+ */
+struct arch_insn {
+	uprobe_opcode_t *insn;
+};
+
+/**
+ * @struct arch_tramp
  * @brief Stores arch-dependent trampolines.
  */
-struct arch_specific_tramp {
+struct arch_tramp {
 	unsigned long tramp_arm[UPROBES_TRAMP_LEN];     /**< ARM trampoline */
 	unsigned long tramp_thumb[UPROBES_TRAMP_LEN];   /**< Thumb trampoline */
 	void *utramp;                               /**< Pointer to trampoline */
