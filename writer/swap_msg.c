@@ -126,7 +126,8 @@ int swap_msg_flush(struct swap_msg *m, size_t size)
 
 	m->len = size;
 
-	if (swap_buffer_write(m, SWAP_MSG_PRIV_DATA + size)) {
+	if (swap_buffer_write(m, SWAP_MSG_PRIV_DATA + size) !=
+	    (SWAP_MSG_PRIV_DATA + size)) {
 		atomic_inc(&discarded);
 		return -EINVAL;
 	}
@@ -349,7 +350,7 @@ int swap_msg_raw(void *data, size_t size)
 	m->seq_num = atomic_inc_return(&seq_num);
 
 	/* TODO: What should be returned?! When message was discarded. */
-	if (swap_buffer_write(m, size))
+	if (swap_buffer_write(m, size) != size)
 		atomic_inc(&discarded);
 
 	return size;
