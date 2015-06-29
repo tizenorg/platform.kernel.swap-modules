@@ -416,14 +416,19 @@ static int mmap_entry_handler(struct kretprobe_instance *ri,
 		return 0;
 
 	hi = preload_storage_get_handlers_info();
+	if (hi == NULL) {
+		printk(PRELOAD_PREFIX "Cannot get handlers info [%u %u %s]\n",
+		       current->tgid, current->pid, current->comm);
+		return 0;
+	}
+
 	loader_dentry = preload_debugfs_get_loader_dentry();
 	if (dentry == loader_dentry)
 		priv->type = MMAP_LOADER;
 	else if (hi->dentry != NULL && dentry == hi->dentry)
 		priv->type = MMAP_HANDLERS;
 
-	if (hi != NULL)
-		preload_storage_put_handlers_info(hi);
+	preload_storage_put_handlers_info(hi);
 
 	return 0;
 }
