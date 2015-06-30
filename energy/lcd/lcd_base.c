@@ -377,7 +377,6 @@ static void do_lcd_exit(void)
 void lcd_exit(void)
 {
 	do_lcd_exit();
-	exit_lcd_debugfs();
 }
 
 static int do_lcd_init(void)
@@ -420,23 +419,10 @@ static int do_lcd_init(void)
 int lcd_init(void)
 {
 	int ret;
-	struct dentry *energy_dir;
-
-	energy_dir = get_energy_dir();
-	if (energy_dir == NULL) {
-		printk(KERN_INFO "Cannot energy_dir\n");
-		return -ENOENT;
-	}
-
-	ret = init_lcd_debugfs(energy_dir);
-	if (ret)
-		return ret;
 
 	ret = do_lcd_init();
-	if (ret) {
+	if (ret)
 		printk(KERN_INFO "LCD is not supported\n");
-		exit_lcd_debugfs();
-	}
 
 	return ret;
 }

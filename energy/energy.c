@@ -685,16 +685,10 @@ int energy_init(void)
 	int ret;
 
 	ret = init_feature();
-	if (ret) {
-		printk(KERN_INFO "Cannot init feature\n");
-		return ret;
-	}
-
-	ret = lcd_init();
 	if (ret)
-		printk(KERN_INFO "Cannot init LCD, ret=%d\n", ret);
+		printk(KERN_INFO "Cannot init feature\n");
 
-	return 0;
+	return ret;
 }
 
 /**
@@ -704,7 +698,6 @@ int energy_init(void)
  */
 void energy_uninit(void)
 {
-	lcd_exit();
 	uninit_feature();
 
 	if (energy_enable)

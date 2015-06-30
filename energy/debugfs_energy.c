@@ -32,6 +32,7 @@
 #include "debugfs_energy.h"
 #include "rational_debugfs.h"
 #include "lcd/lcd_debugfs.h"
+#include "lcd/lcd_base.h"
 
 
 /* CPU running */
@@ -244,6 +245,9 @@ struct dentry *get_energy_dir(void)
  */
 void exit_debugfs_energy(void)
 {
+	lcd_exit();
+	exit_lcd_debugfs();
+
 	if (energy_dir)
 		debugfs_remove_recursive(energy_dir);
 
@@ -272,6 +276,16 @@ int init_debugfs_energy(void)
 		dentry = create_parameter(energy_dir, &parameters[i]);
 		if (dentry == NULL)
 			goto fail;
+	}
+
+	if (init_lcd_debugfs(energy_dir))
+		goto fail;
+
+	/* Actually, the only goal of lcd_init() is to register lcd screen's
+	   debugfs, so it is called here. */
+	if (lcd_init()) {
+		exit_lcd_debugfs();
+		goto fail;
 	}
 
 	return 0;
