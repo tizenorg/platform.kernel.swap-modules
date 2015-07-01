@@ -144,6 +144,7 @@ void web_msg_entry(struct pt_regs *regs)
 	if (ret < 0)
 		goto put_msg;
 
+	p += ret;
 	size -= ret;
 	pack_size += ret;
 
