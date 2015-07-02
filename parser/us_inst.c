@@ -37,6 +37,7 @@
 
 #include "msg_parser.h"
 #include "us_inst.h"
+#include "usm_msg.h"
 
 
 struct pfg_item {
@@ -201,6 +202,14 @@ static int get_pfg_by_app_info(struct app_info_data *app_info,
 	return 0;
 }
 
+static struct pfg_msg_cb msg_cb = {
+	.msg_info = usm_msg_info,
+	.msg_status_info = usm_msg_status_info,
+	.msg_term = usm_msg_term,
+	.msg_map = usm_msg_map,
+	.msg_unmap = usm_msg_unmap
+};
+
 static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 {
 	int ret, i;
@@ -217,6 +226,14 @@ static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 	if (ret) {
 		put_pf_group(pfg);
 		printk(KERN_INFO "Cannot pfg_add, ret=%d\n", ret);
+		return ret;
+	}
+
+	ret = pfg_msg_cb_set(pfg, &msg_cb);
+	if (ret) {
+		put_pf_group(pfg);
+		printk(KERN_INFO "Cannot set path [%s], ret=%d\n",
+		       app_inst->app_info->exec_path, ret);
 		return ret;
 	}
 

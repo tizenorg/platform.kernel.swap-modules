@@ -29,7 +29,7 @@
 #include <writer/kernel_operations.h>
 #include "us_slot_manager.h"
 #include "sspt/sspt.h"
-#include "usm_msg.h"
+#include "sspt/sspt_filter.h"
 #include "helper.h"
 
 struct task_struct;
@@ -321,6 +321,25 @@ struct unmap_data {
 
 static atomic_t unmap_cnt = ATOMIC_INIT(0);
 
+struct msg_unmap_data {
+	unsigned long start;
+	unsigned long end;
+};
+
+static void msg_unmap(struct sspt_filter *f, void *data)
+{
+	if (f->pfg_is_inst) {
+		struct pfg_msg_cb *cb = pfg_msg_cb_get(f->pfg);
+
+		if (cb && cb->msg_unmap) {
+			struct msg_unmap_data *msg_data;
+
+			msg_data = (struct msg_unmap_data *)data;
+			cb->msg_unmap(msg_data->start, msg_data->end);
+		}
+	}
+}
+
 static void __remove_unmap_probes(struct sspt_proc *proc,
 				  struct unmap_data *umd)
 {
@@ -332,6 +351,10 @@ static void __remove_unmap_probes(struct sspt_proc *proc,
 	if (sspt_proc_get_files_by_region(proc, &head, start, len)) {
 		struct sspt_file *file, *n;
 		unsigned long end = start + len;
+		struct msg_unmap_data msg_data = {
+			.start = start,
+			.end = end
+		};
 
 		list_for_each_entry_safe(file, n, &head, list) {
 			if (file->vm_start >= end)
@@ -344,7 +367,7 @@ static void __remove_unmap_probes(struct sspt_proc *proc,
 
 		sspt_proc_insert_files(proc, &head);
 
-		usm_msg_unmap(start, end);
+		sspt_proc_on_each_filter(proc, msg_unmap, (void *)&msg_data);
 	}
 }
 
@@ -432,6 +455,16 @@ static void unregister_unmap(void)
  *                               do_mmap_pgoff()                              *
  ******************************************************************************
  */
+static void msg_map(struct sspt_filter *f, void *data)
+{
+	if (f->pfg_is_inst) {
+		struct pfg_msg_cb *cb = pfg_msg_cb_get(f->pfg);
+
+		if (cb && cb->msg_map)
+			cb->msg_map((struct vm_area_struct *)data);
+	}
+}
+
 static int ret_handler_mmap(struct kretprobe_instance *ri,
 			    struct pt_regs *regs)
 {
@@ -454,7 +487,7 @@ static int ret_handler_mmap(struct kretprobe_instance *ri,
 
 	vma = find_vma_intersection(task->mm, start_addr, start_addr + 1);
 	if (vma && check_vma(vma))
-		usm_msg_map(vma);
+		sspt_proc_on_each_filter(proc, msg_map, (void *)vma);
 
 	return 0;
 }

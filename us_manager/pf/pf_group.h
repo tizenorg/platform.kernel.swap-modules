@@ -32,6 +32,16 @@ struct pf_group;
 struct sspt_proc;
 struct probe_info;
 
+
+struct pfg_msg_cb {
+	void (*msg_info)(struct task_struct *task, struct dentry *dentry);
+	void (*msg_status_info)(struct task_struct *task);
+	void (*msg_term)(struct task_struct *task);
+	void (*msg_map)(struct vm_area_struct *vma);
+	void (*msg_unmap)(unsigned long start, unsigned long end);
+};
+
+
 /* FIXME: create and use get_dentry() and put_dentry() */
 struct dentry *dentry_by_path(const char *path);
 
@@ -40,6 +50,9 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv);
 struct pf_group *get_pf_group_by_comm(char *comm, void *priv);
 struct pf_group *get_pf_group_dumb(void *priv);
 void put_pf_group(struct pf_group *pfg);
+
+int pfg_msg_cb_set(struct pf_group *pfg, struct pfg_msg_cb *msg_cb);
+struct pfg_msg_cb *pfg_msg_cb_get(struct pf_group *pfg);
 
 int pf_register_probe(struct pf_group *pfg, struct dentry *dentry,
 		      unsigned long offset, struct probe_info *probe_i);

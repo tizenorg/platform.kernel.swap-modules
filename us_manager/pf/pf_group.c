@@ -28,8 +28,9 @@
 #include <linux/list.h>
 #include <linux/namei.h>
 
+#include "pf_group.h"
 #include "proc_filters.h"
-#include <us_manager/usm_msg.h>
+#include "../sspt/sspt_filter.h"
 #include <us_manager/img/img_proc.h>
 #include <us_manager/img/img_file.h>
 #include <us_manager/img/img_ip.h>
@@ -40,6 +41,7 @@ struct pf_group {
 	struct list_head list;
 	struct img_proc *i_proc;
 	struct proc_filter filter;
+	struct pfg_msg_cb *msg_cb;
 	atomic_t usage;
 
 	/* TODO: proc_list*/
@@ -92,34 +94,6 @@ static struct pl_struct *find_pl_struct(struct pf_group *pfg,
 
 	return NULL;
 }
-
-static struct sspt_proc *get_proc_by_pfg(struct pf_group *pfg,
-					 struct task_struct *task)
-{
-	struct pl_struct *pls;
-
-	pls = find_pl_struct(pfg, task);
-	if (pls)
-		return pls->proc;
-
-	return NULL;
-}
-
-static struct sspt_proc *new_proc_by_pfg(struct pf_group *pfg,
-					 struct task_struct *task)
-{
-	struct pl_struct *pls;
-	struct sspt_proc *proc;
-
-	proc = sspt_proc_get_by_task_or_new(task, pfg->filter.priv);
-	img_proc_copy_to_sspt(pfg->i_proc, proc);
-	sspt_proc_add_filter(proc, pfg);
-
-	pls = create_pl_struct(proc);
-	add_pl_struct(pfg, pls);
-
-	return proc;
-}
 /* struct pl_struct */
 
 static struct pf_group *create_pfg(void)
@@ -136,6 +110,7 @@ static struct pf_group *create_pfg(void)
 	INIT_LIST_HEAD(&pfg->list);
 	memset(&pfg->filter, 0, sizeof(pfg->filter));
 	INIT_LIST_HEAD(&pfg->proc_list);
+	pfg->msg_cb = NULL;
 	atomic_set(&pfg->usage, 1);
 
 	return pfg;
@@ -170,21 +145,33 @@ static void del_pfg_by_list(struct pf_group *pfg)
 	list_del(&pfg->list);
 }
 
-static void first_install(struct task_struct *task, struct sspt_proc *proc,
-			  struct pf_group *pfg)
+
+static void msg_info(struct sspt_filter *f, void *data)
 {
-	struct dentry *dentry;
+	if (f->pfg_is_inst == false) {
+		struct pfg_msg_cb *cb;
 
-	dentry = (struct dentry *)get_pf_priv(&pfg->filter);
-	if (dentry == NULL) {
-		dentry = task->mm->exe_file ?
-			 task->mm->exe_file->f_dentry :
-			 NULL;
+		f->pfg_is_inst = true;
+
+		cb = pfg_msg_cb_get(f->pfg);
+		if (cb) {
+			struct dentry *dentry;
+
+			dentry = (struct dentry *)f->pfg->filter.priv;
+
+			if (cb->msg_info)
+				cb->msg_info(f->proc->task, dentry);
+
+			if (cb->msg_status_info)
+				cb->msg_status_info(f->proc->task);
+		}
 	}
+}
 
+static void first_install(struct task_struct *task, struct sspt_proc *proc)
+{
 	down_write(&task->mm->mmap_sem);
-	usm_msg_info(task, dentry);
-	usm_msg_status_info(task);
+	sspt_proc_on_each_filter(proc, msg_info, NULL);
 	sspt_proc_install(proc);
 	up_write(&task->mm->mmap_sem);
 }
@@ -230,6 +217,23 @@ struct dentry *dentry_by_path(const char *path)
 	return dentry;
 }
 EXPORT_SYMBOL_GPL(dentry_by_path);
+
+
+int pfg_msg_cb_set(struct pf_group *pfg, struct pfg_msg_cb *msg_cb)
+{
+	if (pfg->msg_cb)
+		return -EBUSY;
+
+	pfg->msg_cb = msg_cb;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(pfg_msg_cb_set);
+
+struct pfg_msg_cb *pfg_msg_cb_get(struct pf_group *pfg)
+{
+	return pfg->msg_cb;
+}
 
 /**
  * @brief Get pf_group struct by dentry
@@ -440,7 +444,64 @@ int check_task_on_filters(struct task_struct *task)
 
 unlock:
 	read_unlock(&pfg_list_lock);
+	return ret;
+}
+
+static int pfg_add_proc(struct pf_group *pfg, struct sspt_proc *proc)
+{
+	struct pl_struct *pls;
+
+	pls = create_pl_struct(proc);
+	if (pls == NULL)
+		return -ENOMEM;
+
+	add_pl_struct(pfg, pls);
+
 	return 0;
+}
+
+enum pf_inst_flag {
+	PIF_NONE,
+	PIF_FIRST,
+	PIF_SECOND,
+	PIF_ADD_PFG
+};
+
+static enum pf_inst_flag pfg_check_task(struct task_struct *task)
+{
+	struct pf_group *pfg;
+	struct sspt_proc *proc = NULL;
+	enum pf_inst_flag flag = PIF_NONE;
+
+	read_lock(&pfg_list_lock);
+	list_for_each_entry(pfg, &pfg_list, list) {
+		if (check_task_f(&pfg->filter, task) == NULL)
+			continue;
+
+		if (proc == NULL)
+			proc = sspt_proc_get_by_task(task);
+
+		if (proc) {
+			flag = flag == PIF_NONE ? PIF_SECOND : flag;
+		} else if (task->tgid == task->pid) {
+			proc = sspt_proc_get_by_task_or_new(task);
+			if (proc == NULL) {
+				printk(KERN_ERR "cannot create sspt_proc\n");
+				break;
+			}
+			flag = PIF_FIRST;
+		}
+
+		if (proc && sspt_proc_is_filter_new(proc, pfg)) {
+			img_proc_copy_to_sspt(pfg->i_proc, proc);
+			sspt_proc_add_filter(proc, pfg);
+			pfg_add_proc(pfg, proc);
+			flag = flag == PIF_FIRST ? flag : PIF_ADD_PFG;
+		}
+	}
+	read_unlock(&pfg_list_lock);
+
+	return flag;
 }
 
 /**
@@ -451,40 +512,21 @@ unlock:
  */
 void check_task_and_install(struct task_struct *task)
 {
-	struct pf_group *pfg;
-	struct sspt_proc *proc = NULL;
+	struct sspt_proc *proc;
+	enum pf_inst_flag flag;
 
-	read_lock(&pfg_list_lock);
-	list_for_each_entry(pfg, &pfg_list, list) {
-		if (check_task_f(&pfg->filter, task) == NULL)
-			continue;
+	flag = pfg_check_task(task);
+	switch (flag) {
+	case PIF_FIRST:
+	case PIF_ADD_PFG:
+		proc = sspt_proc_get_by_task(task);
+		first_install(task, proc);
+		break;
 
-		proc = get_proc_by_pfg(pfg, task);
-		if (proc) {
-			if (sspt_proc_is_filter_new(proc, pfg)) {
-				img_proc_copy_to_sspt(pfg->i_proc, proc);
-				sspt_proc_add_filter(proc, pfg);
-			} else {
-				printk(KERN_ERR "SWAP US_MANAGER: Error! Trying"
-						" to first install filter that "
-						"already exists in proc!\n");
-				proc = NULL;
-				goto unlock;
-			}
-			break;
-		}
-
-		if (task->tgid == task->pid) {
-			proc = new_proc_by_pfg(pfg, task);
-			break;
-		}
+	case PIF_NONE:
+	case PIF_SECOND:
+		break;
 	}
-
-unlock:
-	read_unlock(&pfg_list_lock);
-
-	if (proc)
-		first_install(task, proc, pfg);
 }
 
 /**
@@ -496,36 +538,24 @@ unlock:
  */
 void call_page_fault(struct task_struct *task, unsigned long page_addr)
 {
-	struct pf_group *pfg, *pfg_first = NULL;
-	struct sspt_proc *proc = NULL;
+	struct sspt_proc *proc;
+	enum pf_inst_flag flag;
 
-	read_lock(&pfg_list_lock);
-	list_for_each_entry(pfg, &pfg_list, list) {
-		if ((check_task_f(&pfg->filter, task) == NULL))
-			continue;
+	flag = pfg_check_task(task);
+	switch (flag) {
+	case PIF_FIRST:
+	case PIF_ADD_PFG:
+		proc = sspt_proc_get_by_task(task);
+		first_install(task, proc);
+		break;
 
-		proc = get_proc_by_pfg(pfg, task);
-		if (proc) {
-			if (sspt_proc_is_filter_new(proc, pfg)) {
-				img_proc_copy_to_sspt(pfg->i_proc, proc);
-				sspt_proc_add_filter(proc, pfg);
-			}
-			break;
-		}
+	case PIF_SECOND:
+		proc = sspt_proc_get_by_task(task);
+		subsequent_install(task, proc, page_addr);
+		break;
 
-		if (task->tgid == task->pid) {
-			proc = new_proc_by_pfg(pfg, task);
-			pfg_first = pfg;
-			break;
-		}
-	}
-	read_unlock(&pfg_list_lock);
-
-	if (proc) {
-		if (pfg_first)
-			first_install(task, proc, pfg_first);
-		else
-			subsequent_install(task, proc, page_addr);
+	case PIF_NONE:
+		break;
 	}
 }
 

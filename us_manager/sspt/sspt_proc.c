@@ -27,10 +27,10 @@
 #include "sspt_page.h"
 #include "sspt_feature.h"
 #include "sspt_filter.h"
+#include "../pf/proc_filters.h"
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/list.h>
-#include <us_manager/usm_msg.h>
 #include <us_manager/us_slot_manager.h>
 
 
@@ -86,7 +86,7 @@ void sspt_proc_write_unlock(void)
  * @param priv Private data
  * @return Pointer to the created sspt_proc struct
  */
-struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv)
+struct sspt_proc *sspt_proc_create(struct task_struct *task)
 {
 	struct sspt_proc *proc = kmalloc(sizeof(*proc), GFP_ATOMIC);
 
@@ -135,7 +135,6 @@ void sspt_proc_free(struct sspt_proc *proc)
 
 	sspt_destroy_feature(proc->feature);
 
-	usm_msg_term(proc->task);
 	free_sm_us(proc->sm);
 	kfree(proc);
 }
@@ -197,12 +196,11 @@ EXPORT_SYMBOL_GPL(on_each_proc);
  * @param priv Private data
  * @return Pointer on the sspt_proc struct
  */
-struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
-					       void *priv)
+struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 {
 	struct sspt_proc *proc = sspt_proc_get_by_task(task);
 	if (proc == NULL)
-		proc = sspt_proc_create(task, priv);
+		proc = sspt_proc_create(task);
 
 	return proc;
 }
@@ -434,13 +432,7 @@ void sspt_proc_insert_files(struct sspt_proc *proc, struct list_head *head)
  */
 void sspt_proc_add_filter(struct sspt_proc *proc, struct pf_group *pfg)
 {
-	struct sspt_filter *fl;
-
-	fl = sspt_filter_create(pfg);
-	if (fl == NULL)
-		return;
-
-	list_add(&fl->list, &proc->filter_list);
+	sspt_filter_create(proc, pfg);
 }
 
 /**
@@ -485,13 +477,23 @@ void sspt_proc_del_all_filters(struct sspt_proc *proc)
  * @param pfg Pointer to pf_group struct
  * @return Boolean
  */
-int sspt_proc_is_filter_new(struct sspt_proc *proc, struct pf_group *pfg)
+bool sspt_proc_is_filter_new(struct sspt_proc *proc, struct pf_group *pfg)
 {
 	struct sspt_filter *fl;
 
 	list_for_each_entry(fl, &proc->filter_list, list)
 		if (fl->pfg == pfg)
-			return 0;
+			return false;
 
-	return 1;
+	return true;
+}
+
+void sspt_proc_on_each_filter(struct sspt_proc *proc,
+			      void (*func)(struct sspt_filter *, void *),
+			      void *data)
+{
+	struct sspt_filter *fl;
+
+	list_for_each_entry(fl, &proc->filter_list, list)
+		func(fl, data);
 }

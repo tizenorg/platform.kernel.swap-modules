@@ -29,7 +29,6 @@
 #include "probes/probe_info_new.h"
 #include "helper.h"
 #include "us_manager.h"
-#include "usm_msg.h"
 #include "debugfs_us_manager.h"
 #include "callbacks.h"
 #include <writer/event_filter.h>
@@ -217,10 +216,8 @@ static int usm_once(void)
 	int ret;
 
 	ret = once_helper();
-	if (ret)
-		return ret;
 
-	return usm_msg_once();
+	return ret;
 }
 
 static int init_us_manager(void)

@@ -30,6 +30,7 @@
 struct slot_manager;
 struct task_struct;
 struct pf_group;
+struct sspt_filter;
 
 /** Flags for sspt_*_uninstall() */
 enum US_FLAGS {
@@ -55,7 +56,7 @@ struct sspt_proc {
 };
 
 
-struct sspt_proc *sspt_proc_create(struct task_struct *task, void *priv);
+struct sspt_proc *sspt_proc_create(struct task_struct *task);
 void sspt_proc_free(struct sspt_proc *proc);
 
 void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *),
@@ -63,8 +64,7 @@ void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *),
 void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data);
 
 struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task);
-struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task,
-					       void *priv);
+struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task);
 void sspt_proc_free_all(void);
 
 struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc,
@@ -93,6 +93,10 @@ void sspt_proc_write_unlock(void);
 void sspt_proc_add_filter(struct sspt_proc *proc, struct pf_group *pfg);
 void sspt_proc_del_filter(struct sspt_proc *proc, struct pf_group *pfg);
 void sspt_proc_del_all_filters(struct sspt_proc *proc);
-int sspt_proc_is_filter_new(struct sspt_proc *proc, struct pf_group *pfg);
+bool sspt_proc_is_filter_new(struct sspt_proc *proc, struct pf_group *pfg);
+
+void sspt_proc_on_each_filter(struct sspt_proc *proc,
+			      void (*func)(struct sspt_filter *, void *),
+			      void *data);
 
 #endif /* __SSPT_PROC__ */

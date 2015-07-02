@@ -38,6 +38,7 @@
 #include "us_inst.h"
 #include "msg_buf.h"
 #include "msg_cmd.h"
+#include "usm_msg.h"
 #include "cpu_ctrl.h"
 
 #include <driver/driver_to_msg.h>
@@ -176,6 +177,10 @@ static int once(void)
 		return ret;
 
 	ret = init_cpu_deps();
+	if (ret)
+		return ret;
+
+	ret = usm_msg_once();
 
 	return ret;
 }
