@@ -217,7 +217,7 @@ static struct nsp_data *nsp_data_create(const char *app_path)
 		return ERR_PTR(-ENOMEM);
 
 	data->app_path = kstrdup(app_path, GFP_KERNEL);
-	if (data->app_dentry == NULL) {
+	if (data->app_path == NULL) {
 		kfree(data);
 		return ERR_PTR(-ENOMEM);
 	}
