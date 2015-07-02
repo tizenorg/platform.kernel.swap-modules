@@ -32,11 +32,15 @@
  *
  *   00 - probe is disabling internal probes;
  *   10 - probe is non blocking one;
+ *
+ *  000 - probe is executed for instrumented binaries
+ *  100 - probe is executed for non-instrumented binaries
  */
 
 enum {
 	SWAP_PRELOAD_ALWAYS_RUN =       (1 << 0),
-	SWAP_PRELOAD_NON_BLOCK_PROBE =  (1 << 1)
+	SWAP_PRELOAD_NON_BLOCK_PROBE =  (1 << 1),
+	SWAP_PRELOAD_INVERTED_PROBE =   (1 << 2)
 };
 
 /* Preload probe info. */

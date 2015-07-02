@@ -20,6 +20,8 @@ struct thread_slot {
 						 in one thread */
 	unsigned long caller;
 	unsigned char call_type;
+	bool drop;   /* TODO Workaround, remove when will be possible to install
+		     * several us probes at the same addr. */
 };
 
 struct disabled_addr {
@@ -96,6 +98,7 @@ static inline void __init_slot(struct thread_slot *slot)
 	slot->task = NULL;
 	slot->caller = 0;
 	slot->call_type = 0;
+	slot->drop = false;
 	INIT_LIST_HEAD(&slot->disabled_addrs);
 }
 
@@ -107,11 +110,12 @@ static inline void __reinit_slot(struct thread_slot *slot)
 
 static inline void __set_slot(struct thread_slot *slot,
 			      struct task_struct *task, unsigned long caller,
-			      unsigned char call_type)
+			      unsigned char call_type, bool drop)
 {
 	slot->task = task;
 	slot->caller = caller;
 	slot->call_type = call_type;
+	slot->drop = drop;
 }
 
 static inline int __add_to_disable_list(struct thread_slot *slot,
@@ -188,7 +192,8 @@ static inline struct thread_slot *__get_task_slot(struct task_struct *task)
 
 
 int preload_threads_set_data(struct task_struct *task, unsigned long caller,
-			     unsigned char call_type, unsigned long disable_addr)
+			     unsigned char call_type,
+			     unsigned long disable_addr, bool drop)
 {
 	struct thread_slot *slot;
 	int ret = 0;
@@ -197,7 +202,7 @@ int preload_threads_set_data(struct task_struct *task, unsigned long caller,
 
 	list_for_each_entry(slot, &thread_slot_list, list) {
 		if (__is_slot_free(slot)) {
-			__set_slot(slot, task, caller, call_type);
+			__set_slot(slot, task, caller, call_type, drop);
 			if ((disable_addr != 0) && 
 			    (__add_to_disable_list(slot, disable_addr) != 0)) {
 				printk(PRELOAD_PREFIX "Cannot alloc memory!\n");
@@ -214,7 +219,7 @@ int preload_threads_set_data(struct task_struct *task, unsigned long caller,
 		goto set_data_done;
 	}
 
-	__set_slot(slot, task, caller, call_type);
+	__set_slot(slot, task, caller, call_type, drop);
 
 set_data_done:
 	__unlock();
@@ -262,6 +267,28 @@ int preload_threads_get_call_type(struct task_struct *task,
 	ret = -EINVAL;
 
 get_call_type_done:
+	__unlock();
+
+	return ret;
+}
+
+int preload_threads_get_drop(struct task_struct *task, bool *drop)
+{
+	struct thread_slot *slot;
+	int ret = 0;
+
+	__lock();
+
+	slot = __get_task_slot(task);
+	if (slot != NULL) {
+		*drop = slot->drop;
+		goto get_drop_done;
+	}
+
+	/* If we're here - slot was not found */
+	ret = -EINVAL;
+
+get_drop_done:
 	__unlock();
 
 	return ret;

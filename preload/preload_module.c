@@ -294,6 +294,35 @@ static inline struct vm_area_struct *__get_vma_by_addr(struct task_struct *task,
 	return vma;
 }
 
+static inline bool __inverted(struct us_ip *ip)
+{
+	unsigned long flags = ip->info->pl_i.flags;
+
+	if (flags & SWAP_PRELOAD_INVERTED_PROBE)
+		return true;
+
+	return false;
+}
+
+static inline bool __should_drop(struct us_ip *ip, enum preload_call_type ct)
+{
+	if (ct == NOT_INSTRUMENTED)
+		return true;
+
+	return false;
+}
+
+static inline bool __check_flag_and_call_type(struct us_ip *ip,
+					      enum preload_call_type ct)
+{
+	bool inverted = __inverted(ip);
+
+	if (ct != NOT_INSTRUMENTED || inverted)
+		return true;
+
+	return false;
+}
+
 static inline bool __is_probe_non_block(struct us_ip *ip)
 {
 	if (ip->info->pl_i.flags & SWAP_PRELOAD_NON_BLOCK_PROBE)
@@ -586,16 +615,20 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 			struct vm_area_struct *cvma = __get_vma_by_addr(current, caddr);
 			enum preload_call_type ct;
 
-			disable_addr = __is_probe_non_block(ip) ? ip->orig_addr : 0;
 			ct = preload_control_call_type(ip, (void *)caddr);
+			disable_addr = __is_probe_non_block(ip) ?
+				       ip->orig_addr : 0;
 
 			/* jump only if caller is instumented and it is not a system lib -
 			 * this leads to some errors */
-			if (__not_system_caller(current, cvma) && ct != NOT_INSTRUMENTED &&
+			if (__not_system_caller(current, cvma) &&
+			    __check_flag_and_call_type(ip, ct) &&
 			    !__is_handlers_call(cvma)) {
 				if (preload_threads_set_data(current,
 							     caddr, ct,
-							     disable_addr) != 0)
+							     disable_addr,
+							     __should_drop(ip,
+							     ct)) != 0)
 					printk(PRELOAD_PREFIX "Error! Failed to set caller 0x%lx"
 					       " for %d/%d\n", caddr, current->tgid,
 							       current->pid);
@@ -729,6 +762,7 @@ static int write_msg_handler(struct kprobe *p, struct pt_regs *regs)
 	size_t len;
 	unsigned long caller_offset;
 	unsigned long call_type_offset;
+	bool drop;
 	int ret;
 
 	user_buf = (char *)swap_get_uarg(regs, 0);
@@ -741,6 +775,10 @@ static int write_msg_handler(struct kprobe *p, struct pt_regs *regs)
 		printk(PRELOAD_PREFIX "Invalid message pointers!\n");
 		return 0;
 	}
+
+	ret = preload_threads_get_drop(current, &drop);
+	if (ret != 0 || drop)
+		return 0;
 
 	buf = kmalloc(len, GFP_KERNEL);
 	if (buf == NULL) {
