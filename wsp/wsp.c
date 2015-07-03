@@ -122,7 +122,8 @@ static int mres_req_handle(struct kprobe *p, struct pt_regs *regs)
 	struct wsp_res *res;
 
 	res = wsp_res_new(ptr, WR_MAIN);
-	wsp_res_stat_set_next(res, WRS_WILL_REQ);
+	if (res)
+		wsp_res_stat_set_next(res, WRS_WILL_REQ);
 
 	return 0;
 }
@@ -194,7 +195,8 @@ static int res_request_handle(struct kprobe *p, struct pt_regs *regs)
 	}
 
 	res = wsp_res_new(ptr, WR_ANY);
-	wsp_res_stat_set_next(res, WRS_WILL_REQ);
+	if (res)
+		wsp_res_stat_set_next(res, WRS_WILL_REQ);
 
 	return 0;
 }
