@@ -50,21 +50,36 @@ static LIST_HEAD(pfg_item_list);
 static DEFINE_SPINLOCK(pfg_item_lock);
 
 
+static struct pfg_msg_cb msg_cb = {
+	.msg_info = usm_msg_info,
+	.msg_status_info = usm_msg_status_info,
+	.msg_term = usm_msg_term,
+	.msg_map = usm_msg_map,
+	.msg_unmap = usm_msg_unmap
+};
+
 static struct pfg_item *pfg_item_create(struct pf_group *pfg)
 {
+	int ret;
 	struct pfg_item *item;
 
+	ret = pfg_msg_cb_set(pfg, &msg_cb);
+	if (ret)
+		return ERR_PTR(ret);
+
 	item = kmalloc(sizeof(*item), GFP_KERNEL);
-	if (item) {
-		INIT_LIST_HEAD(&item->list);
-		item->pfg = pfg;
-	}
+	if (item == NULL)
+		return ERR_PTR(-ENOMEM);
+
+	INIT_LIST_HEAD(&item->list);
+	item->pfg = pfg;
 
 	return item;
 }
 
 static void pfg_item_free(struct pfg_item *item)
 {
+	pfg_msg_cb_reset(item->pfg);
 	kfree(item);
 }
 
@@ -95,8 +110,8 @@ static int pfg_add(struct pf_group *pfg)
 		struct pfg_item *item;
 
 		item = pfg_item_create(pfg);
-		if (item == NULL)
-			return -ENOMEM;
+		if (IS_ERR(item))
+			return PTR_ERR(item);
 
 		spin_lock(&pfg_item_lock);
 		list_add(&item->list, &pfg_item_list);
@@ -202,14 +217,6 @@ static int get_pfg_by_app_info(struct app_info_data *app_info,
 	return 0;
 }
 
-static struct pfg_msg_cb msg_cb = {
-	.msg_info = usm_msg_info,
-	.msg_status_info = usm_msg_status_info,
-	.msg_term = usm_msg_term,
-	.msg_map = usm_msg_map,
-	.msg_unmap = usm_msg_unmap
-};
-
 static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 {
 	int ret, i;
@@ -226,14 +233,6 @@ static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 	if (ret) {
 		put_pf_group(pfg);
 		printk(KERN_INFO "Cannot pfg_add, ret=%d\n", ret);
-		return ret;
-	}
-
-	ret = pfg_msg_cb_set(pfg, &msg_cb);
-	if (ret) {
-		put_pf_group(pfg);
-		printk(KERN_INFO "Cannot set path [%s], ret=%d\n",
-		       app_inst->app_info->exec_path, ret);
 		return ret;
 	}
 

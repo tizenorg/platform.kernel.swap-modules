@@ -52,6 +52,7 @@ struct pf_group *get_pf_group_dumb(void *priv);
 void put_pf_group(struct pf_group *pfg);
 
 int pfg_msg_cb_set(struct pf_group *pfg, struct pfg_msg_cb *msg_cb);
+void pfg_msg_cb_reset(struct pf_group *pfg);
 struct pfg_msg_cb *pfg_msg_cb_get(struct pf_group *pfg);
 
 int pf_register_probe(struct pf_group *pfg, struct dentry *dentry,

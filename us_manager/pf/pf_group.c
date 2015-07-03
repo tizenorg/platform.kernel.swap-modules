@@ -230,6 +230,12 @@ int pfg_msg_cb_set(struct pf_group *pfg, struct pfg_msg_cb *msg_cb)
 }
 EXPORT_SYMBOL_GPL(pfg_msg_cb_set);
 
+void pfg_msg_cb_reset(struct pf_group *pfg)
+{
+	pfg->msg_cb = NULL;
+}
+EXPORT_SYMBOL_GPL(pfg_msg_cb_reset);
+
 struct pfg_msg_cb *pfg_msg_cb_get(struct pf_group *pfg)
 {
 	return pfg->msg_cb;
