@@ -183,7 +183,13 @@ EXPORT_SYMBOL_GPL(get_quiet);
  */
 static int us_filter(struct task_struct *task)
 {
-	return !!sspt_proc_get_by_task(task);
+	struct sspt_proc *proc;
+
+	proc = sspt_proc_get_by_task(task);
+	if (proc)
+		return sspt_proc_is_send_event(proc);
+
+	return 0;
 }
 
 static struct ev_filter ev_us_filter = {

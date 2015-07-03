@@ -497,3 +497,20 @@ void sspt_proc_on_each_filter(struct sspt_proc *proc,
 	list_for_each_entry(fl, &proc->filter_list, list)
 		func(fl, data);
 }
+
+static void is_send_event(struct sspt_filter *f, void *data)
+{
+	bool *is_send = (bool *)data;
+
+	if (!*is_send && f->pfg_is_inst)
+		*is_send = !!pfg_msg_cb_get(f->pfg);
+}
+
+bool sspt_proc_is_send_event(struct sspt_proc *proc)
+{
+	bool is_send = false;
+
+	sspt_proc_on_each_filter(proc, is_send_event, (void *)&is_send);
+
+	return is_send;
+}

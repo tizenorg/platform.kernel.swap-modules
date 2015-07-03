@@ -99,4 +99,6 @@ void sspt_proc_on_each_filter(struct sspt_proc *proc,
 			      void (*func)(struct sspt_filter *, void *),
 			      void *data);
 
+bool sspt_proc_is_send_event(struct sspt_proc *proc);
+
 #endif /* __SSPT_PROC__ */
