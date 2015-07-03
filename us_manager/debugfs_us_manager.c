@@ -28,6 +28,10 @@ static void on_each_proc_callback(struct sspt_proc *proc, void *data)
 	char pid_str[PID_STRING];
 	int len;
 
+	/* skip process */
+	if (!sspt_proc_is_send_event(proc))
+		return;
+
 	sprintf(pid_str, "%d", proc->tgid);
 
 	len = strlen(pid_str);
