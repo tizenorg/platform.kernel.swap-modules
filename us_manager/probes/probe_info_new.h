@@ -37,7 +37,7 @@ struct probe_info_new {
 	union {
 		struct {
 			kprobe_pre_handler_t handler;
-		};
+		} p;
 
 		struct {
 			uretprobe_handler_t entry_handler;
@@ -47,8 +47,8 @@ struct probe_info_new {
 			 *        currently data_size = sizeof(void *)
 			 */
 			size_t data_size;
-		};
-	};
+		} rp;
+	} u;
 
 	/* private */
 	struct probe_info *info;
@@ -64,15 +64,15 @@ struct probe_new {
 #define MAKE_UPROBE(_handler)				\
 	{						\
 		.type = SWAP_NEW_UP,			\
-		.handler = _handler			\
+		.u.p.handler = _handler			\
 	}
 
 #define MAKE_URPROBE(_entry, _ret, _size)		\
 	{						\
 		.type = SWAP_NEW_URP,			\
-		.entry_handler = _entry,		\
-		.ret_handler = _ret,			\
-		.data_size = _size			\
+		.u.rp.entry_handler = _entry,		\
+		.u.rp.ret_handler = _ret,		\
+		.u.rp.data_size = _size			\
 	}
 
 struct probe_info_otg {

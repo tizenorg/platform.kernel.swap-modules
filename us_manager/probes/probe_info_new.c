@@ -41,8 +41,8 @@ static int urp_entry_handler(struct uretprobe_instance *ri, struct pt_regs *regs
 		struct probe_info_new *info_new;
 
 		info_new = probe_info_get_val(ip->info, struct probe_info_new *);
-		if (info_new->entry_handler)
-			return info_new->entry_handler(ri, regs);
+		if (info_new->u.rp.entry_handler)
+			return info_new->u.rp.entry_handler(ri, regs);
 
 	}
 
@@ -58,8 +58,8 @@ static int urp_ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 		struct probe_info_new *info_new;
 
 		info_new = probe_info_get_val(ip->info, struct probe_info_new *);
-		if (info_new->ret_handler)
-			return info_new->ret_handler(ri, regs);
+		if (info_new->u.rp.ret_handler)
+			return info_new->u.rp.ret_handler(ri, regs);
 	}
 
 	return 0;
@@ -72,8 +72,8 @@ static int uprobe_handler(struct kprobe *p, struct pt_regs *regs)
 	struct probe_info_new *info_new;
 
 	info_new = probe_info_get_val(ip->info, struct probe_info_new *);
-	if (info_new->handler)
-		return info_new->handler(p, regs);
+	if (info_new->u.p.handler)
+		return info_new->u.p.handler(p, regs);
 
 	return 0;
 }
