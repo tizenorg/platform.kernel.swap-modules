@@ -31,6 +31,7 @@
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/version.h>
+#include <linux/err.h>
 #include <linux/errno.h>
 #include <us_manager/pf/pf_group.h>
 #include <us_manager/probes/probes.h>
