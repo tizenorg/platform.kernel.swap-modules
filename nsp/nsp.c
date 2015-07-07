@@ -42,7 +42,7 @@
 static int dlopen_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static int dlopen_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static struct probe_info_new pin_dlopen = MAKE_URPROBE(dlopen_eh, dlopen_rh, 0);
-struct probe_new p_dlopen = {
+static struct probe_new p_dlopen = {
 	.info = &pin_dlopen
 };
 
@@ -50,38 +50,41 @@ struct probe_new p_dlopen = {
 static int dlsym_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static int dlsym_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static struct probe_info_new pin_dlsym = MAKE_URPROBE(dlsym_eh, dlsym_rh, 0);
-struct probe_new p_dlsym = {
+static struct probe_new p_dlsym = {
 	.info = &pin_dlsym
 };
 
 /* main */
 static int main_h(struct kprobe *p, struct pt_regs *regs);
 static struct probe_info_new pin_main = MAKE_UPROBE(main_h);
-static struct probe_info_otg pin_main_otg = {
-	.data = &pin_main
+
+/* appcore_efl_main */
+static int ac_efl_main_h(struct kprobe *p, struct pt_regs *regs);
+static struct probe_info_new pin_ac_efl_main = MAKE_UPROBE(ac_efl_main_h);
+static struct probe_new p_ac_efl_main = {
+	.info = &pin_ac_efl_main
 };
 
-/* appcore */
-static int appcore_efl_main_h(struct kprobe *p, struct pt_regs *regs);
-static struct probe_info_new pin_appcore = MAKE_UPROBE(appcore_efl_main_h);
-struct probe_new p_appcore = {
-	.info = &pin_appcore
+/* appcore_init@plt */
+static int ac_init_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
+static struct probe_info_new pin_ac_init = MAKE_URPROBE(NULL, ac_init_rh, 0);
+static struct probe_new p_ac_init = {
+	.info = &pin_ac_init
 };
 
-/* create */
-static int create_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
-static int create_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
-static struct probe_info_new pin_create = MAKE_URPROBE(create_eh, create_rh, 0);
-static struct probe_info_otg pin_create_otg = {
-	.data = &pin_create
+/* elm_run@plt */
+static int elm_run_h(struct kprobe *p, struct pt_regs *regs);
+static struct probe_info_new pin_elm_run = MAKE_UPROBE(elm_run_h);
+static struct probe_new p_elm_run = {
+	.info = &pin_elm_run
 };
 
-/* reset */
-static int reset_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
-static int reset_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
-static struct probe_info_new pin_reset = MAKE_URPROBE(reset_eh, reset_rh, 0);
-static struct probe_info_otg pin_reset_otg = {
-	.data = &pin_reset
+/* __do_app */
+static int do_app_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
+static int do_app_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
+static struct probe_info_new pin_do_app = MAKE_URPROBE(do_app_eh, do_app_rh, 0);
+static struct probe_new p_do_app = {
+	.info = &pin_do_app
 };
 
 
@@ -98,35 +101,9 @@ static struct dentry *lpad_dentry;
 static const char *libappcore_path;
 static struct dentry *libappcore_dentry;
 
-static struct {
-	unsigned long create;
-	unsigned long reset;
-	unsigned flag_create:1;
-	unsigned flag_reset:1;
-} cb_offset = {0};
-
 static bool is_init(void)
 {
-	return lpad_dentry && libappcore_dentry &&
-	       cb_offset.flag_create && cb_offset.flag_reset;
-}
-
-static int do_set_offset(enum offset_t os, unsigned long offset)
-{
-	switch (os) {
-	case OS_CREATE:
-		cb_offset.create = offset;
-		cb_offset.flag_create = 1;
-		return 0;
-	case OS_RESET:
-		cb_offset.reset = offset;
-		cb_offset.flag_reset = 1;
-		return 0;
-	default:
-		return -EINVAL;
-	}
-
-	return -EINVAL;
+	return lpad_dentry && libappcore_dentry;
 }
 
 static int do_set_lpad_info(const char *path, unsigned long dlopen,
@@ -157,19 +134,18 @@ static int do_set_lpad_info(const char *path, unsigned long dlopen,
 	return 0;
 }
 
-static int do_set_appcore_info(const char *path,
-			       unsigned long appcore_efl_main)
+static int do_set_appcore_info(struct appcore_info_data *info)
 {
 	struct dentry *dentry;
 	const char *new_path;
 
-	dentry = dentry_by_path(path);
+	dentry = dentry_by_path(info->path);
 	if (dentry == NULL) {
-		pr_err("dentry not found (path='%s')\n", path);
+		pr_err("dentry not found (path='%s')\n", info->path);
 		return -EINVAL;
 	}
 
-	new_path = kstrdup(path, GFP_KERNEL);
+	new_path = kstrdup(info->path, GFP_KERNEL);
 	if (new_path == NULL) {
 		pr_err("out of memory\n");
 		return -ENOMEM;
@@ -179,7 +155,10 @@ static int do_set_appcore_info(const char *path,
 
 	libappcore_path = new_path;
 	libappcore_dentry = dentry;
-	p_appcore.offset = appcore_efl_main;
+	p_ac_efl_main.offset = info->ac_efl_main;
+	p_ac_init.offset = info->ac_init;
+	p_elm_run.offset = info->elm_run;
+	p_do_app.offset = info->do_app;
 
 	return 0;
 }
@@ -197,13 +176,15 @@ struct nsp_data {
 
 	const char *app_path;
 	struct dentry *app_dentry;
+	struct probe_new p_main;
 
 	struct pf_group *pfg;
 };
 
 static LIST_HEAD(nsp_data_list);
 
-static struct nsp_data *nsp_data_create(const char *app_path)
+static struct nsp_data *nsp_data_create(const char *app_path,
+					unsigned long main_addr)
 {
 	struct dentry *dentry;
 	struct nsp_data *data;
@@ -223,6 +204,8 @@ static struct nsp_data *nsp_data_create(const char *app_path)
 	}
 
 	data->app_dentry = dentry;
+	data->p_main.info = &pin_main;
+	data->p_main.offset = main_addr;
 	data->pfg = NULL;
 
 	return data;
@@ -285,13 +268,38 @@ static int nsp_data_inst(struct nsp_data *data)
 	if (ret)
 		goto ur_dlsym;
 
-	ret = pin_register(&p_appcore, pfg, libappcore_dentry);
+	ret = pin_register(&data->p_main, pfg, data->app_dentry);
 	if (ret)
 		goto ur_dlopen;
+
+	ret = pin_register(&p_ac_efl_main, pfg, libappcore_dentry);
+	if (ret)
+		goto ur_main;
+
+	ret = pin_register(&p_ac_init, pfg, libappcore_dentry);
+	if (ret)
+		goto ur_ac_efl_main;
+
+	ret = pin_register(&p_elm_run, pfg, libappcore_dentry);
+	if (ret)
+		goto ur_ac_init;
+
+	ret = pin_register(&p_do_app, pfg, libappcore_dentry);
+	if (ret)
+		goto ur_elm_run;
 
 	data->pfg = pfg;
 
 	return 0;
+
+ur_elm_run:
+	pin_unregister(&p_elm_run, pfg, libappcore_dentry);
+ur_ac_init:
+	pin_unregister(&p_ac_init, pfg, libappcore_dentry);
+ur_ac_efl_main:
+	pin_unregister(&p_ac_efl_main, pfg, libappcore_dentry);
+ur_main:
+	pin_unregister(&data->p_main, pfg, data->app_dentry);
 ur_dlopen:
 	pin_unregister(&p_dlopen, pfg, lpad_dentry);
 ur_dlsym:
@@ -303,21 +311,28 @@ put_g:
 
 static void nsp_data_uninst(struct nsp_data *data)
 {
-	pin_unregister(&p_appcore, data->pfg, libappcore_dentry);
-	pin_unregister(&p_dlopen, data->pfg, lpad_dentry);
-	pin_unregister(&p_dlsym, data->pfg, lpad_dentry);
-	put_pf_group(data->pfg);
+	struct pf_group *pfg = data->pfg;
+
+	pin_register(&p_do_app, pfg, libappcore_dentry);
+	pin_unregister(&p_elm_run, pfg, libappcore_dentry);
+	pin_unregister(&p_ac_init, pfg, libappcore_dentry);
+	pin_unregister(&p_ac_efl_main, pfg, libappcore_dentry);
+	pin_unregister(&data->p_main, pfg, data->app_dentry);
+	pin_unregister(&p_dlopen, pfg, lpad_dentry);
+	pin_unregister(&p_dlsym, pfg, lpad_dentry);
+	put_pf_group(pfg);
+
 	data->pfg = NULL;
 }
 
-static int __nsp_add(const char *app_path)
+static int __nsp_add(const char *app_path, unsigned long main_addr)
 {
 	struct nsp_data *data;
 
 	if (nsp_data_find_by_path(app_path))
 		return -EEXIST;
 
-	data = nsp_data_create(app_path);
+	data = nsp_data_create(app_path, main_addr);
 	if (IS_ERR(data))
 		return PTR_ERR(data);
 
@@ -427,16 +442,15 @@ unlock:							\
 static DEFINE_MUTEX(stat_mutex);
 static enum nsp_stat stat = NS_OFF;
 
-DECLARE_SAFE_FUNC1(nsp_add, __nsp_add, const char *, app_path);
+DECLARE_SAFE_FUNC2(nsp_add, __nsp_add, const char *, app_path,
+		   unsigned long, main_addr);
 DECLARE_SAFE_FUNC1(nsp_rm, __nsp_rm, const char *, app_path);
 DECLARE_SAFE_FUNC0(nsp_rm_all, __nsp_rm_all);
-DECLARE_SAFE_FUNC2(nsp_set_offset, do_set_offset,
-		   enum offset_t, os, unsigned long, offset);
 DECLARE_SAFE_FUNC3(nsp_set_lpad_info, do_set_lpad_info,
 		   const char *, path, unsigned long, dlopen,
 		   unsigned long, dlsym);
-DECLARE_SAFE_FUNC2(nsp_set_appcore_info, do_set_appcore_info,
-		   const char *, path, unsigned long, appcore_efl_main);
+DECLARE_SAFE_FUNC1(nsp_set_appcore_info, do_set_appcore_info,
+		   struct appcore_info_data *, info);
 
 
 
@@ -511,72 +525,6 @@ enum nsp_stat nsp_get_stat(void)
  * =                                handlers                                  =
  * ============================================================================
  */
-static int main_h(struct kprobe *p, struct pt_regs *regs)
-{
-	struct tdata *tdata;
-
-	tdata = tdata_get(current);
-	if (tdata) {
-		u64 time = swap_msg_current_time();
-		u64 exec_time = tdata->time;
-
-		tdata->time = time;
-		tdata_put(tdata);
-
-		nsp_msg(NMS_MAPPING, exec_time, time);
-	} else {
-		nsp_print("can't find mapping begin time\n");
-	}
-
-	return 0;
-}
-
-static int appcore_efl_main_h(struct kprobe *p, struct pt_regs *regs)
-{
-	unsigned long *ptr;
-	unsigned long appcore_ops_addr;
-	unsigned long create_vaddr;
-	unsigned long reset_vaddr;
-	struct tdata *tdata;
-	u64 main_time;
-	u64 time;
-
-	tdata = tdata_get(current);
-	if (tdata == NULL) {
-		nsp_print("can't find 'main' begin time\n");
-		return 0;
-	}
-
-	/* sent time spent in main() */
-	main_time = tdata->time;
-	tdata_put(tdata);
-	time = swap_msg_current_time();
-	nsp_msg(NMS_MAIN, main_time, time);
-
-
-	/* pointer to appcore_ops struct */
-	appcore_ops_addr = swap_get_uarg(regs, 3);
-
-	/* get address create callback */
-	ptr = (unsigned long *)(appcore_ops_addr + cb_offset.create);
-	if (get_user(create_vaddr, ptr)) {
-		nsp_print("failed to dereference a pointer, ptr=%p\n", ptr);
-		return 0;
-	}
-
-	/* get address reset callback */
-	ptr = (unsigned long *)(appcore_ops_addr + cb_offset.reset);
-	if (get_user(reset_vaddr, ptr)) {
-		nsp_print("failed to dereference a pointer, ptr=%p\n", ptr);
-		return 0;
-	}
-
-	pin_set_probe(&pin_create_otg, create_vaddr);
-	pin_set_probe(&pin_reset_otg, reset_vaddr);
-
-	return 0;
-}
-
 static int dlopen_eh(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	const char __user *user_s = (const char __user *)swap_get_uarg(regs, 0);
@@ -667,74 +615,110 @@ static int dlsym_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 	tdata = tdata_get(current);
 	if (tdata) {
-		if (tdata->stat == NPS_SYM_E) {
-			unsigned long main_vaddr = regs_return_value(regs);
-
+		if (tdata->stat == NPS_SYM_E)
 			tdata->stat = NPS_SYM_R;
-			pin_set_probe(&pin_main_otg, main_vaddr);
+		tdata_put(tdata);
+	}
+
+	return 0;
+}
+
+static void stage_begin(enum nsp_proc_stat priv, enum nsp_proc_stat cur)
+{
+	struct tdata *tdata;
+
+	tdata = tdata_get(current);
+	if (tdata) {
+		if (tdata->stat == priv) {
+			tdata->stat = cur;
+			tdata->time = swap_msg_current_time();
 		}
 
 		tdata_put(tdata);
 	}
-
-	return 0;
 }
 
-static void do_eh(const char *name)
+static void stage_end(enum nsp_proc_stat priv, enum nsp_proc_stat cur,
+		      enum nsp_msg_stage st)
 {
 	struct tdata *tdata;
+	u64 time_start;
+	u64 time_end;
 
 	tdata = tdata_get(current);
 	if (tdata) {
-		tdata->time = swap_msg_current_time();
+		if (tdata->stat != priv) {
+			tdata_put(tdata);
+			return;
+		}
+
+		tdata->stat = cur;
+		time_start = tdata->time;
 		tdata_put(tdata);
-	} else {
-		nsp_print("can't find tdata for '%s'\n", name);
+
+		time_end = swap_msg_current_time();
+		nsp_msg(st, time_start, time_end);
 	}
 }
 
-static void do_rh(const char *name, enum nsp_msg_stage st)
+static int main_h(struct kprobe *p, struct pt_regs *regs)
 {
 	struct tdata *tdata;
+	u64 time_start;
+	u64 time_end;
 
 	tdata = tdata_get(current);
 	if (tdata) {
-		u64 b_time = tdata->time;
-		u64 e_time;
+		if (tdata->stat != NPS_SYM_R) {
+			tdata_put(tdata);
+			return 0;
+		}
+
+		tdata->stat = NPS_MAIN_E;
+		time_start = tdata->time;
+		time_end = swap_msg_current_time();
+		tdata->time = time_end;
+
 		tdata_put(tdata);
 
-		e_time = swap_msg_current_time();
-		nsp_msg(st, b_time, e_time);
-	} else {
-		nsp_print("can't find tdata for '%s'\n", name);
+		nsp_msg(NMS_MAPPING, time_start, time_end);
 	}
-}
-
-static char create_name[] = "create";
-static int create_eh(struct uretprobe_instance *ri, struct pt_regs *regs)
-{
-	do_eh(create_name);
 
 	return 0;
 }
 
-static int create_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
+static int ac_efl_main_h(struct kprobe *p, struct pt_regs *regs)
 {
-	do_rh(create_name, NMS_CREATE);
+	stage_end(NPS_MAIN_E, NPS_AC_EFL_MAIN_E, NMS_MAIN);
+	return 0;
+}
+
+static int ac_init_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
+{
+	stage_begin(NPS_AC_EFL_MAIN_E, NPS_AC_INIT_R);
+	return 0;
+}
+
+static int elm_run_h(struct kprobe *p, struct pt_regs *regs)
+{
+	stage_end(NPS_AC_INIT_R, NPS_ELM_RUN_E, NMS_CREATE);
+	return 0;
+}
+
+static int do_app_eh(struct uretprobe_instance *ri, struct pt_regs *regs)
+{
+	int event = swap_get_uarg(regs, 0);
+	enum { AE_RESET = 5 };	/* FIXME: hardcode */
+
+	if (event == AE_RESET)
+		stage_begin(NPS_ELM_RUN_E, NPS_DO_APP_E);
 
 	return 0;
 }
 
-static char reset_name[] = "reset";
-static int reset_eh(struct uretprobe_instance *ri, struct pt_regs *regs)
+static int do_app_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
-	do_eh(reset_name);
-	return 0;
-}
-
-static int reset_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
-{
-	do_rh(reset_name, NMS_RESET);
+	stage_end(NPS_DO_APP_E, NPS_DO_APP_R, NMS_RESET);
 	return 0;
 }
 

@@ -41,16 +41,17 @@ static void rm_endline_symbols(char *buf, size_t len)
 
 /*
  * format:
- *	app_path
+ *	main:app_path
  *
  * sample:
- *	/bin/app_sample
+ *	0x00000d60:/bin/app_sample
  */
 static int do_add(const char *buf, size_t len)
 {
 	int n, ret;
 	char *app_path;
-	const char fmt[] = "/%%%ds";
+	unsigned long main_addr;
+	const char fmt[] = "%%lx:/%%%ds";
 	char fmt_buf[64];
 
 	n = snprintf(fmt_buf, sizeof(fmt_buf), fmt, PATH_MAX - 2);
@@ -61,14 +62,14 @@ static int do_add(const char *buf, size_t len)
 	if (app_path == NULL)
 		return -ENOMEM;
 
-	n = sscanf(buf, fmt_buf, app_path + 1);
-	if (n != 1) {
+	n = sscanf(buf, fmt_buf, &main_addr, app_path + 1);
+	if (n != 2) {
 		ret = -EINVAL;
 		goto free_app_path;
 	}
 	app_path[0] = '/';
 
-	ret = nsp_add(app_path);
+	ret = nsp_add(app_path, main_addr);
 
 free_app_path:
 	kfree(app_path);
@@ -90,47 +91,6 @@ static int do_rm(const char *buf, size_t len)
 static int do_rm_all(const char *buf, size_t len)
 {
 	return nsp_rm_all();
-}
-
-static int set_param(const char *param, unsigned long val)
-{
-	if (strcmp(param, "offset_create") == 0) {
-		return nsp_set_offset(OS_CREATE, val);
-	} else if (strcmp(param, "offset_reset") == 0) {
-		return nsp_set_offset(OS_RESET, val);
-	}
-
-	return -EINVAL;
-}
-
-/*
- * format:
- *	param val
- *
- * sample:
- *	offset_create 4
- */
-static int do_set(const char *buf, size_t len_data)
-{
-	unsigned long val;
-	char *param;
-	int n, ret;
-
-	param = kmalloc(len_data, GFP_KERNEL);
-	if (param == NULL)
-		return -ENOMEM;
-
-	n = sscanf(buf, "%s %lu", param, &val);
-	if (n != 2) {
-		ret = -EINVAL;
-		goto par_free;
-	}
-
-	ret = set_param(param, val);
-
-par_free:
-	kfree(param);
-	return ret;
 }
 
 /*
@@ -173,38 +133,41 @@ free_lpad_path:
 
 /*
  * format:
- *	appcore_efl_main:libappcore-efl_path
+ *	appcore_efl_main:__do_app:appcore_init@plt:elm_run@plt:libappcore-efl
  *
  * sample:
- *	0x00342e:/usr/lib/libappcore-efl.so.1
+ *	0x3730:0x2960:0x1810:0x1c70:/usr/lib/libappcore-efl.so.1
  */
 static int do_set_appcore_info(const char *data, size_t len)
 {
 	int n, ret;
-	unsigned long appcore_main_addr;
-	char *lib_path;
-	const char fmt[] = "%%lx:/%%%ds";
+	struct appcore_info_data info;
+	const char fmt[] = "%%lx:%%lx:%%lx:%%lx:/%%%ds";
 	char fmt_buf[64];
+	char *path;
 
 	n = snprintf(fmt_buf, sizeof(fmt_buf), fmt, PATH_MAX - 2);
 	if (n <= 0)
 		return -EINVAL;
 
-	lib_path = kmalloc(PATH_MAX, GFP_KERNEL);
-	if (lib_path == NULL)
+	path = kmalloc(PATH_MAX, GFP_KERNEL);
+	if (path == NULL)
 		return -ENOMEM;
 
-	n = sscanf(data, fmt_buf, &appcore_main_addr, lib_path + 1);
-	if (n != 2) {
+	n = sscanf(data, fmt_buf,
+		   &info.ac_efl_main, &info.do_app,
+		   &info.ac_init, &info.elm_run, path + 1);
+	if (n != 5) {
 		ret = -EINVAL;
 		goto free_lib_path;
 	}
-	lib_path[0] = '/';
+	path[0] = '/';
 
-	ret = nsp_set_appcore_info(lib_path, appcore_main_addr);
+	info.path = path;
+	ret = nsp_set_appcore_info(&info);
 
 free_lib_path:
-	kfree(lib_path);
+	kfree(path);
 	return ret;
 }
 
@@ -243,8 +206,6 @@ static int do_cmd(const char *data, size_t len)
 		return do_set_appcore_info(cmd_data, len_data);
 	case 'r':
 		return do_rm(cmd_data, len_data);
-	case 's':
-		return do_set(cmd_data, len_data);
 	default:
 		return -EINVAL;
 	}
@@ -294,9 +255,8 @@ static ssize_t read_cmd(struct file *file, char __user *user_buf,
 			"\ta $app_path - add\n"
 			"\tr $app_path - remove\n"
 			"\tc - remove all\n"
-			"\tb $dlopen_addr@plt:$dlsym_addr@plt:$launchpad_path\n"
-			"\tl $appcore_efl_main:$libappcore-efl_path\n"
-			"\ts $param $val - set parameter";
+			"\tb dlopen_addr@plt:dlsym_addr@plt:launchpad_path\n"
+			"\tl appcore_efl_main:__do_app:appcore_init@plt:elm_run@plt:libappcore-efl_path\n";
 	ssize_t ret;
 
 	ret = simple_read_from_buffer(user_buf, count, ppos,

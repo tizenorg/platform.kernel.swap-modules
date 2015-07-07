@@ -28,11 +28,16 @@
 
 
 enum nsp_proc_stat {
-	NPS_ERR,
-	NPS_OPEN_E,
+	NPS_OPEN_E,		/* mapping begin */
 	NPS_OPEN_R,
 	NPS_SYM_E,
-	NPS_SYM_R
+	NPS_SYM_R,		/* mapping end   */
+	NPS_MAIN_E,		/* main begin    */
+	NPS_AC_EFL_MAIN_E,	/* main end      */
+	NPS_AC_INIT_R,		/* create begin  */
+	NPS_ELM_RUN_E,		/* create end    */
+	NPS_DO_APP_E,		/* reset begin   */
+	NPS_DO_APP_R		/* reset end     */
 };
 
 
