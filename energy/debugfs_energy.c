@@ -285,7 +285,6 @@ int init_debugfs_energy(void)
 	   debugfs, so it is called here. */
 	if (lcd_init()) {
 		exit_lcd_debugfs();
-		goto fail;
 	}
 
 	return 0;
