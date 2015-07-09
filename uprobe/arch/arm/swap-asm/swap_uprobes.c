@@ -624,8 +624,10 @@ int arch_prepare_uprobe(struct uprobe *up)
 		return -EINVAL;
 	}
 
-	if (!read_proc_vm_atomic(task, vaddr, &insn, sizeof(insn)))
-		panic("failed to read memory %lx!\n", vaddr);
+	if (!read_proc_vm_atomic(task, vaddr, &insn, sizeof(insn))) {
+		printk("failed to read memory %lx!\n", vaddr);
+		return -EINVAL;
+	}
 
 	p->opcode = insn;
 
@@ -906,10 +908,12 @@ static int make_trampoline(struct uprobe *up, struct pt_regs *regs)
 	utramp = up->atramp.utramp;
 
 	if (!write_proc_vm_atomic(up->task, (unsigned long)utramp, tramp,
-				  UPROBES_TRAMP_LEN * sizeof(*tramp)))
-		panic("failed to write memory %p!\n", utramp);
-	flush_insns(utramp, UPROBES_TRAMP_LEN * sizeof(*tramp));
+				  UPROBES_TRAMP_LEN * sizeof(*tramp))) {
+		printk("failed to write memory %p!\n", utramp);
+		return -EINVAL;
+	}
 
+	flush_insns(utramp, UPROBES_TRAMP_LEN * sizeof(*tramp));
 	p->ainsn.insn = utramp;
 
 	return 0;
