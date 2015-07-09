@@ -636,25 +636,7 @@ void uninstall_page(unsigned long addr)
  */
 void install_all(void)
 {
-#if !defined(CONFIG_ARM)
-	struct task_struct *task;
-	int tmp_oops_in_progress;
-
-	tmp_oops_in_progress = oops_in_progress;
-	oops_in_progress = 1;
-	rcu_read_lock();
-	for_each_process(task) {
-		if (task->tgid != task->pid)
-			continue;
-
-		if (is_kthread(task))
-			continue;
-
-		check_task_and_install(task);
-	}
-	rcu_read_unlock();
-	oops_in_progress = tmp_oops_in_progress;
-#endif /* CONFIG_ARM */
+	/* TODO: to be implemented */
 }
 
 static void on_each_uninstall_proc(struct sspt_proc *proc, void *data)

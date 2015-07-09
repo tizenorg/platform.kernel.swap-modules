@@ -91,7 +91,6 @@ static void restore_current_flags(struct pt_regs *regs)
  */
 int arch_prepare_uprobe(struct uprobe *up)
 {
-	int ret = 0;
 	struct kprobe *p = up2kp(up);
 	struct task_struct *task = up->task;
 	u8 *tramp = up->atramp.tramp;
@@ -113,7 +112,20 @@ int arch_prepare_uprobe(struct uprobe *up)
 
 	p->ainsn.boostable = swap_can_boost(tramp) ? 0 : -1;
 
-	return ret;
+	p->ainsn.insn = swap_slot_alloc(up->sm);
+	if (p->ainsn.insn == NULL) {
+		printk(KERN_INFO "trampoline out of memory\n");
+		return -ENOMEM;
+	}
+
+	if (!write_proc_vm_atomic(task, (unsigned long)p->ainsn.insn,
+				  tramp, sizeof(up->atramp.tramp))) {
+		swap_slot_free(up->sm, p->ainsn.insn);
+		printk("failed to write memory %p!\n", tramp);
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 /**
@@ -177,6 +189,8 @@ void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 	if (!write_proc_vm_atomic(current, regs->EREG(sp), &ra, sizeof(ra)))
 		panic("failed to write user space func ra %lx!\n",
 		      regs->EREG(sp));
+
+	add_uprobe_table(&ri->rp->up.kp);
 }
 
 /**
@@ -383,31 +397,6 @@ no_change:
 	return;
 }
 
-static int make_trampoline(struct uprobe *up)
-{
-	struct kprobe *p = up2kp(up);
-	struct task_struct *task = up->task;
-	void *tramp;
-
-	tramp = swap_slot_alloc(up->sm);
-	if (tramp == 0) {
-		printk(KERN_INFO "trampoline out of memory\n");
-		return -ENOMEM;
-	}
-
-	if (!write_proc_vm_atomic(task, (unsigned long)tramp,
-				  up->atramp.tramp,
-				  sizeof(up->atramp.tramp))) {
-		swap_slot_free(up->sm, tramp);
-		panic("failed to write memory %p!\n", tramp);
-		return -EINVAL;
-	}
-
-	p->ainsn.insn = tramp;
-
-	return 0;
-}
-
 static int uprobe_handler(struct pt_regs *regs)
 {
 	struct kprobe *p;
@@ -432,15 +421,6 @@ static int uprobe_handler(struct pt_regs *regs)
 		trampoline_uprobe_handler(p, regs);
 		return 1;
 	} else {
-		if (p->ainsn.insn == NULL) {
-			struct uprobe *up = kp2up(p);
-
-			make_trampoline(up);
-
-			/* for uretprobe */
-			add_uprobe_table(p);
-		}
-
 		if (!p->pre_handler || !p->pre_handler(p, regs)) {
 
 			if (p->ainsn.boostable == 1 && !p->post_handler) {
