@@ -206,15 +206,19 @@ static int register_aggr_uprobe(struct kprobe *old_p, struct kprobe *p)
 	return ret;
 }
 
-static void arm_uprobe(struct uprobe *p)
+static int arm_uprobe(struct uprobe *p)
 {
 	kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
 	int ret = write_proc_vm_atomic(p->task, (unsigned long)p->kp.addr,
 				       &insn, sizeof(insn));
 	if (!ret) {
-		panic("arm_uprobe: failed to write memory "
-		      "tgid=%u addr=%p!\n", p->task->tgid, p->kp.addr);
+		printk("arm_uprobe: failed to write memory "
+		       "tgid=%u addr=%p!\n", p->task->tgid, p->kp.addr);
+
+		return -EACCES;
 	}
+
+	return 0;
 }
 
 /**
@@ -229,8 +233,8 @@ void disarm_uprobe(struct kprobe *p, struct task_struct *task)
 	int ret = write_proc_vm_atomic(task, (unsigned long)p->addr,
 				       &p->opcode, sizeof(p->opcode));
 	if (!ret) {
-		panic("disarm_uprobe: failed to write memory "
-		      "tgid=%u, addr=%p!\n", task->tgid, p->addr);
+		printk("disarm_uprobe: failed to write memory "
+		       "tgid=%u, addr=%p!\n", task->tgid, p->addr);
 	}
 }
 EXPORT_SYMBOL_GPL(disarm_uprobe);
@@ -522,7 +526,10 @@ int swap_register_uprobe(struct uprobe *up)
 	INIT_HLIST_NODE(&p->hlist);
 	hlist_add_head_rcu(&p->hlist,
 			   &uprobe_table[hash_ptr(p->addr, UPROBE_HASH_BITS)]);
-	arm_uprobe(up);
+
+	ret = arm_uprobe(up);
+	if (ret)
+		remove_uprobe(up);
 
 out:
 	DBPRINTF("out ret = 0x%x\n", ret);
