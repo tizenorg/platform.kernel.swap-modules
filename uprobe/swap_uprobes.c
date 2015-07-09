@@ -761,15 +761,20 @@ static int pre_handler_uretprobe(struct kprobe *p, struct pt_regs *regs)
 	/* TODO: test - remove retprobe after func entry but before its exit */
 	ri = get_free_urp_inst(rp);
 	if (ri != NULL) {
+		int ret;
+
 		ri->rp = rp;
 		ri->task = current;
 
 		if (rp->entry_handler)
 			rp->entry_handler(ri, regs);
 
-		arch_prepare_uretprobe(ri, regs);
-
+		ret = arch_prepare_uretprobe(ri, regs);
 		add_urp_inst(ri);
+		if (ret) {
+			recycle_urp_inst(ri);
+			++rp->nmissed;
+		}
 	} else {
 		++rp->nmissed;
 	}

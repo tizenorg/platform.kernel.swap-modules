@@ -97,8 +97,10 @@ int arch_prepare_uprobe(struct uprobe *up)
 	enum { call_relative_opcode = 0xe8 };
 
 	if (!read_proc_vm_atomic(task, (unsigned long)p->addr,
-				 tramp, MAX_INSN_SIZE))
-		panic("failed to read memory %p!\n", p->addr);
+				 tramp, MAX_INSN_SIZE)) {
+		printk("failed to read memory %p!\n", p->addr);
+		return -EINVAL;
+	}
 	/* TODO: this is a workaround */
 	if (tramp[0] == call_relative_opcode) {
 		printk(KERN_INFO "cannot install probe: 1st instruction is call\n");
@@ -153,8 +155,8 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 	/* read first 6 args from stack */
 	if (!read_proc_vm_atomic(current, regs->EREG(sp) + 4,
 				 args, sizeof(args)))
-		panic("failed to read user space func arguments %lx!\n",
-		      regs->EREG(sp) + 4);
+		printk("failed to read user space func arguments %lx!\n",
+		       regs->EREG(sp) + 4);
 
 	if (pre_entry)
 		p->ss_addr[smp_processor_id()] = (kprobe_opcode_t *)
@@ -175,22 +177,27 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
  * @param regs Pointer to CPU register data.
  * @return Void.
  */
-void arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
+int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	/* Replace the return addr with trampoline addr */
 	unsigned long ra = trampoline_addr(&ri->rp->up);
 	ri->sp = (kprobe_opcode_t *)regs->sp;
 
 	if (!read_proc_vm_atomic(current, regs->EREG(sp), &(ri->ret_addr),
-				 sizeof(ri->ret_addr)))
-		panic("failed to read user space func ra %lx!\n",
-		      regs->EREG(sp));
+				 sizeof(ri->ret_addr))) {
+		printk("failed to read user space func ra %lx addr=%p!\n",
+				regs->EREG(sp), ri->rp->up.kp.addr);
+		return -EINVAL;
+	}
 
-	if (!write_proc_vm_atomic(current, regs->EREG(sp), &ra, sizeof(ra)))
-		panic("failed to write user space func ra %lx!\n",
-		      regs->EREG(sp));
+	if (!write_proc_vm_atomic(current, regs->EREG(sp), &ra, sizeof(ra))) {
+		printk("failed to write user space func ra %lx!\n", regs->EREG(sp));
+		return -EINVAL;
+	}
 
 	add_uprobe_table(&ri->rp->up.kp);
+
+	return 0;
 }
 
 /**
@@ -282,7 +289,7 @@ static void set_user_jmp_op(void *from, void *to)
 
 	if (!write_proc_vm_atomic(current, (unsigned long)from, &jop,
 				  sizeof(jop)))
-		panic("failed to write jump opcode to user space %p!\n", from);
+		printk("failed to write jump opcode to user space %p\n", from);
 }
 
 static void resume_execution(struct kprobe *p,
@@ -298,14 +305,18 @@ static void resume_execution(struct kprobe *p,
 
 	tos = (unsigned long *)&tos_dword;
 	if (!read_proc_vm_atomic(current, regs->EREG(sp), &tos_dword,
-				 sizeof(tos_dword)))
-		panic("failed to read dword from top of the user space stack "
-		      "%lx!\n", regs->EREG(sp));
+				 sizeof(tos_dword))) {
+		printk("failed to read dword from top of the user space stack "
+		       "%lx!\n", regs->EREG(sp));
+		return;
+	}
 
 	if (!read_proc_vm_atomic(current, (unsigned long)p->ainsn.insn, insns,
-				 2 * sizeof(kprobe_opcode_t)))
-		panic("failed to read first 2 opcodes of instruction copy "
-		      "from user space %p!\n", p->ainsn.insn);
+				 2 * sizeof(kprobe_opcode_t))) {
+		printk("failed to read first 2 opcodes of instruction copy "
+		       "from user space %p!\n", p->ainsn.insn);
+		return;
+	}
 
 	switch (insns[0]) {
 	case 0x9c: /* pushfl */
@@ -330,10 +341,11 @@ static void resume_execution(struct kprobe *p,
 		if (!write_proc_vm_atomic(current,
 					  regs->EREG(sp),
 					  &tos_dword,
-					  sizeof(tos_dword)))
-			panic("failed to write dword to top of the"
-			      " user space stack %lx!\n",
-			      regs->EREG(sp));
+					  sizeof(tos_dword))) {
+			printk("failed to write dword to top of the"
+			       " user space stack %lx!\n", regs->EREG(sp));
+			return;
+		}
 
 		goto no_change;
 	case 0xff:
@@ -347,10 +359,12 @@ static void resume_execution(struct kprobe *p,
 
 			if (!write_proc_vm_atomic(current, regs->EREG(sp),
 						  &tos_dword,
-						  sizeof(tos_dword)))
-				panic("failed to write dword to top of the "
-				      "user space stack %lx!\n",
-				      regs->EREG(sp));
+						  sizeof(tos_dword))) {
+				printk("failed to write dword to top of the "
+				       "user space stack %lx!\n",
+				       regs->EREG(sp));
+				return;
+			}
 
 			goto no_change;
 		} else if (((insns[1] & 0x31) == 0x20) || /* jmp near, absolute
@@ -371,9 +385,11 @@ static void resume_execution(struct kprobe *p,
 	}
 
 	if (!write_proc_vm_atomic(current, regs->EREG(sp), &tos_dword,
-				  sizeof(tos_dword)))
-		panic("failed to write dword to top of the user space stack "
-		      "%lx!\n", regs->EREG(sp));
+				  sizeof(tos_dword))) {
+		printk("failed to write dword to top of the user space stack "
+		       "%lx!\n", regs->EREG(sp));
+		return;
+	}
 
 	if (p->ainsn.boostable == 0) {
 		if ((regs->EREG(ip) > copy_eip) && (regs->EREG(ip) - copy_eip) +

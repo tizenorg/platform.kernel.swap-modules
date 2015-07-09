@@ -673,10 +673,9 @@ void arch_opcode_analysis_uretprobe(struct uretprobe *rp)
  *
  * @param ri Pointer to the uretprobe instance.
  * @param regs Pointer to CPU register data.
- * @return Void.
+ * @return Error code.
  */
-void arch_prepare_uretprobe(struct uretprobe_instance *ri,
-			    struct pt_regs *regs)
+int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	ri->ret_addr = (kprobe_opcode_t *)regs->ARM_lr;
 	ri->sp = (kprobe_opcode_t *)regs->ARM_sp;
@@ -689,6 +688,8 @@ void arch_prepare_uretprobe(struct uretprobe_instance *ri,
 	else
 		regs->ARM_lr = (unsigned long)(ri->rp->up.kp.ainsn.insn +
 					       UPROBES_TRAMP_RET_BREAK_IDX);
+
+	return 0;
 }
 
 /**

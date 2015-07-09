@@ -84,8 +84,7 @@ static inline int arch_opcode_analysis_uretprobe(struct uretprobe *rp)
 	return 0;
 }
 
-void arch_prepare_uretprobe(struct uretprobe_instance *ri,
-			    struct pt_regs *regs);
+int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs);
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 			 struct task_struct *task);
 unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs);
