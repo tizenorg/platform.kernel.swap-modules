@@ -10,4 +10,5 @@ swap_uprobe-$(CONFIG_ARM) += arch/arm/swap-asm/swap_uprobes.o \
 
 
 ### X86
-swap_uprobe-$(CONFIG_X86) += arch/x86/swap-asm/swap_uprobes.o
+swap_uprobe-$(CONFIG_X86) += arch/x86/swap-asm/swap_uprobes.o \
+			     arch/x86/swap-asm/swap_sc_patch.o
