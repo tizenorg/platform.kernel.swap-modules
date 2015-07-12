@@ -54,32 +54,31 @@ static unsigned long trampoline_addr(struct uprobe *up)
 			       UPROBES_TRAMP_RET_BREAK_IDX);
 }
 
-static DEFINE_PER_CPU(struct uprobe_ctlblk, ucb) = { 0, NULL };
+static struct uprobe_ctlblk *current_ucb(void)
+{
+	/* FIXME hardcoded offset */
+	return (struct uprobe_ctlblk *)(end_of_stack(current) + 20);
+}
 
 static struct kprobe *get_current_probe(void)
 {
-	return __get_cpu_var(ucb).p;
+	return current_ucb()->p;
 }
 
 static void set_current_probe(struct kprobe *p)
 {
-	__get_cpu_var(ucb).p = p;
-}
-
-static void reset_current_probe(void)
-{
-	set_current_probe(NULL);
+	current_ucb()->p = p;
 }
 
 static void save_current_flags(struct pt_regs *regs)
 {
-	__get_cpu_var(ucb).flags = regs->EREG(flags);
+	current_ucb()->flags = regs->flags;
 }
 
-static void restore_current_flags(struct pt_regs *regs)
+static void restore_current_flags(struct pt_regs *regs, unsigned long flags)
 {
-	regs->EREG(flags) &= ~IF_MASK;
-	regs->EREG(flags) |= __get_cpu_var(ucb).flags & IF_MASK;
+	regs->flags &= ~IF_MASK;
+	regs->flags |= flags & IF_MASK;
 }
 
 /**
@@ -420,6 +419,27 @@ no_change:
 	return;
 }
 
+static bool prepare_ss_addr(struct kprobe *p, struct pt_regs *regs)
+{
+	unsigned long *ss_addr = (long *)&p->ss_addr[smp_processor_id()];
+
+	if (*ss_addr) {
+		regs->ip = *ss_addr;
+		*ss_addr = 0;
+		return true;
+	} else {
+		regs->ip = (unsigned long)p->ainsn.insn;
+		return false;
+	}
+}
+
+static void prepare_ss(struct pt_regs *regs)
+{
+	/* set single step mode */
+	regs->flags |= TF_MASK;
+	regs->flags &= ~IF_MASK;
+}
+
 static int uprobe_handler(struct pt_regs *regs)
 {
 	struct kprobe *p;
@@ -445,22 +465,17 @@ static int uprobe_handler(struct pt_regs *regs)
 		return 1;
 	} else {
 		if (!p->pre_handler || !p->pre_handler(p, regs)) {
-
 			if (p->ainsn.boostable == 1 && !p->post_handler) {
-				if (p->ss_addr[smp_processor_id()]) {
-					regs->EREG(ip) = (unsigned long)p->ss_addr[smp_processor_id()];
-					p->ss_addr[smp_processor_id()] = NULL;
-				} else {
-					regs->EREG(ip) = (unsigned long)p->ainsn.insn;
-				}
+				prepare_ss_addr(p, regs);
 				return 1;
 			}
 
-			prepare_singlestep(p, regs);
+			if (prepare_ss_addr(p, regs) == false) {
+				set_current_probe(p);
+				prepare_ss(regs);
+			}
 		}
 	}
-
-	set_current_probe(p);
 
 	return 1;
 }
@@ -468,15 +483,20 @@ static int uprobe_handler(struct pt_regs *regs)
 static int post_uprobe_handler(struct pt_regs *regs)
 {
 	struct kprobe *p = get_current_probe();
-	unsigned long flags = __get_cpu_var(ucb).flags;
+	unsigned long flags = current_ucb()->flags;
 
-	if (p == NULL)
+	if (p == NULL) {
+		printk("task[%u %u %s] current uprobe is not found\n",
+		       current->tgid, current->pid, current->comm);
 		return 0;
+	}
 
 	resume_execution(p, regs, flags);
-	restore_current_flags(regs);
+	restore_current_flags(regs, flags);
 
-	reset_current_probe();
+	/* clean stack */
+	current_ucb()->p = 0;
+	current_ucb()->flags = 0;
 
 	return 1;
 }
