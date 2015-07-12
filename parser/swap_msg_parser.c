@@ -110,10 +110,17 @@ static int msg_handler(void __user *msg)
 		print_parse_debug("MSG_START. size=%d\n", size);
 		ret = msg_start(&mb);
 		break;
-	case MSG_STOP:
+	case MSG_STOP: {
+		struct cpumask mask;
+
 		print_parse_debug("MSG_STOP. size=%d\n", size);
+
+		swap_disable_nonboot_cpus_lock(&mask);
 		ret = msg_stop(&mb);
+		swap_enable_nonboot_cpus_unlock(&mask);
+
 		break;
+	}
 	case MSG_CONFIG:
 		print_parse_debug("MSG_CONFIG. size=%d\n", size);
 		ret = msg_config(&mb);
@@ -149,22 +156,16 @@ uninit:
 	return ret;
 }
 
-
-static struct cpumask cpumask;
-
-static int parset_init(void)
+static int reg_msg_handler(void)
 {
-	swap_disable_nonboot_cpus_lock(&cpumask);
-
 	set_msg_handler(msg_handler);
 	return 0;
 }
 
-static void parser_exit(void)
+static void unreg_msg_handler(void)
 {
 	set_msg_handler(NULL);
 	pfg_put_all();
-	swap_enable_nonboot_cpus_unlock(&cpumask);
 }
 
 static int once(void)
@@ -184,6 +185,6 @@ static int once(void)
 	return ret;
 }
 
-SWAP_LIGHT_INIT_MODULE(once, parset_init, parser_exit, NULL, NULL);
+SWAP_LIGHT_INIT_MODULE(once, reg_msg_handler, unreg_msg_handler, NULL, NULL);
 
 MODULE_LICENSE("GPL");
