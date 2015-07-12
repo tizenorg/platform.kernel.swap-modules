@@ -685,11 +685,15 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 	/* Set flag of current mode */
 	ri->sp = (kprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
 
-	if (thumb_mode(regs))
+	if (ri->preload_thumb) {
 		regs->ARM_lr = (unsigned long)(ri->rp->up.kp.ainsn.insn) + 0x1b;
-	else
-		regs->ARM_lr = (unsigned long)(ri->rp->up.kp.ainsn.insn +
-					       UPROBES_TRAMP_RET_BREAK_IDX);
+	} else {
+		if (thumb_mode(regs))
+			regs->ARM_lr = (unsigned long)(ri->rp->up.kp.ainsn.insn) + 0x1b;
+		else
+			regs->ARM_lr = (unsigned long)(ri->rp->up.kp.ainsn.insn +
+						       UPROBES_TRAMP_RET_BREAK_IDX);
+	}
 
 	return 0;
 }

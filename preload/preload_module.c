@@ -158,6 +158,13 @@ static inline void __prepare_ujump(struct uretprobe_instance *ri,
 				   unsigned long vaddr)
 {
 	ri->rp->up.kp.ss_addr[smp_processor_id()] = (kprobe_opcode_t *)vaddr;
+
+#ifdef CONFIG_ARM
+	if (thumb_mode(regs)) {
+		regs->ARM_cpsr &= ~PSR_T_BIT;
+		ri->preload_thumb = 1;
+	}
+#endif /* CONFIG_ARM */
 }
 
 static inline int __push(struct pt_regs *regs, void *buf, size_t len)

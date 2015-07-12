@@ -116,6 +116,14 @@ struct uretprobe_instance {
 	kprobe_opcode_t *ret_addr;          /**< Return address */
 	kprobe_opcode_t *sp;                /**< Pointer to stack */
 	struct task_struct *task;           /**< Pointer to the task struct */
+#ifdef CONFIG_ARM
+	/* FIXME Preload: if this flag is set then ignore the thumb_mode(regs)
+	 * check in arch_prepare_uretprobe and use thumb trampoline. For the
+	 * moment we have to explicitly force arm mode when jumping to preload
+	 * handlers but we need the correct (i.e. original) retprobe tramp set
+	 * anyway. */
+	int preload_thumb;
+#endif
 	char data[0];                       /**< Custom data */
 };
 
