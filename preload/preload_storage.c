@@ -9,6 +9,7 @@
 
 static struct bin_info __handlers_info = { NULL, NULL };
 static struct bin_info __linker_info = { NULL, NULL };
+static struct bin_info __libc_info;
 
 static inline struct bin_info *__get_handlers_info(void)
 {
@@ -149,17 +150,42 @@ struct bin_info *preload_storage_get_linker_info(void)
 	return NULL;
 }
 
+static inline void __drop_libc_info(void)
+{
+	if (__libc_info.dentry)
+		put_dentry(__libc_info.dentry);
+
+	__libc_info.path = NULL;
+	__libc_info.dentry = NULL;
+}
+
 void preload_storage_put_linker_info(struct bin_info *info)
+{
+}
+
+struct bin_info *preload_storage_get_libc_info(void)
+{
+	return &__libc_info;
+}
+
+void preload_storage_put_libc_info(struct bin_info *info)
 {
 }
 
 int preload_storage_init(void)
 {
+	__libc_info.path = "/lib/libc.so.6";
+	__libc_info.dentry = get_dentry(__libc_info.path);
+
+	if (!__libc_info.dentry)
+		return -ENOENT;
+
 	return 0;
 }
 
 void preload_storage_exit(void)
 {
+	__drop_libc_info();
 	__drop_handlers_info();
 	__drop_linker_info();
 }

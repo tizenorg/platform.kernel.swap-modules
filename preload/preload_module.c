@@ -273,19 +273,25 @@ static struct vm_area_struct *__get_linker_vma(struct task_struct *task)
 static struct vm_area_struct *__get_libc_vma(struct task_struct *task)
 {
 	struct vm_area_struct *vma = NULL;
-	struct dentry *libc_dentry;
+	struct bin_info *libc_info;
 
-	libc_dentry = get_dentry("/lib/libc.so.6");
+	libc_info = preload_storage_get_libc_info();
+
+	if (!libc_info) {
+		printk(PRELOAD_PREFIX "Cannot get libc info [%u %u %s]!\n",
+		       task->tgid, task->pid, task->comm);
+		return NULL;
+	}
 
 	for (vma = task->mm->mmap; vma; vma = vma->vm_next) {
 		if (vma->vm_file && vma->vm_flags & VM_EXEC
-		    && vma->vm_file->f_dentry == libc_dentry) {
-				put_dentry(libc_dentry);
-				return vma;
+		    && vma->vm_file->f_dentry == libc_info->dentry) {
+			preload_storage_put_libc_info(libc_info);
+			return vma;
 		}
 	}
 
-	put_dentry(libc_dentry);
+	preload_storage_put_libc_info(libc_info);
 	return NULL;
 }
 
