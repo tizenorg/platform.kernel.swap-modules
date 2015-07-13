@@ -54,11 +54,12 @@ init_handlers_fail:
 
 static inline void __drop_handlers_info(void)
 {
+	kfree(__handlers_info.path);
 	__handlers_info.path = NULL;
+
 	if (__handlers_info.dentry)
 		put_dentry(__handlers_info.dentry);
 	__handlers_info.dentry = NULL;
-	kfree(__handlers_info.path);
 }
 
 static inline struct bin_info *__get_linker_info(void)
@@ -106,11 +107,12 @@ init_linker_fail:
 
 static inline void __drop_linker_info(void)
 {
+	kfree(__linker_info.path);
 	__linker_info.path = NULL;
+
 	if (__linker_info.dentry)
 		put_dentry(__linker_info.dentry);
 	__linker_info.dentry = NULL;
-	kfree(__linker_info.path);
 }
 
 
