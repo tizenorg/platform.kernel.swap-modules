@@ -31,7 +31,6 @@ struct disabled_addr {
 
 static LIST_HEAD(thread_slot_list);
 static spinlock_t slock;
-static unsigned long sflags;
 
 
 static inline void __lock_init(void)
@@ -41,12 +40,12 @@ static inline void __lock_init(void)
 
 static inline void __lock(void)
 {
-	spin_lock_irqsave(&slock, sflags);
+	spin_lock(&slock);
 }
 
 static inline void __unlock(void)
 {
-	spin_unlock_irqrestore(&slock, sflags);
+	spin_unlock(&slock);
 }
 
 
