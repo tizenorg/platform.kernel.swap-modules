@@ -60,7 +60,7 @@ struct swap_subbuffer;
 struct buffer_init_t {
 	size_t subbuffer_size;
 	unsigned int nr_subbuffers;
-	int (*subbuffer_full_cb)(void);
+	int (*subbuffer_full_cb)(bool wakeup);
 
 	unsigned char lower_threshold;
 	int (*low_mem_cb)(void);
@@ -82,7 +82,7 @@ int swap_buffer_uninit(void);
 /* SWAP Buffer write function. Pass it size of the data and pointer to the data.
  * On success returns number of bytes written (>=0) or error code (<0)
  * otherwise */
-ssize_t swap_buffer_write(void *data, size_t size);
+ssize_t swap_buffer_write(void *data, size_t size, bool wakeup);
 
 /* SWAP Buffer get. Put subbuffer pointer to the variable *subbuffer.
  * Return pages count in subbuffer. */

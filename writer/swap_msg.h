@@ -76,6 +76,7 @@ static inline u64 swap_msg_current_time(void)
 
 struct swap_msg *swap_msg_get(enum swap_msg_id id);
 int swap_msg_flush(struct swap_msg *m, size_t size);
+int swap_msg_flush_wakeupoff(struct swap_msg *m, size_t size);
 void swap_msg_put(struct swap_msg *m);
 
 static inline void *swap_msg_payload(struct swap_msg *m)

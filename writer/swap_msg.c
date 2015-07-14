@@ -119,14 +119,14 @@ struct swap_msg *swap_msg_get(enum swap_msg_id id)
 }
 EXPORT_SYMBOL_GPL(swap_msg_get);
 
-int swap_msg_flush(struct swap_msg *m, size_t size)
+static int __swap_msg_flush(struct swap_msg *m, size_t size, bool wakeup)
 {
 	if (unlikely(size >= SWAP_MSG_PAYLOAD_SIZE))
 		return -ENOMEM;
 
 	m->len = size;
 
-	if (swap_buffer_write(m, SWAP_MSG_PRIV_DATA + size) !=
+	if (swap_buffer_write(m, SWAP_MSG_PRIV_DATA + size, wakeup) !=
 	    (SWAP_MSG_PRIV_DATA + size)) {
 		atomic_inc(&discarded);
 		return -EINVAL;
@@ -134,7 +134,18 @@ int swap_msg_flush(struct swap_msg *m, size_t size)
 
 	return 0;
 }
+
+int swap_msg_flush(struct swap_msg *m, size_t size)
+{
+	return __swap_msg_flush(m, size, true);
+}
 EXPORT_SYMBOL_GPL(swap_msg_flush);
+
+int swap_msg_flush_wakeupoff(struct swap_msg *m, size_t size)
+{
+	return __swap_msg_flush(m, size, false);
+}
+EXPORT_SYMBOL_GPL(swap_msg_flush_wakeupoff);
 
 void swap_msg_put(struct swap_msg *m)
 {
@@ -350,7 +361,7 @@ int swap_msg_raw(void *data, size_t size)
 	m->seq_num = atomic_inc_return(&seq_num);
 
 	/* TODO: What should be returned?! When message was discarded. */
-	if (swap_buffer_write(m, size) != size)
+	if (swap_buffer_write(m, size, true) != size)
 		atomic_inc(&discarded);
 
 	return size;

@@ -32,6 +32,7 @@
 #ifndef __BUFFER_QUEUE_H__
 #define __BUFFER_QUEUE_H__
 
+#include <linux/types.h>
 #include "buffer_description.h"
 
 int buffer_queue_allocation(size_t subbuffer_size,
@@ -39,7 +40,8 @@ int buffer_queue_allocation(size_t subbuffer_size,
 void buffer_queue_free(void);
 int buffer_queue_reset(void);
 void buffer_queue_flush(void);
-struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write);
+struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write,
+					   bool wakeup);
 struct swap_subbuffer *get_from_read_list(void);
 void add_to_write_list(struct swap_subbuffer *subbuffer);
 void add_to_read_list(struct swap_subbuffer *subbuffer);

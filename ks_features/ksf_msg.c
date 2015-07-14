@@ -360,7 +360,7 @@ static void context_switch(struct pt_regs *regs, enum swap_msg_id id)
 	mcs->tid = task->pid;
 	mcs->cpu_num = smp_processor_id();
 
-	swap_msg_flush(m, sizeof(*mcs));
+	swap_msg_flush_wakeupoff(m, sizeof(*mcs));
 	swap_msg_put(m);
 }
 

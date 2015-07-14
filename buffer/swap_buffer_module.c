@@ -49,7 +49,7 @@ static unsigned char swap_buffer_status = BUFFER_FREE;
 /**
  * @brief Subbuffer callback type.
  */
-typedef int(*subbuffer_callback_type)(void);
+typedef int(*subbuffer_callback_type)(bool wakeup);
 
 /* Callback that is called when full subbuffer appears */
 static subbuffer_callback_type subbuffer_callback;
@@ -188,7 +188,7 @@ EXPORT_SYMBOL_GPL(swap_buffer_uninit);
  * @param size Size of a data for writing.
  * @return Size of written data on success, negative error code otherwise.
  */
-ssize_t swap_buffer_write(void *data, size_t size)
+ssize_t swap_buffer_write(void *data, size_t size, bool wakeup)
 {
 	int result = E_SB_SUCCESS;
 	struct swap_subbuffer *buffer_to_write = NULL;
@@ -207,7 +207,7 @@ ssize_t swap_buffer_write(void *data, size_t size)
 	swap_irq_disable(&flags);
 
 	/* Get next write buffer and occupying semaphore */
-	buffer_to_write = get_from_write_list(size, &ptr_to_write);
+	buffer_to_write = get_from_write_list(size, &ptr_to_write, wakeup);
 	if (!buffer_to_write) {
 		swap_irq_enable(&flags);
 		return -E_SB_NO_WRITABLE_BUFFERS;
@@ -329,14 +329,14 @@ EXPORT_SYMBOL_GPL(swap_buffer_flush);
  * @return -E_SB_NO_CALLBACK if no callback is registered or callbacks ret
  * value otherwise.
  */
-int swap_buffer_callback(void *buffer)
+int swap_buffer_callback(void *buffer, bool wakeup)
 {
 	int result;
 
 	if (!subbuffer_callback)
 		return -E_SB_NO_CALLBACK;
 
-	result = subbuffer_callback();
+	result = subbuffer_callback(wakeup);
 	if (result < 0)
 		print_err("Callback error! Error code: %d\n", result);
 

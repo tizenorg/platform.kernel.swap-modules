@@ -425,19 +425,14 @@ void add_to_read_list(struct swap_subbuffer *subbuffer)
 	sync_unlock(&read_queue.queue_sync);
 }
 
-/**
- * @brief Call add to read list and callback function from driver module.
- *
- * @param subbuffer Pointer to the subbuffer to add.
- * @return swap_buffer_callback result.
- */
-int add_to_read_list_with_callback(struct swap_subbuffer *subbuffer)
+static int add_to_read_list_with_callback(struct swap_subbuffer *subbuffer,
+				   bool wakeup)
 {
 	int result = 0;
 
 	add_to_read_list(subbuffer);
 	/* TODO Handle ret value */
-	result = swap_buffer_callback(subbuffer);
+	result = swap_buffer_callback(subbuffer, wakeup);
 
 	return result;
 }
@@ -461,7 +456,8 @@ unsigned int get_readable_buf_cnt(void)
  * beginning of memory for writing should be stored.
  * @return Found swap_subbuffer.
  */
-struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
+struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write,
+					   bool wakeup)
 {
 	struct swap_subbuffer *result = NULL;
 
@@ -532,7 +528,7 @@ struct swap_subbuffer *get_from_write_list(size_t size, void **ptr_to_write)
 		callback_queue.start_ptr =
 			callback_queue.start_ptr->next_in_queue;
 
-		add_to_read_list_with_callback(tmp_buffer);
+		add_to_read_list_with_callback(tmp_buffer, wakeup);
 	}
 
 	return result;

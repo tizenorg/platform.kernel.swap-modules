@@ -140,16 +140,12 @@ static int driver_to_buffer_release(void)
 	return E_SD_SUCCESS;
 }
 
-/**
- * @brief Buffers callback function
- *
- * @return 0
- */
-int driver_to_buffer_callback(void)
+static int driver_to_buffer_callback(bool wakeup)
 {
 	/* Increment buffers_to_read counter */
 	inc_buffers_to_read();
-	swap_device_wake_up_process();
+	if (wakeup)
+		swap_device_wake_up_process();
 
 	return E_SD_SUCCESS;
 }

@@ -29,6 +29,8 @@
 #ifndef __SWAP_BUFFER_TO_BUFFER_QUEUE_H__
 #define __SWAP_BUFFER_TO_BUFFER_QUEUE_H__
 
-int swap_buffer_callback(void *buffer);
+#include <linux/types.h>
+
+int swap_buffer_callback(void *buffer, bool wakeup);
 
 #endif /* __SWAP_BUFFER_TO_BUFFER_QUEUE_H__ */
