@@ -38,8 +38,6 @@
 #include <kprobe/dbi_uprobes.h>
 #include <ksyms/ksyms.h>
 
-#define SUPRESS_BUG_MESSAGES
-
 unsigned int *arr_traps_original;
 
 
@@ -268,21 +266,12 @@ int kprobe_handler(struct pt_regs *regs)
 	int ret = 0, pid = 0, retprobe = 0, reenter = 0;
 	kprobe_opcode_t *addr = NULL, *ssaddr = 0;
 	struct kprobe_ctlblk *kcb;
-#ifdef SUPRESS_BUG_MESSAGES
-	int swap_oops_in_progress;
-#endif
 
 	/* We're in an interrupt, but this is clear and BUG()-safe. */
 
 	addr = (kprobe_opcode_t *) regs->cp0_epc;
 	DBPRINTF("regs->regs[ 31 ] = 0x%lx\n", regs->regs[31]);
 
-#ifdef SUPRESS_BUG_MESSAGES
-	/*  oops_in_progress used to avoid BUG() messages that
-	 * slow down kprobe_handler() execution */
-	swap_oops_in_progress = oops_in_progress;
-	oops_in_progress = 1;
-#endif
 	preempt_disable();
 
 	kcb = get_kprobe_ctlblk();
@@ -321,9 +310,6 @@ int kprobe_handler(struct pt_regs *regs)
 				if (!p->ainsn.boostable)
 					kcb->kprobe_status = KPROBE_REENTER;
 				preempt_enable_no_resched();
-#ifdef SUPRESS_BUG_MESSAGES
-				oops_in_progress = swap_oops_in_progress;
-#endif
 				return 1;
 			}
 		} else {
@@ -424,21 +410,12 @@ int kprobe_handler(struct pt_regs *regs)
 		if (!p->ainsn.boostable)
 			kcb->kprobe_status = KPROBE_HIT_SS;
 		else if (p->pre_handler != trampoline_probe_handler) {
-#ifdef SUPRESS_BUG_MESSAGES
-			preempt_disable();
-#endif
 			reset_current_kprobe();
-#ifdef SUPRESS_BUG_MESSAGES
-			preempt_enable_no_resched();
-#endif
 		}
 	}
 
 	if (ret) {
 		DBPRINTF("p->pre_handler[] 1");
-#ifdef SUPRESS_BUG_MESSAGES
-		oops_in_progress = swap_oops_in_progress;
-#endif
 		/* handler has already set things up, so skip ss setup */
 		return 1;
 	}
@@ -446,9 +423,6 @@ int kprobe_handler(struct pt_regs *regs)
 
 no_kprobe:
 	preempt_enable_no_resched();
-#ifdef SUPRESS_BUG_MESSAGES
-	oops_in_progress = swap_oops_in_progress;
-#endif
 	return ret;
 }
 

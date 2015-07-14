@@ -39,7 +39,6 @@
 #include <kprobe/swap_kdebug.h>
 #include <kprobe/swap_slots.h>
 #include <kprobe/swap_kprobes_deps.h>
-#define SUPRESS_BUG_MESSAGES                    /**< Debug-off definition. */
 
 
 static int (*swap_fixup_exception)(struct pt_regs *regs);
@@ -440,21 +439,8 @@ no_kprobe:
 static int kprobe_handler(struct pt_regs *regs)
 {
 	int ret;
-#ifdef SUPRESS_BUG_MESSAGES
-	int swap_oops_in_progress;
-	/*
-	 * oops_in_progress used to avoid BUG() messages
-	 * that slow down kprobe_handler() execution
-	 */
-	swap_oops_in_progress = oops_in_progress;
-	oops_in_progress = 1;
-#endif
 
 	ret = __kprobe_handler(regs);
-
-#ifdef SUPRESS_BUG_MESSAGES
-	oops_in_progress = swap_oops_in_progress;
-#endif
 
 	return ret;
 }
