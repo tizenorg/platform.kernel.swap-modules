@@ -528,8 +528,11 @@ int swap_register_uprobe(struct uprobe *up)
 			   &uprobe_table[hash_ptr(p->addr, UPROBE_HASH_BITS)]);
 
 	ret = arm_uprobe(up);
-	if (ret)
+	if (ret) {
+		hlist_del_rcu(&p->hlist);
+		synchronize_rcu();
 		remove_uprobe(up);
+	}
 
 out:
 	DBPRINTF("out ret = 0x%x\n", ret);
