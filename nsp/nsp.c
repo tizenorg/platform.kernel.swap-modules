@@ -55,8 +55,9 @@ static struct probe_new p_dlsym = {
 };
 
 /* main */
-static int main_h(struct kprobe *p, struct pt_regs *regs);
-static struct probe_info_new pin_main = MAKE_UPROBE(main_h);
+static int main_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
+static int main_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
+static struct probe_info_new pin_main = MAKE_URPROBE(main_eh, main_rh, 0);
 
 /* appcore_efl_main */
 static int ac_efl_main_h(struct kprobe *p, struct pt_regs *regs);
@@ -682,6 +683,50 @@ static int main_h(struct kprobe *p, struct pt_regs *regs)
 		tdata_put(tdata);
 
 		nsp_msg(NMS_MAPPING, time_start, time_end);
+	}
+
+	return 0;
+}
+
+/* FIXME: workaround for simultaneously nsp and main() function profiling */
+#include <retprobe/rp_msg.h>
+#include <us_manager/us_manager.h>
+
+static int main_eh(struct uretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct uretprobe *rp = ri->rp;
+
+	if (rp) {
+		main_h(&rp->up.kp, regs);
+
+		if (get_quiet() == QT_OFF) {
+			struct us_ip *ip;
+			unsigned long func_addr;
+
+			ip = container_of(rp, struct us_ip, retprobe);
+			func_addr = (unsigned long)ip->orig_addr;
+			rp_msg_entry(regs, func_addr, "p");
+		}
+	}
+
+	return 0;
+}
+
+static int main_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct uretprobe *rp = ri->rp;
+
+	if (rp && get_quiet() == QT_OFF) {
+		struct us_ip *ip;
+		char ret_type;
+		unsigned long func_addr;
+		unsigned long ret_addr;
+
+		ip = container_of(rp, struct us_ip, retprobe);
+		func_addr = (unsigned long)ip->orig_addr;
+		ret_addr = (unsigned long)ri->ret_addr;
+		ret_type = ip->info->rp_i.ret_type;
+		rp_msg_exit(regs, func_addr, 'n', ret_addr);
 	}
 
 	return 0;
