@@ -98,13 +98,13 @@ int arch_prepare_uprobe(struct uprobe *up)
 
 	if (!read_proc_vm_atomic(task, (unsigned long)p->addr,
 				 tramp, MAX_INSN_SIZE)) {
-		printk("failed to read memory %p!\n", p->addr);
+		printk(KERN_ERR "failed to read memory %p!\n", p->addr);
 		return -EINVAL;
 	}
 	/* TODO: this is a workaround */
 	if (tramp[0] == call_relative_opcode) {
 		printk(KERN_INFO "cannot install probe: 1st instruction is call\n");
-		return -1;
+		return -EINVAL;
 	}
 
 	tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
@@ -116,14 +116,14 @@ int arch_prepare_uprobe(struct uprobe *up)
 
 	p->ainsn.insn = swap_slot_alloc(up->sm);
 	if (p->ainsn.insn == NULL) {
-		printk(KERN_INFO "trampoline out of memory\n");
+		printk(KERN_ERR "trampoline out of memory\n");
 		return -ENOMEM;
 	}
 
 	if (!write_proc_vm_atomic(task, (unsigned long)p->ainsn.insn,
 				  tramp, sizeof(up->atramp.tramp))) {
 		swap_slot_free(up->sm, p->ainsn.insn);
-		printk("failed to write memory %p!\n", tramp);
+		printk(KERN_INFO "failed to write memory %p!\n", tramp);
 		return -EINVAL;
 	}
 
@@ -155,7 +155,7 @@ int setjmp_upre_handler(struct kprobe *p, struct pt_regs *regs)
 	/* read first 6 args from stack */
 	if (!read_proc_vm_atomic(current, regs->EREG(sp) + 4,
 				 args, sizeof(args)))
-		printk("failed to read user space func arguments %lx!\n",
+		printk(KERN_WARN "failed to read user space func arguments %lx!\n",
 		       regs->EREG(sp) + 4);
 
 	if (pre_entry)
@@ -185,13 +185,14 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 	if (!read_proc_vm_atomic(current, regs->EREG(sp), &(ri->ret_addr),
 				 sizeof(ri->ret_addr))) {
-		printk("failed to read user space func ra %lx addr=%p!\n",
+		printk(KERN_ERR "failed to read user space func ra %lx addr=%p!\n",
 				regs->EREG(sp), ri->rp->up.kp.addr);
 		return -EINVAL;
 	}
 
 	if (!write_proc_vm_atomic(current, regs->EREG(sp), &ra, sizeof(ra))) {
-		printk("failed to write user space func ra %lx!\n", regs->EREG(sp));
+		printk(KENR_ERR "failed to write user space func ra %lx!\n",
+		       regs->EREG(sp));
 		return -EINVAL;
 	}
 
@@ -289,7 +290,8 @@ static void set_user_jmp_op(void *from, void *to)
 
 	if (!write_proc_vm_atomic(current, (unsigned long)from, &jop,
 				  sizeof(jop)))
-		printk("failed to write jump opcode to user space %p\n", from);
+		printk(KERN_WARN "failed to write jump opcode to user space %p\n",
+		       from);
 }
 
 static void resume_execution(struct kprobe *p,
@@ -306,14 +308,14 @@ static void resume_execution(struct kprobe *p,
 	tos = (unsigned long *)&tos_dword;
 	if (!read_proc_vm_atomic(current, regs->EREG(sp), &tos_dword,
 				 sizeof(tos_dword))) {
-		printk("failed to read dword from top of the user space stack "
+		printk(KERN_WARN "failed to read dword from top of the user space stack "
 		       "%lx!\n", regs->EREG(sp));
 		return;
 	}
 
 	if (!read_proc_vm_atomic(current, (unsigned long)p->ainsn.insn, insns,
 				 2 * sizeof(kprobe_opcode_t))) {
-		printk("failed to read first 2 opcodes of instruction copy "
+		printk(KERN_WARN "failed to read first 2 opcodes of instruction copy "
 		       "from user space %p!\n", p->ainsn.insn);
 		return;
 	}
@@ -342,7 +344,7 @@ static void resume_execution(struct kprobe *p,
 					  regs->EREG(sp),
 					  &tos_dword,
 					  sizeof(tos_dword))) {
-			printk("failed to write dword to top of the"
+			printk(KERN_WARN "failed to write dword to top of the"
 			       " user space stack %lx!\n", regs->EREG(sp));
 			return;
 		}
@@ -360,8 +362,7 @@ static void resume_execution(struct kprobe *p,
 			if (!write_proc_vm_atomic(current, regs->EREG(sp),
 						  &tos_dword,
 						  sizeof(tos_dword))) {
-				printk("failed to write dword to top of the "
-				       "user space stack %lx!\n",
+				printk(KERN_WARN "failed to write dword to top of the user space stack %lx!\n",
 				       regs->EREG(sp));
 				return;
 			}
@@ -386,8 +387,8 @@ static void resume_execution(struct kprobe *p,
 
 	if (!write_proc_vm_atomic(current, regs->EREG(sp), &tos_dword,
 				  sizeof(tos_dword))) {
-		printk("failed to write dword to top of the user space stack "
-		       "%lx!\n", regs->EREG(sp));
+		printk(KERN_WARN "failed to write dword to top of the user space stack %lx!\n",
+		       regs->EREG(sp));
 		return;
 	}
 
