@@ -134,6 +134,7 @@ int img_file_del_ip(struct img_file *file, unsigned long addr)
 	}
 
 	img_del_ip_by_list(ip);
+	free_img_ip(ip);
 
 	return 0;
 }
