@@ -31,6 +31,7 @@
 
 
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <us_manager/probes/probes.h>
 #include "msg_parser.h"
 #include "msg_buf.h"
@@ -747,7 +748,7 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 		goto free_path;
 	}
 
-	li->func = kmalloc(sizeof(struct func_inst_data *) * cnt, GFP_KERNEL);
+	li->func = vmalloc(sizeof(struct func_inst_data *) * cnt);
 	if (li->func == NULL) {
 			print_err("out of memory\n");
 			goto free_li;
@@ -770,7 +771,7 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 free_func:
 	for (j = 0; j < i; ++j)
 		destroy_func_inst_data(li->func[j]);
-	kfree(li->func);
+	vfree(li->func);
 
 free_li:
 	kfree(li);
@@ -796,7 +797,7 @@ void destroy_lib_inst_data(struct lib_inst_data *li)
 	for (i = 0; i < li->cnt_func; ++i)
 		destroy_func_inst_data(li->func[i]);
 
-	kfree(li->func);
+	vfree(li->func);
 	kfree(li);
 }
 
@@ -845,8 +846,7 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 		goto free_app_info;
 	}
 
-	app_inst->func = kmalloc(sizeof(struct func_inst_data *) * cnt_func,
-				 GFP_KERNEL);
+	app_inst->func = vmalloc(sizeof(struct func_inst_data *) * cnt_func);
 	if (app_inst->func == NULL) {
 		print_err("out of memory\n");
 		goto free_app_inst;
@@ -872,8 +872,7 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 		goto free_func;
 	}
 
-	app_inst->lib = kmalloc(sizeof(struct lib_inst_data *) * cnt_lib,
-				GFP_KERNEL);
+	app_inst->lib = vmalloc(sizeof(struct lib_inst_data *) * cnt_lib);
 	if (app_inst->lib == NULL) {
 		print_err("out of memory\n");
 		goto free_func;
@@ -897,12 +896,12 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 free_lib:
 	for (i = 0; i < i_lib; ++i)
 		destroy_lib_inst_data(app_inst->lib[i]);
-	kfree(app_inst->lib);
+	vfree(app_inst->lib);
 
 free_func:
 	for (i = 0; i < i_func; ++i)
 		destroy_func_inst_data(app_inst->func[i]);
-	kfree(app_inst->func);
+	vfree(app_inst->func);
 
 free_app_inst:
 	kfree(app_inst);
@@ -925,11 +924,11 @@ void destroy_app_inst_data(struct app_inst_data *ai)
 
 	for (i = 0; i < ai->cnt_lib; ++i)
 		destroy_lib_inst_data(ai->lib[i]);
-	kfree(ai->lib);
+	vfree(ai->lib);
 
 	for (i = 0; i < ai->cnt_func; ++i)
 		destroy_func_inst_data(ai->func[i]);
-	kfree(ai->func);
+	vfree(ai->func);
 
 	destroy_app_info(ai->app_info);
 	kfree(ai);
