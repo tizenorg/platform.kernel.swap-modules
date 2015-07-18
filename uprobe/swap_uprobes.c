@@ -50,7 +50,8 @@ enum {
 	UPROBE_TABLE_SIZE = (1 << UPROBE_HASH_BITS)
 };
 
-struct hlist_head uprobe_insn_slot_table[UPROBE_TABLE_SIZE];
+static DEFINE_RWLOCK(st_lock);
+static struct hlist_head slot_table[UPROBE_TABLE_SIZE];
 struct hlist_head uprobe_table[UPROBE_TABLE_SIZE];
 
 DEFINE_SPINLOCK(uretprobe_lock);	/* Protects uretprobe_inst_table */
@@ -243,7 +244,7 @@ static void init_uprobes_insn_slots(void)
 {
 	int i;
 	for (i = 0; i < UPROBE_TABLE_SIZE; ++i)
-		INIT_HLIST_HEAD(&uprobe_insn_slot_table[i]);
+		INIT_HLIST_HEAD(&slot_table[i]);
 }
 
 static void init_uprobe_table(void)
@@ -291,9 +292,18 @@ struct kprobe *get_ukprobe(void *addr, pid_t tgid)
  */
 void add_uprobe_table(struct kprobe *p)
 {
-	hlist_add_head_rcu(&p->is_hlist,
-			   &uprobe_insn_slot_table[hash_ptr(p->ainsn.insn,
-							    UPROBE_HASH_BITS)]);
+	write_lock(&st_lock);
+	hlist_add_head(&p->is_hlist,
+		       &slot_table[hash_ptr(p->ainsn.insn, UPROBE_HASH_BITS)]);
+	write_unlock(&st_lock);
+}
+
+static void del_uprobe_table(struct kprobe *p)
+{
+	write_lock(&st_lock);
+	if (!hlist_unhashed(&p->is_hlist))
+		hlist_del(&p->is_hlist);
+	write_unlock(&st_lock);
 }
 
 /**
@@ -313,12 +323,15 @@ struct kprobe *get_ukprobe_by_insn_slot(void *addr,
 	struct kprobe *p;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
-	/* TODO: test - two processes invokes instrumented function */
-	head = &uprobe_insn_slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
-	swap_hlist_for_each_entry_rcu(p, node, head, is_hlist) {
-		if (p->ainsn.insn == addr && kp2up(p)->task->tgid == tgid)
+	read_lock(&st_lock);
+	head = &slot_table[hash_ptr(addr, UPROBE_HASH_BITS)];
+	swap_hlist_for_each_entry(p, node, head, is_hlist) {
+		if (p->ainsn.insn == addr && kp2up(p)->task->tgid == tgid) {
+			read_unlock(&st_lock);
 			return p;
+		}
 	}
+	read_unlock(&st_lock);
 
 	return NULL;
 }
@@ -326,6 +339,7 @@ struct kprobe *get_ukprobe_by_insn_slot(void *addr,
 
 static void remove_uprobe(struct uprobe *up)
 {
+	del_uprobe_table(&up->kp);
 	arch_remove_uprobe(up);
 }
 
@@ -654,15 +668,6 @@ EXPORT_SYMBOL_GPL(swap_register_ujprobe);
 void __swap_unregister_ujprobe(struct ujprobe *jp, int disarm)
 {
 	__swap_unregister_uprobe(&jp->up, disarm);
-	/*
-	 * Here is an attempt to unregister even those probes that have not been
-	 * installed (hence not added to the hlist).
-	 * So if we try to delete them from the hlist we will get NULL pointer
-	 * dereference error. That is why we check whether this node
-	 * really belongs to the hlist.
-	 */
-	if (!(hlist_unhashed(&jp->up.kp.is_hlist)))
-		hlist_del_rcu(&jp->up.kp.is_hlist);
 }
 EXPORT_SYMBOL_GPL(__swap_unregister_ujprobe);
 
@@ -935,13 +940,6 @@ void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 			       ri->task->comm, ri->task->tgid, ri->task->pid,
 			       (unsigned long)rp->up.kp.addr);
 		recycle_urp_inst(ri);
-	}
-
-	if (hlist_empty(&rp->used_instances)) {
-		struct kprobe *p = &rp->up.kp;
-
-		if (!(hlist_unhashed(&p->is_hlist)))
-			hlist_del_rcu(&p->is_hlist);
 	}
 
 	while ((ri = get_used_urp_inst(rp)) != NULL) {

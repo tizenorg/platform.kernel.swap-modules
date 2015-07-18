@@ -126,6 +126,9 @@ int arch_prepare_uprobe(struct uprobe *up)
 		return -EINVAL;
 	}
 
+	/* for uretprobe */
+	add_uprobe_table(p);
+
 	return 0;
 }
 
@@ -195,8 +198,6 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 		       regs->EREG(sp));
 		return -EINVAL;
 	}
-
-	add_uprobe_table(&ri->rp->up.kp);
 
 	return 0;
 }
