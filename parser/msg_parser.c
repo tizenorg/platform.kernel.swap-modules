@@ -748,19 +748,23 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 		goto free_path;
 	}
 
-	li->func = vmalloc(sizeof(struct func_inst_data *) * cnt);
-	if (li->func == NULL) {
+	if (cnt) {
+		li->func = vmalloc(sizeof(*li->func) * cnt);
+		if (li->func == NULL) {
 			print_err("out of memory\n");
 			goto free_li;
 		}
 
-	for (i = 0; i < cnt; ++i) {
-		print_parse_debug("func #%d:\n", i + 1);
-		fi = create_func_inst_data(mb);
-		if (fi == NULL)
-			goto free_func;
+		for (i = 0; i < cnt; ++i) {
+			print_parse_debug("func #%d:\n", i + 1);
+			fi = create_func_inst_data(mb);
+			if (fi == NULL)
+				goto free_func;
 
-		li->func[i] = fi;
+			li->func[i] = fi;
+		}
+	} else {
+		li->func = NULL;
 	}
 
 	li->path = path;
@@ -846,19 +850,23 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 		goto free_app_info;
 	}
 
-	app_inst->func = vmalloc(sizeof(struct func_inst_data *) * cnt_func);
-	if (app_inst->func == NULL) {
-		print_err("out of memory\n");
-		goto free_app_inst;
-	}
+	if (cnt_func) {
+		app_inst->func = vmalloc(sizeof(*app_inst->func) * cnt_func);
+		if (app_inst->func == NULL) {
+			print_err("out of memory\n");
+			goto free_app_inst;
+		}
 
-	for (i_func = 0; i_func < cnt_func; ++i_func) {
-		print_parse_debug("func #%d:\n", i_func + 1);
-		func = create_func_inst_data(mb);
-		if (func == NULL)
-			goto free_func;
+		for (i_func = 0; i_func < cnt_func; ++i_func) {
+			print_parse_debug("func #%d:\n", i_func + 1);
+			func = create_func_inst_data(mb);
+			if (func == NULL)
+				goto free_func;
 
-		app_inst->func[i_func] = func;
+			app_inst->func[i_func] = func;
+		}
+	} else {
+		app_inst->func = NULL;
 	}
 
 	print_parse_debug("lib count:");
@@ -872,19 +880,23 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 		goto free_func;
 	}
 
-	app_inst->lib = vmalloc(sizeof(struct lib_inst_data *) * cnt_lib);
-	if (app_inst->lib == NULL) {
-		print_err("out of memory\n");
-		goto free_func;
-	}
+	if (cnt_lib) {
+		app_inst->lib = vmalloc(sizeof(*app_inst->lib) * cnt_lib);
+		if (app_inst->lib == NULL) {
+			print_err("out of memory\n");
+			goto free_func;
+		}
 
-	for (i_lib = 0; i_lib < cnt_lib; ++i_lib) {
-		print_parse_debug("lib #%d:\n", i_lib + 1);
-		lib = create_lib_inst_data(mb);
-		if (lib == NULL)
-			goto free_lib;
+		for (i_lib = 0; i_lib < cnt_lib; ++i_lib) {
+			print_parse_debug("lib #%d:\n", i_lib + 1);
+			lib = create_lib_inst_data(mb);
+			if (lib == NULL)
+				goto free_lib;
 
-		app_inst->lib[i_lib] = lib;
+			app_inst->lib[i_lib] = lib;
+		}
+	} else {
+		app_inst->lib = NULL;
 	}
 
 	app_inst->app_info = app_info;
