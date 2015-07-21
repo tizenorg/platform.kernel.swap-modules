@@ -758,6 +758,7 @@ static int write_msg_handler(struct kprobe *p, struct pt_regs *regs)
 	size_t len;
 	unsigned long caller_offset;
 	unsigned long call_type_offset;
+	unsigned long caller_addr;
 	bool drop;
 	int ret;
 
@@ -765,6 +766,7 @@ static int write_msg_handler(struct kprobe *p, struct pt_regs *regs)
 	len = swap_get_uarg(regs, 1);
 	call_type_p = (char *)swap_get_uarg(regs, 2);
 	caller_p = (char *)swap_get_uarg(regs, 3);
+	caller_addr = swap_get_uarg(regs, 4);
 
 	ret = __msg_sanitization(user_buf, len, call_type_p, caller_p);
 	if (ret != 0) {
@@ -795,6 +797,10 @@ static int write_msg_handler(struct kprobe *p, struct pt_regs *regs)
 	caller_offset = (unsigned long)(caller_p - user_buf);
 
 	__write_data_to_msg(buf, len, call_type_offset, caller_offset);
+
+	/* FIXME refactor this hack for opengl tizen probes */
+	if (caller_addr)
+		*(uintptr_t *)(buf + caller_offset) = (uintptr_t)caller_addr;
 
 	ret = swap_msg_raw(buf, len);
 	if (ret != len)
