@@ -38,9 +38,9 @@ struct web_prof_data {
 	struct dentry *app_dentry;
 	struct dentry *lib_dentry;
 	struct pf_group *pfg;
-	unsigned long inspserver_addr;
-	unsigned long willexecute_addr;
-	unsigned long didexecute_addr;
+	u64 inspserver_addr;
+	u64 willexecute_addr;
+	u64 didexecute_addr;
 	enum web_prof_state_t enabled;
 };
 
@@ -54,13 +54,13 @@ u64 *web_prof_addr_ptr(enum web_prof_addr_t type)
 
 	switch (type) {
 	case INSPSERVER_START:
-		addr_ptr = (u64 *)&web_data->inspserver_addr;
+		addr_ptr = &web_data->inspserver_addr;
 		break;
 	case WILL_EXECUTE:
-		addr_ptr = (u64 *)&web_data->willexecute_addr;
+		addr_ptr = &web_data->willexecute_addr;
 		break;
 	case DID_EXECUTE:
-		addr_ptr = (u64 *)&web_data->didexecute_addr;
+		addr_ptr = &web_data->didexecute_addr;
 		break;
 	default:
 		pr_err("ERROR: WEB_PROF_ADDR_PTR_TYPE=0x%x\n", type);
