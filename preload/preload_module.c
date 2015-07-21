@@ -136,23 +136,6 @@ void put_dentry(struct dentry *dentry)
 	dput(dentry);
 }
 
-static inline unsigned long get_preload_flags(struct task_struct *task)
-{
-	unsigned long flags;
-	int ok;
-
-	flags = (unsigned long)swap_task_data_get(task, &ok);
-	WARN(!ok, "Preload flags(%08lx) seem corrupted", flags);
-
-	return (ok ? flags: 0);
-}
-
-static inline void set_preload_flags(struct task_struct *task,
-				     unsigned long flags)
-{
-	swap_task_data_set(task, (void *)flags, 0);
-}
-
 static inline void __prepare_ujump(struct uretprobe_instance *ri,
 				   struct pt_regs *regs,
 				   unsigned long vaddr)
