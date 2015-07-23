@@ -314,7 +314,7 @@ static void nsp_data_uninst(struct nsp_data *data)
 {
 	struct pf_group *pfg = data->pfg;
 
-	pin_register(&p_do_app, pfg, libappcore_dentry);
+	pin_unregister(&p_do_app, pfg, libappcore_dentry);
 	pin_unregister(&p_elm_run, pfg, libappcore_dentry);
 	pin_unregister(&p_ac_init, pfg, libappcore_dentry);
 	pin_unregister(&p_ac_efl_main, pfg, libappcore_dentry);
