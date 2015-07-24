@@ -29,14 +29,14 @@
 
 struct dentry;
 struct sspt_proc;
-struct probe_info;
+struct probe_desc;
 
 
 struct img_proc *create_img_proc(void);
 void free_img_proc(struct img_proc *proc);
 
 int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
-		    unsigned long addr, struct probe_info *probe_i);
+		    unsigned long addr, struct probe_desc *pd);
 int img_proc_del_ip(struct img_proc *proc,
 		    struct dentry *dentry,
 		    unsigned long addr);

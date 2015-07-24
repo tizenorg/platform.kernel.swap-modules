@@ -44,11 +44,11 @@ static const char webapp_path[] = "/usr/bin/WebProcess";
 static const char ewebkit_path[] = "/usr/lib/libewebkit2.so";
 
 
-#define WSP_PROBE_MAKE(_name, _info)	\
+#define WSP_PROBE_MAKE(__name, __desc)	\
 {					\
-	.name = _name,			\
+	.name = __name,			\
 	.probe.offset = 0,		\
-	.probe.info = _info		\
+	.probe.desc = __desc		\
 }
 
 
@@ -110,7 +110,7 @@ static int soup_req_handle(struct uprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-static struct probe_info_new soup_req = MAKE_UPROBE(soup_req_handle);
+static struct probe_desc soup_req = MAKE_UPROBE(soup_req_handle);
 
 
 /*
@@ -128,7 +128,7 @@ static int mres_req_handle(struct uprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-static struct probe_info_new mres_req = MAKE_UPROBE(mres_req_handle);
+static struct probe_desc mres_req = MAKE_UPROBE(mres_req_handle);
 
 
 /*
@@ -154,7 +154,7 @@ static int mres_adata_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
-static struct probe_info_new mres_adata =
+static struct probe_desc mres_adata =
 		MAKE_URPROBE(mres_adata_eh, mres_adata_rh,
 			     sizeof(struct wsp_res *));
 
@@ -176,7 +176,7 @@ static int mres_finish_handle(struct uprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-static struct probe_info_new mres_finish = MAKE_UPROBE(mres_finish_handle);
+static struct probe_desc mres_finish = MAKE_UPROBE(mres_finish_handle);
 
 
 /*
@@ -201,7 +201,7 @@ static int res_request_handle(struct uprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
-static struct probe_info_new res_request = MAKE_UPROBE(res_request_handle);
+static struct probe_desc res_request = MAKE_UPROBE(res_request_handle);
 
 
 /*
@@ -230,7 +230,7 @@ static int res_finish_rhandle(struct uretprobe_instance *ri,
 	return 0;
 }
 
-static struct probe_info_new res_finish =
+static struct probe_desc res_finish =
 		MAKE_URPROBE(res_finish_ehandle, res_finish_rhandle,
 			     sizeof(struct wsp_res *));
 
@@ -260,7 +260,7 @@ static int redraw_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
-static struct probe_info_new redraw = MAKE_URPROBE(redraw_eh, redraw_rh, 0);
+static struct probe_desc redraw = MAKE_URPROBE(redraw_eh, redraw_rh, 0);
 
 
 static struct wsp_probe ewebkit_probe_array[] = {

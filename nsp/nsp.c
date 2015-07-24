@@ -41,51 +41,51 @@
 /* dlopen@plt */
 static int dlopen_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static int dlopen_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
-static struct probe_info_new pin_dlopen = MAKE_URPROBE(dlopen_eh, dlopen_rh, 0);
+static struct probe_desc pin_dlopen = MAKE_URPROBE(dlopen_eh, dlopen_rh, 0);
 static struct probe_new p_dlopen = {
-	.info = &pin_dlopen
+	.desc = &pin_dlopen
 };
 
 /* dlsym@plt */
 static int dlsym_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static int dlsym_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
-static struct probe_info_new pin_dlsym = MAKE_URPROBE(dlsym_eh, dlsym_rh, 0);
+static struct probe_desc pin_dlsym = MAKE_URPROBE(dlsym_eh, dlsym_rh, 0);
 static struct probe_new p_dlsym = {
-	.info = &pin_dlsym
+	.desc = &pin_dlsym
 };
 
 /* main */
 static int main_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static int main_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
-static struct probe_info_new pin_main = MAKE_URPROBE(main_eh, main_rh, 0);
+static struct probe_desc pin_main = MAKE_URPROBE(main_eh, main_rh, 0);
 
 /* appcore_efl_main */
 static int ac_efl_main_h(struct uprobe *p, struct pt_regs *regs);
-static struct probe_info_new pin_ac_efl_main = MAKE_UPROBE(ac_efl_main_h);
+static struct probe_desc pin_ac_efl_main = MAKE_UPROBE(ac_efl_main_h);
 static struct probe_new p_ac_efl_main = {
-	.info = &pin_ac_efl_main
+	.desc = &pin_ac_efl_main
 };
 
 /* appcore_init@plt */
 static int ac_init_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
-static struct probe_info_new pin_ac_init = MAKE_URPROBE(NULL, ac_init_rh, 0);
+static struct probe_desc pin_ac_init = MAKE_URPROBE(NULL, ac_init_rh, 0);
 static struct probe_new p_ac_init = {
-	.info = &pin_ac_init
+	.desc = &pin_ac_init
 };
 
 /* elm_run@plt */
 static int elm_run_h(struct uprobe *p, struct pt_regs *regs);
-static struct probe_info_new pin_elm_run = MAKE_UPROBE(elm_run_h);
+static struct probe_desc pin_elm_run = MAKE_UPROBE(elm_run_h);
 static struct probe_new p_elm_run = {
-	.info = &pin_elm_run
+	.desc = &pin_elm_run
 };
 
 /* __do_app */
 static int do_app_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
 static int do_app_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
-static struct probe_info_new pin_do_app = MAKE_URPROBE(do_app_eh, do_app_rh, 0);
+static struct probe_desc pin_do_app = MAKE_URPROBE(do_app_eh, do_app_rh, 0);
 static struct probe_new p_do_app = {
-	.info = &pin_do_app
+	.desc = &pin_do_app
 };
 
 
@@ -216,7 +216,7 @@ static struct nsp_data *nsp_data_create(const char *app_path,
 	}
 
 	data->app_dentry = dentry;
-	data->p_main.info = &pin_main;
+	data->p_main.desc = &pin_main;
 	data->p_main.offset = main_addr;
 	data->pfg = NULL;
 
@@ -736,7 +736,7 @@ static int main_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 		ip = container_of(rp, struct us_ip, retprobe);
 		func_addr = (unsigned long)ip->orig_addr;
 		ret_addr = (unsigned long)ri->ret_addr;
-		ret_type = ip->info->rp_i.ret_type;
+		ret_type = ip->desc->info.rp_i.ret_type;
 		rp_msg_exit(regs, func_addr, 'n', ret_addr);
 	}
 

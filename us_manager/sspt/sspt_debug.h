@@ -42,7 +42,7 @@ static inline void print_retprobe(struct uretprobe *rp)
 
 static inline void print_ip(struct us_ip *ip, int i)
 {
-	if (ip->info->probe_type == SWAP_RETPROBE) {
+	if (ip->desc->type == SWAP_RETPROBE) {
 		struct uretprobe *rp = &ip->retprobe;
 
 		printk(KERN_INFO "###       addr[%2d]=%lx, R_addr=%lx\n",

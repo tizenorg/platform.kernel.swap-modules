@@ -51,7 +51,7 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	int ret;
 	struct uprobe *up = NULL;
 
-	up = probe_info_get_uprobe(ip->info, ip);
+	up = probe_info_get_uprobe(ip->desc->type, ip);
 
 	if (!up) {
 		printk(KERN_INFO "SWAP US_MANAGER: failed getting uprobe!\n");
@@ -62,16 +62,16 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	up->task = ip->page->file->proc->task;
 	up->sm = ip->page->file->proc->sm;
 
-	ret = probe_info_register(ip->info, ip);
+	ret = probe_info_register(ip->desc->type, ip);
 	if (ret) {
 		struct sspt_file *file = ip->page->file;
 		char *name = file->dentry->d_iname;
 		unsigned long addr = (unsigned long)up->addr;
 		unsigned long offset = addr - file->vm_start;
 
-		printk(KERN_INFO "swap_register_uretprobe() failure %d "
-		       "(%s:%lx|%lx)\n", ret, name, offset,
-		       (unsigned long)ip->retprobe.up.opcode);
+		printk(KERN_ERR "probe_info_register failed %d (%s:%lx|%lx)\n",
+				ret, name, offset,
+				(unsigned long)ip->retprobe.up.opcode);
 	}
 
 	return ret;
@@ -85,14 +85,14 @@ static inline int sspt_unregister_usprobe(struct task_struct *task,
 
 	switch (flag) {
 	case US_UNREGS_PROBE:
-		probe_info_unregister(ip->info, ip, 1);
+		probe_info_unregister(ip->desc->type, ip, 1);
 		break;
 	case US_DISARM:
-		up = probe_info_get_uprobe(ip->info, ip);
+		up = probe_info_get_uprobe(ip->desc->type, ip);
 		disarm_uprobe(up, task);
 		break;
 	case US_UNINSTALL:
-		probe_info_unregister(ip->info, ip, 0);
+		probe_info_unregister(ip->desc->type, ip, 0);
 		break;
 	default:
 		panic("incorrect value flag=%d", flag);

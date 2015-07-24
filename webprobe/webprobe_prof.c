@@ -28,6 +28,7 @@
 
 #include <us_manager/pf/pf_group.h>
 #include <us_manager/probes/probes.h>
+#include <us_manager/probes/probe_info_new.h>
 
 #include "webprobe_prof.h"
 
@@ -95,10 +96,9 @@ unsigned long web_prof_addr(enum web_prof_addr_t type)
 static int web_func_inst_add(unsigned long addr)
 {
 	int ret;
-	struct probe_info probe;
+	struct probe_desc probe;
 
-	probe.probe_type = SWAP_WEBPROBE;
-	probe.size = 0;
+	probe.type = SWAP_WEBPROBE;
 
 	ret = pf_register_probe(web_data->pfg, web_data->lib_dentry,
 				addr, &probe);

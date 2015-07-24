@@ -292,7 +292,7 @@ static inline struct vm_area_struct *__get_vma_by_addr(struct task_struct *task,
 
 static inline bool __inverted(struct us_ip *ip)
 {
-	unsigned long flags = ip->info->pl_i.flags;
+	unsigned long flags = ip->desc->info.pl_i.flags;
 
 	if (flags & SWAP_PRELOAD_INVERTED_PROBE)
 		return true;
@@ -321,7 +321,7 @@ static inline bool __check_flag_and_call_type(struct us_ip *ip,
 
 static inline bool __is_probe_non_block(struct us_ip *ip)
 {
-	if (ip->info->pl_i.flags & SWAP_PRELOAD_NON_BLOCK_PROBE)
+	if (ip->desc->info.pl_i.flags & SWAP_PRELOAD_NON_BLOCK_PROBE)
 		return true;
 
 	return false;
@@ -566,7 +566,7 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 	struct us_priv *priv = (struct us_priv *)ri->data;
 	unsigned long flags = get_preload_flags(current);
-	unsigned long offset = ip->info->pl_i.handler;
+	unsigned long offset = ip->desc->info.pl_i.handler;
 	unsigned long vaddr = 0;
 	char __user *path = NULL;
 
@@ -653,7 +653,7 @@ static int preload_us_ret(struct uretprobe_instance *ri, struct pt_regs *regs)
 	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 	struct us_priv *priv = (struct us_priv *)ri->data;
 	unsigned long flags = get_preload_flags(current);
-	unsigned long offset = ip->info->pl_i.handler;
+	unsigned long offset = ip->desc->info.pl_i.handler;
 	unsigned long vaddr = 0;
 
 	switch (preload_pd_get_state(pd)) {

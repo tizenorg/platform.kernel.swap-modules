@@ -30,7 +30,7 @@
 struct dentry;
 struct pf_group;
 struct sspt_proc;
-struct probe_info;
+struct probe_desc;
 
 
 struct pfg_msg_cb {
@@ -56,7 +56,7 @@ void pfg_msg_cb_reset(struct pf_group *pfg);
 struct pfg_msg_cb *pfg_msg_cb_get(struct pf_group *pfg);
 
 int pf_register_probe(struct pf_group *pfg, struct dentry *dentry,
-		      unsigned long offset, struct probe_info *probe_i);
+		      unsigned long offset, struct probe_desc *pd);
 int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 			unsigned long offset);
 

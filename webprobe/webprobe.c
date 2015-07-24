@@ -154,7 +154,7 @@ static void webprobe_init(struct us_ip *ip)
 
 static void webprobe_uninit(struct us_ip *ip)
 {
-	webprobe_cleanup(ip->info);
+	webprobe_cleanup(&ip->desc->info);
 }
 
 

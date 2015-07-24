@@ -484,8 +484,6 @@ int swap_register_uprobe(struct uprobe *p)
 	if (!p->addr)
 		return -EINVAL;
 
-	DBPRINTF("p->addr = 0x%p p = 0x%p\n", p->addr, p);
-
 /* thumb address = address-1; */
 #if defined(CONFIG_ARM)
 	/* TODO: must be corrected in 'bundle' */

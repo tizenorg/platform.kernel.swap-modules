@@ -38,11 +38,11 @@ static int urp_entry_handler(struct uretprobe_instance *ri, struct pt_regs *regs
 
 	if (rp) {
 		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
-		struct probe_info_new *info_new;
+		struct probe_desc *pd = NULL;
 
-		info_new = probe_info_get_val(ip->info, struct probe_info_new *);
-		if (info_new->u.rp.entry_handler)
-			return info_new->u.rp.entry_handler(ri, regs);
+		pd = ip->desc;
+		if (pd && pd->u.rp.entry_handler)
+			return pd->u.rp.entry_handler(ri, regs);
 
 	}
 
@@ -55,11 +55,11 @@ static int urp_ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 	if (rp) {
 		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
-		struct probe_info_new *info_new;
+		struct probe_desc *pd = NULL;
 
-		info_new = probe_info_get_val(ip->info, struct probe_info_new *);
-		if (info_new->u.rp.ret_handler)
-			return info_new->u.rp.ret_handler(ri, regs);
+		pd = ip->desc;
+		if (pd && pd->u.rp.ret_handler)
+			return pd->u.rp.ret_handler(ri, regs);
 	}
 
 	return 0;
@@ -68,35 +68,14 @@ static int urp_ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 static int uprobe_handler(struct uprobe *p, struct pt_regs *regs)
 {
 	struct us_ip *ip = container_of(p, struct us_ip, uprobe);
-	struct probe_info_new *info_new;
+	struct probe_desc *pd = NULL;
 
-	info_new = probe_info_get_val(ip->info, struct probe_info_new *);
-	if (info_new->u.p.handler)
-		return info_new->u.p.handler(p, regs);
+	pd = ip->desc;
+	if (pd && pd->u.p.handler)
+		return pd->u.p.handler(p, regs);
 
 	return 0;
 }
-
-
-
-
-void pin_set_probe(struct probe_info_otg *otg, unsigned long vaddr)
-{
-	struct sspt_proc *proc;
-	struct task_struct *task = current;
-
-	otg->info.probe_type = otg->data->type;
-	otg->info.size = sizeof(struct probe_info_new *);
-
-	proc = sspt_proc_get_by_task(task);
-	if (proc) {
-		sspt_proc_install_probe(proc, vaddr, &otg->info);
-	} else {
-		pr_err("task[%u %u %s] not in sspt\n",
-		       task->tgid, task->pid, task->comm);
-	}
-}
-EXPORT_SYMBOL_GPL(pin_set_probe);
 
 /*
  * register/unregister interface
@@ -105,22 +84,12 @@ int pin_register(struct probe_new *probe, struct pf_group *pfg,
 		 struct dentry *dentry)
 {
 	int ret;
-	struct probe_info *info;
-	struct probe_info_new *info_new = probe->info;
-
-	info = probe_info_create(struct probe_info_new *, info_new->type);
-	if (info == NULL)
-		return -ENOMEM;
-
-	probe_info_set_val(info, struct probe_info_new *, info_new);
-
-	ret = pf_register_probe(pfg, dentry, probe->offset, info);
+	ret = pf_register_probe(pfg, dentry, probe->offset, probe->desc);
 	if (ret) {
-		probe_info_free(info);
+		printk(KERN_ERR "%s: register probe failed (%d)\n",
+				__FUNCTION__, ret);
 		return ret;
 	}
-
-	info_new->info = info;
 
 	return 0;
 }
@@ -130,15 +99,13 @@ int pin_unregister(struct probe_new *probe, struct pf_group *pfg,
 		   struct dentry *dentry)
 {
 	int ret;
-	struct probe_info_new *info_new = probe->info;
 
 	ret = pf_unregister_probe(pfg, dentry, probe->offset);
 	if (ret) {
-		/* error */
+		printk(KERN_ERR "%s: unregister probe failed (%d)\n",
+				__FUNCTION__, ret);
 		return ret;
 	}
-
-	probe_info_free(info_new->info);
 
 	return 0;
 }

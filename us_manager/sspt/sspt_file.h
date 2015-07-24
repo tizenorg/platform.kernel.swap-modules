@@ -53,8 +53,7 @@ void sspt_file_free(struct sspt_file *file);
 
 struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
 					unsigned long page);
-void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
-		      struct probe_info *probe_i);
+void sspt_file_add_ip(struct sspt_file *file, struct img_ip *img_ip);
 
 struct sspt_page *sspt_get_page(struct sspt_file *file,
 				unsigned long offset_addr);

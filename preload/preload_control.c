@@ -216,7 +216,7 @@ enum preload_call_type preload_control_call_type(struct us_ip *ip, void *caller)
 	if (__is_instrumented(caller))
 		return INTERNAL_CALL;
 
-	if (ip->info->pl_i.flags & SWAP_PRELOAD_ALWAYS_RUN)
+	if (ip->desc->info.pl_i.flags & SWAP_PRELOAD_ALWAYS_RUN)
 		return EXTERNAL_CALL;
 
 	return NOT_INSTRUMENTED;

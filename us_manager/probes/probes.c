@@ -31,41 +31,6 @@
 #include <linux/errno.h>
 #include <linux/module.h>
 
-
-struct probe_info *probe_info_malloc(size_t size, enum probe_t type)
-{
-	struct probe_info *info;
-
-	info = kmalloc(sizeof(*info) + size, GFP_ATOMIC);
-	if (info) {
-		info->probe_type = type;
-		info->size = size;
-	}
-
-	return info;
-}
-EXPORT_SYMBOL_GPL(probe_info_malloc);
-
-struct probe_info *probe_info_dup(const struct probe_info *info)
-{
-	struct probe_info *info_new;
-	size_t size = info->size;
-
-	info_new = probe_info_malloc(size, info->probe_type);
-	if (info_new && size)
-		memcpy(info_new->data, info->data, size);
-
-	return info_new;
-}
-EXPORT_SYMBOL_GPL(probe_info_dup);
-
-void probe_info_free(struct probe_info *info)
-{
-	kfree(info);
-}
-EXPORT_SYMBOL_GPL(probe_info_free);
-
-
 static struct probe_iface *probes_methods[SWAP_PROBE_MAX_VAL] = { NULL };
 
 /* 1 - correct probe type
@@ -81,11 +46,11 @@ static inline int correct_probe_type(enum probe_t probe_type)
 
 static inline int methods_exist(enum probe_t probe_type)
 {
-	if (!correct_probe_type(probe_type))
+	if (!correct_probe_type(probe_type) ||
+	    (probes_methods[probe_type] == NULL)) {
+		printk(KERN_WARNING "SWAP US_MANAGER: Wrong probe type!\n");
 		return 0;
-
-	if (probes_methods[probe_type] == NULL)
-		return 0;
+	}
 
 	return 1;
 }
@@ -97,16 +62,13 @@ static inline int methods_exist(enum probe_t probe_type)
  * @param ip Pointer to the probe us_ip struct.
  * @return Void.
  */
-void probe_info_init(struct probe_info *pi, struct us_ip *ip)
+void probe_info_init(enum probe_t type, struct us_ip *ip)
 {
-	enum probe_t probe_type = pi->probe_type;
-
-	if (!methods_exist(probe_type)) {
-		printk(KERN_WARNING "SWAP US_MANAGER: Wrong probe type!\n");
+	if (!methods_exist(type)) {
 		return;
 	}
 
-	probes_methods[probe_type]->init(ip);
+	probes_methods[type]->init(ip);
 }
 
 /**
@@ -116,16 +78,13 @@ void probe_info_init(struct probe_info *pi, struct us_ip *ip)
  * @param ip Pointer to the probe us_ip struct.
  * @return Void.
  */
-void probe_info_uninit(struct probe_info *pi, struct us_ip *ip)
+void probe_info_uninit(enum probe_t type, struct us_ip *ip)
 {
-	enum probe_t probe_type = pi->probe_type;
-
-	if (!methods_exist(probe_type)) {
-		printk(KERN_WARNING "SWAP US_MANAGER: Wrong probe type!\n");
+	if (!methods_exist(type)) {
 		return;
 	}
 
-	probes_methods[probe_type]->uninit(ip);
+	probes_methods[type]->uninit(ip);
 }
 
 /**
@@ -135,16 +94,13 @@ void probe_info_uninit(struct probe_info *pi, struct us_ip *ip)
  * @param ip Pointer to the probe us_ip struct.
  * @return -EINVAL on wrong probe type, method result otherwise.
  */
-int probe_info_register(struct probe_info *pi, struct us_ip *ip)
+int probe_info_register(enum probe_t type, struct us_ip *ip)
 {
-	enum probe_t probe_type = pi->probe_type;
-
-	if (!methods_exist(probe_type)) {
-		printk(KERN_WARNING "SWAP US_MANAGER: Wrong probe type!\n");
+	if (!methods_exist(type)) {
 		return -EINVAL;
 	}
 
-	return probes_methods[probe_type]->reg(ip);
+	return probes_methods[type]->reg(ip);
 }
 
 /**
@@ -155,16 +111,13 @@ int probe_info_register(struct probe_info *pi, struct us_ip *ip)
  * @param disarm Disarm flag.
  * @return Void.
  */
-void probe_info_unregister(struct probe_info *pi, struct us_ip *ip, int disarm)
+void probe_info_unregister(enum probe_t type, struct us_ip *ip, int disarm)
 {
-	enum probe_t probe_type = pi->probe_type;
-
-	if (!methods_exist(probe_type)) {
-		printk(KERN_WARNING "SWAP US_MANAGER: Wrong probe type!\n");
+	if (!methods_exist(type)) {
 		return;
 	}
 
-	probes_methods[probe_type]->unreg(ip, disarm);
+	probes_methods[type]->unreg(ip, disarm);
 }
 
 /**
@@ -174,53 +127,13 @@ void probe_info_unregister(struct probe_info *pi, struct us_ip *ip, int disarm)
  * @param ip Pointer to the probe us_ip struct.
  * @return Pointer to the uprobe struct, NULL on error.
  */
-struct uprobe *probe_info_get_uprobe(struct probe_info *pi, struct us_ip *ip)
+struct uprobe *probe_info_get_uprobe(enum probe_t type, struct us_ip *ip)
 {
-	enum probe_t probe_type = pi->probe_type;
-
-	if (!methods_exist(probe_type)) {
-		printk(KERN_WARNING "SWAP US_MANAGER: Wrong probe type!\n");
+	if (!methods_exist(type)) {
 		return NULL;
 	}
 
-	return probes_methods[probe_type]->get_uprobe(ip);
-}
-
-/**
- * @brief Calls specified probe type copy method.
- *
- * @param pi Pointer to the source probe_info.
- * @param dest Pointer to the probe us_ip struct.
- * @return -EINVAL on error, method result otherwise.
- */
-int probe_info_copy(const struct probe_info *pi, struct probe_info *dest)
-{
-	enum probe_t probe_type = pi->probe_type;
-
-	if (!methods_exist(probe_type)) {
-		printk(KERN_WARNING "SWAP US_MANAGER: Wrong probe type!\n");
-		return -EINVAL;
-	}
-
-	return probes_methods[probe_type]->copy(dest, pi);
-}
-
-/**
- * @brief Calls specified probe type cleanup method.
- *
- * @param pi Pointer to the source probe_info.
- * @return Void.
- */
-void probe_info_cleanup(struct probe_info *pi)
-{
-	enum probe_t probe_type = pi->probe_type;
-
-	if (!methods_exist(probe_type)) {
-		printk(KERN_WARNING "SWAP US_MANAGER: Wrong probe type!\n");
-		return;
-	}
-
-	probes_methods[probe_type]->cleanup(pi);
+	return probes_methods[type]->get_uprobe(ip);
 }
 
 /**
@@ -233,7 +146,7 @@ void probe_info_cleanup(struct probe_info *pi)
 int swap_register_probe_type(enum probe_t probe_type, struct probe_iface *pi)
 {
 	if (!correct_probe_type(probe_type)) {
-		printk(KERN_ERR "SWAP US_MANAGER: Wrong probe type!\n");
+		printk(KERN_ERR "SWAP US_MANAGER: incorrect probe type!\n");
 		return -EINVAL;
 	}
 
@@ -256,7 +169,7 @@ EXPORT_SYMBOL_GPL(swap_register_probe_type);
 void swap_unregister_probe_type(enum probe_t probe_type)
 {
 	if (!correct_probe_type(probe_type)) {
-		printk(KERN_ERR "SWAP US_MANAGER: Wrong probe type!\n");
+		printk(KERN_ERR "SWAP US_MANAGER: incorrect probe type!\n");
 		return;
 	}
 

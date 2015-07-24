@@ -83,7 +83,7 @@ struct conf_data {
  */
 struct func_inst_data {
 	u64 addr;                   /**< Function address. */
-	struct probe_info probe_i;  /**< Probe info. */
+	struct probe_desc p_desc;   /**< Probe info. */
 };
 
 /**

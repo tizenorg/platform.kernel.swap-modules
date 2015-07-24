@@ -28,6 +28,7 @@
 #include "sspt_page.h"
 #include "sspt_file.h"
 #include <us_manager/probes/use_probes.h>
+#include <us_manager/img/img_ip.h>
 
 /**
  * @brief Create us_ip struct
@@ -38,33 +39,21 @@
  * @param page Pointer to the parent sspt_page struct
  * @return Pointer to the created us_ip struct
  */
-struct us_ip *create_ip(unsigned long offset, const struct probe_info *info,
-			struct sspt_page *page)
+struct us_ip *create_ip(struct img_ip *img_ip)
 {
 	struct us_ip *ip;
-	struct probe_info *info_new;
-
-	info_new = probe_info_dup(info);
-	if (info_new == NULL) {
-		printk("Cannot probe_info_dup in %s function!\n", __func__);
-		return NULL;
-	}
 
 	ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
-	if (ip != NULL) {
-		memset(ip, 0, sizeof(*ip));
+	if (!ip)
+		return NULL;
 
-		INIT_LIST_HEAD(&ip->list);
-		ip->offset = offset;
-		ip->page = page;
-
-		probe_info_copy(info, info_new);
-		probe_info_init(info_new, ip);
-		ip->info = info_new;
-	} else {
-		printk(KERN_INFO "Cannot kmalloc in create_ip function!\n");
-		probe_info_free(info_new);
-	}
+	memset(ip, 0, sizeof(*ip));
+	INIT_LIST_HEAD(&ip->list);
+	INIT_LIST_HEAD(&ip->img_list);
+	ip->offset = img_ip->addr;
+	ip->desc = &img_ip->desc;
+	ip->iip = img_ip;
+	list_add(&ip->img_list, &img_ip->ihead);
 
 	return ip;
 }
@@ -77,7 +66,8 @@ struct us_ip *create_ip(unsigned long offset, const struct probe_info *info,
  */
 void free_ip(struct us_ip *ip)
 {
-	probe_info_uninit(ip->info, ip);
-	probe_info_free(ip->info);
+	if (!list_empty(&ip->img_list))
+		list_del(&ip->img_list);
+
 	kfree(ip);
 }

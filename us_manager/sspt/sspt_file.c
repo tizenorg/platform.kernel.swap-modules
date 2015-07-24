@@ -31,6 +31,8 @@
 #include <linux/hash.h>
 #include <linux/sched.h>
 #include <kprobe/swap_kprobes_deps.h>
+#include <us_manager/probes/probes.h>
+#include <us_manager/img/img_ip.h>
 
 static int calculation_hash_bits(int cnt)
 {
@@ -176,16 +178,22 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
  * @param ret_type Return type
  * @return Void
  */
-void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
-		      struct probe_info *probe_i)
+void sspt_file_add_ip(struct sspt_file *file, struct img_ip *img_ip)
 {
-	struct sspt_page *page =
-		sspt_find_page_or_new(file, offset & PAGE_MASK);
+	unsigned long offset = 0;
+	struct sspt_page *page = NULL;
+	struct us_ip *ip = NULL;
+
+	offset = img_ip->addr & PAGE_MASK;
+	page = sspt_find_page_or_new(file, offset);
 
 	/* FIXME: delete ip */
-	struct us_ip *ip = create_ip(offset, probe_i, page);
+	ip = create_ip(img_ip);
+	if (!ip)
+		return;
 
 	sspt_add_ip(page, ip);
+	probe_info_init(ip->desc->type, ip);
 }
 
 /**

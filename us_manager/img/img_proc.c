@@ -113,7 +113,7 @@ static struct img_file *find_img_file(struct img_proc *proc,
  * @return Error code
  */
 int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
-		    unsigned long addr, struct probe_info *probe_i)
+		    unsigned long addr, struct probe_desc *pd)
 {
 	int ret;
 	struct img_file *file;
@@ -121,7 +121,7 @@ int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 	write_lock(&proc->rwlock);
 	file = find_img_file(proc, dentry);
 	if (file) {
-		ret = img_file_add_ip(file, addr, probe_i);
+		ret = img_file_add_ip(file, addr, pd);
 		goto unlock;
 	}
 
@@ -131,7 +131,7 @@ int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 		goto unlock;
 	}
 
-	ret = img_file_add_ip(file, addr, probe_i);
+	ret = img_file_add_ip(file, addr, pd);
 	if (ret) {
 		printk(KERN_INFO "Cannot add ip to img file\n");
 		free_img_file(file);
@@ -188,7 +188,7 @@ void img_proc_copy_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc)
 		file = sspt_proc_find_file_or_new(proc, i_file->dentry);
 
 		list_for_each_entry(i_ip, &i_file->ip_list, list)
-			sspt_file_add_ip(file, i_ip->addr, i_ip->info);
+			sspt_file_add_ip(file, i_ip);
 	}
 	read_unlock(&i_proc->rwlock);
 }

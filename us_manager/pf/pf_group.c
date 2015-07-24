@@ -406,9 +406,9 @@ EXPORT_SYMBOL_GPL(put_pf_group);
  * @return Error code
  */
 int pf_register_probe(struct pf_group *pfg, struct dentry *dentry,
-		      unsigned long offset, struct probe_info *probe_i)
+		      unsigned long offset, struct probe_desc *pd)
 {
-	return img_proc_add_ip(pfg->i_proc, dentry, offset, probe_i);
+	return img_proc_add_ip(pfg->i_proc, dentry, offset, pd);
 }
 EXPORT_SYMBOL_GPL(pf_register_probe);
 

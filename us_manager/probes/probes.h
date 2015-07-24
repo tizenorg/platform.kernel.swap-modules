@@ -35,6 +35,7 @@
 #define __PROBES_H__
 
 #include <linux/types.h>
+#include <uprobe/swap_uprobes.h>
 
 #include <preload/preload_probe.h>   /* TODO Remove */
 #include <retprobe/retprobe.h>       /* TODO Remove */
@@ -61,8 +62,6 @@ enum probe_t {
 
 /* Probe info stuct. It contains the whole information about probe. */
 struct probe_info {
-	enum probe_t probe_type;
-	size_t size;
 	/* Union of all SWAP supported probe types */
 	union {
 		struct retprobe_info rp_i;
@@ -72,21 +71,29 @@ struct probe_info {
 		struct get_call_type_info gct_i;
 		struct write_msg_info wm_i;
 	};
-
-	char data[0];
 };
 
+struct probe_desc {
+	enum probe_t type;
+	unsigned long offset;
 
-#define probe_info_create(val_t, type) probe_info_malloc(sizeof(val_t), type)
-struct probe_info *probe_info_malloc(size_t size, enum probe_t type);
-struct probe_info *probe_info_dup(const struct probe_info *info);
-void probe_info_free(struct probe_info *info);
+	union {
+		struct {
+			uprobe_pre_handler_t handler;
+		} p;
 
+		struct {
+			uretprobe_handler_t entry_handler;
+			uretprobe_handler_t ret_handler;
+			/*
+			 * FIXME: make dynamic size,
+			 *        currently data_size = sizeof(void *)
+			 */
+			size_t data_size;
+		} rp;
+	} u;
 
-#define probe_info_get_data(info) ((void *)(info->data))
-#define probe_info_get_ptr(info, val_t) (val_t *)probe_info_get_data(info)
-#define probe_info_get_val(info, val_t) *probe_info_get_ptr(info, val_t)
-#define probe_info_set_val(info, val_t, v) *probe_info_get_ptr(info, val_t) = v
-
+	struct probe_info info;
+};
 
 #endif /* __PROBES_H__ */

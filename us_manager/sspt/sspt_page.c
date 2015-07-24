@@ -94,7 +94,7 @@ static void sspt_list_del_ip(struct us_ip *ip)
 void sspt_add_ip(struct sspt_page *page, struct us_ip *ip)
 {
 	ip->offset &= ~PAGE_MASK;
-
+	ip->page = page;
 	sspt_list_add_ip(page, ip);
 }
 

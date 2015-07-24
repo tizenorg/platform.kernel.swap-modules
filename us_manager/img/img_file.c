@@ -99,7 +99,7 @@ static struct img_ip *find_img_ip(struct img_file *file, unsigned long addr)
  * @return Error code
  */
 int img_file_add_ip(struct img_file *file, unsigned long addr,
-		    struct probe_info *probe_i)
+		    struct probe_desc *pd)
 {
 	struct img_ip *ip;
 
@@ -109,7 +109,7 @@ int img_file_add_ip(struct img_file *file, unsigned long addr,
 		return 0;
 	}
 
-	ip = create_img_ip(addr, probe_i);
+	ip = create_img_ip(addr, pd);
 	img_add_ip_by_list(file, ip);
 
 	return 0;

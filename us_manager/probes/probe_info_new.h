@@ -51,13 +51,12 @@ struct probe_info_new {
 	} u;
 
 	/* private */
-	struct probe_info *info;
+	struct probe_info info;
 };
-
 
 struct probe_new {
 	unsigned long offset;
-	struct probe_info_new *info;
+	struct probe_desc *desc;
 };
 
 
@@ -79,8 +78,6 @@ struct probe_info_otg {
 	struct probe_info info;
 	struct probe_info_new *data;	/* field 'data[0]' in probe_info struct */
 };
-
-void pin_set_probe(struct probe_info_otg *otg, unsigned long vaddr);
 
 int pin_register(struct probe_new *probe, struct pf_group *pfg,
 		 struct dentry *dentry);

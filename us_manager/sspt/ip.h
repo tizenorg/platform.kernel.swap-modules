@@ -37,7 +37,9 @@ struct sspt_page;
 struct us_ip {
 	struct list_head list;      /**< For sspt_page */
 	struct sspt_page *page;     /**< Pointer on the page (parent) */
-	struct probe_info *info;    /**< Probe's data */
+	struct probe_desc *desc;    /**< Probe's data */
+	struct img_ip *iip;
+	struct list_head img_list;
 
 	unsigned long orig_addr;    /**< Function address */
 	unsigned long offset;       /**< Page offset */
@@ -50,8 +52,7 @@ struct us_ip {
 
 #define to_us_ip(rp) container_of(rp, struct us_ip, retprobe)
 
-struct us_ip *create_ip(unsigned long offset, const struct probe_info *info,
-			struct sspt_page *page);
+struct us_ip *create_ip(struct img_ip *img_ip);
 void free_ip(struct us_ip *ip);
 
 #endif /* __IP__ */

@@ -127,7 +127,7 @@ static void preload_uninit(struct us_ip *ip)
 {
 	preload_module_uprobe_exit(ip);
 
-	preload_info_cleanup(ip->info);
+	preload_info_cleanup(&ip->desc->info);
 }
 
 static struct probe_iface preload_iface = {
@@ -176,7 +176,7 @@ static void get_caller_uninit(struct us_ip *ip)
 {
 	preload_module_get_caller_exit(ip);
 
-	get_caller_info_cleanup(ip->info);
+	get_caller_info_cleanup(&ip->desc->info);
 }
 
 static struct probe_iface get_caller_iface = {
@@ -198,7 +198,7 @@ static void get_call_type_uninit(struct us_ip *ip)
 {
 	preload_module_get_call_type_exit(ip);
 
-	get_caller_info_cleanup(ip->info);
+	get_caller_info_cleanup(&ip->desc->info);
 }
 
 static struct probe_iface get_call_type_iface = {
@@ -220,7 +220,7 @@ static void write_msg_uninit(struct us_ip *ip)
 {
 	preload_module_write_msg_exit(ip);
 
-	get_caller_info_cleanup(ip->info);
+	get_caller_info_cleanup(&ip->desc->info);
 }
 
 static struct probe_iface write_msg_iface = {

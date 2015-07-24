@@ -36,10 +36,11 @@
 struct img_ip {
 	struct list_head list;		/**< For img_file */
 	unsigned long addr;		/**< Function address */
-	struct probe_info *info;	/**< Probe info */
+	struct list_head ihead;		/**< List head for sspt ip */
+	struct probe_desc desc;		/**< Probe info */
 };
 
-struct img_ip *create_img_ip(unsigned long addr, struct probe_info *info);
+struct img_ip *create_img_ip(unsigned long addr, struct probe_desc *info);
 void free_img_ip(struct img_ip *ip);
 
 /* debug */

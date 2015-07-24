@@ -276,7 +276,7 @@ void restore_config(struct conf_data *conf)
  * @param pi Pointer to the probe_info struct.
  * @return 0 on success, error code on error.
  */
-int get_retprobe(struct msg_buf *mb, struct probe_info *pi)
+int get_retprobe(struct msg_buf *mb, struct probe_desc *pd)
 {
 	char *args;
 	char ret_type;
@@ -293,10 +293,9 @@ int get_retprobe(struct msg_buf *mb, struct probe_info *pi)
 		goto free_args;
 	}
 
-	pi->probe_type = SWAP_RETPROBE;
-	pi->size = 0;
-	pi->rp_i.args = args;
-	pi->rp_i.ret_type = ret_type;
+	pd->type = SWAP_RETPROBE;
+	pd->info.rp_i.args = args;
+	pd->info.rp_i.ret_type = ret_type;
 
 	return 0;
 
@@ -312,10 +311,9 @@ free_args:
  * @param pi Pointer to the probe_info struct.
  * @return 0 on success, error code on error.
  */
-int get_webprobe(struct msg_buf *mb, struct probe_info *pi)
+int get_webprobe(struct msg_buf *mb, struct probe_desc *pd)
 {
-	pi->probe_type = SWAP_WEBPROBE;
-	pi->size = 0;
+	pd->type = SWAP_WEBPROBE;
 
 	return 0;
 }
@@ -338,7 +336,7 @@ void put_retprobe(struct probe_info *pi)
  * @param pi Pointer to the probe_info struct.
  * @return 0 on success, error code on error.
  */
-int get_preload_probe(struct msg_buf *mb, struct probe_info *pi)
+int get_preload_probe(struct msg_buf *mb, struct probe_desc *pd)
 {
 	u64 handler;
 	u8 flags;
@@ -355,10 +353,9 @@ int get_preload_probe(struct msg_buf *mb, struct probe_info *pi)
 		return -EINVAL;
 	}
 
-	pi->probe_type = SWAP_PRELOAD_PROBE;
-	pi->size = sizeof(pi->pl_i) + sizeof(pi->probe_type) + sizeof(pi->size);
-	pi->pl_i.handler = handler;
-	pi->pl_i.flags = flags;
+	pd->type = SWAP_PRELOAD_PROBE;
+	pd->info.pl_i.handler = handler;
+	pd->info.pl_i.flags = flags;
 
 	return 0;
 }
@@ -381,10 +378,9 @@ void put_preload_probe(struct probe_info *pi)
  * @return 0 on success, error code on error.
  */
 
-int get_get_caller_probe(struct msg_buf *mb, struct probe_info *pi)
+int get_get_caller_probe(struct msg_buf *mb, struct probe_desc *pd)
 {
-	pi->probe_type = SWAP_GET_CALLER;
-	pi->size = sizeof(pi->gc_i);
+	pd->type = SWAP_GET_CALLER;
 
 	return 0;
 }
@@ -406,10 +402,9 @@ void put_get_caller_probe(struct probe_info *pi)
  * @param pi Pointer to the probe_info struct.
  * @return 0 on success, error code on error.
  */
-int get_get_call_type_probe(struct msg_buf *mb, struct probe_info *pi)
+int get_get_call_type_probe(struct msg_buf *mb, struct probe_desc *pd)
 {
-	pi->probe_type = SWAP_GET_CALL_TYPE;
-	pi->size = sizeof(pi->gct_i);
+	pd->type = SWAP_GET_CALL_TYPE;
 
 	return 0;
 }
@@ -431,10 +426,9 @@ void put_get_call_type_probe(struct probe_info *pi)
  * @param pi Pointer to the probe_info struct.
  * @return 0 on success, error code on error.
  */
-int get_write_msg_probe(struct msg_buf *mb, struct probe_info *pi)
+int get_write_msg_probe(struct msg_buf *mb, struct probe_desc *pd)
 {
-	pi->probe_type = SWAP_WRITE_MSG;
-	pi->size = sizeof(pi->wm_i);
+	pd->type = SWAP_WRITE_MSG;
 
 	return 0;
 }
@@ -536,7 +530,7 @@ free_steps:
 	return -EINVAL;
 }
 
-int get_fbi_probe(struct msg_buf *mb, struct probe_info *pi)
+int get_fbi_probe(struct msg_buf *mb, struct probe_desc *pd)
 {
 	uint8_t var_count, i;
 	struct fbi_var_data *vars;
@@ -558,10 +552,9 @@ int get_fbi_probe(struct msg_buf *mb, struct probe_info *pi)
 			goto free_vars;
 	}
 
-	pi->probe_type = SWAP_FBIPROBE;
-	pi->fbi_i.var_count = var_count;
-	pi->fbi_i.vars = vars;
-	pi->size =0 ;
+	pd->type = SWAP_FBIPROBE;
+	pd->info.fbi_i.var_count = var_count;
+	pd->info.fbi_i.vars = vars;
 	return 0;
 
 free_vars:
@@ -624,31 +617,31 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 
 	switch (type) {
 	case SWAP_RETPROBE:
-		if (get_retprobe(mb, &(fi->probe_i)) != 0)
+		if (get_retprobe(mb, &fi->p_desc) != 0)
 			goto free_func_inst;
 		break;
 	case SWAP_WEBPROBE:
-		if (get_webprobe(mb, &(fi->probe_i)) != 0)
+		if (get_webprobe(mb, &fi->p_desc) != 0)
 			goto free_func_inst;
 		break;
 	case SWAP_PRELOAD_PROBE:
-		if (get_preload_probe(mb, &(fi->probe_i)) != 0)
+		if (get_preload_probe(mb, &fi->p_desc) != 0)
 			goto free_func_inst;
 		break;
 	case SWAP_GET_CALLER:
-		if (get_get_caller_probe(mb, &(fi->probe_i)) != 0)
+		if (get_get_caller_probe(mb, &fi->p_desc) != 0)
 			goto free_func_inst;
 		break;
 	case SWAP_GET_CALL_TYPE:
-		if (get_get_call_type_probe(mb, &(fi->probe_i)) != 0)
+		if (get_get_call_type_probe(mb, &fi->p_desc) != 0)
 			goto free_func_inst;
 		break;
 	case SWAP_FBIPROBE:
-		if (get_fbi_probe(mb, &(fi->probe_i)) != 0)
+		if (get_fbi_probe(mb, &fi->p_desc) != 0)
 			goto free_func_inst;
 		break;
 	case SWAP_WRITE_MSG:
-		if (get_write_msg_probe(mb, &(fi->probe_i)) != 0)
+		if (get_write_msg_probe(mb, &fi->p_desc) != 0)
 			goto free_func_inst;
 		break;
 	default:
@@ -657,6 +650,7 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 		goto free_func_inst;
 	}
 
+	fi->p_desc.type = type;
 	return fi;
 
 free_func_inst:
@@ -673,30 +667,30 @@ free_func_inst:
  */
 void destroy_func_inst_data(struct func_inst_data *fi)
 {
-	switch (fi->probe_i.probe_type) {
+	switch (fi->p_desc.type) {
 	case SWAP_RETPROBE:
-		put_retprobe(&(fi->probe_i));
+		put_retprobe(&(fi->p_desc.info));
 		break;
 	case SWAP_WEBPROBE:
 		break;
 	case SWAP_PRELOAD_PROBE:
-		put_preload_probe(&(fi->probe_i));
+		put_preload_probe(&(fi->p_desc.info));
 		break;
 	case SWAP_GET_CALLER:
-		put_get_caller_probe(&(fi->probe_i));
+		put_get_caller_probe(&(fi->p_desc.info));
 		break;
 	case SWAP_GET_CALL_TYPE:
-		put_get_call_type_probe(&(fi->probe_i));
+		put_get_call_type_probe(&(fi->p_desc.info));
 		break;
 	case SWAP_FBIPROBE:
-		put_fbi_probe(&(fi->probe_i));
+		put_fbi_probe(&(fi->p_desc.info));
 		break;
 	case SWAP_WRITE_MSG:
-		put_write_msg_probe(&(fi->probe_i));
+		put_write_msg_probe(&(fi->p_desc.info));
 		break;
 	default:
 		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n",
-		   fi->probe_i.probe_type);
+		   fi->p_desc.type);
 	}
 
 	kfree(fi);

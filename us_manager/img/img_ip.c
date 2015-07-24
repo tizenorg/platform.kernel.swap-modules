@@ -25,6 +25,7 @@
 
 #include "img_ip.h"
 #include <us_manager/probes/use_probes.h>
+#include <us_manager/sspt/ip.h>
 #include <linux/slab.h>
 
 /**
@@ -34,26 +35,21 @@
  * @param probe_i Pointer to the probe info data.
  * @return Pointer to the created img_ip struct
  */
-struct img_ip *create_img_ip(unsigned long addr, struct probe_info *info)
+struct img_ip *create_img_ip(unsigned long addr, struct probe_desc *pd)
 {
 	struct img_ip *ip;
 
 	ip = kmalloc(sizeof(*ip), GFP_KERNEL);
-	if (ip) {
-		struct probe_info *info_new;
+	if (!ip)
+		return NULL;
 
-		info_new = probe_info_dup(info);
-		if (info_new == NULL) {
-			kfree(ip);
-			return NULL;
-		}
-
-		probe_info_copy(info, info_new);
-
-		INIT_LIST_HEAD(&ip->list);
-		ip->addr = addr;
-		ip->info = info_new;
-	}
+	INIT_LIST_HEAD(&ip->list);
+	INIT_LIST_HEAD(&ip->ihead);
+	ip->addr = addr;
+        /* TODO replace struct probe_desc in img_ip
+	 * with pointer on struct probe_desc
+	 */
+	memcpy(&ip->desc, pd, sizeof(struct probe_desc));
 
 	return ip;
 }
@@ -66,8 +62,16 @@ struct img_ip *create_img_ip(unsigned long addr, struct probe_info *info)
  */
 void free_img_ip(struct img_ip *ip)
 {
-	probe_info_cleanup(ip->info);
-	probe_info_free(ip->info);
+	struct us_ip *p, *n;
+
+	list_for_each_entry_safe(p, n, &ip->ihead, img_list) {
+		list_del_init(&p->img_list);
+		p->iip = NULL;
+		list_del(&p->list);
+		probe_info_unregister(p->desc->type, p, 1);
+		free_ip(p);
+	}
+
 	kfree(ip);
 }
 
@@ -81,8 +85,8 @@ void free_img_ip(struct img_ip *ip)
 /* debug */
 void img_ip_print(struct img_ip *ip)
 {
-	if (ip->info->probe_type == SWAP_RETPROBE)
+	if (ip->desc.type == SWAP_RETPROBE)
 		printk(KERN_INFO "###            addr=8%lx, args=%s\n",
-		       ip->addr, ip->info->rp_i.args);
+		       ip->addr, ip->desc.info.rp_i.args);
 }
 /* debug */
