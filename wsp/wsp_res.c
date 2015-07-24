@@ -104,6 +104,8 @@ static void wsp_tdata_destroy(struct wsp_tdata *d)
 	list_for_each_entry_safe(res, n, &d->res_list, list)
 		wsp_tdata_del_res(res);
 	spin_unlock(&d->lock);
+
+	kfree(d);
 }
 
 static struct wsp_res *wsp_tdata_last_res(struct wsp_tdata *d)
