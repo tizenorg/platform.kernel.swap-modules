@@ -533,10 +533,8 @@ static int pack_status_info(void *data, size_t size, struct task_struct *task)
 	const size_t old_size = size;
 
 	files = swap_get_files_struct(task);
-	if (files == NULL) {
-		ret = -EIO;
-		goto put_fstruct;
-	}
+	if (files == NULL)
+		return -EIO;
 
 	/* pack pid */
 	*((u32 *)data) = (u32)task->tgid;
