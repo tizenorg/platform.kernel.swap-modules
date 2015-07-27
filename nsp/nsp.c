@@ -102,6 +102,17 @@ static struct dentry *lpad_dentry;
 static const char *libappcore_path;
 static struct dentry *libappcore_dentry;
 
+static void uninit_variables(void)
+{
+	kfree(lpad_path);
+	lpad_path = NULL;
+	lpad_dentry = NULL;
+
+	kfree(libappcore_path);
+	libappcore_path = NULL;
+	libappcore_dentry = NULL;
+}
+
 static bool is_init(void)
 {
 	return lpad_dentry && libappcore_dentry;
@@ -780,4 +791,6 @@ void nsp_exit(void)
 {
 	if (stat == NS_ON)
 		set_stat_off();
+
+	uninit_variables();
 }
