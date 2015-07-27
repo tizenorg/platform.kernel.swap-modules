@@ -41,7 +41,7 @@ struct us_priv {
 	unsigned long origin;
 };
 
-static int get_put_counter;
+static atomic_t dentry_balance = ATOMIC_INIT(0);
 
 enum preload_status_t {
 	SWAP_PRELOAD_NOT_READY = 0,
@@ -69,7 +69,7 @@ static inline struct process_data *__get_process_data(struct uretprobe *rp)
 
 static struct dentry *__get_dentry(struct dentry *dentry)
 {
-	get_put_counter++;
+	atomic_inc(&dentry_balance);
 	return dget(dentry);
 }
 
@@ -129,7 +129,7 @@ struct dentry *get_dentry(const char *filepath)
 
 void put_dentry(struct dentry *dentry)
 {
-	get_put_counter--;
+	atomic_dec(&dentry_balance);
 	dput(dentry);
 }
 
@@ -980,6 +980,8 @@ out_err:
 
 static void preload_module_exit(void)
 {
+	int balance;
+
 	us_manager_unreg_cb(__preload_cbs_start_h);
 	us_manager_unreg_cb(__preload_cbs_stop_h);
 	unregister_preload_probes();
@@ -990,7 +992,10 @@ static void preload_module_exit(void)
 	preload_storage_exit();
 	preload_debugfs_exit();
 
-	WARN(get_put_counter, "Bad GET/PUT balance: %d\n", get_put_counter);
+	balance = atomic_read(&dentry_balance);
+	atomic_set(&dentry_balance, 0);
+
+	WARN(balance, "Bad GET/PUT dentry balance: %d\n", balance);
 }
 
 SWAP_LIGHT_INIT_MODULE(NULL, preload_module_init, preload_module_exit,
