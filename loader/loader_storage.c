@@ -4,7 +4,7 @@
 #include <linux/fs.h>
 #include <linux/list.h>
 #include <ks_features/ks_map.h>
-#include "loader.h"
+#include "loader_defs.h"
 #include "loader_module.h"
 #include "loader_storage.h"
 

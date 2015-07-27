@@ -9,9 +9,10 @@
 #include <us_manager/us_manager_common.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include "loader_pd.h"
+#include "loader.h"
 #include "loader_debugfs.h"
 #include "loader_storage.h"
-#include "loader.h"
+#include "loader_defs.h"
 
 struct pd_t {
 	unsigned long loader_base;

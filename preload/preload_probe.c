@@ -198,6 +198,7 @@ int register_preload_probes(void)
 		return ret;
 
 	ret = swap_register_probe_type(SWAP_WRITE_MSG, &write_msg_iface);
+
 	return ret;
 }
 

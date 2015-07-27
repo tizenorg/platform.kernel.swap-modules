@@ -21,7 +21,6 @@ static const char PRELOAD_BINARIES_LIST[] = "bins_list";
 static const char PRELOAD_BINARIES_ADD[] = "bins_add";
 static const char PRELOAD_BINARIES_REMOVE[] = "bins_remove";
 
-
 static struct dentry *preload_root;
 static struct dentry *target_list = NULL;
 static struct dentry *target_add = NULL;

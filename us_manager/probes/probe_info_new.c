@@ -198,7 +198,7 @@ static void urp_init(struct sspt_ip *ip)
 	ip->retprobe.handler = urp_ret_handler;
 	ip->retprobe.maxactive = 0;
 	/* FIXME: make dynamic size field 'data_size' */
-	ip->retprobe.data_size = sizeof(void *);
+	ip->retprobe.data_size = 128;
 }
 
 static void urp_uninit(struct sspt_ip *ip)

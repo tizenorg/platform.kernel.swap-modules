@@ -8,7 +8,7 @@
 #include <linux/limits.h>
 #include <asm/uaccess.h>
 #include <master/swap_debugfs.h>
-#include "loader.h"
+#include "loader_defs.h"
 #include "loader_debugfs.h"
 #include "loader_module.h"
 #include "loader_control.h"

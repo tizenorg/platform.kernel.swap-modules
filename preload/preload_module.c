@@ -6,8 +6,7 @@
 #include <us_manager/sspt/sspt_ip.h>
 #include <us_manager/sspt/sspt_page.h>
 #include <us_manager/sspt/sspt_file.h>
-#include <loader/loader_pd.h>
-#include <loader/loader_module.h>
+#include <loader/loader.h>
 #include <master/swap_initializer.h>
 #include "preload.h"
 #include "preload_module.h"
@@ -192,10 +191,6 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 	if (hd == NULL)
 		goto out_set_orig;
 
-	if ((flags & HANDLER_RUNNING) ||
-		pt_check_disabled_probe(current, ip->orig_addr))
-		goto out_set_orig;
-
 	if (lpd_get_state(hd) == NOT_LOADED ||
 	    lpd_get_state(hd) == FAILED)
 		vaddr = loader_not_loaded_entry(ri, regs, pd, hd);
@@ -367,14 +362,6 @@ write_msg_fail:
 
 	return 0;
 }
-
-
-
-
-
-
-
-
 
 static int get_caller_handler(struct uprobe *p, struct pt_regs *regs)
 {

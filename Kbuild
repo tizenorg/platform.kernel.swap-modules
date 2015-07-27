@@ -23,4 +23,5 @@ obj-m := master/ \
          fbiprobe/ \
          wsp/ \
          nsp/ \
-         task_ctx/
+         task_ctx/ \
+         uihv/

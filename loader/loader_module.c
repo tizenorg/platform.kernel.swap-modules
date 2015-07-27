@@ -11,9 +11,10 @@
 #include <us_manager/callbacks.h>
 #include <writer/kernel_operations.h>
 #include <master/swap_initializer.h>
-#include "loader.h"
+#include "loader_defs.h"
 #include "loader_debugfs.h"
 #include "loader_module.h"
+#include "loader.h"
 #include "loader_storage.h"
 #include "loader_control.h"
 #include "loader_pd.h"

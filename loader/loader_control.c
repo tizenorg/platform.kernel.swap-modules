@@ -2,8 +2,7 @@
 #include <linux/spinlock.h>
 #include <linux/limits.h>
 #include <linux/list.h>
-
-#include "loader.h"
+#include "loader_defs.h"
 #include "loader_control.h"
 #include "loader_module.h"
 

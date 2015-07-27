@@ -59,6 +59,7 @@ install -m 666 retprobe/swap_retprobe.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 webprobe/swap_webprobe.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 loader/swap_loader.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 preload/swap_preload.ko -t %{buildroot}/opt/swap/sdk
+install -m 666 uihv/swap_uihv.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 fbiprobe/swap_fbiprobe.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 wsp/swap_wsp.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 nsp/swap_nsp.ko -t %{buildroot}/opt/swap/sdk
@@ -87,6 +88,7 @@ cp LICENSE.GPL-2.0+ %{buildroot}/usr/share/license/%{name}
 /opt/swap/sdk/swap_webprobe.ko
 /opt/swap/sdk/swap_loader.ko
 /opt/swap/sdk/swap_preload.ko
+/opt/swap/sdk/swap_uihv.ko
 /opt/swap/sdk/swap_fbiprobe.ko
 /opt/swap/sdk/swap_wsp.ko
 /opt/swap/sdk/swap_nsp.ko
