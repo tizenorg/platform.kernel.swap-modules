@@ -27,10 +27,11 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/namei.h>
-
+#include <linux/mman.h>
 #include "pf_group.h"
 #include "proc_filters.h"
 #include "../sspt/sspt_filter.h"
+#include "../us_manager_common.h"
 #include <us_manager/img/img_proc.h>
 #include <us_manager/img/img_file.h>
 #include <us_manager/img/img_ip.h>
@@ -173,6 +174,8 @@ static void msg_info(struct sspt_filter *f, void *data)
 
 static void first_install(struct task_struct *task, struct sspt_proc *proc)
 {
+	sspt_proc_priv_create(proc);
+
 	down_write(&task->mm->mmap_sem);
 	sspt_proc_on_each_filter(proc, msg_info, NULL);
 	sspt_proc_install(proc);

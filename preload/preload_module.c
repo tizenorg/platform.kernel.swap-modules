@@ -62,12 +62,10 @@ static int __preload_cbs_stop_h = -1;
 
 static inline struct process_data *__get_process_data(struct uretprobe *rp)
 {
-    struct process_data *pd;
-    struct us_ip *ip = to_us_ip(rp);
+	struct us_ip *ip = to_us_ip(rp);
+	struct sspt_proc *proc = ip_to_proc(ip);
 
-    pd = ip_to_proc(ip)->private_data;
-
-    return pd;
+	return preload_pd_get(proc);
 }
 
 static struct dentry *__get_dentry(struct dentry *dentry)
@@ -516,6 +514,7 @@ static int mmap_ret_handler(struct kretprobe_instance *ri,
 {
 	struct mmap_priv *priv = (struct mmap_priv *)ri->data;
 	struct task_struct *task = current->group_leader;
+	struct process_data *pd;
 	struct sspt_proc *proc;
 	unsigned long vaddr;
 
@@ -530,12 +529,19 @@ static int mmap_ret_handler(struct kretprobe_instance *ri,
 	if (!proc)
 		return 0;
 
+	pd = preload_pd_get(proc);
+	if (pd == NULL) {
+		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n",
+		       __LINE__, current->tgid, current->comm);
+		return 0;
+	}
+
 	switch (priv->type) {
 	case MMAP_LOADER:
-		preload_pd_set_loader_base(proc->private_data, vaddr);
+		preload_pd_set_loader_base(pd, vaddr);
 		break;
 	case MMAP_HANDLERS:
-		preload_pd_set_handlers_base(proc->private_data, vaddr);
+		preload_pd_set_handlers_base(pd, vaddr);
 		break;
 	case MMAP_SKIP:
 	default:
@@ -574,6 +580,7 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 	unsigned long flags = get_preload_flags(current);
 	unsigned long offset = ip->info->pl_i.handler;
 	unsigned long vaddr = 0;
+	unsigned long base;
 	char __user *path = NULL;
 
 	if ((flags & HANDLER_RUNNING) ||
@@ -586,8 +593,12 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 		if (!__should_we_preload_handlers(current, regs))
 			goto out_set_origin;
 
+		base = preload_pd_get_loader_base(pd);
+		if (base == 0)
+			break;	/* loader isn't mapped */
+
 		/* jump to loader code if ready */
-		vaddr = preload_pd_get_loader_base(pd) + preload_debugfs_get_loader_offset();
+		vaddr = base + preload_debugfs_get_loader_offset();
 		if (vaddr) {
 			/* save original regs state */
 			__save_uregs(ri, regs);
@@ -609,8 +620,12 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 		/* handlers have not yet been loaded... just ignore */
 		break;
 	case LOADED:
+		base = preload_pd_get_handlers_base(pd);
+		if (base == 0)
+			break;	/* handlers isn't mapped */
+
 		/* jump to preloaded handler */
-		vaddr = preload_pd_get_handlers_base(pd) + offset;
+		vaddr = base + offset;
 		if (vaddr) {
 			unsigned long disable_addr;
 			unsigned long caddr = get_regs_ret_func(regs);
@@ -860,14 +875,6 @@ void preload_module_write_msg_exit(struct us_ip *ip)
 int preload_module_uprobe_init(struct us_ip *ip)
 {
 	struct uretprobe *rp = &ip->retprobe;
-	struct sspt_proc *proc = page_to_proc(ip->page);
-	int ret;
-
-	if (proc->private_data == NULL) {
-		ret = preload_pd_create_pd(&(proc->private_data), proc->task);
-		if (ret != 0)
-			return ret;
-	}
 
 	rp->entry_handler = preload_us_entry;
 	rp->handler = preload_us_ret;
@@ -875,16 +882,11 @@ int preload_module_uprobe_init(struct us_ip *ip)
 	 * to dlopen */
 	rp->data_size = sizeof(struct us_priv);
 
-	preload_pd_inc_refs(proc->private_data);
-
 	return 0;
 }
 
 void preload_module_uprobe_exit(struct us_ip *ip)
 {
-	struct sspt_proc *proc = ip_to_proc(ip);
-
-	preload_pd_dec_refs(proc->private_data);
 }
 
 int preload_set(void)

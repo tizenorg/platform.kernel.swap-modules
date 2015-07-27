@@ -515,3 +515,29 @@ bool sspt_proc_is_send_event(struct sspt_proc *proc)
 
 	return is_send;
 }
+
+
+static struct sspt_proc_cb *proc_cb;
+
+int sspt_proc_cb_set(struct sspt_proc_cb *cb)
+{
+	if (cb && proc_cb)
+		return -EBUSY;
+
+	proc_cb = cb;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(sspt_proc_cb_set);
+
+void sspt_proc_priv_create(struct sspt_proc *proc)
+{
+	if (proc_cb && proc_cb->priv_create)
+		proc->private_data = proc_cb->priv_create(proc);
+}
+
+void sspt_proc_priv_destroy(struct sspt_proc *proc)
+{
+	if (proc->first_install && proc_cb && proc_cb->priv_destroy)
+		proc_cb->priv_destroy(proc, proc->private_data);
+}

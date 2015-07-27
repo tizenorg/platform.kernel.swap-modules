@@ -6,15 +6,14 @@
 #include <linux/mman.h>
 #include <linux/hardirq.h>
 #include <us_manager/us_manager_common.h>
+#include <us_manager/sspt/sspt_proc.h>
 #include "preload_pd.h"
 #include "preload_threads.h"
 #include "preload_debugfs.h"
 #include "preload_storage.h"
-#include "preload_patcher.h"
 #include "preload.h"
 
 struct process_data {
-    char is_mapped;
 	enum preload_state_t state;
 	unsigned long loader_base;
 	unsigned long handlers_base;
@@ -116,36 +115,6 @@ static inline void __set_refcount(struct process_data *pd, long refcount)
 
 
 
-static unsigned long __find_dentry_base(struct mm_struct *mm,
-					struct dentry *dentry)
-{
-	struct vm_area_struct *vma;
-
-	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if (check_vma(vma, dentry))
-			return vma->vm_start;
-	}
-
-	return 0;
-}
-
-static unsigned long find_dentry_base(struct task_struct *task,
-				      struct dentry *dentry)
-{
-	struct mm_struct *mm = task->mm;
-	unsigned long addr;
-
-#ifdef CONFIG_ARM
-	down_read(&mm->mmap_sem);
-#endif /* CONFIG_ARM */
-	addr = __find_dentry_base(mm, dentry);
-#ifdef CONFIG_ARM
-	up_read(&mm->mmap_sem);
-#endif /* CONFIG_ARM */
-
-	return addr;
-}
-
 static int __pd_create_on_demand(void)
 {
 	if (handlers_info == NULL) {
@@ -181,19 +150,13 @@ void preload_pd_set_state(struct process_data *pd, enum preload_state_t state)
 unsigned long preload_pd_get_loader_base(struct process_data *pd)
 {
 	if (pd == NULL)
-		return ERROR;
+		return 0;
 
 	return __get_loader_base(pd);
 }
 
 void preload_pd_set_loader_base(struct process_data *pd, unsigned long vaddr)
 {
-	if (pd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
-               current->tgid, current->comm);
-		return;
-	}
-
 	__set_loader_base(pd, vaddr);
 }
 
@@ -207,12 +170,6 @@ unsigned long preload_pd_get_handlers_base(struct process_data *pd)
 
 void preload_pd_set_handlers_base(struct process_data *pd, unsigned long vaddr)
 {
-	if (pd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
-               current->tgid, current->comm);
-		return;
-	}
-
 	__set_handlers_base(pd, vaddr);
 }
 
@@ -232,38 +189,9 @@ void preload_pd_put_path(struct process_data *pd)
 
 char __user *preload_pd_get_path(struct process_data *pd)
 {
-	/* This function should be called only for current */
+	char __user *path = __get_path(pd);
 
-	struct task_struct *task = current;
-	unsigned long page = 0;
-	int ret;
-
-	if (pd == NULL)
-		return NULL;
-
-	page = __get_data_page(pd);
-
-	if (page == 0)
-		return NULL;
-
-	if (pd->is_mapped == 1)
-		return __get_path(pd);
-
-	ret = preload_patcher_write_string((void *)page, handlers_info->path,
-					   strnlen(handlers_info->path, PATH_MAX),
-					   task);
-	if (ret <= 0) {
-		printk(KERN_ERR PRELOAD_PREFIX "Cannot copy string to user!\n");
-		goto get_path_failed;
-	}
-
-	pd->is_mapped = 1;
-
-	return __get_path(pd);
-
-get_path_failed:
-
-	return NULL;
+	return path;
 }
 
 
@@ -348,72 +276,107 @@ long preload_pd_get_refs(struct process_data *pd)
 	return __get_refcount(pd);
 }
 
-int preload_pd_create_pd(void **target_place, struct task_struct *task)
+struct process_data *preload_pd_get(struct sspt_proc *proc)
+{
+	return (struct process_data *)proc->private_data;
+}
+
+static unsigned long make_preload_path(void)
+{
+	unsigned long page = -EINVAL;
+
+	if (handlers_info) {
+		const char *path = handlers_info->path;
+		size_t len = strnlen(path, PATH_MAX);
+
+		down_write(&current->mm->mmap_sem);
+		page = swap_do_mmap(NULL, 0, PAGE_SIZE, PROT_READ,
+				    MAP_ANONYMOUS | MAP_PRIVATE, 0);
+		up_write(&current->mm->mmap_sem);
+
+		if (IS_ERR_VALUE(page)) {
+			printk(KERN_ERR PRELOAD_PREFIX
+			       "Cannot alloc page for %u\n", current->tgid);
+			goto out;
+		}
+
+		/* set preload_library path */
+		if (copy_to_user((void __user *)page, path, len) <= 0)
+			printk(KERN_ERR PRELOAD_PREFIX
+			       "Cannot copy string to user!\n");
+	}
+
+out:
+	return page;
+}
+
+static struct process_data *do_create_pd(struct task_struct *task)
 {
 	struct process_data *pd;
-	unsigned long page = 0;
-	unsigned long base;
-	struct dentry *dentry;
-	int ret = 0;
+	unsigned long page;
+	int ret;
 
 	ret = __pd_create_on_demand();
 	if (ret)
-		return ret;
+		goto create_pd_exit;
 
 	pd = kzalloc(sizeof(*pd), GFP_ATOMIC);
-	if (pd == NULL)
-		return -ENOMEM;
-
-	/* 1. check if loader is already mapped */
-	dentry = preload_debugfs_get_loader_dentry();
-	base = find_dentry_base(task, dentry);
-	if (base)
-		__set_loader_base(pd, base);
-
-	/* 2. check if handlers are already mapped */
-	base = find_dentry_base(task, handlers_info->dentry);
-	if (base) {
-		__set_handlers_base(pd, base);
-		__set_state(pd, LOADED);
-	}
-
-	/* 3. map page to store path */
-#ifdef CONFIG_ARM
-	down_write(&current->mm->mmap_sem);
-#endif
-
-	page = swap_do_mmap(NULL, 0, PAGE_SIZE, PROT_READ,
-			    MAP_ANONYMOUS | MAP_PRIVATE, 0);
-#ifdef CONFIG_ARM
-	up_write(&current->mm->mmap_sem);
-#endif
-	if (IS_ERR((void *)page)) {
-		printk(KERN_ERR PRELOAD_PREFIX "Cannot alloc page for %u\n", task->tgid);
+	if (pd == NULL) {
 		ret = -ENOMEM;
 		goto create_pd_exit;
 	}
 
-	pd->is_mapped = 0;
+	page = make_preload_path();
+	if (IS_ERR_VALUE(page)) {
+		ret = (long)page;
+		goto free_pd;
+	}
 
 	__set_data_page(pd, page);
 	__set_attempts(pd, PRELOAD_MAX_ATTEMPTS);
 
-	*target_place = pd;
+	return pd;
 
-	return ret;
+free_pd:
+	kfree(pd);
 
 create_pd_exit:
-	kfree(pd);
-	return ret;
+	printk(KERN_ERR PRELOAD_PREFIX "do_pd_create_pd: error=%d\n", ret);
+	return NULL;
 }
+
+static void *pd_create(struct sspt_proc *proc)
+{
+	struct process_data *pd;
+
+	pd = do_create_pd(proc->task);
+
+	return (void *)pd;
+}
+
+static void pd_destroy(struct sspt_proc *proc, void *data)
+{
+	/* FIXME: to be implemented */
+}
+
+struct sspt_proc_cb pd_cb = {
+	.priv_create = pd_create,
+	.priv_destroy = pd_destroy
+};
 
 int preload_pd_init(void)
 {
-	return 0;
+	int ret;
+
+	ret = sspt_proc_cb_set(&pd_cb);
+
+	return ret;
 }
 
 void preload_pd_uninit(void)
 {
+	sspt_proc_cb_set(NULL);
+
 	if (handlers_info)
 		preload_storage_put_handlers_info(handlers_info);
 	handlers_info = NULL;

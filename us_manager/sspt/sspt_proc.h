@@ -52,9 +52,15 @@ struct sspt_proc {
 	struct list_head filter_list;	/**< Filter list */
 	unsigned first_install:1;	/**< Install flag */
 	struct sspt_feature *feature;	/**< Ptr to the feature */
+
+	/* FIXME: for preload (remove those fields) */
 	void *private_data;		/**< Process private data */
 };
 
+struct sspt_proc_cb {
+	void *(*priv_create)(struct sspt_proc *);
+	void (*priv_destroy)(struct sspt_proc *, void *);
+};
 
 struct sspt_proc *sspt_proc_create(struct task_struct *task);
 void sspt_proc_free(struct sspt_proc *proc);
@@ -100,5 +106,9 @@ void sspt_proc_on_each_filter(struct sspt_proc *proc,
 			      void *data);
 
 bool sspt_proc_is_send_event(struct sspt_proc *proc);
+
+int sspt_proc_cb_set(struct sspt_proc_cb *cb);
+void sspt_proc_priv_create(struct sspt_proc *proc);
+void sspt_proc_priv_destroy(struct sspt_proc *proc);
 
 #endif /* __SSPT_PROC__ */
