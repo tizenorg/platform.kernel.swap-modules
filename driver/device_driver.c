@@ -99,7 +99,7 @@ static msg_handler_t msg_handler;
 static dev_t swap_device_no;
 
 /* Device cdev struct */
-static struct cdev *swap_device_cdev;
+static struct cdev swap_device_cdev;
 
 /* Device class struct */
 static struct class *swap_device_class;
@@ -183,19 +183,11 @@ int swap_device_init(void)
 		goto init_fail;
 	}
 
-	/* Cdev allocation */
-	swap_device_cdev = cdev_alloc();
-	if (!swap_device_cdev) {
-		print_crit("Cdev structure allocation has failed\n");
-		result = -E_SD_CDEV_ALLOC_FAIL;
-		goto init_fail;
-	}
-
 	/* Cdev intialization and setting file operations */
-	cdev_init(swap_device_cdev, &swap_device_fops);
+	cdev_init(&swap_device_cdev, &swap_device_fops);
 
 	/* Adding cdev to system */
-	result = cdev_add(swap_device_cdev, swap_device_no, 1);
+	result = cdev_add(&swap_device_cdev, swap_device_no, 1);
 	if (result < 0) {
 		print_crit("Device adding has failed\n");
 		result = -E_SD_CDEV_ADD_FAIL;
@@ -230,8 +222,7 @@ int swap_device_init(void)
 	return 0;
 
 init_fail:
-	if (swap_device_cdev)
-		cdev_del(swap_device_cdev);
+	cdev_del(&swap_device_cdev);
 	if (swap_device_class)
 		class_destroy(swap_device_class);
 	if (swap_device_no)
@@ -254,7 +245,7 @@ void swap_device_exit(void)
 	splice_grow_spd_p = NULL;
 
 	device_destroy(swap_device_class, swap_device_no);
-	cdev_del(swap_device_cdev);
+	cdev_del(&swap_device_cdev);
 	class_destroy(swap_device_class);
 	unregister_chrdev_region(swap_device_no, 1);
 }
