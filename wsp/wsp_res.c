@@ -22,6 +22,7 @@
 
 #include <linux/slab.h>
 #include <linux/atomic.h>
+#include <kprobe/swap_kprobes_deps.h>
 #include "wsp_res.h"
 
 static atomic_t wsp_res_count;

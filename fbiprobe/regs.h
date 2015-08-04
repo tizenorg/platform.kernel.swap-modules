@@ -36,7 +36,7 @@
 #ifndef __REGS_H__
 #define __REGS_H__
 
-#include <uapi/asm/ptrace.h>
+#include <linux/ptrace.h>
 
 #include "fbi_probe_module.h"
 /* This function is used to compare register number and its name on x86 arch.

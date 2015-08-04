@@ -21,6 +21,7 @@
 
 
 #include <linux/sched.h>
+#include <linux/module.h>
 #include <writer/swap_msg.h>
 #include <writer/kernel_operations.h>
 #include "rp_msg.h"

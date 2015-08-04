@@ -55,6 +55,10 @@
 	hlist_for_each_entry_safe(tpos, pos, n, head, member)
 #define swap_hlist_for_each_entry(tpos, pos, head, member) \
 	hlist_for_each_entry(tpos, pos, head, member)
+
+#define list_first_entry_or_null(ptr, type, member) \
+	(!list_empty(ptr) ? list_first_entry(ptr, type, member) : NULL)
+
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12))
