@@ -210,6 +210,15 @@ static bool __is_instrumented(void *caller)
 }
 
 
+/* Called only form handlers. If we're there, then it is instrumented. */
+enum preload_call_type preload_control_call_type_always_inst(void *caller)
+{
+	if (__is_instrumented(caller))
+		return INTERNAL_CALL;
+
+	return EXTERNAL_CALL;
+
+}
 
 enum preload_call_type preload_control_call_type(struct us_ip *ip, void *caller)
 {

@@ -425,24 +425,30 @@ static bool __should_we_preload_handlers(struct task_struct *task,
 
 static inline void __write_data_to_msg(char *msg, size_t len,
 				       unsigned long call_type_off,
-				       unsigned long caller_off)
+				       unsigned long caller_off,
+				       unsigned long caller_addr)
 {
 	unsigned char call_type = 0;
 	unsigned long caller = 0;
 	int ret;
 
-	ret = preload_threads_get_caller(current, &caller);
-	if (ret != 0) {
-		caller = 0xbadbeef;
-		printk(PRELOAD_PREFIX "Error! Cannot get caller address for %d/%d\n",
-		       current->tgid, current->pid);
-	}
+	if (caller_addr != 0) {
+		caller = caller_addr;
+		call_type = preload_control_call_type_always_inst((void *)caller);
+	} else {
+		ret = preload_threads_get_caller(current, &caller);
+		if (ret != 0) {
+			caller = 0xbadbeef;
+			printk(PRELOAD_PREFIX "Error! Cannot get caller address for %d/%d\n",
+			       current->tgid, current->pid);
+		}
 
-	ret = preload_threads_get_call_type(current, &call_type);
-	if (ret != 0) {
-		call_type = 0xff;
-		printk(PRELOAD_PREFIX "Error! Cannot get call type for %d/%d\n",
-		       current->tgid, current->pid);
+		ret = preload_threads_get_call_type(current, &call_type);
+		if (ret != 0) {
+			call_type = 0xff;
+			printk(PRELOAD_PREFIX "Error! Cannot get call type for %d/%d\n",
+			       current->tgid, current->pid);
+		}
 	}
 
 	/* Using the same types as in the library. */
@@ -775,7 +781,7 @@ static int write_msg_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 
 	ret = preload_threads_get_drop(current, &drop);
-	if (ret != 0 || drop)
+	if (ret == 0 && drop)
 		return 0;
 
 	buf = kmalloc(len, GFP_KERNEL);
@@ -796,11 +802,7 @@ static int write_msg_handler(struct kprobe *p, struct pt_regs *regs)
 	call_type_offset = (unsigned long)(call_type_p - user_buf);
 	caller_offset = (unsigned long)(caller_p - user_buf);
 
-	__write_data_to_msg(buf, len, call_type_offset, caller_offset);
-
-	/* FIXME refactor this hack for opengl tizen probes */
-	if (caller_addr)
-		*(uintptr_t *)(buf + caller_offset) = (uintptr_t)caller_addr;
+	__write_data_to_msg(buf, len, call_type_offset, caller_offset, caller_addr);
 
 	ret = swap_msg_raw(buf, len);
 	if (ret != len)
