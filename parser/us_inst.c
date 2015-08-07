@@ -132,9 +132,11 @@ void pfg_put_all(void)
 	spin_unlock(&pfg_item_lock);
 
 	list_for_each_entry_safe(item, n, &tmp_list, list) {
+		struct pf_group *pfg = item->pfg;
+
 		list_del(&item->list);
-		put_pf_group(item->pfg);
 		pfg_item_free(item);
+		put_pf_group(pfg);
 	}
 }
 

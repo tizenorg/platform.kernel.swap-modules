@@ -6,6 +6,7 @@
 #include <kprobe/swap_kprobes.h>
 #include <ksyms/ksyms.h>
 #include <master/swap_initializer.h>
+#include <us_manager/callbacks.h>
 #include "task_data.h"
 
 /* lower bits are used as flags */
@@ -25,6 +26,9 @@ struct task_data {
 
 #define get_magic(td) ((td)->magic & TD_MAGIC_MASK)
 #define get_flags(td) ((td)->magic & TD_FLAGS_MASK)
+
+static int __task_data_cbs_start_h = -1;
+static int __task_data_cbs_stop_h = -1;
 
 static inline struct task_data *__td(struct task_struct *task)
 {
@@ -167,7 +171,7 @@ static int __task_data_exit(void *data)
 	return 0;
 }
 
-static int task_data_init(void)
+static void task_data_start(void)
 {
 	int ret;
 
@@ -175,11 +179,9 @@ static int task_data_init(void)
 	ret = stop_machine(__task_data_init, NULL, NULL);
 	if (ret)
 		printk(TD_PREFIX "task data initialization failed: %d\n", ret);
-
-	return ret;
 }
 
-static void task_data_exit(void)
+static void task_data_stop(void)
 {
 	int ret;
 
@@ -192,6 +194,36 @@ static void task_data_exit(void)
 		swap_unregister_kprobe(&do_exit_probe);
 		swap_unregister_kretprobe(&copy_process_rp);
 	}
+}
+
+static int task_data_init(void)
+{
+	int ret = 0;
+
+	__task_data_cbs_start_h = us_manager_reg_cb(START_CB, task_data_start);
+
+	if (__task_data_cbs_start_h < 0) {
+		ret = __task_data_cbs_start_h;
+		printk(KERN_ERR TD_PREFIX "start_cb registration failed\n");
+		goto out;
+	}
+
+	__task_data_cbs_stop_h = us_manager_reg_cb(STOP_CB, task_data_stop);
+
+	if (__task_data_cbs_stop_h < 0) {
+		ret = __task_data_cbs_stop_h;
+		us_manager_unreg_cb(__task_data_cbs_start_h);
+		printk(KERN_ERR TD_PREFIX "stop_cb registration failed\n");
+	}
+
+out:
+	return ret;
+}
+
+static void task_data_exit(void)
+{
+	us_manager_unreg_cb(__task_data_cbs_start_h);
+	us_manager_unreg_cb(__task_data_cbs_stop_h);
 }
 
 SWAP_LIGHT_INIT_MODULE(NULL, task_data_init, task_data_exit, NULL, NULL);

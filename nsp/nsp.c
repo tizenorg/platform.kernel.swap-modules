@@ -55,8 +55,9 @@ static struct probe_new p_dlsym = {
 };
 
 /* main */
-static int main_h(struct kprobe *p, struct pt_regs *regs);
-static struct probe_info_new pin_main = MAKE_UPROBE(main_h);
+static int main_eh(struct uretprobe_instance *ri, struct pt_regs *regs);
+static int main_rh(struct uretprobe_instance *ri, struct pt_regs *regs);
+static struct probe_info_new pin_main = MAKE_URPROBE(main_eh, main_rh, 0);
 
 /* appcore_efl_main */
 static int ac_efl_main_h(struct kprobe *p, struct pt_regs *regs);
@@ -100,6 +101,17 @@ static struct dentry *lpad_dentry;
 
 static const char *libappcore_path;
 static struct dentry *libappcore_dentry;
+
+static void uninit_variables(void)
+{
+	kfree(lpad_path);
+	lpad_path = NULL;
+	lpad_dentry = NULL;
+
+	kfree(libappcore_path);
+	libappcore_path = NULL;
+	libappcore_dentry = NULL;
+}
 
 static bool is_init(void)
 {
@@ -313,7 +325,7 @@ static void nsp_data_uninst(struct nsp_data *data)
 {
 	struct pf_group *pfg = data->pfg;
 
-	pin_register(&p_do_app, pfg, libappcore_dentry);
+	pin_unregister(&p_do_app, pfg, libappcore_dentry);
 	pin_unregister(&p_elm_run, pfg, libappcore_dentry);
 	pin_unregister(&p_ac_init, pfg, libappcore_dentry);
 	pin_unregister(&p_ac_efl_main, pfg, libappcore_dentry);
@@ -687,6 +699,50 @@ static int main_h(struct kprobe *p, struct pt_regs *regs)
 	return 0;
 }
 
+/* FIXME: workaround for simultaneously nsp and main() function profiling */
+#include <retprobe/rp_msg.h>
+#include <us_manager/us_manager.h>
+
+static int main_eh(struct uretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct uretprobe *rp = ri->rp;
+
+	if (rp) {
+		main_h(&rp->up.kp, regs);
+
+		if (get_quiet() == QT_OFF) {
+			struct us_ip *ip;
+			unsigned long func_addr;
+
+			ip = container_of(rp, struct us_ip, retprobe);
+			func_addr = (unsigned long)ip->orig_addr;
+			rp_msg_entry(regs, func_addr, "p");
+		}
+	}
+
+	return 0;
+}
+
+static int main_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct uretprobe *rp = ri->rp;
+
+	if (rp && get_quiet() == QT_OFF) {
+		struct us_ip *ip;
+		char ret_type;
+		unsigned long func_addr;
+		unsigned long ret_addr;
+
+		ip = container_of(rp, struct us_ip, retprobe);
+		func_addr = (unsigned long)ip->orig_addr;
+		ret_addr = (unsigned long)ri->ret_addr;
+		ret_type = ip->info->rp_i.ret_type;
+		rp_msg_exit(regs, func_addr, 'n', ret_addr);
+	}
+
+	return 0;
+}
+
 static int ac_efl_main_h(struct kprobe *p, struct pt_regs *regs)
 {
 	stage_end(NPS_MAIN_E, NPS_AC_EFL_MAIN_E, NMS_MAIN);
@@ -735,4 +791,6 @@ void nsp_exit(void)
 {
 	if (stat == NS_ON)
 		set_stat_off();
+
+	uninit_variables();
 }

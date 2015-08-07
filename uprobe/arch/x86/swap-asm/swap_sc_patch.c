@@ -70,6 +70,12 @@ void patch_syscall(int syscall_n, unsigned long new_syscall_addr)
 
 void swap_depatch_syscall(void)
 {
+	if (patched_syscall == -1) {
+		printk(KERN_WARNING
+		       "SWAP SC_PATCH: there is no patched syscalls");
+		return;
+	}
+
 	patch_syscall(patched_syscall, original_syscall);
 	patched_syscall = -1;
 }

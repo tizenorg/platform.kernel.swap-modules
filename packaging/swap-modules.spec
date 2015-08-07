@@ -1,7 +1,7 @@
 Name: swap-modules
 Version: 3.0
 Release: 1
-License: GPL
+License: GPL-2.0+
 Summary: Linux profiler
 Group: System Environment/Kernel
 Vendor: Samsung
@@ -51,7 +51,11 @@ install -m 666 fbiprobe/swap_fbiprobe.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 wsp/swap_wsp.ko -t %{buildroot}/opt/swap/sdk
 install -m 666 nsp/swap_nsp.ko -t %{buildroot}/opt/swap/sdk
 
+mkdir -p %{buildroot}/usr/share/license
+cp LICENSE.GPL-2.0+ %{buildroot}/usr/share/license/%{name}
+
 %files
+/usr/share/license/%{name}
 %defattr(-,root,root)
 /opt/swap/sdk/swap_master.ko
 /opt/swap/sdk/swap_buffer.ko

@@ -150,7 +150,7 @@ static struct file_probe fprobes[] = {
 
 #define X(_name, _args) \
 	[id_##_name] = __FILE_PROBE_INITIALIZER(_name, _args, FOPS_OTHER, \
-						struct file_private, \
+						struct flock_private, \
 						lock_entry_handler, \
 						lock_ret_handler)
 	FILE_OPS_LOCK_LIST

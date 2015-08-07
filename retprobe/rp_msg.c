@@ -21,6 +21,7 @@
 
 
 #include <linux/sched.h>
+#include <linux/module.h>
 #include <writer/swap_msg.h>
 #include <writer/kernel_operations.h>
 #include "rp_msg.h"
@@ -83,6 +84,7 @@ void rp_msg_entry(struct pt_regs *regs, unsigned long func_addr,
 put_msg:
 	swap_msg_put(m);
 }
+EXPORT_SYMBOL_GPL(rp_msg_entry);
 
 void rp_msg_exit(struct pt_regs *regs, unsigned long func_addr,
 		 char ret_type, unsigned long ret_addr)
@@ -117,3 +119,4 @@ void rp_msg_exit(struct pt_regs *regs, unsigned long func_addr,
 put_msg:
 	swap_msg_put(m);
 }
+EXPORT_SYMBOL_GPL(rp_msg_exit);

@@ -31,6 +31,7 @@
 
 
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
 #include <us_manager/probes/probes.h>
 #include "msg_parser.h"
 #include "msg_buf.h"
@@ -747,19 +748,23 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 		goto free_path;
 	}
 
-	li->func = kmalloc(sizeof(struct func_inst_data *) * cnt, GFP_KERNEL);
-	if (li->func == NULL) {
+	if (cnt) {
+		li->func = vmalloc(sizeof(*li->func) * cnt);
+		if (li->func == NULL) {
 			print_err("out of memory\n");
 			goto free_li;
 		}
 
-	for (i = 0; i < cnt; ++i) {
-		print_parse_debug("func #%d:\n", i + 1);
-		fi = create_func_inst_data(mb);
-		if (fi == NULL)
-			goto free_func;
+		for (i = 0; i < cnt; ++i) {
+			print_parse_debug("func #%d:\n", i + 1);
+			fi = create_func_inst_data(mb);
+			if (fi == NULL)
+				goto free_func;
 
-		li->func[i] = fi;
+			li->func[i] = fi;
+		}
+	} else {
+		li->func = NULL;
 	}
 
 	li->path = path;
@@ -770,7 +775,7 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 free_func:
 	for (j = 0; j < i; ++j)
 		destroy_func_inst_data(li->func[j]);
-	kfree(li->func);
+	vfree(li->func);
 
 free_li:
 	kfree(li);
@@ -796,7 +801,7 @@ void destroy_lib_inst_data(struct lib_inst_data *li)
 	for (i = 0; i < li->cnt_func; ++i)
 		destroy_func_inst_data(li->func[i]);
 
-	kfree(li->func);
+	vfree(li->func);
 	kfree(li);
 }
 
@@ -845,20 +850,23 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 		goto free_app_info;
 	}
 
-	app_inst->func = kmalloc(sizeof(struct func_inst_data *) * cnt_func,
-				 GFP_KERNEL);
-	if (app_inst->func == NULL) {
-		print_err("out of memory\n");
-		goto free_app_inst;
-	}
+	if (cnt_func) {
+		app_inst->func = vmalloc(sizeof(*app_inst->func) * cnt_func);
+		if (app_inst->func == NULL) {
+			print_err("out of memory\n");
+			goto free_app_inst;
+		}
 
-	for (i_func = 0; i_func < cnt_func; ++i_func) {
-		print_parse_debug("func #%d:\n", i_func + 1);
-		func = create_func_inst_data(mb);
-		if (func == NULL)
-			goto free_func;
+		for (i_func = 0; i_func < cnt_func; ++i_func) {
+			print_parse_debug("func #%d:\n", i_func + 1);
+			func = create_func_inst_data(mb);
+			if (func == NULL)
+				goto free_func;
 
-		app_inst->func[i_func] = func;
+			app_inst->func[i_func] = func;
+		}
+	} else {
+		app_inst->func = NULL;
 	}
 
 	print_parse_debug("lib count:");
@@ -872,20 +880,23 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 		goto free_func;
 	}
 
-	app_inst->lib = kmalloc(sizeof(struct lib_inst_data *) * cnt_lib,
-				GFP_KERNEL);
-	if (app_inst->lib == NULL) {
-		print_err("out of memory\n");
-		goto free_func;
-	}
+	if (cnt_lib) {
+		app_inst->lib = vmalloc(sizeof(*app_inst->lib) * cnt_lib);
+		if (app_inst->lib == NULL) {
+			print_err("out of memory\n");
+			goto free_func;
+		}
 
-	for (i_lib = 0; i_lib < cnt_lib; ++i_lib) {
-		print_parse_debug("lib #%d:\n", i_lib + 1);
-		lib = create_lib_inst_data(mb);
-		if (lib == NULL)
-			goto free_lib;
+		for (i_lib = 0; i_lib < cnt_lib; ++i_lib) {
+			print_parse_debug("lib #%d:\n", i_lib + 1);
+			lib = create_lib_inst_data(mb);
+			if (lib == NULL)
+				goto free_lib;
 
-		app_inst->lib[i_lib] = lib;
+			app_inst->lib[i_lib] = lib;
+		}
+	} else {
+		app_inst->lib = NULL;
 	}
 
 	app_inst->app_info = app_info;
@@ -897,12 +908,12 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 free_lib:
 	for (i = 0; i < i_lib; ++i)
 		destroy_lib_inst_data(app_inst->lib[i]);
-	kfree(app_inst->lib);
+	vfree(app_inst->lib);
 
 free_func:
 	for (i = 0; i < i_func; ++i)
 		destroy_func_inst_data(app_inst->func[i]);
-	kfree(app_inst->func);
+	vfree(app_inst->func);
 
 free_app_inst:
 	kfree(app_inst);
@@ -925,11 +936,11 @@ void destroy_app_inst_data(struct app_inst_data *ai)
 
 	for (i = 0; i < ai->cnt_lib; ++i)
 		destroy_lib_inst_data(ai->lib[i]);
-	kfree(ai->lib);
+	vfree(ai->lib);
 
 	for (i = 0; i < ai->cnt_func; ++i)
 		destroy_func_inst_data(ai->func[i]);
-	kfree(ai->func);
+	vfree(ai->func);
 
 	destroy_app_info(ai->app_info);
 	kfree(ai);

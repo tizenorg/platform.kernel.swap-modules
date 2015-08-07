@@ -25,6 +25,8 @@
 #include <linux/ctype.h>
 #include <linux/errno.h>
 #include <linux/atomic.h>
+#include <linux/module.h>
+#include <kprobe/swap_kprobes.h>
 #include <buffer/swap_buffer_module.h>
 #include <swap-asm/swap_kprobes.h>
 #include <swap-asm/swap_uprobes.h>

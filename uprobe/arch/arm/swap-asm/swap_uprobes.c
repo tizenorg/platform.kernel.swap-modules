@@ -625,7 +625,7 @@ int arch_prepare_uprobe(struct uprobe *up)
 	}
 
 	if (!read_proc_vm_atomic(task, vaddr, &insn, sizeof(insn))) {
-		printk("failed to read memory %lx!\n", vaddr);
+		printk(KERN_ERR "failed to read memory %lx!\n", vaddr);
 		return -EINVAL;
 	}
 
@@ -913,7 +913,7 @@ static int make_trampoline(struct uprobe *up, struct pt_regs *regs)
 
 	if (!write_proc_vm_atomic(up->task, (unsigned long)utramp, tramp,
 				  UPROBES_TRAMP_LEN * sizeof(*tramp))) {
-		printk("failed to write memory %p!\n", utramp);
+		printk(KERN_ERR "failed to write memory %p!\n", utramp);
 		return -EINVAL;
 	}
 

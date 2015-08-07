@@ -3,6 +3,10 @@
 
 struct task_struct;
 
+unsigned long get_preload_flags(struct task_struct *task);
+void set_preload_flags(struct task_struct *task,
+		       unsigned long flags);
+
 int preload_threads_set_data(struct task_struct *task, unsigned long caller,
 			     unsigned char call_type,
 			     unsigned long disable_addr, bool drop);
