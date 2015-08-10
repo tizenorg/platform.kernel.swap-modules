@@ -923,46 +923,51 @@ static int make_trampoline(struct uprobe *up, struct pt_regs *regs)
 	return 0;
 }
 
-static int uprobe_handler(struct pt_regs *regs)
+static int urp_handler(struct pt_regs *regs, pid_t tgid)
 {
-	kprobe_opcode_t *addr = (kprobe_opcode_t *)(regs->ARM_pc);
-	struct task_struct *task = current;
-	pid_t tgid = task->tgid;
 	struct kprobe *p;
+	unsigned long vaddr = regs->ARM_pc;
+	unsigned long offset_bp = thumb_mode(regs) ?
+				  0x1a :
+				  4 * UPROBES_TRAMP_RET_BREAK_IDX;
+	unsigned long tramp_addr = vaddr - offset_bp;
 
-	p = get_ukprobe(addr, tgid);
+	p = get_ukprobe_by_insn_slot((void *)tramp_addr, tgid, regs);
 	if (p == NULL) {
-		unsigned long offset_bp = thumb_mode(regs) ?
-					  0x1a :
-					  4 * UPROBES_TRAMP_RET_BREAK_IDX;
-		void *tramp_addr = (void *)addr - offset_bp;
-
-		p = get_ukprobe_by_insn_slot(tramp_addr, tgid, regs);
-		if (p == NULL) {
-			printk(KERN_INFO "no_uprobe: Not one of ours: let "
-			       "kernel handle it %p\n", addr);
-			return 1;
-		}
-
-		trampoline_uprobe_handler(p, regs);
-	} else {
-		if (p->ainsn.insn == NULL) {
-			struct uprobe *up = kp2up(p);
-
-			if (make_trampoline(up, regs)) {
-				printk(KERN_INFO "no_uprobe live\n");
-				return 0;
-			}
-
-			/* for uretprobe */
-			add_uprobe_table(p);
-		}
-
-		if (!p->pre_handler || !p->pre_handler(p, regs))
-			prepare_singlestep(p, regs);
+		printk(KERN_INFO
+		       "no_uprobe: Not one of ours: let kernel handle it %lx\n",
+		       vaddr);
+		return 1;
 	}
 
+	trampoline_uprobe_handler(p, regs);
+
 	return 0;
+}
+
+
+static int make_insn(struct kprobe *p, struct pt_regs *regs)
+{
+	int ret = 1;
+	struct uprobe *up = kp2up(p);
+
+	down_write(&current->mm->mmap_sem);
+	/* check on race condition */
+	if (p->ainsn.insn)
+		goto mm_up;
+
+	if (make_trampoline(up, regs)) {
+		printk(KERN_INFO "no_uprobe live\n");
+		ret = 0;
+		goto mm_up;
+	}
+
+	/* for uretprobe */
+	add_uprobe_table(p);
+
+mm_up:
+	up_write(&current->mm->mmap_sem);
+	return ret;
 }
 
 /**
@@ -974,15 +979,37 @@ static int uprobe_handler(struct pt_regs *regs)
  */
 int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 {
-	int ret;
+	int ret = 0;
+	struct kprobe *p;
 	unsigned long flags;
+	unsigned long vaddr = regs->ARM_pc;
+	pid_t tgid = current->tgid;
+
 	local_irq_save(flags);
-
 	preempt_disable();
-	ret = uprobe_handler(regs);
-	swap_preempt_enable_no_resched();
 
+	p = get_ukprobe((kprobe_opcode_t *)vaddr, tgid);
+	if (p) {
+		if (p->ainsn.insn == NULL) {
+			swap_preempt_enable_no_resched();
+			local_irq_restore(flags);
+
+			if (make_insn(p, regs) == 0)
+				return 0;
+
+			local_irq_save(flags);
+			preempt_disable();
+		}
+
+		if (!p->pre_handler || !p->pre_handler(p, regs))
+			prepare_singlestep(p, regs);
+	} else {
+		ret = urp_handler(regs, tgid);
+	}
+
+	swap_preempt_enable_no_resched();
 	local_irq_restore(flags);
+
 	return ret;
 }
 
