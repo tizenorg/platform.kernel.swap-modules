@@ -437,32 +437,6 @@ static void prepare_ss(struct pt_regs *regs)
 	regs->flags &= ~IF_MASK;
 }
 
-/**
- * @brief Prepares singlestep for current CPU.
- *
- * @param p Pointer to uprobe.
- * @param regs Pointer to CPU registers data.
- * @return Void.
- */
-static void uprobe_prepare_singlestep(struct uprobe *p, struct pt_regs *regs)
-{
-	int cpu = smp_processor_id();
-
-	if (p->ss_addr[cpu]) {
-		regs->EREG(ip) = (unsigned long)p->ss_addr[cpu];
-		p->ss_addr[cpu] = NULL;
-	} else {
-		regs->EREG(flags) |= TF_MASK;
-		regs->EREG(flags) &= ~IF_MASK;
-		/* single step inline if the instruction is an int3 */
-		if (p->opcode == BREAKPOINT_INSTRUCTION) {
-			regs->EREG(ip) = (unsigned long) p->addr;
-			/* printk(KERN_INFO "break_insn!!!\n"); */
-		} else
-			regs->EREG(ip) = (unsigned long) p->ainsn.insn;
-	}
-}
-
 static int uprobe_handler(struct pt_regs *regs)
 {
 	struct uprobe *p;
@@ -497,8 +471,6 @@ static int uprobe_handler(struct pt_regs *regs)
 				set_current_probe(p);
 				prepare_ss(regs);
 			}
-
-			uprobe_prepare_singlestep(p, regs);
 		}
 	}
 
