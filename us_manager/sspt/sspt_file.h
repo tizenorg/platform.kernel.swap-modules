@@ -56,6 +56,9 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
 void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
 		      struct probe_info *probe_i);
 
+void sspt_file_on_each_ip(struct sspt_file *file,
+			  void (*func)(struct us_ip *, void *), void *data);
+
 struct sspt_page *sspt_get_page(struct sspt_file *file,
 				unsigned long offset_addr);
 void sspt_put_page(struct sspt_page *page);

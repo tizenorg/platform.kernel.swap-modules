@@ -178,27 +178,87 @@ static void unregister_ctx_task(void)
  *                              copy_process()                                *
  ******************************************************************************
  */
-static atomic_t copy_process_cnt = ATOMIC_INIT(0);
-
-static void recover_child(struct task_struct *child_task,
-			  struct sspt_proc *proc)
+static void func_uinst_creare(struct us_ip *ip, void *data)
 {
-	sspt_proc_uninstall(proc, child_task, US_DISARM);
-	swap_disarm_urp_inst_for_task(current, child_task);
+	struct hlist_head *head = (struct hlist_head *)data;
+	struct uprobe *up;
+
+	up = probe_info_get_uprobe(ip->info, ip);
+	if (up) {
+		struct uinst_info *uinst;
+		unsigned long vaddr = (unsigned long)up->kp.addr;
+
+		uinst = uinst_info_create(vaddr, up->kp.opcode);
+		if (uinst)
+			hlist_add_head(&uinst->hlist, head);
+	}
 }
 
-static void rm_uprobes_child(struct task_struct *task)
+static void disarm_for_task(struct task_struct *child, struct hlist_head *head)
 {
+	struct uinst_info *uinst;
+	struct hlist_node *tmp;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
+
+	swap_hlist_for_each_entry_safe(uinst, node, tmp, head, hlist) {
+		uinst_info_disarm(uinst, child);
+		hlist_del(&uinst->hlist);
+		uinst_info_destroy(uinst);
+	}
+}
+
+struct clean_data {
+	struct task_struct *task;
+
+	struct hlist_head head;
+	struct hlist_head rhead;
+};
+
+/* FIXME: sync with stop */
+static unsigned long cb_clean_child(void *data)
+{
+	struct clean_data *cdata = (struct clean_data *)data;
+	struct task_struct *child = cdata->task;
+
+	/* disarm up for child */
+	disarm_for_task(child, &cdata->head);
+
+	/* disarm urp for child */
+	urinst_info_put_current_hlist(&cdata->rhead, child);
+
+	return 0;
+}
+
+static void rm_uprobes_child(struct kretprobe_instance *ri,
+			     struct pt_regs *regs, struct task_struct *child)
+{
+	int ret;
 	struct sspt_proc *proc;
+	struct clean_data cdata = {
+		.task = child,
+		.head = HLIST_HEAD_INIT,
+		.rhead = HLIST_HEAD_INIT
+	};
 
 	sspt_proc_write_lock();
 
 	proc = sspt_proc_get_by_task(current);
-	if (proc)
-		recover_child(task, proc);
+	if (proc) {
+		sspt_proc_on_each_ip(proc, func_uinst_creare, (void *)&cdata.head);
+		urinst_info_get_current_hlist(&cdata.rhead);
+	}
 
 	sspt_proc_write_unlock();
+
+	/* set jumper */
+	ret = set_jump_cb((unsigned long)ri->ret_addr, regs, cb_clean_child,
+			  &cdata, sizeof(cdata));
+	if (ret == 0)
+		ri->ret_addr = (unsigned long *)get_jump_addr();
 }
+
+
+static atomic_t copy_process_cnt = ATOMIC_INIT(0);
 
 static int entry_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
@@ -220,7 +280,7 @@ static int ret_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 		goto out;
 
 	if (task->mm != current->mm) {	/* check flags CLONE_VM */
-		rm_uprobes_child(task);
+		rm_uprobes_child(ri, regs, task);
 	}
 out:
 	atomic_dec(&copy_process_cnt);

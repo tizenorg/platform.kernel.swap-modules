@@ -198,6 +198,22 @@ void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
 		sspt_add_ip(page, ip);
 }
 
+void sspt_file_on_each_ip(struct sspt_file *file,
+			  void (*func)(struct us_ip *, void *), void *data)
+{
+	int i;
+	const int table_size = (1 << file->page_probes_hash_bits);
+	struct sspt_page *page;
+	struct hlist_head *head;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
+
+	for (i = 0; i < table_size; ++i) {
+		head = &file->page_probes_table[i];
+		swap_hlist_for_each_entry(page, node, head, hlist)
+			sspt_page_on_each_ip(page, func, data);
+	}
+}
+
 /**
  * @brief Get sspt_page from sspt_file (look)
  *

@@ -698,6 +698,15 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
+unsigned long arch_tramp_by_ri(struct uretprobe_instance *ri)
+{
+	/* Understand function mode */
+	return ((unsigned long)ri->sp & 1) ?
+			((unsigned long)ri->rp->up.kp.ainsn.insn + 0x1b) :
+			(unsigned long)(ri->rp->up.kp.ainsn.insn +
+					UPROBES_TRAMP_RET_BREAK_IDX);
+}
+
 /**
  * @brief Disarms uretprobe instance.
  *
@@ -707,7 +716,7 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
  * negative error code on error.
  */
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
-			 struct task_struct *task)
+			 struct task_struct *task, unsigned long tr)
 {
 	struct pt_regs *uregs = task_pt_regs(ri->task);
 	unsigned long ra = swap_get_ret_addr(uregs);
@@ -716,15 +725,16 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 	unsigned long *stack = sp - RETPROBE_STACK_DEPTH + 1;
 	unsigned long *found = NULL;
 	unsigned long *buf[RETPROBE_STACK_DEPTH];
+	unsigned long vaddr;
 	int i, retval;
 
-	/* Understand function mode */
-	if ((long)ri->sp & 1) {
-		tramp = (unsigned long *)
-			((unsigned long)ri->rp->up.kp.ainsn.insn + 0x1b);
+	if (tr == 0) {
+		vaddr = (unsigned long)ri->rp->up.kp.addr;
+		tramp = (unsigned long *)arch_tramp_by_ri(ri);
 	} else {
-		tramp = (unsigned long *)(ri->rp->up.kp.ainsn.insn +
-					  UPROBES_TRAMP_RET_BREAK_IDX);
+		/* ri - invalid */
+		vaddr = 0;
+		tramp = (unsigned long *)tr;
 	}
 
 	/* check stack */
@@ -752,10 +762,10 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 	}
 
 	printk(KERN_INFO "---> %s (%d/%d): trampoline found at "
-	       "%08lx (%08lx /%+d) - %p\n",
+	       "%08lx (%08lx /%+d) - %lx, set ret_addr=%p\n",
 	       task->comm, task->tgid, task->pid,
 	       (unsigned long)found, (unsigned long)sp,
-	       found - sp, ri->rp->up.kp.addr);
+	       found - sp, vaddr, ri->ret_addr);
 	retval = write_proc_vm_atomic(task, (unsigned long)found,
 				      &ri->ret_addr,
 				      sizeof(ri->ret_addr));
@@ -771,16 +781,16 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 check_lr: /* check lr anyway */
 	if (ra == (unsigned long)tramp) {
 		printk(KERN_INFO "---> %s (%d/%d): trampoline found at "
-		       "lr = %08lx - %p\n",
-		       task->comm, task->tgid, task->pid,
-		       ra, ri->rp->up.kp.addr);
+		       "lr = %08lx - %lx, set ret_addr=%p\n",
+		       task->comm, task->tgid, task->pid, ra, vaddr, ri->ret_addr);
+
 		swap_set_ret_addr(uregs, (unsigned long)ri->ret_addr);
 		retval = 0;
 	} else if (retval) {
 		printk(KERN_INFO "---> %s (%d/%d): trampoline NOT found at "
-		       "sp = %08lx, lr = %08lx - %p\n",
+		       "sp = %08lx, lr = %08lx - %lx, ret_addr=%p\n",
 		       task->comm, task->tgid, task->pid,
-		       (unsigned long)sp, ra, ri->rp->up.kp.addr);
+		       (unsigned long)sp, ra, vaddr, ri->ret_addr);
 	}
 
 	return retval;

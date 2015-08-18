@@ -54,6 +54,11 @@ static unsigned long trampoline_addr(struct uprobe *up)
 			       UPROBES_TRAMP_RET_BREAK_IDX);
 }
 
+unsigned long arch_tramp_by_ri(struct uretprobe_instance *ri)
+{
+	return trampoline_addr(&ri->rp->up);
+}
+
 static struct uprobe_ctlblk *current_ucb(void)
 {
 	/* FIXME hardcoded offset */
@@ -211,12 +216,18 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
  * negative error code on error.
  */
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
-			 struct task_struct *task)
+			 struct task_struct *task, unsigned long tr)
 {
 	int len;
 	unsigned long ret_addr;
 	unsigned long sp = (unsigned long)ri->sp;
-	unsigned long tramp_addr = trampoline_addr(&ri->rp->up);
+	unsigned long tramp_addr;
+
+	if (tr == 0)
+		tramp_addr = arch_tramp_by_ri(ri);
+	else
+		tramp_addr = tr; /* ri - invalid */
+
 	len = read_proc_vm_atomic(task, sp, &ret_addr, sizeof(ret_addr));
 	if (len != sizeof(ret_addr)) {
 		printk(KERN_INFO "---> %s (%d/%d): failed to read stack from %08lx\n",

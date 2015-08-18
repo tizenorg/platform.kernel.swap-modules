@@ -31,6 +31,7 @@ struct slot_manager;
 struct task_struct;
 struct pf_group;
 struct sspt_filter;
+struct us_ip;
 
 /** Flags for sspt_*_uninstall() */
 enum US_FLAGS {
@@ -104,6 +105,9 @@ bool sspt_proc_is_filter_new(struct sspt_proc *proc, struct pf_group *pfg);
 void sspt_proc_on_each_filter(struct sspt_proc *proc,
 			      void (*func)(struct sspt_filter *, void *),
 			      void *data);
+
+void sspt_proc_on_each_ip(struct sspt_proc *proc,
+			  void (*func)(struct us_ip *, void *), void *data);
 
 bool sspt_proc_is_send_event(struct sspt_proc *proc);
 

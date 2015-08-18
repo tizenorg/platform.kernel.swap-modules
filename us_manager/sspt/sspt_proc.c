@@ -499,6 +499,15 @@ void sspt_proc_on_each_filter(struct sspt_proc *proc,
 		func(fl, data);
 }
 
+void sspt_proc_on_each_ip(struct sspt_proc *proc,
+			  void (*func)(struct us_ip *, void *), void *data)
+{
+	struct sspt_file *file;
+
+	list_for_each_entry(file, &proc->file_list, list)
+		sspt_file_on_each_ip(file, func, data);
+}
+
 static void is_send_event(struct sspt_filter *f, void *data)
 {
 	bool *is_send = (bool *)data;

@@ -294,9 +294,6 @@ void swap_unregister_kretprobe_bottom(struct kretprobe *rp);
 void swap_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size);
 
 
-int swap_disarm_urp_inst_for_task(struct task_struct *parent,
-				  struct task_struct *task);
-
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 
 

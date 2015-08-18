@@ -60,4 +60,7 @@ int sspt_unregister_page(struct sspt_page *page,
 			 enum US_FLAGS flag,
 			 struct task_struct *task);
 
+void sspt_page_on_each_ip(struct sspt_page *page,
+			  void (*func)(struct us_ip *, void *), void *data);
+
 #endif /* __SSPT_PAGE__ */
