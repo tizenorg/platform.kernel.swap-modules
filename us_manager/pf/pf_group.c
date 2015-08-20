@@ -28,6 +28,7 @@
 #include <linux/list.h>
 #include <linux/namei.h>
 #include <linux/mman.h>
+#include <linux/spinlock.h>
 #include "pf_group.h"
 #include "proc_filters.h"
 #include "../sspt/sspt_filter.h"
@@ -45,7 +46,7 @@ struct pf_group {
 	struct pfg_msg_cb *msg_cb;
 	atomic_t usage;
 
-	/* TODO: proc_list*/
+	spinlock_t pl_lock;	/* for proc_list */
 	struct list_head proc_list;
 };
 
@@ -113,6 +114,7 @@ static struct pf_group *create_pfg(void)
 
 	INIT_LIST_HEAD(&pfg->list);
 	memset(&pfg->filter, 0, sizeof(pfg->filter));
+	spin_lock_init(&pfg->pl_lock);
 	INIT_LIST_HEAD(&pfg->proc_list);
 	pfg->msg_cb = NULL;
 	atomic_set(&pfg->usage, 1);
@@ -467,7 +469,9 @@ static int pfg_add_proc(struct pf_group *pfg, struct sspt_proc *proc)
 	if (pls == NULL)
 		return -ENOMEM;
 
+	spin_lock(&pfg->pl_lock);
 	add_pl_struct(pfg, pls);
+	spin_unlock(&pfg->pl_lock);
 
 	return 0;
 }
@@ -590,11 +594,13 @@ void uninstall_proc(struct sspt_proc *proc)
 
 	read_lock(&pfg_list_lock);
 	list_for_each_entry(pfg, &pfg_list, list) {
+		spin_lock(&pfg->pl_lock);
 		pls = find_pl_struct(pfg, task);
 		if (pls) {
 			del_pl_struct(pls);
 			free_pl_struct(pls);
 		}
+		spin_unlock(&pfg->pl_lock);
 	}
 	read_unlock(&pfg_list_lock);
 
