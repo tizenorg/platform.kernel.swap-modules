@@ -110,17 +110,10 @@ static int msg_handler(void __user *msg)
 		print_parse_debug("MSG_START. size=%d\n", size);
 		ret = msg_start(&mb);
 		break;
-	case MSG_STOP: {
-		struct cpumask mask;
-
+	case MSG_STOP:
 		print_parse_debug("MSG_STOP. size=%d\n", size);
-
-		swap_disable_nonboot_cpus_lock(&mask);
 		ret = msg_stop(&mb);
-		swap_enable_nonboot_cpus_unlock(&mask);
-
 		break;
-	}
 	case MSG_CONFIG:
 		print_parse_debug("MSG_CONFIG. size=%d\n", size);
 		ret = msg_config(&mb);
