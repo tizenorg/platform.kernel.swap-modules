@@ -324,24 +324,38 @@ static void unregister_cp(void)
  ******************************************************************************
  */
 
-/* Detects when target process removes IPs. */
-static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
+/* FIXME: sync with stop */
+static unsigned long mr_cb(void *data)
 {
-	struct task_struct *task = (struct task_struct *)swap_get_karg(regs, 0);
-
-	if (is_kthread(task))
-		goto out;
+	struct task_struct *task = *(struct task_struct **)data;
 
 	if (task->tgid != task->pid) {
 		/* if the thread is killed we need to discard pending
 		 * uretprobe instances which have not triggered yet */
 		swap_discard_pending_uretprobes(task);
-		goto out;
+	} else {
+		call_mm_release(task);
 	}
 
-	call_mm_release(task);
-out:
 	return 0;
+}
+
+/* Detects when target process removes IPs. */
+static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
+{
+	int ret = 0;
+	struct task_struct *task = (struct task_struct *)swap_get_karg(regs, 0);
+
+	if (is_kthread(task))
+		goto out;
+
+	ret = set_kjump_cb(regs, mr_cb, (void *)&task, sizeof(task));
+	if (ret < 0) {
+		printk("##### ERROR: mr_pre_handler, ret=%d\n", ret);
+		ret = 0;
+	}
+out:
+	return ret;
 }
 
 static struct kprobe mr_kprobe = {
