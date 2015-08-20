@@ -154,7 +154,8 @@ unlock:
  */
 int img_proc_del_ip(struct img_proc *proc,
 		    struct dentry *dentry,
-		    unsigned long addr)
+		    unsigned long addr,
+		    struct probe_desc *pd)
 {
 	int ret;
 	struct img_file *file;
@@ -166,7 +167,7 @@ int img_proc_del_ip(struct img_proc *proc,
 		goto unlock;
 	}
 
-	ret = img_file_del_ip(file, addr);
+	ret = img_file_del_ip(file, addr, pd);
 	if (ret == 0 && img_file_empty(file)) {
 		img_del_file_by_list(file);
 		free_img_file(file);

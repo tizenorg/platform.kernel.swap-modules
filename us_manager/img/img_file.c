@@ -77,12 +77,14 @@ static void img_del_ip_by_list(struct img_ip *ip)
 	list_del(&ip->list);
 }
 
-static struct img_ip *find_img_ip(struct img_file *file, unsigned long addr)
+static struct img_ip *find_img_ip(struct img_file *file, unsigned long addr,
+				  struct probe_desc *pd)
 {
 	struct img_ip *ip;
 
 	list_for_each_entry(ip, &file->ip_list, list) {
-		if (ip->addr == addr)
+		if ((ip->addr == addr) &&
+		    (ip->desc == pd))
 			return ip;
 	}
 
@@ -103,7 +105,7 @@ int img_file_add_ip(struct img_file *file, unsigned long addr,
 {
 	struct img_ip *ip;
 
-	ip = find_img_ip(file, addr);
+	ip = find_img_ip(file, addr, pd);
 	if (ip) {
 		/* ip already exists in img */
 		return 0;
@@ -122,11 +124,12 @@ int img_file_add_ip(struct img_file *file, unsigned long addr,
  * @param addr Function address
  * @return Error code
  */
-int img_file_del_ip(struct img_file *file, unsigned long addr)
+int img_file_del_ip(struct img_file *file, unsigned long addr,
+		    struct probe_desc *pd)
 {
 	struct img_ip *ip;
 
-	ip = find_img_ip(file, addr);
+	ip = find_img_ip(file, addr, pd);
 	if (ip == NULL) {
 		printk(KERN_INFO "Warning: no ip found in img, addr = %lx\n",
 		       addr);

@@ -45,7 +45,8 @@ void free_img_file(struct img_file *ip);
 
 int img_file_add_ip(struct img_file *file, unsigned long addr,
 		    struct probe_desc *pd);
-int img_file_del_ip(struct img_file *file, unsigned long addr);
+int img_file_del_ip(struct img_file *file, unsigned long addr,
+		    struct probe_desc *pd);
 
 int img_file_empty(struct img_file *file);
 

@@ -39,9 +39,7 @@ enum MOD_TYPE {
 	MT_DEL              /**< Remove probes. */
 };
 
-struct us_inst_data;
-
-int mod_us_inst(struct us_inst_data *us_inst, enum MOD_TYPE mt);
+int mod_us_inst(struct list_head *head, enum MOD_TYPE mt);
 void pfg_put_all(void);
 
 #endif /* _US_INST_H */

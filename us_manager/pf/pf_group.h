@@ -58,7 +58,7 @@ struct pfg_msg_cb *pfg_msg_cb_get(struct pf_group *pfg);
 int pf_register_probe(struct pf_group *pfg, struct dentry *dentry,
 		      unsigned long offset, struct probe_desc *pd);
 int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
-			unsigned long offset);
+			unsigned long offset, struct probe_desc *pd);
 
 void install_all(void);
 void uninstall_all(void);

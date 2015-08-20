@@ -44,7 +44,7 @@ void web_prof_exit(void);
 int web_prof_enable(void);
 int web_prof_disable(void);
 enum web_prof_state_t web_prof_enabled(void);
-int web_func_inst_remove(unsigned long addr);
+int web_func_inst_remove(enum web_prof_addr_t type);
 u64 *web_prof_addr_ptr(enum web_prof_addr_t type);
 unsigned long web_prof_addr(enum web_prof_addr_t type);
 int web_prof_data_set(char *app_path, char *app_id);

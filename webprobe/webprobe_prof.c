@@ -40,8 +40,11 @@ struct web_prof_data {
 	struct dentry *lib_dentry;
 	struct pf_group *pfg;
 	u64 inspserver_addr;
+	struct probe_desc *inspserver;
 	u64 willexecute_addr;
+	struct probe_desc *willexecute;
 	u64 didexecute_addr;
+	struct probe_desc *didexecute;
 	enum web_prof_state_t enabled;
 };
 
@@ -93,28 +96,63 @@ unsigned long web_prof_addr(enum web_prof_addr_t type)
 	return addr;
 }
 
-static int web_func_inst_add(unsigned long addr)
+static struct probe_desc *web_func_inst_add(unsigned long addr)
 {
 	int ret;
-	struct probe_desc probe;
+	struct probe_desc *probe = NULL;
 
-	probe.type = SWAP_WEBPROBE;
+	probe = kmalloc(sizeof(*probe), GFP_KERNEL);
+
+	if (!probe)
+		return NULL;
+
+	memset(probe, 0, sizeof(*probe));
+	probe->type = SWAP_WEBPROBE;
 
 	ret = pf_register_probe(web_data->pfg, web_data->lib_dentry,
-				addr, &probe);
+				addr, probe);
+
+	return probe;
+}
+
+static int __web_func_inst_remove(unsigned long addr, struct probe_desc *pd)
+{
+	int ret;
+
+	if (!addr || !pd)
+		return -EINVAL;
+
+	/* FIXME: check that address needs removing */
+	ret = pf_unregister_probe(web_data->pfg, web_data->lib_dentry,
+				  addr, pd);
 
 	return ret;
 }
 
-int web_func_inst_remove(unsigned long addr)
+int web_func_inst_remove(enum web_prof_addr_t type)
 {
-	int ret;
+        unsigned long addr = 0;
+	struct probe_desc *pd = NULL;
 
-	/* FIXME: check that address needs removing */
-	ret = pf_unregister_probe(web_data->pfg, web_data->lib_dentry,
-				  addr);
+	switch (type) {
+	case INSPSERVER_START:
+		addr = web_data->inspserver_addr;
+		pd = web_data->inspserver;
+		break;
+	case WILL_EXECUTE:
+		addr = web_data->willexecute_addr;
+		pd = web_data->willexecute;
+		break;
+	case DID_EXECUTE:
+		addr = web_data->didexecute_addr;
+		pd = web_data->didexecute;
+		break;
+	default:
+		pr_err("ERROR: WEB_PROF_ADDR_TYPE=0x%x\n", type);
+	}
 
-	return ret;
+
+	return __web_func_inst_remove(addr, pd);
 }
 
 int web_prof_data_set(char *app_path, char *app_id)
@@ -161,9 +199,14 @@ int web_prof_enable(void)
 			pr_err("ERROR: Can't enable web profiling\n");
 			ret = -EFAULT;
 		} else {
-			web_func_inst_add(web_data->inspserver_addr);
-			web_func_inst_add(web_data->willexecute_addr);
-			web_func_inst_add(web_data->didexecute_addr);
+			web_data->inspserver =
+				web_func_inst_add(web_data->inspserver_addr);
+
+			web_data->willexecute =
+				web_func_inst_add(web_data->willexecute_addr);
+
+			web_data->didexecute =
+				web_func_inst_add(web_data->didexecute_addr);
 		}
 	} else {
 		pr_err("ERROR: Web profiling is already enabled\n");
@@ -187,9 +230,17 @@ int web_prof_disable(void)
 			pr_err("ERROR: Can't disable web profiling\n");
 			ret = -EFAULT;
 		} else {
-			web_func_inst_remove(web_data->inspserver_addr);
-			web_func_inst_remove(web_data->willexecute_addr);
-			web_func_inst_remove(web_data->didexecute_addr);
+			if (!__web_func_inst_remove(web_data->inspserver_addr,
+					     web_data->inspserver))
+				kfree(web_data->inspserver);
+
+			if (!__web_func_inst_remove(web_data->willexecute_addr,
+					     web_data->willexecute))
+				kfree(web_data->willexecute);
+
+			if (!__web_func_inst_remove(web_data->didexecute_addr,
+					     web_data->didexecute))
+				kfree(web_data->willexecute);
 		}
 	} else {
 		pr_err("ERROR: Web profiling is already disabled\n");
@@ -217,6 +268,15 @@ void web_prof_exit(void)
 {
 	if (web_data->pfg)
 		put_pf_group(web_data->pfg);
+
+	if (web_data->inspserver)
+		kfree(web_data->inspserver);
+
+	if (web_data->willexecute)
+		kfree(web_data->willexecute);
+
+	if (web_data->didexecute)
+		kfree(web_data->didexecute);
 
 	kfree(web_data);
 }

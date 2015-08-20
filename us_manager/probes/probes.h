@@ -75,7 +75,6 @@ struct probe_info {
 
 struct probe_desc {
 	enum probe_t type;
-	unsigned long offset;
 
 	union {
 		struct {

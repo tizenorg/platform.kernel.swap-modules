@@ -51,7 +51,7 @@ struct us_ip *create_ip(struct img_ip *img_ip)
 	INIT_LIST_HEAD(&ip->list);
 	INIT_LIST_HEAD(&ip->img_list);
 	ip->offset = img_ip->addr;
-	ip->desc = &img_ip->desc;
+	ip->desc = img_ip->desc;
 	ip->iip = img_ip;
 	list_add(&ip->img_list, &img_ip->ihead);
 

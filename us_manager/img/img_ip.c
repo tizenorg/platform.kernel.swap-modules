@@ -46,10 +46,7 @@ struct img_ip *create_img_ip(unsigned long addr, struct probe_desc *pd)
 	INIT_LIST_HEAD(&ip->list);
 	INIT_LIST_HEAD(&ip->ihead);
 	ip->addr = addr;
-        /* TODO replace struct probe_desc in img_ip
-	 * with pointer on struct probe_desc
-	 */
-	memcpy(&ip->desc, pd, sizeof(struct probe_desc));
+	ip->desc = pd;
 
 	return ip;
 }
@@ -85,8 +82,8 @@ void free_img_ip(struct img_ip *ip)
 /* debug */
 void img_ip_print(struct img_ip *ip)
 {
-	if (ip->desc.type == SWAP_RETPROBE)
+	if (ip->desc->type == SWAP_RETPROBE)
 		printk(KERN_INFO "###            addr=8%lx, args=%s\n",
-		       ip->addr, ip->desc.info.rp_i.args);
+		       ip->addr, ip->desc->info.rp_i.args);
 }
 /* debug */

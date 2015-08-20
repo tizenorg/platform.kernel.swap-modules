@@ -143,15 +143,24 @@ void pfg_put_all(void)
 static int mod_func_inst(struct func_inst_data *func, struct pf_group *pfg,
 			 struct dentry *dentry, enum MOD_TYPE mt)
 {
-	int ret;
+	int ret = 0;
 
 	switch (mt) {
 	case MT_ADD:
-		ret = pf_register_probe(pfg, dentry, func->addr,
-					&func->p_desc);
+		if (func->registered == 0) {
+			ret = pf_register_probe(pfg, dentry, func->addr,
+						&func->p_desc);
+			if (!ret)
+				func->registered = 1;
+		}
 		break;
 	case MT_DEL:
-		ret = pf_unregister_probe(pfg, dentry, func->addr);
+		if (func->registered == 1) {
+			ret = pf_unregister_probe(pfg, dentry, func->addr,
+						  &func->p_desc);
+			if (!ret)
+				func->registered = 0;
+		}
 		break;
 	default:
 		printk(KERN_INFO "ERROR: mod_type=0x%x\n", mt);
@@ -164,7 +173,8 @@ static int mod_func_inst(struct func_inst_data *func, struct pf_group *pfg,
 static int mod_lib_inst(struct lib_inst_data *lib, struct pf_group *pfg,
 			enum MOD_TYPE mt)
 {
-	int ret = 0, i;
+	struct func_inst_data *func;
+	int ret = 0;
 	struct dentry *dentry;
 
 	dentry = dentry_by_path(lib->path);
@@ -173,8 +183,8 @@ static int mod_lib_inst(struct lib_inst_data *lib, struct pf_group *pfg,
 		return -EINVAL;
 	}
 
-	for (i = 0; i < lib->cnt_func; ++i) {
-		ret = mod_func_inst(lib->func[i], pfg, dentry, mt);
+	list_for_each_entry(func, &lib->f_head, list) {
+		ret = mod_func_inst(func, pfg, dentry, mt);
 		if (ret) {
 			printk(KERN_INFO "Cannot mod func inst, ret = %d\n",
 			       ret);
@@ -185,27 +195,27 @@ static int mod_lib_inst(struct lib_inst_data *lib, struct pf_group *pfg,
 	return ret;
 }
 
-static int get_pfg_by_app_info(struct app_info_data *app_info,
+static int get_pfg_by_app_info(struct app_inst_data *ai,
 			       struct pf_group **pfg)
 {
 	struct dentry *dentry;
 
-	dentry = dentry_by_path(app_info->exec_path);
+	dentry = dentry_by_path(ai->path);
 	if (dentry == NULL)
 		return -EINVAL;
 
-	switch (app_info->app_type) {
+	switch (ai->type) {
 	case AT_PID:
-		if (app_info->tgid == 0) {
-			if (app_info->exec_path[0] == '\0')
+		if (ai->tgid == 0) {
+			if (ai->path[0] == '\0')
 				*pfg = get_pf_group_dumb(dentry);
 			else
 				goto pf_dentry;
 		} else
-			*pfg = get_pf_group_by_tgid(app_info->tgid, dentry);
+			*pfg = get_pf_group_by_tgid(ai->tgid, dentry);
 		break;
 	case AT_TIZEN_WEB_APP:
-		*pfg = get_pf_group_by_comm(app_info->app_id, dentry);
+		*pfg = get_pf_group_by_comm(ai->id, dentry);
 		break;
 	case AT_TIZEN_NATIVE_APP:
 	case AT_COMMON_EXEC:
@@ -213,7 +223,7 @@ static int get_pfg_by_app_info(struct app_info_data *app_info,
 		*pfg = get_pf_group_by_dentry(dentry, dentry);
 		break;
 	default:
-		printk(KERN_INFO "ERROR: app_type=0x%x\n", app_info->app_type);
+		printk(KERN_INFO "ERROR: app_type=0x%x\n", ai->type);
 		return -EINVAL;
 	}
 
@@ -222,11 +232,13 @@ static int get_pfg_by_app_info(struct app_info_data *app_info,
 
 static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 {
-	int ret, i;
+	int ret;
 	struct pf_group *pfg;
 	struct dentry *dentry;
+	struct func_inst_data *func;
+	struct lib_inst_data *lib;
 
-	ret = get_pfg_by_app_info(app_inst->app_info, &pfg);
+	ret = get_pfg_by_app_info(app_inst, &pfg);
 	if (ret) {
 		printk(KERN_INFO "Cannot get pfg by app info, ret = %d\n", ret);
 		return ret;
@@ -239,16 +251,16 @@ static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 		return ret;
 	}
 
-	for (i = 0; i < app_inst->cnt_func; ++i) {
+	list_for_each_entry(func, &app_inst->f_head, list) {
 		/* TODO: */
-		dentry = dentry_by_path(app_inst->app_info->exec_path);
+		dentry = dentry_by_path(app_inst->path);
 		if (dentry == NULL) {
 			printk(KERN_INFO "Cannot find dentry by path %s\n",
-			       app_inst->app_info->exec_path);
+			       app_inst->path);
 			return -EINVAL;
 		}
 
-		ret = mod_func_inst(app_inst->func[i], pfg, dentry, mt);
+		ret = mod_func_inst(func, pfg, dentry, mt);
 		if (ret) {
 			printk(KERN_INFO "Cannot mod func inst, ret = %d\n",
 			       ret);
@@ -256,8 +268,8 @@ static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
 		}
 	}
 
-	for (i = 0; i < app_inst->cnt_lib; ++i) {
-		ret = mod_lib_inst(app_inst->lib[i], pfg, mt);
+	list_for_each_entry(lib, &app_inst->l_head, list) {
+		ret = mod_lib_inst(lib, pfg, mt);
 		if (ret) {
 			printk(KERN_INFO "Cannot mod lib inst, ret = %d\n",
 			       ret);
@@ -275,13 +287,13 @@ static int mod_us_app_inst(struct app_inst_data *app_inst, enum MOD_TYPE mt)
  * @param mt Modificator, indicates whether we install or remove probes.
  * @return 0 on suceess, error code on error.
  */
-int mod_us_inst(struct us_inst_data *us_inst, enum MOD_TYPE mt)
+int mod_us_inst(struct list_head *head, enum MOD_TYPE mt)
 {
-	u32 i;
 	int ret;
+	struct app_inst_data *ai;
 
-	for (i = 0; i < us_inst->cnt; ++i) {
-		ret = mod_us_app_inst(us_inst->app_inst[i], mt);
+	list_for_each_entry(ai, head, list) {
+		ret = mod_us_app_inst(ai,  mt);
 		if (ret) {
 			printk(KERN_INFO "Cannot mod us app inst, ret = %d\n",
 			       ret);

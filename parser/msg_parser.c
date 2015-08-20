@@ -37,29 +37,6 @@
 #include "msg_buf.h"
 #include "parser_defs.h"
 
-
-static int str_to_u32(const char *str, u32 *val)
-{
-	u32 result;
-	if (!str || !*str)
-		return -EINVAL;
-
-	for (result = 0 ; *str; ++str) {
-		if (*str < '0' || *str > '9')
-			return -EINVAL;
-
-		result = result * 10 + (*str - '0');
-	}
-
-	*val = result;
-
-	return 0;
-}
-
-
-
-
-
 /* ============================================================================
  * ==                               APP_INFO                                 ==
  * ============================================================================
@@ -69,13 +46,12 @@ static int str_to_u32(const char *str, u32 *val)
  * @brief Creates and fills app_info_data struct.
  *
  * @param mb Pointer to the message buffer.
- * @return Pointer to the filled app_info_data struct on success;\n
- * NULL on error.
+ * @param ai Pointer to the target app_inst_data.
+ * @return 0 on success, error code on error.
  */
-struct app_info_data *create_app_info(struct msg_buf *mb)
+int create_app_info(struct msg_buf *mb, struct app_inst_data *ai)
 {
 	int ret;
-	struct app_info_data *ai;
 	u32 app_type;
 	char *ta_id, *exec_path;
 
@@ -85,14 +61,14 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 	ret = get_u32(mb, &app_type);
 	if (ret) {
 		print_err("failed to read target application type\n");
-		return NULL;
+		return -EINVAL;
 	}
 
 	print_parse_debug("id:");
 	ret = get_string(mb, &ta_id);
 	if (ret) {
 		print_err("failed to read target application ID\n");
-		return NULL;
+		return -EINVAL;
 	}
 
 	print_parse_debug("exec path:");
@@ -100,12 +76,6 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 	if (ret) {
 		print_err("failed to read executable path\n");
 		goto free_ta_id;
-	}
-
-	ai = kmalloc(sizeof(*ai), GFP_KERNEL);
-	if (ai == NULL) {
-		print_err("out of memory\n");
-		goto free_exec_path;
 	}
 
 	switch (app_type) {
@@ -118,11 +88,11 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 		u32 tgid = 0;
 
 		if (*ta_id != '\0') {
-			ret = str_to_u32(ta_id, &tgid);
+			ret = kstrtou32(ta_id, 10, &tgid);
 			if (ret) {
 				print_err("converting string to PID, "
 					  "str='%s'\n", ta_id);
-				goto free_ai;
+				goto free_exec_path;
 			}
 		}
 
@@ -132,17 +102,14 @@ struct app_info_data *create_app_info(struct msg_buf *mb)
 	default:
 		print_err("wrong application type(%u)\n", app_type);
 		ret = -EINVAL;
-		goto free_ai;
+		goto free_exec_path;
 	}
 
-	ai->app_type = (enum APP_TYPE)app_type;
-	ai->app_id = ta_id;
-	ai->exec_path = exec_path;
+	ai->type = (enum APP_TYPE)app_type;
+	ai->id = ta_id;
+	ai->path = exec_path;
 
-	return ai;
-
-free_ai:
-	kfree(ai);
+	return 0;
 
 free_exec_path:
 	put_string(exec_path);
@@ -150,23 +117,8 @@ free_exec_path:
 free_ta_id:
 	put_string(ta_id);
 
-	return NULL;
+	return -EINVAL;
 }
-
-/**
- * @brief app_info_data cleanup.
- *
- * @param ai Pointer to the target app_info_data.
- * @return Void.
- */
-void destroy_app_info(struct app_info_data *ai)
-{
-	put_string(ai->exec_path);
-	put_string(ai->app_id);
-	kfree(ai);
-}
-
-
 
 
 
@@ -180,7 +132,7 @@ void destroy_app_info(struct app_info_data *ai)
  *
  * @param mb Pointer to the message buffer.
  * @return Pointer to the filled conf_data struct on success;\n
- * 0 on error.
+ * NULL on error.
  */
 struct conf_data *create_conf_data(struct msg_buf *mb)
 {
@@ -273,7 +225,7 @@ void restore_config(struct conf_data *conf)
  * @brief Gets retprobe data and puts it to the probe_info struct.
  *
  * @param mb Pointer to the message buffer.
- * @param pi Pointer to the probe_info struct.
+ * @param pd Pointer to the probe_desc struct.
  * @return 0 on success, error code on error.
  */
 int get_retprobe(struct msg_buf *mb, struct probe_desc *pd)
@@ -308,7 +260,7 @@ free_args:
  * @brief Gets webprobe data and puts it to the probe_info struct.
  *
  * @param mb Pointer to the message buffer.
- * @param pi Pointer to the probe_info struct.
+ * @param pd Pointer to the probe_desc struct.
  * @return 0 on success, error code on error.
  */
 int get_webprobe(struct msg_buf *mb, struct probe_desc *pd)
@@ -333,7 +285,7 @@ void put_retprobe(struct probe_info *pi)
  * @brief Gets preload data and puts it to the probe_info struct.
  *
  * @param mb Pointer to the message buffer.
- * @param pi Pointer to the probe_info struct.
+ * @param pd Pointer to the probe_desc struct.
  * @return 0 on success, error code on error.
  */
 int get_preload_probe(struct msg_buf *mb, struct probe_desc *pd)
@@ -363,7 +315,7 @@ int get_preload_probe(struct msg_buf *mb, struct probe_desc *pd)
 /**
  * @brief Preload probe data cleanup.
  *
- * @param pi Pointer to the probe_info comprising retprobe.
+ * @param pi Pointer to the probe_info struct.
  * @return Void.
  */
 void put_preload_probe(struct probe_info *pi)
@@ -374,7 +326,7 @@ void put_preload_probe(struct probe_info *pi)
  * @brief Gets preload get_caller and puts it to the probe_info struct.
  *
  * @param mb Pointer to the message buffer.
- * @param pi Pointer to the probe_info struct.
+ * @param pd Pointer to the probe_desc struct.
  * @return 0 on success, error code on error.
  */
 
@@ -388,7 +340,7 @@ int get_get_caller_probe(struct msg_buf *mb, struct probe_desc *pd)
 /**
  * @brief Preload get_caller probe data cleanup.
  *
- * @param pi Pointer to the probe_info comprising retprobe.
+ * @param pi Pointer to the probe_info struct.
  * @return Void.
  */
 void put_get_caller_probe(struct probe_info *pi)
@@ -399,7 +351,7 @@ void put_get_caller_probe(struct probe_info *pi)
  * @brief Gets preload get_call_type and puts it to the probe_info struct.
  *
  * @param mb Pointer to the message buffer.
- * @param pi Pointer to the probe_info struct.
+ * @param pd Pointer to the probe_desc struct.
  * @return 0 on success, error code on error.
  */
 int get_get_call_type_probe(struct msg_buf *mb, struct probe_desc *pd)
@@ -412,7 +364,7 @@ int get_get_call_type_probe(struct msg_buf *mb, struct probe_desc *pd)
 /**
  * @brief Preload get_call type probe data cleanup.
  *
- * @param pi Pointer to the probe_info comprising retprobe.
+ * @param pi Pointer to the probe_info struct.
  * @return Void.
  */
 void put_get_call_type_probe(struct probe_info *pi)
@@ -592,6 +544,7 @@ void put_fbi_probe(struct probe_info *pi)
 struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 {
 	struct func_inst_data *fi;
+	struct probe_desc *pd;
 	u64 addr;
 	u8 type;
 
@@ -612,48 +565,49 @@ struct func_inst_data *create_func_inst_data(struct msg_buf *mb)
 		print_err("out of memory\n");
 		return NULL;
 	}
+	INIT_LIST_HEAD(&fi->list);
+	fi->registered = 0;
 
-	fi->addr = addr;
+	pd = &fi->p_desc;
 
 	switch (type) {
 	case SWAP_RETPROBE:
-		if (get_retprobe(mb, &fi->p_desc) != 0)
-			goto free_func_inst;
+		if (get_retprobe(mb, pd) != 0)
+			goto err;
 		break;
 	case SWAP_WEBPROBE:
-		if (get_webprobe(mb, &fi->p_desc) != 0)
-			goto free_func_inst;
+		if (get_webprobe(mb, pd) != 0)
+			goto err;
 		break;
 	case SWAP_PRELOAD_PROBE:
-		if (get_preload_probe(mb, &fi->p_desc) != 0)
-			goto free_func_inst;
+		if (get_preload_probe(mb, pd) != 0)
+			goto err;
 		break;
 	case SWAP_GET_CALLER:
-		if (get_get_caller_probe(mb, &fi->p_desc) != 0)
-			goto free_func_inst;
+		if (get_get_caller_probe(mb, pd) != 0)
+			goto err;
 		break;
 	case SWAP_GET_CALL_TYPE:
-		if (get_get_call_type_probe(mb, &fi->p_desc) != 0)
-			goto free_func_inst;
+		if (get_get_call_type_probe(mb, pd) != 0)
+			goto err;
 		break;
 	case SWAP_FBIPROBE:
-		if (get_fbi_probe(mb, &fi->p_desc) != 0)
-			goto free_func_inst;
+		if (get_fbi_probe(mb, pd) != 0)
+			goto err;
 		break;
 	case SWAP_WRITE_MSG:
-		if (get_write_msg_probe(mb, &fi->p_desc) != 0)
-			goto free_func_inst;
+		if (get_write_msg_probe(mb, pd) != 0)
+			goto err;
 		break;
 	default:
 		printk(KERN_WARNING "SWAP PARSER: Wrong probe type %d!\n",
 		       type);
-		goto free_func_inst;
+		goto err;
 	}
 
-	fi->p_desc.type = type;
+	fi->addr = addr;
 	return fi;
-
-free_func_inst:
+err:
 
 	kfree(fi);
 	return NULL;
@@ -696,7 +650,82 @@ void destroy_func_inst_data(struct func_inst_data *fi)
 	kfree(fi);
 }
 
+/**
+ * @brief func_inst_data find.
+ *
+ * @param head Pointer to the list head with func_inst_data.
+ * @param func Pointer to the func_inst_data looking for.
+ * @return Pointer to the found func_inst_data struct on success;\n
+ * NULL on error.
+ */
+struct func_inst_data *func_inst_data_find(struct list_head *head,
+					   struct func_inst_data *func)
+{
+	struct func_inst_data *f;
 
+	list_for_each_entry(f, head, list) {
+		if (func->addr == f->addr)
+			return f;
+	}
+
+	return NULL;
+}
+
+/**
+ * @brief func_inst_data lists splice
+ *
+ * @param dst Pointer to the destination list head.
+ * @param src Pointer to the source list head.
+ * @return u32 count of spliced elements.
+ */
+u32 func_inst_data_splice(struct list_head *dst,
+			  struct list_head *src)
+{
+	struct func_inst_data *f, *n, *s;
+	u32 cnt = 0;
+
+	list_for_each_entry_safe(f, n, src, list) {
+		s = func_inst_data_find(dst, f);
+		if (s) {
+			printk(KERN_WARNING "duplicate func probe\n");
+			continue;
+		}
+
+		list_del(&f->list);
+		list_add_tail(&f->list, dst);
+		cnt++;
+	}
+
+	return cnt;
+}
+
+/**
+ * @brief func_inst_data move from one list to another
+ *
+ * @param dst Pointer to the destination list head.
+ * @param src Pointer to the source list head.
+ * @return u32 Counter of moved elements.
+ */
+u32 func_inst_data_move(struct list_head *dst,
+			struct list_head *src)
+{
+	struct func_inst_data *f, *n, *s;
+	u32 cnt = 0;
+
+	list_for_each_entry_safe(f, n, src, list) {
+		s = func_inst_data_find(dst, f);
+		if (s) {
+			print_parse_debug("move func 0x%016llX\n", f->addr);
+			list_del(&f->list);
+			list_del(&s->list);
+			destroy_func_inst_data(s);
+			list_add_tail(&f->list, dst);
+			cnt++;
+		}
+	}
+
+	return cnt;
+}
 
 
 
@@ -715,9 +744,9 @@ void destroy_func_inst_data(struct func_inst_data *fi)
 struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 {
 	struct lib_inst_data *li;
-	struct func_inst_data *fi;
+	struct func_inst_data *fi, *fin;
 	char *path;
-	u32 cnt, j, i = 0;
+	u32 cnt, i = 0;
 
 	print_parse_debug("bin path:");
 	if (get_string(mb, &path)) {
@@ -741,24 +770,17 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 		print_err("out of memory\n");
 		goto free_path;
 	}
+	INIT_LIST_HEAD(&li->list);
+	INIT_LIST_HEAD(&li->f_head);
 
 	if (cnt) {
-		li->func = vmalloc(sizeof(*li->func) * cnt);
-		if (li->func == NULL) {
-			print_err("out of memory\n");
-			goto free_li;
-		}
-
 		for (i = 0; i < cnt; ++i) {
 			print_parse_debug("func #%d:\n", i + 1);
 			fi = create_func_inst_data(mb);
 			if (fi == NULL)
 				goto free_func;
-
-			li->func[i] = fi;
+			list_add_tail(&fi->list, &li->f_head);
 		}
-	} else {
-		li->func = NULL;
 	}
 
 	li->path = path;
@@ -767,12 +789,10 @@ struct lib_inst_data *create_lib_inst_data(struct msg_buf *mb)
 	return li;
 
 free_func:
-	for (j = 0; j < i; ++j)
-		destroy_func_inst_data(li->func[j]);
-	vfree(li->func);
-
-free_li:
-	kfree(li);
+	list_for_each_entry_safe(fi, fin, &li->f_head, list) {
+		list_del(&fi->list);
+		destroy_func_inst_data(fi);
+	}
 
 free_path:
 	put_string(path);
@@ -788,19 +808,99 @@ free_path:
  */
 void destroy_lib_inst_data(struct lib_inst_data *li)
 {
-	int i;
+	struct func_inst_data *fi, *fin;
+
+	list_for_each_entry_safe(fi, fin, &li->f_head, list) {
+		list_del(&fi->list);
+		destroy_func_inst_data(fi);
+	}
 
 	put_string(li->path);
-
-	for (i = 0; i < li->cnt_func; ++i)
-		destroy_func_inst_data(li->func[i]);
-
-	vfree(li->func);
 	kfree(li);
 }
 
+/**
+ * @brief lib_inst_data find.
+ *
+ * @param head Pointer to the list head with lib_inst_data.
+ * @param lib Pointer to the lib_inst_data looking for.
+ * @return Pointer to the found lib_inst_data struct on success;\n
+ * NULL on error.
+ */
+struct lib_inst_data *lib_inst_data_find(struct list_head *head,
+					 struct lib_inst_data *lib)
+{
+	struct lib_inst_data *l;
 
+	list_for_each_entry(l, head, list) {
+		if (!strcmp(l->path, lib->path))
+			return l;
+	}
 
+	return NULL;
+}
+
+/**
+ * @brief lib_inst_data lists splice
+ *
+ * @param dst Pointer to the destination list head.
+ * @param src Pointer to the source list head.
+ * @return u32 count of spliced elements.
+ */
+u32 lib_inst_data_splice(struct list_head *dst, struct list_head *src)
+{
+	struct lib_inst_data *l, *n, *s;
+	u32 cnt = 0;
+
+	list_for_each_entry_safe(l, n, src, list) {
+		s = lib_inst_data_find(dst, l);
+
+		if (s) {
+			print_parse_debug("update lib %s\n", s->path);
+			s->cnt_func += func_inst_data_splice(&s->f_head,
+							     &l->f_head);
+
+		} else {
+			print_parse_debug("add new lib %s\n", s->path);
+
+			list_del(&l->list);
+			list_add_tail(&l->list, dst);
+			cnt++;
+		}
+	}
+
+	return cnt;
+}
+
+/**
+ * @brief lib_inst_data move from one list to another
+ *
+ * @param dst Pointer to the destination list head.
+ * @param src Pointer to the source list head.
+ * @return u32 Counter of moved elements.
+ */
+u32 lib_inst_data_move(struct list_head *dst, struct list_head *src)
+{
+	struct lib_inst_data *l, *n, *s;
+	u32 cnt = 0;
+
+	list_for_each_entry_safe(l, n, src, list) {
+		s = lib_inst_data_find(dst, l);
+
+		if (s) {
+			print_parse_debug("update lib %s\n", s->path);
+			l->cnt_func -= func_inst_data_move(&s->f_head,
+							     &l->f_head);
+			if (list_empty(&l->f_head)) {
+				list_del(&l->list);
+				destroy_lib_inst_data(l);
+				cnt++;
+			}
+		}
+	}
+
+	return cnt;
+}
 
 
 /* ============================================================================
@@ -818,56 +918,49 @@ void destroy_lib_inst_data(struct lib_inst_data *li)
 struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 {
 	struct app_inst_data *app_inst;
-	struct app_info_data *app_info;
-	struct func_inst_data *func;
-	struct lib_inst_data *lib;
-	u32 cnt_func, i_func = 0, cnt_lib, i_lib = 0, i;
-
-	app_info = create_app_info(mb);
-	if (app_info == NULL)
-		return NULL;
-
-	print_parse_debug("func count:");
-	if (get_u32(mb, &cnt_func)) {
-		print_err("failed to read count of functions\n");
-		goto free_app_info;
-	}
-
-	if (remained_mb(mb) / MIN_SIZE_FUNC_INST < cnt_func) {
-		print_err("to match count of functions(%u)\n", cnt_func);
-		goto free_app_info;
-	}
+	struct func_inst_data *func, *func_n;
+	struct lib_inst_data *lib, *lib_n;
+	u32 cnt_func, i_func = 0, cnt_lib, i_lib = 0;
 
 	app_inst = kmalloc(sizeof(*app_inst), GFP_KERNEL);
 	if (app_inst == NULL) {
 		print_err("out of memory\n");
-		goto free_app_info;
+		return NULL;
+	}
+
+	INIT_LIST_HEAD(&app_inst->list);
+	INIT_LIST_HEAD(&app_inst->f_head);
+	INIT_LIST_HEAD(&app_inst->l_head);
+
+	if (create_app_info(mb, app_inst))
+		goto err;
+
+	if (get_u32(mb, &cnt_func)) {
+		print_err("failed to read count of functions\n");
+		goto err;
+	}
+	print_parse_debug("func count:%d", cnt_func);
+
+	if (remained_mb(mb) / MIN_SIZE_FUNC_INST < cnt_func) {
+		print_err("to match count of functions(%u)\n", cnt_func);
+		goto err;
 	}
 
 	if (cnt_func) {
-		app_inst->func = vmalloc(sizeof(*app_inst->func) * cnt_func);
-		if (app_inst->func == NULL) {
-			print_err("out of memory\n");
-			goto free_app_inst;
-		}
-
 		for (i_func = 0; i_func < cnt_func; ++i_func) {
 			print_parse_debug("func #%d:\n", i_func + 1);
 			func = create_func_inst_data(mb);
 			if (func == NULL)
 				goto free_func;
-
-			app_inst->func[i_func] = func;
+			list_add_tail(&func->list, &app_inst->f_head);
 		}
-	} else {
-		app_inst->func = NULL;
 	}
 
-	print_parse_debug("lib count:");
 	if (get_u32(mb, &cnt_lib)) {
 		print_err("failed to read count of libraries\n");
 		goto free_func;
 	}
+	print_parse_debug("lib count:i%d", cnt_lib);
 
 	if (remained_mb(mb) / MIN_SIZE_LIB_INST < cnt_lib) {
 		print_err("to match count of libraries(%u)\n", cnt_lib);
@@ -875,45 +968,35 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 	}
 
 	if (cnt_lib) {
-		app_inst->lib = vmalloc(sizeof(*app_inst->lib) * cnt_lib);
-		if (app_inst->lib == NULL) {
-			print_err("out of memory\n");
-			goto free_func;
-		}
-
 		for (i_lib = 0; i_lib < cnt_lib; ++i_lib) {
 			print_parse_debug("lib #%d:\n", i_lib + 1);
 			lib = create_lib_inst_data(mb);
 			if (lib == NULL)
 				goto free_lib;
 
-			app_inst->lib[i_lib] = lib;
+			list_add_tail(&lib->list, &app_inst->l_head);
 		}
-	} else {
-		app_inst->lib = NULL;
 	}
 
-	app_inst->app_info = app_info;
 	app_inst->cnt_func = cnt_func;
 	app_inst->cnt_lib = cnt_lib;
 
 	return app_inst;
 
 free_lib:
-	for (i = 0; i < i_lib; ++i)
-		destroy_lib_inst_data(app_inst->lib[i]);
-	vfree(app_inst->lib);
+	list_for_each_entry_safe(lib, lib_n, &app_inst->l_head, list) {
+		list_del(&lib->list);
+		destroy_lib_inst_data(lib);
+	}
 
 free_func:
-	for (i = 0; i < i_func; ++i)
-		destroy_func_inst_data(app_inst->func[i]);
-	vfree(app_inst->func);
+	list_for_each_entry_safe(func, func_n, &app_inst->f_head, list) {
+		list_del(&func->list);
+		destroy_func_inst_data(func);
+	}
 
-free_app_inst:
+err:
 	kfree(app_inst);
-
-free_app_info:
-	destroy_app_info(app_info);
 
 	return NULL;
 }
@@ -926,23 +1009,93 @@ free_app_info:
  */
 void destroy_app_inst_data(struct app_inst_data *ai)
 {
-	int i;
+	struct func_inst_data *func, *func_n;
+	struct lib_inst_data *lib, *lib_n;
 
-	for (i = 0; i < ai->cnt_lib; ++i)
-		destroy_lib_inst_data(ai->lib[i]);
-	vfree(ai->lib);
+	list_for_each_entry_safe(lib, lib_n, &ai->l_head, list) {
+		list_del(&lib->list);
+		destroy_lib_inst_data(lib);
+	}
 
-	for (i = 0; i < ai->cnt_func; ++i)
-		destroy_func_inst_data(ai->func[i]);
-	vfree(ai->func);
+	list_for_each_entry_safe(func, func_n, &ai->f_head, list) {
+		list_del(&func->list);
+		destroy_func_inst_data(func);
+	}
 
-	destroy_app_info(ai->app_info);
+	put_string(ai->path);
+	put_string(ai->id);
+
 	kfree(ai);
 }
 
+/**
+ * @brief find app_inst_data.
+ *
+ * @param head Pointer to the list head with app_inst_data.
+ * @param ai Pointer to the target app_inst_data.
+ * @return Pointer to the target app_inst_data.
+ */
+struct app_inst_data *app_inst_data_find(struct list_head *head,
+					 struct app_inst_data *ai)
+{
+	struct app_inst_data *p;
 
+	list_for_each_entry(p, head, list) {
 
+		print_parse_debug("app1: %d, %d, %s, %s\n",
+				p->type, p->tgid, p->id, p->path);
 
+		print_parse_debug("app2: %d, %d, %s, %s\n",
+				ai->type, ai->tgid, ai->id, ai->path);
+
+		if ((p->type == ai->type) &&
+		    (p->tgid == ai->tgid) &&
+		    !strcmp(p->id, ai->id) &&
+		    !strcmp(p->path, ai->path)) {
+			return p;
+		}
+	}
+
+	return NULL;
+}
+
+/**
+ * @brief app_inst_data splice
+ *
+ * @param dst Pointer to the destination app_inst_data.
+ * @param src Pointer to the source app_inst_data..
+ * @return void.
+ */
+void app_inst_data_splice(struct app_inst_data *dst,
+			  struct app_inst_data *src)
+{
+	print_parse_debug("find app, splice func and lib to %s\n",
+				        dst->path);
+
+	dst->cnt_func += func_inst_data_splice(&dst->f_head, &src->f_head);
+	dst->cnt_lib += lib_inst_data_splice(&dst->l_head, &src->l_head);
+
+	return;
+}
+
+/**
+ * @brief app_inst_data move from one to another
+ *
+ * @param dst Pointer to the destination app_inst_data.
+ * @param src Pointer to the source app_inst_data.
+ * @return void.
+ */
+void app_inst_data_move(struct app_inst_data *dst,
+			struct app_inst_data *src)
+{
+	print_parse_debug("find app, delete func and lib from %s\n",
+			dst->path);
+
+	dst->cnt_func -= func_inst_data_move(&dst->f_head, &src->f_head);
+	dst->cnt_lib -= lib_inst_data_move(&dst->l_head, &src->l_head);
+
+	return;
+}
 
 /* ============================================================================
  * ==                                US_INST                                 ==
@@ -953,78 +1106,59 @@ void destroy_app_inst_data(struct app_inst_data *ai)
  * @brief Creates and fills us_inst_data struct.
  *
  * @param mb Pointer to the message buffer.
- * @return Pointer to the filled us_inst_data struct on success;\n
- * 0 on error.
+ * @param head Pointer to the list head.
+ * @return u32 count of created elements.
  */
-struct us_inst_data *create_us_inst_data(struct msg_buf *mb)
+u32 create_us_inst_data(struct msg_buf *mb,
+			struct list_head *head)
 {
-	struct us_inst_data *ui;
-	struct app_inst_data *ai;
-	u32 cnt, j, i = 0;
+	struct app_inst_data *ai, *n;
+	u32 cnt, i = 0;
 
 	print_parse_debug("us_inst_data:\n");
 
 	print_parse_debug("app count:");
 	if (get_u32(mb, &cnt)) {
 		print_err("failed to read count of applications\n");
-		return NULL;
+		return 0;
 	}
 
 	if (remained_mb(mb) / MIN_SIZE_APP_INST < cnt) {
 		print_err("to match count of applications(%u)\n", cnt);
-		return NULL;
-	}
-
-	ui = kmalloc(sizeof(struct us_inst_data), GFP_KERNEL);
-	if (ui == NULL) {
-		print_err("out of memory\n");
-		return NULL;
-	}
-
-	ui->app_inst = kmalloc(sizeof(struct app_inst_data *) * cnt,
-			       GFP_KERNEL);
-	if (ui->app_inst == NULL) {
-		print_err("out of memory\n");
-		goto free_ui;
+		return 0;
 	}
 
 	for (i = 0; i < cnt; ++i) {
 		print_parse_debug("app #%d:\n", i + 1);
 		ai = create_app_inst_data(mb);
 		if (ai == NULL)
-			goto free_app_inst;
+			goto err;
 
-		ui->app_inst[i] = ai;
+		list_add_tail(&ai->list, head);
 	}
 
-	ui->cnt = cnt;
+	return cnt;
 
-	return ui;
+err:
+	list_for_each_entry_safe(ai, n, head, list) {
+		list_del(&ai->list);
+		destroy_app_inst_data(ai);
+	}
 
-free_app_inst:
-	for (j = 0; j < i; ++j)
-		destroy_app_inst_data(ui->app_inst[j]);
-	kfree(ui->app_inst);
-
-free_ui:
-	kfree(ui);
-
-	return NULL;
+	return 0;
 }
 
 /**
  * @brief us_inst_data cleanup.
  *
- * @param ui Pointer to the target us_inst_data.
+ * @param head Pointer to the list head.
  * @return Void.
  */
-void destroy_us_inst_data(struct us_inst_data *ui)
+void destroy_us_inst_data(struct list_head *head)
 {
-	int i;
-
-	for (i = 0; i < ui->cnt; ++i)
-		destroy_app_inst_data(ui->app_inst[i]);
-
-	kfree(ui->app_inst);
-	kfree(ui);
+	struct app_inst_data *ai, *n;
+	list_for_each_entry_safe(ai, n, head, list) {
+		list_del(&ai->list);
+		destroy_app_inst_data(ai);
+	}
 }

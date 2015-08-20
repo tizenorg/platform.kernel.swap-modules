@@ -82,8 +82,10 @@ struct conf_data {
  * @brief Application and library functions to set probes.
  */
 struct func_inst_data {
+	struct list_head list;
 	u64 addr;                   /**< Function address. */
 	struct probe_desc p_desc;   /**< Probe info. */
+	int registered;
 };
 
 /**
@@ -91,9 +93,10 @@ struct func_inst_data {
  * @brief Library struct.
  */
 struct lib_inst_data {
+	struct list_head list;
 	char *path;                 /**< Library path. */
 	u32 cnt_func;               /**< Function probes count in this library. */
-	struct func_inst_data **func;    /**< Pointer to the probes array. */
+	struct list_head f_head;    /**< List head of func_inst_data */
 };
 
 /**
@@ -101,25 +104,18 @@ struct lib_inst_data {
  * @brief Application struct.
  */
 struct app_inst_data {
-	struct app_info_data *app_info;     /**< Pointer to app_info struct. */
-	u32 cnt_func;                       /**< Function probes count in app. */
-	struct func_inst_data **func;       /**< Pointer to the probes array. */
-	u32 cnt_lib;                        /**< Libs count. */
-	struct lib_inst_data **lib;         /**< Pointer to the libs array. */
+	struct list_head list;
+	enum APP_TYPE type;                /**< Application type. */
+	pid_t tgid;                        /**< Application PID. */
+	char *id;                          /**< Application ID */
+	char *path;                        /**< Application execution path. */
+	struct list_head f_head;           /**< List head of func_inst_data */
+	struct list_head l_head;           /**< List head of lib_inst_data */
+	u32 cnt_func;                      /**< Function probes count in app. */
+	u32 cnt_lib;                       /**< Libs count. */
 };
 
-/**
- * @struct us_inst_data
- * @brief User space instrumentation struct.
- */
-struct us_inst_data {
-	u32 cnt;                            /**< Apps count. */
-	struct app_inst_data **app_inst;    /**< Pointer to the apps array. */
-};
-
-
-struct app_info_data *create_app_info(struct msg_buf *mb);
-void destroy_app_info(struct app_info_data *app_info);
+int create_app_info(struct msg_buf *mb, struct app_inst_data *ai);
 
 struct conf_data *create_conf_data(struct msg_buf *mb);
 void destroy_conf_data(struct conf_data *conf);
@@ -135,9 +131,15 @@ void destroy_lib_inst_data(struct lib_inst_data *lib_inst);
 
 struct app_inst_data *create_app_inst_data(struct msg_buf *mb);
 void destroy_app_inst_data(struct app_inst_data *app_inst);
+struct app_inst_data *app_inst_data_find(struct list_head *head,
+					 struct app_inst_data *ai);
+void app_inst_data_move(struct app_inst_data *dst,
+			  struct app_inst_data *src);
+void app_inst_data_splice(struct app_inst_data *dst,
+			  struct app_inst_data *src);
 
-struct us_inst_data *create_us_inst_data(struct msg_buf *mb);
-void destroy_us_inst_data(struct us_inst_data *us_inst);
+u32 create_us_inst_data(struct msg_buf *mb, struct list_head *head);
+void destroy_us_inst_data(struct list_head *head);
 
 
 /* empty functions for calculating size fields in structures */
@@ -158,8 +160,7 @@ enum {
 	MIN_SIZE_APP_INFO = SIZE_APP_TYPE + MIN_SIZE_STRING + MIN_SIZE_STRING,
 	MIN_SIZE_APP_INST = MIN_SIZE_APP_INFO +
 			    sizeof(make_app_inst_data().cnt_func) +
-			    sizeof(make_app_inst_data().cnt_lib),
-	MIN_SIZE_US_INST = sizeof(make_us_inst_data().cnt)
+			    sizeof(make_app_inst_data().cnt_lib)
 };
 
 #endif /* _MSG_PARSER_H */

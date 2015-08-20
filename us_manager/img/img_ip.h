@@ -37,7 +37,7 @@ struct img_ip {
 	struct list_head list;		/**< For img_file */
 	unsigned long addr;		/**< Function address */
 	struct list_head ihead;		/**< List head for sspt ip */
-	struct probe_desc desc;		/**< Probe info */
+	struct probe_desc *desc;	/**< Probe info */
 };
 
 struct img_ip *create_img_ip(unsigned long addr, struct probe_desc *info);

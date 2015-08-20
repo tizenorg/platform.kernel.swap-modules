@@ -100,7 +100,7 @@ int pin_unregister(struct probe_new *probe, struct pf_group *pfg,
 {
 	int ret;
 
-	ret = pf_unregister_probe(pfg, dentry, probe->offset);
+	ret = pf_unregister_probe(pfg, dentry, probe->offset, probe->desc);
 	if (ret) {
 		printk(KERN_ERR "%s: unregister probe failed (%d)\n",
 				__FUNCTION__, ret);

@@ -72,11 +72,11 @@ static int webprobe_register_probe(struct us_ip *ip)
 static void webprobe_unregister_probe(struct us_ip *ip, int disarm)
 {
 	if (ip->orig_addr == inspserver_addr_local)
-		web_func_inst_remove(web_prof_addr(INSPSERVER_START));
+		web_func_inst_remove(INSPSERVER_START);
 	else if (ip->orig_addr == willexecute_addr_local)
-		web_func_inst_remove(web_prof_addr(WILL_EXECUTE));
+		web_func_inst_remove(WILL_EXECUTE);
 	else if (ip->orig_addr == didexecute_addr_local)
-		web_func_inst_remove(web_prof_addr(DID_EXECUTE));
+		web_func_inst_remove(DID_EXECUTE);
 
 	__swap_unregister_uretprobe(&ip->retprobe, disarm);
 }

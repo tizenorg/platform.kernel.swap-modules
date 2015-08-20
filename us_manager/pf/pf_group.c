@@ -421,9 +421,9 @@ EXPORT_SYMBOL_GPL(pf_register_probe);
  * @return Error code
  */
 int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
-			unsigned long offset)
+			unsigned long offset, struct probe_desc *pd)
 {
-	return img_proc_del_ip(pfg->i_proc, dentry, offset);
+	return img_proc_del_ip(pfg->i_proc, dentry, offset, pd);
 }
 EXPORT_SYMBOL_GPL(pf_unregister_probe);
 

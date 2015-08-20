@@ -40,6 +40,7 @@
 #include <us_manager/us_manager.h>
 
 
+static LIST_HEAD(app_inst_head);
 static int wrt_launcher_port;
 
 static int set_config(struct conf_data *conf)
@@ -76,14 +77,14 @@ int msg_keep_alive(struct msg_buf *mb)
 int msg_start(struct msg_buf *mb)
 {
 	int ret = 0;
-	struct us_inst_data *us_inst;
+	u32 cnt;
 	struct conf_data conf;
 
 	swap_msg_seq_num_reset();
 	swap_msg_discard_reset();
 
-	us_inst = create_us_inst_data(mb);
-	if (us_inst == NULL)
+	cnt = create_us_inst_data(mb, &app_inst_head);
+	if (!cnt)
 		return -EINVAL;
 
 	if (!is_end_mb(mb)) {
@@ -92,7 +93,7 @@ int msg_start(struct msg_buf *mb)
 		goto free_us_inst;
 	}
 
-	ret = mod_us_inst(us_inst, MT_ADD);
+	ret = mod_us_inst(&app_inst_head, MT_ADD);
 	if (ret) {
 		printk(KERN_INFO "Cannot mod us inst, ret = %d\n", ret);
 		ret = -EINVAL;
@@ -106,8 +107,10 @@ int msg_start(struct msg_buf *mb)
 	restore_config(&conf);
 	set_config(&conf);
 
+	return ret;
+
 free_us_inst:
-	destroy_us_inst_data(us_inst);
+	destroy_us_inst_data(&app_inst_head);
 
 	return ret;
 }
@@ -144,6 +147,8 @@ int msg_stop(struct msg_buf *mb)
 	discarded = swap_msg_discard_get();
 	printk(KERN_INFO "discarded messages: %d\n", discarded);
 	swap_msg_discard_reset();
+
+	destroy_us_inst_data(&app_inst_head);
 
 	return ret;
 }
@@ -192,10 +197,13 @@ free_conf_data:
 int msg_swap_inst_add(struct msg_buf *mb)
 {
 	int ret = 0;
-	struct us_inst_data *us_inst;
+	u32 cnt;
+	struct app_inst_data *src, *n;
+	struct list_head app_head;
 
-	us_inst = create_us_inst_data(mb);
-	if (us_inst == NULL)
+	INIT_LIST_HEAD(&app_head);
+	cnt = create_us_inst_data(mb, &app_head);
+	if (!cnt)
 		return -EINVAL;
 
 	if (!is_end_mb(mb)) {
@@ -204,10 +212,22 @@ int msg_swap_inst_add(struct msg_buf *mb)
 		goto free_us_inst;
 	}
 
-	ret = mod_us_inst(us_inst, MT_ADD);
+	list_for_each_entry_safe(src, n, &app_head, list) {
+		struct app_inst_data *dst;
+
+		dst = app_inst_data_find(&app_inst_head, src);
+		if (dst) {
+			app_inst_data_splice(dst, src);
+		} else {
+			list_del(&src->list);
+			list_add_tail(&src->list, &app_inst_head);
+		}
+	}
+
+	ret = mod_us_inst(&app_inst_head, MT_ADD);
 
 free_us_inst:
-	destroy_us_inst_data(us_inst);
+	destroy_us_inst_data(&app_head);
 
 	return ret;
 }
@@ -221,10 +241,13 @@ free_us_inst:
 int msg_swap_inst_remove(struct msg_buf *mb)
 {
 	int ret = 0;
-	struct us_inst_data *us_inst;
+	u32 cnt;
+	struct list_head app_head;
+	struct app_inst_data *src, *n;
 
-	us_inst = create_us_inst_data(mb);
-	if (us_inst == NULL)
+	INIT_LIST_HEAD(&app_head);
+	cnt =  create_us_inst_data(mb, &app_head);
+	if (!cnt)
 		return -EINVAL;
 
 	if (!is_end_mb(mb)) {
@@ -233,10 +256,23 @@ int msg_swap_inst_remove(struct msg_buf *mb)
 		goto free_us_inst;
 	}
 
-	ret = mod_us_inst(us_inst, MT_DEL);
+	list_for_each_entry_safe(src, n, &app_inst_head, list) {
+		struct app_inst_data *dst;
+
+		dst = app_inst_data_find(&app_head, src);
+		if (dst) {
+			app_inst_data_move(dst, src);
+			if (list_empty(&src->f_head) &&
+			    list_empty(&src->l_head)) {
+				destroy_app_inst_data(src);
+			}
+		}
+	}
+
+	ret = mod_us_inst(&app_head, MT_DEL);
 
 free_us_inst:
-	destroy_us_inst_data(us_inst);
+	destroy_us_inst_data(&app_head);
 
 	return ret;
 }

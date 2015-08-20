@@ -37,9 +37,8 @@ void free_img_proc(struct img_proc *proc);
 
 int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 		    unsigned long addr, struct probe_desc *pd);
-int img_proc_del_ip(struct img_proc *proc,
-		    struct dentry *dentry,
-		    unsigned long addr);
+int img_proc_del_ip(struct img_proc *proc, struct dentry *dentry,
+		    unsigned long addri, struct probe_desc *pd);
 
 void img_proc_copy_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc);
 
