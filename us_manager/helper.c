@@ -47,6 +47,11 @@ static atomic_t stop_flag = ATOMIC_INIT(0);
 
 struct pf_data {
 	unsigned long addr;
+
+#if defined(CONFIG_ARM)
+	struct pt_regs *pf_regs;
+	unsigned long save_pc;
+#endif /* CONFIG_ARM */
 };
 
 static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
@@ -55,6 +60,8 @@ static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 #if defined(CONFIG_ARM)
 	data->addr = swap_get_karg(regs, 0);
+	data->pf_regs = (struct pt_regs *)swap_get_karg(regs, 2);
+	data->save_pc = data->pf_regs->ARM_pc;
 #elif defined(CONFIG_X86_32)
 	data->addr = read_cr2();
 #else
@@ -77,14 +84,21 @@ static unsigned long cb_pf(void *data)
 static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct task_struct *task = current;
+	struct pf_data *data = (struct pf_data *)ri->data;
 	unsigned long page_addr;
 	int ret;
 
 	if (is_kthread(task))
 		return 0;
 
+#if defined(CONFIG_ARM)
+	/* skip fixup page_fault */
+	if (data->save_pc != data->pf_regs->ARM_pc)
+		return 0;
+#endif /* CONFIG_ARM */
+
 	/* TODO: check return value */
-	page_addr = ((struct pf_data *)ri->data)->addr & PAGE_MASK;
+	page_addr = data->addr & PAGE_MASK;
 	ret = set_jump_cb((unsigned long)ri->ret_addr, regs, cb_pf,
 			  &page_addr, sizeof(page_addr));
 
