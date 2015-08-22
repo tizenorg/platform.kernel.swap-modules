@@ -53,6 +53,7 @@ struct sspt_proc {
 	struct list_head filter_list;	/**< Filter list */
 	unsigned first_install:1;	/**< Install flag */
 	struct sspt_feature *feature;	/**< Ptr to the feature */
+	atomic_t usage;
 
 	/* FIXME: for preload (remove those fields) */
 	void *private_data;		/**< Process private data */
@@ -64,7 +65,9 @@ struct sspt_proc_cb {
 };
 
 struct sspt_proc *sspt_proc_create(struct task_struct *task);
-void sspt_proc_free(struct sspt_proc *proc);
+void sspt_proc_cleanup(struct sspt_proc *proc);
+struct sspt_proc *sspt_proc_get(struct sspt_proc *proc);
+void sspt_proc_put(struct sspt_proc *proc);
 
 void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *),
 			  void *data);

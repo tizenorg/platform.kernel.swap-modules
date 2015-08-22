@@ -105,6 +105,7 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
 		proc->private_data = NULL;
 		INIT_LIST_HEAD(&proc->file_list);
 		INIT_LIST_HEAD(&proc->filter_list);
+		atomic_set(&proc->usage, 1);
 
 		/* add to list */
 		list_add(&proc->list, &proc_probes_list);
@@ -121,12 +122,11 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
  */
 
 /* called with sspt_proc_write_lock() */
-void sspt_proc_free(struct sspt_proc *proc)
+void sspt_proc_cleanup(struct sspt_proc *proc)
 {
 	struct sspt_file *file, *n;
 
-	/* delete from list */
-	list_del(&proc->list);
+	sspt_proc_del_all_filters(proc);
 
 	list_for_each_entry_safe(file, n, &proc->file_list, list) {
 		list_del(&file->list);
@@ -136,7 +136,20 @@ void sspt_proc_free(struct sspt_proc *proc)
 	sspt_destroy_feature(proc->feature);
 
 	free_sm_us(proc->sm);
-	kfree(proc);
+	sspt_proc_put(proc);
+}
+
+struct sspt_proc *sspt_proc_get(struct sspt_proc *proc)
+{
+	atomic_inc(&proc->usage);
+
+	return proc;
+}
+
+void sspt_proc_put(struct sspt_proc *proc)
+{
+	if (atomic_dec_and_test(&proc->usage))
+		kfree(proc);
 }
 
 /**
@@ -213,9 +226,10 @@ struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 void sspt_proc_free_all(void)
 {
 	struct sspt_proc *proc, *n;
+
 	list_for_each_entry_safe(proc, n, &proc_probes_list, list) {
-		sspt_proc_del_all_filters(proc);
-		sspt_proc_free(proc);
+		list_del(&proc->list);
+		sspt_proc_cleanup(proc);
 	}
 }
 
