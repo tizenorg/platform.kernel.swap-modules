@@ -27,7 +27,6 @@
 #include "preload_storage.h"
 #include "preload_control.h"
 #include "preload_threads.h"
-#include "preload_patcher.h"
 #include "preload_pd.h"
 
 #define page_to_proc(page) ((page)->file->proc)
@@ -377,7 +376,7 @@ static bool __is_proc_mmap_mappable(struct task_struct *task)
 	struct vm_area_struct *linker_vma = __get_linker_vma(task);
 	unsigned long r_debug_addr;
 	unsigned int state;
-	int ret;
+	enum { r_state_offset = sizeof(int) + sizeof(void *) + sizeof(long) };
 
 	if (linker_vma == NULL)
 		return false;
@@ -386,13 +385,11 @@ static bool __is_proc_mmap_mappable(struct task_struct *task)
 	if (r_debug_addr == 0)
 		return false;
 
-	ret = preload_patcher_get_ui((void *)r_debug_addr + sizeof(int) +
-				 sizeof(void *) + sizeof(unsigned long),
-				 &state, task);
-	if (ret != sizeof(state))
+	r_debug_addr += r_state_offset;
+	if (get_user(state, (unsigned long *)r_debug_addr))
 		return false;
 
-	return ( state == 0 ? true : false );
+	return !state;
 }
 
 static bool __not_system_caller(struct task_struct *task,

@@ -12,7 +12,6 @@
 #include "preload_debugfs.h"
 #include "preload_module.h"
 #include "preload_control.h"
-#include "preload_patcher.h"
 #include "preload_storage.h"
 
 static const char PRELOAD_FOLDER[] = "preload";
