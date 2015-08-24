@@ -1091,6 +1091,41 @@ static int swap_disarm_krp_inst(struct kretprobe_instance *ri)
 	return retval;
 }
 
+static void krp_inst_flush(struct task_struct *task)
+{
+	unsigned long flags;
+	struct kretprobe_instance *ri;
+	struct hlist_node *tmp;
+	struct hlist_head *head;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
+
+	spin_lock_irqsave(&kretprobe_lock, flags);
+	head = kretprobe_inst_table_head(task);
+	swap_hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
+		if (ri->task == task) {
+			printk("task[%u %u %s]: flush krp_inst, ret_addr=%p\n",
+				task->tgid, task->pid, task->comm,
+				ri->ret_addr);
+			recycle_rp_inst(ri);
+		}
+	}
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+}
+
+static int put_task_handler(struct kprobe *p, struct pt_regs *regs)
+{
+	struct task_struct *t = (struct task_struct *)swap_get_karg(regs, 0);
+
+	/* task has died */
+	krp_inst_flush(t);
+
+	return 0;
+}
+
+static struct kprobe put_task_kp = {
+	.pre_handler = put_task_handler,
+};
+
 static int init_module_deps(void)
 {
 	int ret;
@@ -1131,6 +1166,11 @@ static int once(void)
 	if (module_alloc == NULL)
 		goto not_found;
 
+	sym = "__put_task_struct";
+	put_task_kp.addr = (void *)swap_ksyms(sym);
+	if (put_task_kp.addr == NULL)
+		goto not_found;
+
 	ret = init_module_deps();
 	if (ret)
 		return ret;
@@ -1153,14 +1193,27 @@ not_found:
 
 static int init_kprobes(void)
 {
+	int ret;
+
 	init_sm();
 	atomic_set(&kprobe_count, 0);
 
-	return swap_arch_init_kprobes();
+	ret = swap_arch_init_kprobes();
+	if (ret)
+		return ret;
+
+	ret = swap_register_kprobe(&put_task_kp);
+	if (ret) {
+		swap_arch_exit_kprobes();
+		return ret;
+	}
+
+	return 0;
 }
 
 static void exit_kprobes(void)
 {
+	swap_unregister_kprobe(&put_task_kp);
 	swap_arch_exit_kprobes();
 	exit_sm();
 }
