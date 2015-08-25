@@ -189,15 +189,11 @@ int swap_msg_pack_args(char *buf, int len,
 
 		switch (fmt[fmt_i]) {
 		case 'b': /* 1 byte(bool) */
-			if (len < 1)
-				return -ENOMEM;
 			*buf = (char)!!get_arg(regs, i);
 			buf += 1;
 			len -= 1;
 			break;
 		case 'c': /* 1 byte(char) */
-			if (len < 1)
-				return -ENOMEM;
 			*buf = (char)get_arg(regs, i);
 			buf += 1;
 			len -= 1;

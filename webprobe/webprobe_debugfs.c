@@ -97,7 +97,7 @@ static const struct file_operations fops_enabled = {
 static ssize_t write_app_info(struct file *file, const char __user *user_buf,
 			      size_t count, loff_t *ppos)
 {
-	int ret;
+	int ret = 0;
 	char *buf, *path, *id;
 	int n;
 
@@ -135,7 +135,7 @@ static ssize_t write_app_info(struct file *file, const char __user *user_buf,
 	}
 
 	web_prof_data_set(path, id);
-	sprintf(app_info, "%s\n", buf);
+	snprintf(app_info, sizeof(app_info), "%s\n", buf);
 
 free_app_info:
 	kfree(id);

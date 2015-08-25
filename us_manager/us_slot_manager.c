@@ -77,6 +77,10 @@ static void sm_free_us(struct slot_manager *sm, void *ptr)
 struct slot_manager *create_sm_us(struct task_struct *task)
 {
 	struct slot_manager *sm = kmalloc(sizeof(*sm), GFP_ATOMIC);
+
+	if (sm == NULL)
+		return NULL;
+
 	sm->slot_size = UPROBES_TRAMP_LEN;
 	sm->alloc = sm_alloc_us;
 	sm->free = sm_free_us;

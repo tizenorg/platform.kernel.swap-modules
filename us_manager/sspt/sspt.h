@@ -89,7 +89,8 @@ static inline int sspt_unregister_usprobe(struct task_struct *task,
 		break;
 	case US_DISARM:
 		up = probe_info_get_uprobe(ip->info, ip);
-		disarm_uprobe(&up->kp, task);
+		if (up)
+			disarm_uprobe(&up->kp, task);
 		break;
 	case US_UNINSTALL:
 		probe_info_unregister(ip->info, ip, 0);

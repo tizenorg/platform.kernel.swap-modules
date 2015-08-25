@@ -50,29 +50,37 @@ static int calculation_hash_bits(int cnt)
  */
 struct sspt_file *sspt_file_create(struct dentry *dentry, int page_cnt)
 {
+	int i, table_size;
 	struct sspt_file *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 
-	if (obj) {
-		int i, table_size;
-		INIT_LIST_HEAD(&obj->list);
-		obj->proc = NULL;
-		obj->dentry = dentry;
-		obj->loaded = 0;
-		obj->vm_start = 0;
-		obj->vm_end = 0;
+	if (obj == NULL)
+		return NULL;
 
-		obj->page_probes_hash_bits = calculation_hash_bits(page_cnt);
-		table_size = (1 << obj->page_probes_hash_bits);
+	INIT_LIST_HEAD(&obj->list);
+	obj->proc = NULL;
+	obj->dentry = dentry;
+	obj->loaded = 0;
+	obj->vm_start = 0;
+	obj->vm_end = 0;
 
-		obj->page_probes_table =
+	obj->page_probes_hash_bits = calculation_hash_bits(page_cnt);
+	table_size = (1 << obj->page_probes_hash_bits);
+
+	obj->page_probes_table =
 			kmalloc(sizeof(*obj->page_probes_table)*table_size,
 				GFP_ATOMIC);
 
-		for (i = 0; i < table_size; ++i)
-			INIT_HLIST_HEAD(&obj->page_probes_table[i]);
-	}
+	if (obj->page_probes_table == NULL)
+		goto err;
+
+	for (i = 0; i < table_size; ++i)
+		INIT_HLIST_HEAD(&obj->page_probes_table[i]);
 
 	return obj;
+
+err:
+	kfree(obj);
+	return NULL;
 }
 
 /**
@@ -134,7 +142,8 @@ static struct sspt_page *sspt_find_page_or_new(struct sspt_file *file,
 
 	if (page == NULL) {
 		page = sspt_page_create(offset);
-		sspt_add_page(file, page);
+		if (page)
+			sspt_add_page(file, page);
 	}
 
 	return page;
@@ -185,7 +194,8 @@ void sspt_file_add_ip(struct sspt_file *file, unsigned long offset,
 	/* FIXME: delete ip */
 	struct us_ip *ip = create_ip(offset, probe_i, page);
 
-	sspt_add_ip(page, ip);
+	if (page && ip)
+		sspt_add_ip(page, ip);
 }
 
 /**

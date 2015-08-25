@@ -660,7 +660,7 @@ static char *__fops_dpath(struct dentry *dentry, char *buf, int buflen)
 	if (IS_ERR_OR_NULL(filename)) {
 		printk(FOPS_PREFIX "dentry_path_raw FAILED: %ld\n",
 		       PTR_ERR(filename));
-		strcpy(buf, NA);
+		strncpy(buf, NA, buflen);
 		filename = buf;
 	}
 

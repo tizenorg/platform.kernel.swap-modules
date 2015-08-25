@@ -110,6 +110,9 @@ int img_file_add_ip(struct img_file *file, unsigned long addr,
 	}
 
 	ip = create_img_ip(addr, probe_i);
+	if (ip == NULL)
+		return -ENOMEM;
+
 	img_add_ip_by_list(file, ip);
 
 	return 0;

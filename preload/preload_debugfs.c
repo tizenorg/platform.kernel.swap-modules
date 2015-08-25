@@ -116,7 +116,7 @@ struct dentry *debugfs_create_ptr(const char *name, mode_t mode,
  */
 
 static ssize_t loader_path_write(struct file *file, const char __user *buf,
-			    size_t len, loff_t *ppos)
+				 size_t len, loff_t *ppos)
 {
 	ssize_t ret;
 	char *path;
@@ -128,20 +128,21 @@ static ssize_t loader_path_write(struct file *file, const char __user *buf,
 
 	path = kmalloc(len, GFP_KERNEL);
 	if (path == NULL) {
-		ret = -ENOMEM;
-		goto out;
+		return -ENOMEM;
 	}
 
 	if (copy_from_user(path, buf, len)) {
 		ret = -EINVAL;
-		goto out;
+		goto err;
 	}
 
 	path[len - 1] = '\0';
 	set_loader_file(path);
 	ret = len;
 
-out:
+	return ret;
+err:
+	kfree(path);
 	return ret;
 }
 

@@ -61,6 +61,9 @@ static struct pl_struct *create_pl_struct(struct sspt_proc *proc)
 {
 	struct pl_struct *pls = kmalloc(sizeof(*pls), GFP_KERNEL);
 
+	if (pls == NULL)
+		return NULL;
+
 	INIT_LIST_HEAD(&pls->list);
 	pls->proc = proc;
 
@@ -526,7 +529,8 @@ void check_task_and_install(struct task_struct *task)
 	case PIF_FIRST:
 	case PIF_ADD_PFG:
 		proc = sspt_proc_get_by_task(task);
-		first_install(task, proc);
+		if (proc)
+			first_install(task, proc);
 		break;
 
 	case PIF_NONE:
@@ -552,12 +556,14 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	case PIF_FIRST:
 	case PIF_ADD_PFG:
 		proc = sspt_proc_get_by_task(task);
-		first_install(task, proc);
+		if (proc)
+			first_install(task, proc);
 		break;
 
 	case PIF_SECOND:
 		proc = sspt_proc_get_by_task(task);
-		subsequent_install(task, proc, page_addr);
+		if (proc)
+			subsequent_install(task, proc, page_addr);
 		break;
 
 	case PIF_NONE:

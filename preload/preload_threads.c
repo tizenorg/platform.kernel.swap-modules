@@ -57,13 +57,25 @@ static inline struct preload_td *get_preload_td(struct task_struct *task)
 
 unsigned long get_preload_flags(struct task_struct *task)
 {
-	return get_preload_td(task)->flags;
+	struct preload_td *td = get_preload_td(task);
+
+	if (td == NULL)
+		return 0;
+
+	return td->flags;
 }
 
 void set_preload_flags(struct task_struct *task,
 		       unsigned long flags)
 {
-	get_preload_td(task)->flags = flags;
+	struct preload_td *td = get_preload_td(task);
+
+	if (td == NULL) {
+		printk(KERN_ERR "%s: invalid arguments\n", __FUNCTION__);
+		return;
+	}
+
+	td->flags = flags;
 }
 
 
@@ -170,6 +182,9 @@ static void __clean_slot(struct thread_slot *slot)
 static inline struct thread_slot *__get_task_slot(struct task_struct *task)
 {
 	struct preload_td *td = get_preload_td(task);
+
+	if (td == NULL)
+		return NULL;
 
 	return list_empty(&td->slots) ? NULL :
 		list_last_entry(&td->slots, struct thread_slot, list);

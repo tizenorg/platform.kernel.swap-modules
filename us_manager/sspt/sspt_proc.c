@@ -240,7 +240,8 @@ struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
 	file = sspt_proc_find_file(proc, dentry);
 	if (file == NULL) {
 		file = sspt_file_create(dentry, 10);
-		sspt_proc_add_file(proc, file);
+		if (file)
+			sspt_proc_add_file(proc, file);
 	}
 
 	return file;

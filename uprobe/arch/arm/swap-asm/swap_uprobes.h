@@ -119,12 +119,16 @@ static inline void swap_put_uarg(struct pt_regs *regs, unsigned long n,
 	switch (n) {
 	case 0:
 		regs->ARM_r0 = val;
+		break;
 	case 1:
 		regs->ARM_r1 = val;
+		break;
 	case 2:
 		regs->ARM_r2 = val;
+		break;
 	case 3:
 		regs->ARM_r3 = val;
+		break;
 	}
 
 	ptr = (u32 *)regs->ARM_sp + n - 4;

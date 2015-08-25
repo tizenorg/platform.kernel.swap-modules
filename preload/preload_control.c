@@ -257,6 +257,9 @@ unsigned int preload_control_get_bin_names(char ***filenames_p)
 	int i;
 	unsigned int ret = 0;
 
+	if (target_binaries_cnt == 0)
+		return 0;
+
 	__target_binaries_lock();
 
 	*filenames_p = kmalloc(sizeof(**filenames_p) * target_binaries_cnt,

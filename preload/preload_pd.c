@@ -235,13 +235,18 @@ char __user *preload_pd_get_path(struct process_data *pd)
 	/* This function should be called only for current */
 
 	struct task_struct *task = current;
-	unsigned long page = __get_data_page(pd);
+	unsigned long page = 0;
 	int ret;
 
-	if (pd == NULL || page == 0)
+	if (pd == NULL)
 		return NULL;
 
-    if (pd->is_mapped == 1)
+	page = __get_data_page(pd);
+
+	if (page == 0)
+		return NULL;
+
+	if (pd->is_mapped == 1)
 		return __get_path(pd);
 
 	ret = preload_patcher_write_string((void *)page, handlers_info->path,
@@ -249,16 +254,16 @@ char __user *preload_pd_get_path(struct process_data *pd)
 					   task);
 	if (ret <= 0) {
 		printk(KERN_ERR PRELOAD_PREFIX "Cannot copy string to user!\n");
-        goto get_path_failed;
+		goto get_path_failed;
 	}
 
-    pd->is_mapped = 1;
+	pd->is_mapped = 1;
 
 	return __get_path(pd);
 
 get_path_failed:
 
-    return NULL;
+	return NULL;
 }
 
 
@@ -343,25 +348,21 @@ long preload_pd_get_refs(struct process_data *pd)
 	return __get_refcount(pd);
 }
 
-int preload_pd_create_pd(void** target_place, struct task_struct *task)
+int preload_pd_create_pd(void **target_place, struct task_struct *task)
 {
-    struct process_data *pd;
-    unsigned long page = 0;
+	struct process_data *pd;
+	unsigned long page = 0;
 	unsigned long base;
 	struct dentry *dentry;
-	int ret;
+	int ret = 0;
 
 	ret = __pd_create_on_demand();
 	if (ret)
-		goto create_pd_exit;
+		return ret;
 
 	pd = kzalloc(sizeof(*pd), GFP_ATOMIC);
-	if (pd == NULL) {
-		ret = -ENOMEM;
-		goto create_pd_exit;
-	}
-
-	ret = 0;
+	if (pd == NULL)
+		return -ENOMEM;
 
 	/* 1. check if loader is already mapped */
 	dentry = preload_debugfs_get_loader_dentry();
@@ -399,7 +400,10 @@ int preload_pd_create_pd(void** target_place, struct task_struct *task)
 
 	*target_place = pd;
 
+	return ret;
+
 create_pd_exit:
+	kfree(pd);
 	return ret;
 }
 

@@ -97,6 +97,12 @@ static void chunk_init(struct chunk *chunk,
 	chunk->index = kmalloc(sizeof(*chunk->index)*chunk->count_available,
 			       GFP_ATOMIC);
 
+
+	if (chunk->index == NULL) {
+		printk(KERN_ERR "%s: failed to allocate memory\n", __FUNCTION__);
+		return;
+	}
+
 	p = chunk->index;
 	for (i = 0; i != chunk->count_available; ++p)
 		*p = ++i;

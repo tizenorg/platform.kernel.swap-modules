@@ -92,9 +92,8 @@ struct sspt_feature *sspt_create_feature(void)
 		spin_lock_irqsave(&feature_img_lock, flags);
 		list_for_each_entry(fi, &feature_img_list, list) {
 			fd = create_feature_data(fi);
-
-			/* add to list */
-			list_add(&fd->list, &f->feature_list);
+                        if (fd) /* add to list */
+				list_add(&fd->list, &f->feature_list);
 		}
 		spin_unlock_irqrestore(&feature_img_lock, flags);
 	}
