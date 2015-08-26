@@ -686,15 +686,21 @@ static int pre_handler_kretprobe(struct kprobe *p, struct pt_regs *regs)
 	/* TODO: test - remove retprobe after func entry but before its exit */
 	ri = get_free_rp_inst(rp);
 	if (ri != NULL) {
+		int skip = 0;
+
 		ri->rp = rp;
 		ri->task = current;
 
 		if (rp->entry_handler)
-			rp->entry_handler(ri, regs);
+			skip = rp->entry_handler(ri, regs);
 
-		swap_arch_prepare_kretprobe(ri, regs);
-
-		add_rp_inst(ri);
+		if (skip) {
+			add_rp_inst(ri);
+			recycle_rp_inst(ri);
+		} else {
+			swap_arch_prepare_kretprobe(ri, regs);
+			add_rp_inst(ri);
+		}
 	} else {
 		++rp->nmissed;
 	}
