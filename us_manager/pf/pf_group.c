@@ -490,11 +490,15 @@ static enum pf_inst_flag pfg_check_task(struct task_struct *task)
 			flag = PIF_FIRST;
 		}
 
-		if (proc && sspt_proc_is_filter_new(proc, pfg)) {
-			img_proc_copy_to_sspt(pfg->i_proc, proc);
-			sspt_proc_add_filter(proc, pfg);
-			pfg_add_proc(pfg, proc);
-			flag = flag == PIF_FIRST ? flag : PIF_ADD_PFG;
+		if (proc) {
+			write_lock(&proc->filter_lock);
+				if (sspt_proc_is_filter_new(proc, pfg)) {
+					img_proc_copy_to_sspt(pfg->i_proc, proc);
+					sspt_proc_add_filter(proc, pfg);
+					pfg_add_proc(pfg, proc);
+					flag = flag == PIF_FIRST ? flag : PIF_ADD_PFG;
+			}
+			write_unlock(&proc->filter_lock);
 		}
 	}
 	read_unlock(&pfg_list_lock);

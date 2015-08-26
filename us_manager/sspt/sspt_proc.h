@@ -53,6 +53,7 @@ struct sspt_proc {
 	unsigned long r_state_addr;	/**< address of r_state */
 	struct slot_manager *sm;	/**< Ptr to the manager slot */
 	struct list_head file_list;	/**< For sspt_file */
+	rwlock_t filter_lock;
 	struct list_head filter_list;	/**< Filter list */
 	unsigned first_install:1;	/**< Install flag */
 	struct sspt_feature *feature;	/**< Ptr to the feature */

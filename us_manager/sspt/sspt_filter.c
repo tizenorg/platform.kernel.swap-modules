@@ -10,12 +10,11 @@ struct sspt_filter *sspt_filter_create(struct sspt_proc *proc,
 {
 	struct sspt_filter *fl;
 
-	fl = kmalloc(sizeof(*fl), GFP_KERNEL);
+	fl = kmalloc(sizeof(*fl), GFP_ATOMIC);
 	if (fl == NULL)
 		return NULL;
 
 	INIT_LIST_HEAD(&fl->list);
-	list_add(&fl->list, &proc->filter_list);
 
 	fl->proc = proc;
 	fl->pfg = pfg;

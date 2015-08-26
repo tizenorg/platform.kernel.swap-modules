@@ -107,6 +107,7 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
 		proc->task = task->group_leader;
 		proc->sm = create_sm_us(task);
 		INIT_LIST_HEAD(&proc->file_list);
+		rwlock_init(&proc->filter_lock);
 		INIT_LIST_HEAD(&proc->filter_list);
 		atomic_set(&proc->usage, 1);
 
@@ -459,7 +460,11 @@ void sspt_proc_insert_files(struct sspt_proc *proc, struct list_head *head)
  */
 void sspt_proc_add_filter(struct sspt_proc *proc, struct pf_group *pfg)
 {
-	sspt_filter_create(proc, pfg);
+	struct sspt_filter *f;
+
+	f = sspt_filter_create(proc, pfg);
+	if (f)
+		list_add(&f->list, &proc->filter_list);
 }
 
 /**
@@ -473,12 +478,14 @@ void sspt_proc_del_filter(struct sspt_proc *proc, struct pf_group *pfg)
 {
 	struct sspt_filter *fl, *tmp;
 
+	write_lock(&proc->filter_lock);
 	list_for_each_entry_safe(fl, tmp, &proc->filter_list, list) {
 		if (fl->pfg == pfg) {
 			list_del(&fl->list);
 			sspt_filter_free(fl);
 		}
 	}
+	write_unlock(&proc->filter_lock);
 }
 
 /**
@@ -491,10 +498,12 @@ void sspt_proc_del_all_filters(struct sspt_proc *proc)
 {
 	struct sspt_filter *fl, *tmp;
 
+	write_lock(&proc->filter_lock);
 	list_for_each_entry_safe(fl, tmp, &proc->filter_list, list) {
 		list_del(&fl->list);
 		sspt_filter_free(fl);
 	}
+	write_unlock(&proc->filter_lock);
 }
 
 /**
@@ -546,6 +555,7 @@ bool sspt_proc_is_send_event(struct sspt_proc *proc)
 {
 	bool is_send = false;
 
+	/* FIXME: add read lock (deadlock in sampler) */
 	sspt_proc_on_each_filter(proc, is_send_event, (void *)&is_send);
 
 	return is_send;
