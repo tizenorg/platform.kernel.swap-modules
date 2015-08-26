@@ -48,6 +48,7 @@ struct sspt_proc {
 	struct list_head list;		/**< For global process list */
 	pid_t tgid;			/**< Thread group ID */
 	struct task_struct *task;	/**< Ptr to the task */
+	unsigned long r_state_addr;	/**< address of r_state */
 	struct slot_manager *sm;	/**< Ptr to the manager slot */
 	struct list_head file_list;	/**< For sspt_file */
 	struct list_head filter_list;	/**< Filter list */

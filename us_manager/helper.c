@@ -68,6 +68,14 @@ static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 	#error "this architecture is not supported"
 #endif /* CONFIG_arch */
 
+	if (data->addr) {
+		struct sspt_proc * proc = sspt_proc_get_by_task(current);
+
+		if (proc && (proc->r_state_addr == data->addr))
+			/* skip ret_handler_pf() for current task */
+			return 1;
+	}
+
 	return 0;
 }
 

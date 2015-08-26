@@ -88,7 +88,7 @@ void sspt_proc_write_unlock(void)
  */
 struct sspt_proc *sspt_proc_create(struct task_struct *task)
 {
-	struct sspt_proc *proc = kmalloc(sizeof(*proc), GFP_ATOMIC);
+	struct sspt_proc *proc = kzalloc(sizeof(*proc), GFP_ATOMIC);
 
 	if (proc) {
 		proc->feature = sspt_create_feature();
@@ -101,8 +101,6 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
 		proc->tgid = task->tgid;
 		proc->task = task->group_leader;
 		proc->sm = create_sm_us(task);
-		proc->first_install = 0;
-		proc->private_data = NULL;
 		INIT_LIST_HEAD(&proc->file_list);
 		INIT_LIST_HEAD(&proc->filter_list);
 		atomic_set(&proc->usage, 1);

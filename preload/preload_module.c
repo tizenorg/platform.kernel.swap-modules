@@ -374,6 +374,7 @@ static inline int __msg_sanitization(char *user_msg, size_t len,
 static bool __is_proc_mmap_mappable(struct task_struct *task)
 {
 	struct vm_area_struct *linker_vma = __get_linker_vma(task);
+	struct sspt_proc *proc;
 	unsigned long r_debug_addr;
 	unsigned int state;
 	enum { r_state_offset = sizeof(int) + sizeof(void *) + sizeof(long) };
@@ -386,6 +387,10 @@ static bool __is_proc_mmap_mappable(struct task_struct *task)
 		return false;
 
 	r_debug_addr += r_state_offset;
+	proc = sspt_proc_get_by_task(task);
+	if (proc)
+		proc->r_state_addr = r_debug_addr;
+
 	if (get_user(state, (unsigned long *)r_debug_addr))
 		return false;
 
