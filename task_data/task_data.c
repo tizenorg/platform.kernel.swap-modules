@@ -161,7 +161,6 @@ static int __task_data_exit(void *data)
 	struct task_data *td;
 
 	swap_unregister_kprobe(&do_exit_probe);
-	swap_unregister_kretprobe(&copy_process_rp);
 
 	do_each_thread(g, t) {
 		td = __td(t);
@@ -185,14 +184,15 @@ static void task_data_stop(void)
 {
 	int ret;
 
+	swap_unregister_kretprobe(&copy_process_rp);
+
 	/* stop_machine: the same here */
-	ret = stop_machine(__task_data_exit, &copy_process_rp, NULL);
+	ret = stop_machine(__task_data_exit, NULL, NULL);
 	if (ret) {
 		printk(TD_PREFIX "task data cleanup failed: %d\n", ret);
 		/* something went wrong: at least make sure we unregister
 		 * all the installed probes */
 		swap_unregister_kprobe(&do_exit_probe);
-		swap_unregister_kretprobe(&copy_process_rp);
 	}
 }
 

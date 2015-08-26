@@ -40,6 +40,7 @@
 #include <linux/module.h>
 #include <linux/mm.h>
 #include <linux/pagemap.h>
+#include <linux/stop_machine.h>
 
 #include <ksyms/ksyms.h>
 #include <master/swap_initializer.h>
@@ -930,6 +931,33 @@ static void swap_disarm_krp(struct kretprobe *rp)
 	}
 }
 
+
+struct unreg_krp_args {
+	struct kretprobe **rps;
+	size_t size;
+	int rp_disarm;
+};
+
+static int __swap_unregister_kretprobes_top(void *data)
+{
+	struct unreg_krp_args *args = data;
+	struct kretprobe **rps = args->rps;
+	size_t size = args->size;
+	int rp_disarm = args->rp_disarm;
+	unsigned long flags;
+	const size_t end = ((size_t) 0) - 1;
+
+	spin_lock_irqsave(&kretprobe_lock, flags);
+	for (--size; size != end; --size) {
+		swap_unregister_kprobe(&rps[size]->kp);
+		if (rp_disarm)
+			swap_disarm_krp(rps[size]);
+	}
+	spin_unlock_irqrestore(&kretprobe_lock, flags);
+
+	return 0;
+}
+
 /**
  * @brief Kretprobes unregister top. Unregisters kprobes.
  *
@@ -941,16 +969,22 @@ static void swap_disarm_krp(struct kretprobe *rp)
 void swap_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
 				   int rp_disarm)
 {
-	unsigned long flags;
-	const size_t end = ((size_t) 0) - 1;
+	struct unreg_krp_args args = {
+		.rps = rps,
+		.size = size,
+		.rp_disarm = rp_disarm,
+	};
 
-	spin_lock_irqsave(&kretprobe_lock, flags);
-	for (--size; size != end; --size) {
-		swap_unregister_kprobe(&rps[size]->kp);
-		if (rp_disarm)
-			swap_disarm_krp(rps[size]);
+	if (rp_disarm) {
+		int ret;
+
+		ret = stop_machine(__swap_unregister_kretprobes_top,
+				   &args, NULL);
+		if (ret)
+			pr_err("%s failed (%d)\n", __func__, ret);
+	} else {
+		__swap_unregister_kretprobes_top(&args);
 	}
-	spin_unlock_irqrestore(&kretprobe_lock, flags);
 }
 EXPORT_SYMBOL_GPL(swap_unregister_kretprobes_top);
 
