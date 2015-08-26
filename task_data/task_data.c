@@ -208,7 +208,7 @@ static int task_data_init(void)
 		goto out;
 	}
 
-	__task_data_cbs_stop_h = us_manager_reg_cb(STOP_CB, task_data_stop);
+	__task_data_cbs_stop_h = us_manager_reg_cb(STOP_CB_TD, task_data_stop);
 
 	if (__task_data_cbs_stop_h < 0) {
 		ret = __task_data_cbs_stop_h;

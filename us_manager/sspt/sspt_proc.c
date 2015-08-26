@@ -38,6 +38,11 @@ static LIST_HEAD(proc_probes_list);
 static DEFINE_RWLOCK(sspt_proc_rwlock);
 
 
+struct list_head *sspt_proc_list()
+{
+	return &proc_probes_list;
+}
+
 /**
  * @brief Global read lock for sspt_proc
  *
@@ -146,8 +151,17 @@ struct sspt_proc *sspt_proc_get(struct sspt_proc *proc)
 
 void sspt_proc_put(struct sspt_proc *proc)
 {
-	if (atomic_dec_and_test(&proc->usage))
+	if (atomic_dec_and_test(&proc->usage)) {
+		if (proc->__mm) {
+			mmput(proc->__mm);
+			proc->__mm = NULL;
+		}
+		if (proc->__task) {
+			put_task_struct(proc->__task);
+			proc->__task = NULL;
+		}
 		kfree(proc);
+	}
 }
 
 /**

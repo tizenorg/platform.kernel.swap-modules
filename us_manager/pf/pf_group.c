@@ -572,12 +572,7 @@ void uninstall_proc(struct sspt_proc *proc)
 {
 	struct task_struct *task = proc->task;
 
-
-	task_lock(task);
-	BUG_ON(task->mm == NULL);
 	sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
-	task_unlock(task);
-
 	sspt_proc_cleanup(proc);
 }
 
@@ -622,11 +617,6 @@ void install_all(void)
 	/* TODO: to be implemented */
 }
 
-static void on_each_uninstall_proc(struct sspt_proc *proc, void *data)
-{
-	uninstall_proc(proc);
-}
-
 /**
  * @brief Uninstall probes from all processes
  *
@@ -634,9 +624,54 @@ static void on_each_uninstall_proc(struct sspt_proc *proc, void *data)
  */
 void uninstall_all(void)
 {
+	struct list_head *proc_list = sspt_proc_list();
+
 	sspt_proc_write_lock();
-	on_each_proc_no_lock(on_each_uninstall_proc, NULL);
+	while (!list_empty(proc_list)) {
+		struct sspt_proc *proc;
+		proc = list_first_entry(proc_list, struct sspt_proc, list);
+
+		list_del(&proc->list);
+
+		sspt_proc_write_unlock();
+		uninstall_proc(proc);
+		sspt_proc_write_lock();
+	}
 	sspt_proc_write_unlock();
+}
+
+static void __do_get_proc(struct sspt_proc *proc, void *data)
+{
+	get_task_struct(proc->task);
+	proc->__task = proc->task;
+	proc->__mm = get_task_mm(proc->task);
+}
+
+static void __do_put_proc(struct sspt_proc *proc, void *data)
+{
+	if (proc->__mm) {
+		mmput(proc->__mm);
+		proc->__mm = NULL;
+	}
+
+	if (proc->__task) {
+		put_task_struct(proc->__task);
+		proc->__task = NULL;
+	}
+}
+
+void get_all_procs(void)
+{
+	sspt_proc_read_lock();
+	on_each_proc_no_lock(__do_get_proc, NULL);
+	sspt_proc_read_unlock();
+}
+
+void put_all_procs(void)
+{
+	sspt_proc_read_lock();
+	on_each_proc_no_lock(__do_put_proc, NULL);
+	sspt_proc_read_unlock();
 }
 
 /**

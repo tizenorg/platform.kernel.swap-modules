@@ -48,6 +48,8 @@ struct sspt_proc {
 	struct list_head list;		/**< For global process list */
 	pid_t tgid;			/**< Thread group ID */
 	struct task_struct *task;	/**< Ptr to the task */
+	struct mm_struct *__mm;
+	struct task_struct *__task;
 	unsigned long r_state_addr;	/**< address of r_state */
 	struct slot_manager *sm;	/**< Ptr to the manager slot */
 	struct list_head file_list;	/**< For sspt_file */
@@ -64,6 +66,9 @@ struct sspt_proc_cb {
 	void *(*priv_create)(struct sspt_proc *);
 	void (*priv_destroy)(struct sspt_proc *, void *);
 };
+
+
+struct list_head *sspt_proc_list(void);
 
 struct sspt_proc *sspt_proc_create(struct task_struct *task);
 void sspt_proc_cleanup(struct sspt_proc *proc);

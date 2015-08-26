@@ -24,6 +24,7 @@
 
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/stop_machine.h>
 #include "pf/pf_group.h"
 #include "sspt/sspt_proc.h"
 #include "probes/probe_info_new.h"
@@ -39,14 +40,30 @@ static DEFINE_MUTEX(mutex_inst);
 static enum status_type status = ST_OFF;
 
 
-static void do_usm_stop(void)
+static int __do_usm_stop(void *data)
 {
-	exec_cbs(STOP_CB);
+	get_all_procs();
 
+	return 0;
+}
+
+static int do_usm_stop(void)
+{
+	int ret;
+
+	exec_cbs(STOP_CB);
 	unregister_helper_top();
+
+	ret = stop_machine(__do_usm_stop, NULL, NULL);
+	if (ret)
+		printk("do_usm_stop failed: %d\n", ret);
+
 	uninstall_all();
 	unregister_helper_bottom();
 	sspt_proc_free_all();
+	exec_cbs(STOP_CB_TD);
+
+	return ret;
 }
 
 static int do_usm_start(void)
