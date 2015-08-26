@@ -870,7 +870,7 @@ int swap_register_uretprobe(struct uretprobe *rp)
 	INIT_HLIST_HEAD(&rp->free_instances);
 
 	for (i = 0; i < rp->maxactive; i++) {
-		inst = kmalloc(sizeof(*inst) + rp->data_size, GFP_ATOMIC);
+		inst = kmalloc(sizeof(*inst) + rp->data_size, GFP_KERNEL);
 		if (inst == NULL) {
 			free_urp_inst(rp);
 			return -ENOMEM;
