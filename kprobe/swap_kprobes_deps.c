@@ -208,15 +208,25 @@ DECLARE_MOD_DEP_WRAPPER(swap_handle_mm_fault,
 			int,
 			struct mm_struct *mm, struct vm_area_struct *vma,
 			unsigned long address, int write_access)
-IMP_MOD_DEP_WRAPPER(handle_mm_fault, mm, vma, address, write_access)
-#endif
-#else
+{
+	if (in_atomic())
+		return VM_FAULT_ERROR | VM_FAULT_OOM;
+
+	IMP_MOD_DEP_WRAPPER(handle_mm_fault, mm, vma, address, write_access)
+}
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 18) */
+#else /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30) */
 DECLARE_MOD_DEP_WRAPPER(swap_handle_mm_fault,
 			int,
 			struct mm_struct *mm, struct vm_area_struct *vma,
 			unsigned long address, unsigned int flags)
-IMP_MOD_DEP_WRAPPER(handle_mm_fault, mm, vma, address, flags)
-#endif
+{
+	if (in_atomic())
+		return VM_FAULT_ERROR | VM_FAULT_OOM;
+
+	IMP_MOD_DEP_WRAPPER(handle_mm_fault, mm, vma, address, flags)
+}
+#endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30) */
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 DECLARE_MOD_DEP_WRAPPER(swap_get_gate_vma,
