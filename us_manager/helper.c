@@ -280,14 +280,40 @@ static void rm_uprobes_child(struct kretprobe_instance *ri,
 }
 
 
+/* FIXME: sync with stop */
+static unsigned long cp_cb(void *data)
+{
+	if (atomic_read(&stop_flag))
+		call_mm_release(current);
+
+	return 0;
+}
+
+static int pre_handler_cp(struct kprobe *p, struct pt_regs *regs)
+{
+	int ret = 0;
+
+	if (is_kthread(current))
+		goto out;
+
+	if (!atomic_read(&stop_flag))
+		goto out;
+
+	ret = set_kjump_cb(regs, cp_cb, NULL, 0);
+	if (ret < 0) {
+		pr_err("set_kjump_cp, ret=%d\n", ret);
+		ret = 0;
+	}
+out:
+	return ret;
+}
+
+
 static atomic_t copy_process_cnt = ATOMIC_INIT(0);
 
 static int entry_handler_cp(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	atomic_inc(&copy_process_cnt);
-
-	if (atomic_read(&stop_flag))
-		call_mm_release(current);
 
 	return 0;
 }
@@ -315,14 +341,24 @@ static struct kretprobe cp_kretprobe = {
 	.handler = ret_handler_cp,
 };
 
+static struct kprobe cp_kprobe = {
+	.pre_handler = pre_handler_cp
+};
+
 static int register_cp(void)
 {
 	int ret;
 
-	ret = swap_register_kretprobe(&cp_kretprobe);
+
+	ret = swap_register_kprobe(&cp_kprobe);
 	if (ret)
-		printk(KERN_INFO
-		       "swap_register_kretprobe(copy_process) ret=%d!\n", ret);
+		pr_err("swap_register_kprobe(copy_process) ret=%d!\n", ret);
+
+	ret = swap_register_kretprobe(&cp_kretprobe);
+	if (ret) {
+		pr_err("swap_register_kretprobe(copy_process) ret=%d!\n", ret);
+		swap_unregister_kprobe(&cp_kprobe);
+	}
 
 	return ret;
 }
@@ -334,6 +370,7 @@ static void unregister_cp(void)
 		synchronize_sched();
 	} while (atomic_read(&copy_process_cnt));
 	swap_unregister_kretprobe_bottom(&cp_kretprobe);
+	swap_unregister_kprobe(&cp_kprobe);
 }
 
 
@@ -811,6 +848,7 @@ int once_helper(void)
 	cp_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms_substr(sym);
 	if (cp_kretprobe.kp.addr == NULL)
 		goto not_found;
+	cp_kprobe.addr = cp_kretprobe.kp.addr;
 
 	sym = "mm_release";
 	mr_kprobe.addr = (kprobe_opcode_t *)swap_ksyms(sym);
