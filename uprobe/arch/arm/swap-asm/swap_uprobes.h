@@ -130,12 +130,11 @@ static inline void swap_put_uarg(struct pt_regs *regs, unsigned long n,
 	case 3:
 		regs->ARM_r3 = val;
 		break;
+	default:
+		ptr = (u32 *)regs->ARM_sp + n - 4;
+		if (put_user(val, ptr))
+			pr_err("failed to dereference a pointer[%p]\n", ptr);
 	}
-
-	ptr = (u32 *)regs->ARM_sp + n - 4;
-	if (put_user(val, ptr))
-		printk(KERN_INFO "failed to dereference a pointer, ptr=%p\n",
-		       ptr);
 }
 
 int swap_arch_init_uprobes(void);
