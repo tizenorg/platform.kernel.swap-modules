@@ -61,13 +61,12 @@ static DEFINE_RWLOCK(pfg_list_lock);
 /* struct pl_struct */
 static struct pl_struct *create_pl_struct(struct sspt_proc *proc)
 {
-	struct pl_struct *pls = kmalloc(sizeof(*pls), GFP_KERNEL);
+	struct pl_struct *pls = kmalloc(sizeof(*pls), GFP_ATOMIC);
 
-	if (pls == NULL)
-		return NULL;
-
-	INIT_LIST_HEAD(&pls->list);
-	pls->proc = sspt_proc_get(proc);
+	if (pls) {
+		INIT_LIST_HEAD(&pls->list);
+		pls->proc = sspt_proc_get(proc);
+	}
 
 	return pls;
 }
