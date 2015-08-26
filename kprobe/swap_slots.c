@@ -80,10 +80,8 @@ struct fixed_alloc {
 	struct chunk chunk;
 };
 
-static void chunk_init(struct chunk *chunk,
-		       void *data,
-		       size_t size,
-		       size_t size_block)
+static int chunk_init(struct chunk *chunk, void *data,
+		      size_t size, size_t size_block)
 {
 	unsigned long i;
 	unsigned long *p;
@@ -97,15 +95,16 @@ static void chunk_init(struct chunk *chunk,
 	chunk->index = kmalloc(sizeof(*chunk->index)*chunk->count_available,
 			       GFP_ATOMIC);
 
-
 	if (chunk->index == NULL) {
-		printk(KERN_ERR "%s: failed to allocate memory\n", __FUNCTION__);
-		return;
+		pr_err("%s: failed to allocate memory\n", __func__);
+		return -ENOMEM;
 	}
 
 	p = chunk->index;
 	for (i = 0; i != chunk->count_available; ++p)
 		*p = ++i;
+
+	return 0;
 }
 
 static void chunk_uninit(struct chunk *chunk)
@@ -156,6 +155,7 @@ static inline int chunk_free(struct chunk *chunk)
 
 static struct fixed_alloc *create_fixed_alloc(struct slot_manager *sm)
 {
+	int ret;
 	void *data;
 	struct fixed_alloc *fa;
 
@@ -164,15 +164,21 @@ static struct fixed_alloc *create_fixed_alloc(struct slot_manager *sm)
 		return NULL;
 
 	data = sm->alloc(sm);
-	if (data == NULL) {
-		kfree(fa);
-		return NULL;
-	}
+	if (data == NULL)
+		goto free_fa;
 
-	chunk_init(&fa->chunk, data,
-		   PAGE_SIZE/sizeof(unsigned long), sm->slot_size);
+	ret = chunk_init(&fa->chunk, data,
+			 PAGE_SIZE / sizeof(unsigned long), sm->slot_size);
+	if (ret)
+		goto free_sm;
 
 	return fa;
+
+free_sm:
+	sm->free(sm, data);
+free_fa:
+	kfree(fa);
+	return NULL;
 }
 
 static void free_fixed_alloc(struct slot_manager *sm, struct fixed_alloc *fa)
