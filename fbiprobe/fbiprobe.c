@@ -340,7 +340,7 @@ int fbi_probe_copy(struct probe_info *dest, const struct probe_info *source)
 	struct fbi_var_data *vars;
 	struct fbi_step *steps_source;
 	struct fbi_step *steps_dest = NULL;
-	uint8_t i;
+	uint8_t i, n;
 	int ret = 0;
 
 	memcpy(dest, source, sizeof(*source));
@@ -362,6 +362,7 @@ int fbi_probe_copy(struct probe_info *dest, const struct probe_info *source)
 			steps_dest = kmalloc(steps_size, GFP_KERNEL);
 			if (steps_dest == NULL) {
 				print_err("can not alloc data\n");
+				n = i;
 				ret = -ENOMEM;
 				goto err;
 			}
@@ -375,7 +376,7 @@ int fbi_probe_copy(struct probe_info *dest, const struct probe_info *source)
 
 	return ret;
 err:
-	while (--i >= 0)
+	for (i = 0; i < n; i++)
 		kfree(vars[i].steps);
 	kfree(vars);
 	return ret;

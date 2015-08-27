@@ -42,6 +42,11 @@ struct img_file *create_img_file(struct dentry *dentry)
 	struct img_file *file;
 
 	file = kmalloc(sizeof(*file), GFP_KERNEL);
+	if (file == NULL) {
+		pr_err("%s: failed to allocate memory\n", __func__);
+		return NULL;
+	}
+
 	file->dentry = dentry;
 	INIT_LIST_HEAD(&file->ip_list);
 	INIT_LIST_HEAD(&file->list);
