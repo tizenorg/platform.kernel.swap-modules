@@ -290,7 +290,7 @@ static unsigned long make_preload_path(void)
 		size_t len = strnlen(path, PATH_MAX);
 
 		down_write(&current->mm->mmap_sem);
-		page = swap_do_mmap(NULL, 0, PAGE_SIZE, PROT_READ,
+		page = swap_do_mmap(NULL, 0, PAGE_SIZE, PROT_READ | PROT_WRITE,
 				    MAP_ANONYMOUS | MAP_PRIVATE, 0);
 		up_write(&current->mm->mmap_sem);
 
@@ -301,7 +301,7 @@ static unsigned long make_preload_path(void)
 		}
 
 		/* set preload_library path */
-		if (copy_to_user((void __user *)page, path, len) <= 0)
+		if (copy_to_user((void __user *)page, path, len) != 0)
 			printk(KERN_ERR PRELOAD_PREFIX
 			       "Cannot copy string to user!\n");
 	}
