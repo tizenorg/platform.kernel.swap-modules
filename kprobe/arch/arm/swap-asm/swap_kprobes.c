@@ -52,7 +52,6 @@
 #include <linux/list.h>
 #include <linux/hash.h>
 
-#define SUPRESS_BUG_MESSAGES            /**< Debug-off definition */
 
 #define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
 #define branch_displacement(insn) sign_extend(((insn) & 0xffffff) << 2, 25)
@@ -459,23 +458,11 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 	int ret;
 	unsigned long flags;
 
-#ifdef SUPRESS_BUG_MESSAGES
-	int swap_oops_in_progress;
-	/* oops_in_progress used to avoid BUG() messages
-	 * that slow down kprobe_handler() execution */
-	swap_oops_in_progress = oops_in_progress;
-	oops_in_progress = 1;
-#endif
-
 	local_irq_save(flags);
 	preempt_disable();
 	ret = kprobe_handler(regs);
 	swap_preempt_enable_no_resched();
 	local_irq_restore(flags);
-
-#ifdef SUPRESS_BUG_MESSAGES
-	oops_in_progress = swap_oops_in_progress;
-#endif
 
 	return ret;
 }
