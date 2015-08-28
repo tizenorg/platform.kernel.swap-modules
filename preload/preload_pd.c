@@ -310,6 +310,41 @@ out:
 	return page;
 }
 
+static struct vm_area_struct *find_vma_by_dentry(struct mm_struct *mm,
+						 struct dentry *dentry)
+{
+	struct vm_area_struct *vma;
+
+	for (vma = mm->mmap; vma; vma = vma->vm_next)
+		if (check_vma(vma, dentry))
+			return vma;
+
+        return NULL;
+}
+
+static void set_already_mapp(struct process_data *pd, struct mm_struct *mm)
+{
+	struct vm_area_struct *vma;
+	struct dentry *ld = preload_debugfs_get_loader_dentry();
+	struct dentry *handlers = handlers_info->dentry;
+
+	down_read(&mm->mmap_sem);
+	if (ld) {
+		vma = find_vma_by_dentry(mm, ld);
+		if (vma)
+			__set_loader_base(pd, vma->vm_start);
+	}
+
+	if (handlers) {
+		vma = find_vma_by_dentry(mm, handlers);
+		if (vma) {
+			__set_handlers_base(pd, vma->vm_start);
+			__set_state(pd, LOADED);
+		}
+	}
+	up_read(&mm->mmap_sem);
+}
+
 static struct process_data *do_create_pd(struct task_struct *task)
 {
 	struct process_data *pd;
@@ -334,6 +369,7 @@ static struct process_data *do_create_pd(struct task_struct *task)
 
 	__set_data_page(pd, page);
 	__set_attempts(pd, PRELOAD_MAX_ATTEMPTS);
+	set_already_mapp(pd, task->mm);
 
 	return pd;
 
