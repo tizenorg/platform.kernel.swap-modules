@@ -894,37 +894,6 @@ int swap_register_uretprobe(struct uretprobe *rp)
 EXPORT_SYMBOL_GPL(swap_register_uretprobe);
 
 /**
- * @brief Disarms uretprobes for specified task.
- *
- * @param task Pointer to the task_struct.
- * @return Void.
- */
-void swap_discard_pending_uretprobes(struct task_struct *task)
-{
-	unsigned long flags;
-	struct uretprobe_instance *ri;
-	struct hlist_head *head;
-	struct hlist_node *tmp;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	spin_lock_irqsave(&uretprobe_lock, flags);
-
-	head = uretprobe_inst_table_head(task->mm);
-	swap_hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
-		if (ri->task == task) {
-			printk(KERN_INFO "%s (%d/%d): pending urp inst: %08lx\n",
-			       task->comm, task->tgid, task->pid,
-			       (unsigned long)ri->rp->up.kp.addr);
-			arch_disarm_urp_inst(ri, task, 0);
-			recycle_urp_inst(ri);
-		}
-	}
-
-	spin_unlock_irqrestore(&uretprobe_lock, flags);
-}
-EXPORT_SYMBOL_GPL(swap_discard_pending_uretprobes);
-
-/**
  * @brief Unregisters uretprobe.
  *
  * @param rp Pointer to the ureprobe.
@@ -1050,7 +1019,7 @@ static void urinst_info_disarm(struct urinst_info *urinst, struct task_struct *t
 	arch_disarm_urp_inst(&ri, task, tramp);
 }
 
-void urinst_info_get_current_hlist(struct hlist_head *head)
+void urinst_info_get_current_hlist(struct hlist_head *head, bool recycle)
 {
 	unsigned long flags;
 	struct task_struct *task = current;
@@ -1076,6 +1045,8 @@ void urinst_info_get_current_hlist(struct hlist_head *head)
 				last = &urinst->hlist;
 			}
 
+			if (recycle)
+				recycle_urp_inst(ri);
 		}
 	}
 	spin_unlock_irqrestore(&uretprobe_lock, flags);

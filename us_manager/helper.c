@@ -265,7 +265,7 @@ static void rm_uprobes_child(struct kretprobe_instance *ri,
 	proc = sspt_proc_get_by_task(current);
 	if (proc) {
 		sspt_proc_on_each_ip(proc, func_uinst_creare, (void *)&cdata.head);
-		urinst_info_get_current_hlist(&cdata.rhead);
+		urinst_info_get_current_hlist(&cdata.rhead, false);
 	}
 	sspt_proc_write_unlock();
 
@@ -390,9 +390,27 @@ static unsigned long mr_cb(void *data)
 	struct task_struct *task = *(struct task_struct **)data;
 
 	if (task->tgid != task->pid) {
+		struct sspt_proc *proc;
+		struct hlist_head head = HLIST_HEAD_INIT;
+
+		if (task != current) {
+			pr_err("call mm_release in isn't current context\n");
+			return 0;
+		}
+
 		/* if the thread is killed we need to discard pending
 		 * uretprobe instances which have not triggered yet */
-		swap_discard_pending_uretprobes(task);
+		sspt_proc_write_lock();
+		proc = sspt_proc_get_by_task(task);
+		if (proc) {
+			urinst_info_get_current_hlist(&head, true);
+		}
+		sspt_proc_write_unlock();
+
+		if (proc) {
+			/* disarm urp for task */
+			urinst_info_put_current_hlist(&head, task);
+		}
 	} else {
 		call_mm_release(task);
 	}
