@@ -254,7 +254,6 @@ static unsigned long cb_clean_child(void *data)
 static void rm_uprobes_child(struct kretprobe_instance *ri,
 			     struct pt_regs *regs, struct task_struct *child)
 {
-	int ret;
 	struct sspt_proc *proc;
 	struct clean_data cdata = {
 		.task = child,
@@ -263,20 +262,22 @@ static void rm_uprobes_child(struct kretprobe_instance *ri,
 	};
 
 	sspt_proc_write_lock();
-
 	proc = sspt_proc_get_by_task(current);
 	if (proc) {
 		sspt_proc_on_each_ip(proc, func_uinst_creare, (void *)&cdata.head);
 		urinst_info_get_current_hlist(&cdata.rhead);
 	}
-
 	sspt_proc_write_unlock();
 
-	/* set jumper */
-	ret = set_jump_cb((unsigned long)ri->ret_addr, regs, cb_clean_child,
-			  &cdata, sizeof(cdata));
-	if (ret == 0)
-		ri->ret_addr = (unsigned long *)get_jump_addr();
+	if (proc) {
+		int ret;
+
+		/* set jumper */
+		ret = set_jump_cb((unsigned long)ri->ret_addr, regs,
+				  cb_clean_child, &cdata, sizeof(cdata));
+		if (ret == 0)
+			ri->ret_addr = (unsigned long *)get_jump_addr();
+	}
 }
 
 
