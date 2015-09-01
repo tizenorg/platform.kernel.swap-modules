@@ -388,7 +388,15 @@ static void unregister_cp(void)
 static unsigned long mr_cb(void *data)
 {
 	struct task_struct *task = *(struct task_struct **)data;
+	struct mm_struct *mm = task->mm;
 
+	if (mm == NULL) {
+		pr_err("mm is NULL\n");
+		return 0;
+	}
+
+	/* TODO: this lock for synchronizing to disarm urp */
+	down_write(&mm->mmap_sem);
 	if (task->tgid != task->pid) {
 		struct sspt_proc *proc;
 		struct hlist_head head = HLIST_HEAD_INIT;
@@ -414,6 +422,7 @@ static unsigned long mr_cb(void *data)
 	} else {
 		call_mm_release(task);
 	}
+	up_write(&mm->mmap_sem);
 
 	return 0;
 }
