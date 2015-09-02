@@ -409,10 +409,6 @@ static inline void copy_kprobe(struct kprobe *old_p, struct kprobe *p)
 {
 	memcpy(&p->opcode, &old_p->opcode, sizeof(kprobe_opcode_t));
 	memcpy(&p->ainsn, &old_p->ainsn, sizeof(struct arch_specific_insn));
-#ifdef CONFIG_ARM
-	p->safe_arm = old_p->safe_arm;
-	p->safe_thumb = old_p->safe_thumb;
-#endif
 }
 
 /*

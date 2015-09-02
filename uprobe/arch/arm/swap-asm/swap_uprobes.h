@@ -50,9 +50,6 @@ struct uretprobe_instance;
  * @brief Stores arch-dependent trampolines.
  */
 struct arch_specific_tramp {
-	unsigned long tramp_arm[UPROBES_TRAMP_LEN];     /**< ARM trampoline */
-	unsigned long tramp_thumb[UPROBES_TRAMP_LEN];   /**< Thumb trampoline */
-	void *utramp;                               /**< Pointer to trampoline */
 };
 
 
@@ -88,6 +85,8 @@ unsigned long arch_tramp_by_ri(struct uretprobe_instance *ri);
 unsigned long arch_get_trampoline_addr(struct kprobe *p, struct pt_regs *regs);
 void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs);
 void arch_remove_uprobe(struct uprobe *up);
+int arch_arm_uprobe(struct uprobe *p);
+void arch_disarm_uprobe(struct kprobe *p, struct task_struct *task);
 
 static inline unsigned long swap_get_uarg(struct pt_regs *regs, unsigned long n)
 {

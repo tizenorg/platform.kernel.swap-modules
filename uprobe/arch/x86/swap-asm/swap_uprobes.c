@@ -290,6 +290,35 @@ void arch_remove_uprobe(struct uprobe *up)
 	swap_slot_free(up->sm, p->ainsn.insn);
 }
 
+int arch_arm_uprobe(struct uprobe *p)
+{
+	int ret;
+	kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
+	unsigned long vaddr = (unsigned long)p->kp.addr;
+
+	ret = write_proc_vm_atomic(p->task, vaddr, &insn, sizeof(insn));
+	if (!ret) {
+		pr_err("arch_arm_uprobe: failed to write memory tgid=%u vaddr=%08lx\n",
+		       p->task->tgid, vaddr);
+
+		return -EACCES;
+	}
+
+	return 0;
+}
+
+void arch_disarm_uprobe(struct kprobe *p, struct task_struct *task)
+{
+	int ret;
+	unsigned long vaddr = (unsigned long)p->addr;
+
+	ret = write_proc_vm_atomic(task, vaddr, &p->opcode, sizeof(p->opcode));
+	if (!ret) {
+		pr_err("arch_disarm_uprobe: failed to write memory tgid=%u, vaddr=%08lx\n",
+		       task->tgid, vaddr);
+	}
+}
+
 static void set_user_jmp_op(void *from, void *to)
 {
 	struct __arch_jmp_op {

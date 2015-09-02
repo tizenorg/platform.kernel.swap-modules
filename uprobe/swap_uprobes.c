@@ -121,10 +121,6 @@ static inline void copy_uprobe(struct kprobe *old_p, struct kprobe *p)
 {
 	memcpy(&p->opcode, &old_p->opcode, sizeof(kprobe_opcode_t));
 	memcpy(&p->ainsn, &old_p->ainsn, sizeof(struct arch_specific_insn));
-#ifdef CONFIG_ARM
-	p->safe_arm = old_p->safe_arm;
-	p->safe_thumb = old_p->safe_thumb;
-#endif
 }
 
 /*
@@ -245,17 +241,7 @@ static int register_aggr_uprobe(struct kprobe *old_p, struct kprobe *p)
 
 static int arm_uprobe(struct uprobe *p)
 {
-	kprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
-	int ret = write_proc_vm_atomic(p->task, (unsigned long)p->kp.addr,
-				       &insn, sizeof(insn));
-	if (!ret) {
-		printk("arm_uprobe: failed to write memory "
-		       "tgid=%u addr=%p!\n", p->task->tgid, p->kp.addr);
-
-		return -EACCES;
-	}
-
-	return 0;
+	return arch_arm_uprobe(p);
 }
 
 /**
@@ -267,12 +253,7 @@ static int arm_uprobe(struct uprobe *p)
  */
 void disarm_uprobe(struct kprobe *p, struct task_struct *task)
 {
-	int ret = write_proc_vm_atomic(task, (unsigned long)p->addr,
-				       &p->opcode, sizeof(p->opcode));
-	if (!ret) {
-		printk("disarm_uprobe: failed to write memory "
-		       "tgid=%u, addr=%p!\n", task->tgid, p->addr);
-	}
+	arch_disarm_uprobe(p, task);
 }
 EXPORT_SYMBOL_GPL(disarm_uprobe);
 
@@ -523,16 +504,6 @@ int swap_register_uprobe(struct uprobe *up)
 	if (!p->addr)
 		return -EINVAL;
 
-	DBPRINTF("p->addr = 0x%p p = 0x%p\n", p->addr, p);
-
-/* thumb address = address-1; */
-#if defined(CONFIG_ARM)
-	/* TODO: must be corrected in 'bundle' */
-	if ((unsigned long) p->addr & 0x01)
-		p->addr = (kprobe_opcode_t *)((unsigned long)p->addr &
-					      0xfffffffe);
-#endif
-
 	p->ainsn.insn = NULL;
 	p->mod_refcounted = 0;
 	p->nmissed = 0;
@@ -553,10 +524,7 @@ int swap_register_uprobe(struct uprobe *up)
 		       task->tgid, task->pid, task->comm, p->addr);
 		ret = -EINVAL;
 		goto out;
-#ifdef CONFIG_ARM
-		p->safe_arm = old_p->safe_arm;
-		p->safe_thumb = old_p->safe_thumb;
-#endif
+
 		ret = register_aggr_uprobe(old_p, p);
 		DBPRINTF("goto out\n", ret);
 		goto out;

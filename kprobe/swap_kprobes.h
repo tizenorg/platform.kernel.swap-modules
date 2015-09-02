@@ -153,12 +153,6 @@ struct kprobe {
 	 * NULL if original function should be called.
 	 * Not supported for X86, not tested for MIPS. */
 	kprobe_opcode_t					*ss_addr[NR_CPUS];
-#ifdef CONFIG_ARM
-	/** Safe/unsafe to use probe on ARM.*/
-	unsigned					safe_arm:1;
-	/** Safe/unsafe to use probe on Thumb.*/
-	unsigned					safe_thumb:1;
-#endif
 };
 
 /**

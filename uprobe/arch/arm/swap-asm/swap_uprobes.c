@@ -49,6 +49,9 @@
 #include "trampoline_thumb.h"
 
 
+#define UBP_ARM		(BREAKPOINT_INSTRUCTION)
+#define UBP_THUMB	(BREAKPOINT_INSTRUCTION & 0xffff)
+
 /**
  * @def flush_insns
  * @brief Flushes instructions.
@@ -98,20 +101,6 @@ static int is_thumb2(kprobe_opcode_t insn)
 	return ((insn & 0xf800) == 0xe800 ||
 		(insn & 0xf800) == 0xf000 ||
 		(insn & 0xf800) == 0xf800);
-}
-
-static int arch_copy_trampoline_arm_uprobe(struct uprobe *up)
-{
-	int ret;
-	struct kprobe *p = up2kp(up);
-	unsigned long insn = p->opcode;
-	unsigned long vaddr = (unsigned long)p->addr;
-	unsigned long *tramp = up->atramp.tramp_arm;
-
-	ret = arch_make_trampoline_arm(vaddr, insn, tramp);
-	p->safe_arm = !!ret;
-
-	return ret;
 }
 
 static int arch_check_insn_thumb(unsigned long insn)
@@ -394,28 +383,20 @@ static int prep_pc_dep_insn_execbuf_thumb(kprobe_opcode_t *insns,
 	return 0;
 }
 
-static int arch_copy_trampoline_thumb_uprobe(struct uprobe *up)
+static int arch_make_trampoline_thumb(unsigned long vaddr, unsigned long insn,
+				      unsigned long *tramp, size_t tramp_len)
 {
-	int uregs, pc_dep;
-	struct kprobe *p = up2kp(up);
+	int ret;
+	int uregs = 0;
+	int pc_dep = 0;
 	unsigned int addr;
-	unsigned long vaddr = (unsigned long)p->addr;
-	unsigned long insn = p->opcode;
-	unsigned long *tramp = up->atramp.tramp_thumb;
-	enum { tramp_len = sizeof(up->atramp.tramp_thumb) };
 
-	p->safe_thumb = 1;
-	if (vaddr & 0x01) {
-		printk(KERN_INFO "Error in %s at %d: attempt to register "
-		       "kprobe at an unaligned address\n", __FILE__, __LINE__);
-		return -EINVAL;
+	ret = arch_check_insn_thumb(insn);
+	if (ret) {
+		pr_err("THUMB inst isn't support vaddr=%lx insn=%08lx\n",
+		       vaddr, insn);
+		return ret;
 	}
-
-	if (!arch_check_insn_thumb(insn))
-		p->safe_thumb = 0;
-
-	uregs = 0;
-	pc_dep = 0;
 
 	if (THUMB_INSN_MATCH(APC, insn) || THUMB_INSN_MATCH(LRO3, insn)) {
 		uregs = 0x0700;		/* 8-10 */
@@ -505,12 +486,7 @@ static int arch_copy_trampoline_thumb_uprobe(struct uprobe *up)
 
 	if (unlikely(uregs && pc_dep)) {
 		memcpy(tramp, pc_dep_insn_execbuf_thumb, tramp_len);
-		if (prep_pc_dep_insn_execbuf_thumb(tramp, insn, uregs) != 0) {
-			printk(KERN_INFO "Error in %s at %d: failed to "
-			       "prepare exec buffer for insn %lx!",
-			       __FILE__, __LINE__, insn);
-			p->safe_thumb = 1;
-		}
+		prep_pc_dep_insn_execbuf_thumb(tramp, insn, uregs);
 
 		addr = vaddr + 4;
 		*((unsigned short *)tramp + 13) = 0xdeff;
@@ -612,42 +588,50 @@ static int arch_copy_trampoline_thumb_uprobe(struct uprobe *up)
  */
 int arch_prepare_uprobe(struct uprobe *up)
 {
+	int ret;
 	struct kprobe *p = up2kp(up);
 	struct task_struct *task = up->task;
-	unsigned long vaddr = (unsigned long)p->addr;
+	unsigned long vaddr = (unsigned long)p->addr & ~((unsigned long)1);
 	unsigned long insn;
-
-	if (vaddr & 0x01) {
-		printk(KERN_INFO "Error in %s at %d: attempt "
-		       "to register uprobe at an unaligned address\n",
-		       __FILE__, __LINE__);
-		return -EINVAL;
-	}
+	int thumb_mode = (unsigned long)p->addr & 1;
+	unsigned long tramp[UPROBES_TRAMP_LEN];
+	unsigned long __user *utramp;
+	enum { tramp_len = sizeof(tramp) };
 
 	if (!read_proc_vm_atomic(task, vaddr, &insn, sizeof(insn))) {
 		printk(KERN_ERR "failed to read memory %lx!\n", vaddr);
 		return -EINVAL;
 	}
 
-	p->opcode = insn;
-
-	arch_copy_trampoline_arm_uprobe(up);
-	arch_copy_trampoline_thumb_uprobe(up);
-
-	if ((p->safe_arm) && (p->safe_thumb)) {
-		printk(KERN_INFO "Error in %s at %d: failed "
-		       "arch_copy_trampoline_*_uprobe() (both) "
-		       "[tgid=%u, addr=%lx, data=%lx]\n",
-		       __FILE__, __LINE__, task->tgid, vaddr, insn);
-		return -EFAULT;
+	ret = thumb_mode ?
+			arch_make_trampoline_thumb(vaddr, insn,
+						   tramp, tramp_len) :
+			arch_make_trampoline_arm(vaddr, insn, tramp);
+	if (ret) {
+		pr_err("failed to make tramp, addr=%p\n", p->addr);
+		return ret;
 	}
 
-	up->atramp.utramp = swap_slot_alloc(up->sm);
-	if (up->atramp.utramp == NULL) {
+	utramp = swap_slot_alloc(up->sm);
+	if (utramp == NULL) {
 		printk(KERN_INFO "Error: swap_slot_alloc failed (%08lx)\n",
 		       vaddr);
 		return -ENOMEM;
 	}
+
+	if (!write_proc_vm_atomic(up->task, (unsigned long)utramp, tramp,
+				  tramp_len)) {
+		pr_err("failed to write memory tramp=%p!\n", utramp);
+		swap_slot_free(up->sm, utramp);
+		return -EINVAL;
+	}
+
+	flush_insns(utramp, tramp_len);
+	p->ainsn.insn = utramp;
+	p->opcode = insn;
+
+	/* for uretprobe */
+	add_uprobe_table(p);
 
 	return 0;
 }
@@ -868,69 +852,45 @@ void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs)
  */
 void arch_remove_uprobe(struct uprobe *up)
 {
-	swap_slot_free(up->sm, up->atramp.utramp);
+	swap_slot_free(up->sm, up->kp.ainsn.insn);
 }
 
-static void restore_opcode_for_thumb(struct kprobe *p, struct pt_regs *regs)
+int arch_arm_uprobe(struct uprobe *p)
 {
-	if (thumb_mode(regs) && !is_thumb2(p->opcode)) {
-		u16 tmp = p->opcode >> 16;
-		write_proc_vm_atomic(current,
-				(unsigned long)((u16 *)p->addr + 1), &tmp, 2);
-		flush_insns(p->addr, 4);
+	int ret;
+	unsigned long vaddr = (unsigned long)p->kp.addr & ~((unsigned long)1);
+	int thumb_mode = (unsigned long)p->kp.addr & 1;
+	int len = 4 >> thumb_mode;	/* if thumb_mode then len = 2 */
+	unsigned long insn = thumb_mode ? UBP_THUMB : UBP_ARM;
+
+	ret = write_proc_vm_atomic(p->task, vaddr, &insn, len);
+	if (!ret) {
+		pr_err("arch_arm_uprobe: failed to write memory tgid=%u addr=%08lx len=%d\n",
+		       p->task->tgid, vaddr, len);
+
+		return -EACCES;
+	} else {
+		flush_insns(vaddr, len);
 	}
-}
-
-static int make_trampoline(struct uprobe *up, struct pt_regs *regs)
-{
-	unsigned long *tramp, *utramp;
-	struct kprobe *p = up2kp(up);
-	int sw;
-
-	/*
-	 * 0 bit - thumb mode		(0 - arm, 1 - thumb)
-	 * 1 bit - arm mode support	(0 - off, 1  on)
-	 * 2 bit - thumb mode support	(0 - off, 1  on)`
-	 */
-	sw = (!!thumb_mode(regs)) |
-	     (int)!p->safe_arm << 1 |
-	     (int)!p->safe_thumb << 2;
-
-	switch (sw) {
-	/* ARM */
-	case 0b110:
-	case 0b010:
-		tramp = up->atramp.tramp_arm;
-		break;
-	/* THUMB */
-	case 0b111:
-	case 0b101:
-		restore_opcode_for_thumb(p, regs);
-		tramp = up->atramp.tramp_thumb;
-		break;
-	default:
-		printk(KERN_INFO "Error in %s at %d: we are in arm mode "
-		       "(!) and check instruction was fail "
-		       "(%0lX instruction at %p address)!\n",
-		       __FILE__, __LINE__, p->opcode, p->addr);
-
-		disarm_uprobe(p, up->task);
-
-		return 1;
-	}
-
-	utramp = up->atramp.utramp;
-
-	if (!write_proc_vm_atomic(up->task, (unsigned long)utramp, tramp,
-				  UPROBES_TRAMP_LEN * sizeof(*tramp))) {
-		printk(KERN_ERR "failed to write memory %p!\n", utramp);
-		return -EINVAL;
-	}
-
-	flush_insns(utramp, UPROBES_TRAMP_LEN * sizeof(*tramp));
-	p->ainsn.insn = utramp;
 
 	return 0;
+}
+
+void arch_disarm_uprobe(struct kprobe *p, struct task_struct *task)
+{
+	int ret;
+
+	unsigned long vaddr = (unsigned long)p->addr & ~((unsigned long)1);
+	int thumb_mode = (unsigned long)p->addr & 1;
+	int len = 4 >> thumb_mode;	/* if thumb_mode then len = 2 */
+
+	ret = write_proc_vm_atomic(task, vaddr, &p->opcode, len);
+	if (!ret) {
+		pr_err("arch_disarm_uprobe: failed to write memory tgid=%u addr=%08lx len=%d\n",
+		       task->tgid, vaddr, len);
+	} else {
+		flush_insns(vaddr, len);
+	}
 }
 
 static int urp_handler(struct pt_regs *regs, pid_t tgid)
@@ -955,31 +915,6 @@ static int urp_handler(struct pt_regs *regs, pid_t tgid)
 	return 0;
 }
 
-
-static int make_insn(struct kprobe *p, struct pt_regs *regs)
-{
-	int ret = 1;
-	struct uprobe *up = kp2up(p);
-
-	down_write(&current->mm->mmap_sem);
-	/* check on race condition */
-	if (p->ainsn.insn)
-		goto mm_up;
-
-	if (make_trampoline(up, regs)) {
-		printk(KERN_INFO "no_uprobe live\n");
-		ret = 0;
-		goto mm_up;
-	}
-
-	/* for uretprobe */
-	add_uprobe_table(p);
-
-mm_up:
-	up_write(&current->mm->mmap_sem);
-	return ret;
-}
-
 /**
  * @brief Breakpoint instruction handler.
  *
@@ -992,7 +927,7 @@ int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 	int ret = 0;
 	struct kprobe *p;
 	unsigned long flags;
-	unsigned long vaddr = regs->ARM_pc;
+	unsigned long vaddr = regs->ARM_pc | !!thumb_mode(regs);
 	pid_t tgid = current->tgid;
 
 	local_irq_save(flags);
@@ -1000,21 +935,29 @@ int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 
 	p = get_ukprobe((kprobe_opcode_t *)vaddr, tgid);
 	if (p) {
-		if (p->ainsn.insn == NULL) {
-			swap_preempt_enable_no_resched();
-			local_irq_restore(flags);
-
-			if (make_insn(p, regs) == 0)
-				return 0;
-
-			local_irq_save(flags);
-			preempt_disable();
-		}
-
 		if (!p->pre_handler || !p->pre_handler(p, regs))
 			prepare_singlestep(p, regs);
 	} else {
 		ret = urp_handler(regs, tgid);
+
+		/* check ARM/THUMB mode on correct */
+		if (ret) {
+			vaddr ^= 1;
+			p = get_ukprobe((kprobe_opcode_t *)vaddr, tgid);
+			if (p) {
+				pr_err("invalid mode: thumb=%d addr=%p insn=%08lx\n",
+				       !!thumb_mode(regs), p->addr, p->opcode);
+				ret = 0;
+
+				swap_preempt_enable_no_resched();
+				local_irq_restore(flags);
+
+				disarm_uprobe(p, current);
+
+				local_irq_save(flags);
+				preempt_disable();
+			}
+		}
 	}
 
 	swap_preempt_enable_no_resched();
@@ -1026,7 +969,7 @@ int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 /* userspace probes hook (arm) */
 static struct undef_hook undef_hook_for_us_arm = {
 	.instr_mask	= 0xffffffff,
-	.instr_val	= BREAKPOINT_INSTRUCTION,
+	.instr_val	= UBP_ARM,
 	.cpsr_mask	= MODE_MASK,
 	.cpsr_val	= USR_MODE,
 	.fn		= uprobe_trap_handler
@@ -1035,7 +978,7 @@ static struct undef_hook undef_hook_for_us_arm = {
 /* userspace probes hook (thumb) */
 static struct undef_hook undef_hook_for_us_thumb = {
 	.instr_mask	= 0xffffffff,
-	.instr_val	= BREAKPOINT_INSTRUCTION & 0x0000ffff,
+	.instr_val	= UBP_THUMB,
 	.cpsr_mask	= MODE_MASK,
 	.cpsr_val	= USR_MODE,
 	.fn		= uprobe_trap_handler
