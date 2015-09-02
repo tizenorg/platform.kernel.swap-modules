@@ -236,7 +236,8 @@ struct clean_data {
 	struct hlist_head rhead;
 };
 
-/* FIXME: sync with stop */
+static atomic_t rm_uprobes_child_cnt = ATOMIC_INIT(0);
+
 static unsigned long cb_clean_child(void *data)
 {
 	struct clean_data *cdata = (struct clean_data *)data;
@@ -248,6 +249,7 @@ static unsigned long cb_clean_child(void *data)
 	/* disarm urp for child */
 	urinst_info_put_current_hlist(&cdata->rhead, child);
 
+	atomic_dec(&rm_uprobes_child_cnt);
 	return 0;
 }
 
@@ -275,18 +277,22 @@ static void rm_uprobes_child(struct kretprobe_instance *ri,
 		/* set jumper */
 		ret = set_jump_cb((unsigned long)ri->ret_addr, regs,
 				  cb_clean_child, &cdata, sizeof(cdata));
-		if (ret == 0)
+		if (ret == 0) {
+			atomic_inc(&rm_uprobes_child_cnt);
 			ri->ret_addr = (unsigned long *)get_jump_addr();
+		}
 	}
 }
 
 
-/* FIXME: sync with stop */
+static atomic_t pre_handler_cp_cnt = ATOMIC_INIT(0);
+
 static unsigned long cp_cb(void *data)
 {
 	if (atomic_read(&stop_flag))
 		call_mm_release(current);
 
+	atomic_dec(&pre_handler_cp_cnt);
 	return 0;
 }
 
@@ -304,6 +310,8 @@ static int pre_handler_cp(struct kprobe *p, struct pt_regs *regs)
 	if (ret < 0) {
 		pr_err("set_kjump_cp, ret=%d\n", ret);
 		ret = 0;
+	} else {
+		atomic_inc(&pre_handler_cp_cnt);
 	}
 out:
 	return ret;
@@ -372,6 +380,11 @@ static void unregister_cp(void)
 	} while (atomic_read(&copy_process_cnt));
 	swap_unregister_kretprobe_bottom(&cp_kretprobe);
 	swap_unregister_kprobe(&cp_kprobe);
+
+	do {
+		synchronize_sched();
+	} while (atomic_read(&rm_uprobes_child_cnt)
+	      || atomic_read(&pre_handler_cp_cnt));
 }
 
 
@@ -384,7 +397,8 @@ static void unregister_cp(void)
  ******************************************************************************
  */
 
-/* FIXME: sync with stop */
+static atomic_t mm_release_cnt = ATOMIC_INIT(0);
+
 static unsigned long mr_cb(void *data)
 {
 	struct task_struct *task = *(struct task_struct **)data;
@@ -424,6 +438,8 @@ static unsigned long mr_cb(void *data)
 	}
 	up_write(&mm->mmap_sem);
 
+	atomic_dec(&mm_release_cnt);
+
 	return 0;
 }
 
@@ -440,7 +456,10 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	if (ret < 0) {
 		printk("##### ERROR: mr_pre_handler, ret=%d\n", ret);
 		ret = 0;
+	} else {
+		atomic_inc(&mm_release_cnt);
 	}
+
 out:
 	return ret;
 }
@@ -464,6 +483,9 @@ static int register_mr(void)
 static void unregister_mr(void)
 {
 	swap_unregister_kprobe(&mr_kprobe);
+	do {
+		synchronize_sched();
+	} while (atomic_read(&mm_release_cnt));
 }
 
 
