@@ -111,6 +111,8 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
 		INIT_LIST_HEAD(&proc->filter_list);
 		atomic_set(&proc->usage, 1);
 
+		get_task_struct(proc->task);
+
 		/* add to list */
 		list_add(&proc->list, &proc_probes_list);
 	}
@@ -161,6 +163,8 @@ void sspt_proc_put(struct sspt_proc *proc)
 			put_task_struct(proc->__task);
 			proc->__task = NULL;
 		}
+
+		put_task_struct(proc->task);
 		kfree(proc);
 	}
 }
