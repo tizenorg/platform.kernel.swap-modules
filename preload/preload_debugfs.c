@@ -4,7 +4,7 @@
 #include <linux/fs.h>
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <linux/mutex.h>
+#include <linux/spinlock.h>
 #include <linux/limits.h>
 #include <asm/uaccess.h>
 #include <master/swap_debugfs.h>
@@ -35,23 +35,19 @@ struct loader_info {
 };
 
 static struct dentry *preload_root;
-static struct loader_info __loader_info = {
-	.path = NULL,
-	.offset = 0,
-	.dentry = NULL
-};
+static struct loader_info __loader_info;
 
 static unsigned long r_debug_offset = 0;
-static DEFINE_MUTEX(__dentry_lock);
+static DEFINE_SPINLOCK(__dentry_lock);
 
 static inline void dentry_lock(void)
 {
-	mutex_lock(&__dentry_lock);
+	spin_lock(&__dentry_lock);
 }
 
 static inline void dentry_unlock(void)
 {
-	mutex_unlock(&__dentry_lock);
+	spin_unlock(&__dentry_lock);
 }
 
 
