@@ -127,7 +127,7 @@ static inline void __set_slot(struct thread_slot *slot,
 static inline int __add_to_disable_list(struct thread_slot *slot,
 					unsigned long disable_addr)
 {
-	struct disabled_addr *da = kmalloc(sizeof(*da), GFP_KERNEL);
+	struct disabled_addr *da = kmalloc(sizeof(*da), GFP_ATOMIC);
 
 	if (da == NULL)
 		return -ENOMEM;
@@ -154,7 +154,7 @@ static inline struct disabled_addr *__find_disabled_addr(struct thread_slot *slo
 /* Adds a new slot */
 static inline struct thread_slot *__grow_slot(void)
 {
-	struct thread_slot *tmp = kmalloc(sizeof(*tmp), GFP_KERNEL);
+	struct thread_slot *tmp = kmalloc(sizeof(*tmp), GFP_ATOMIC);
 
 	if (tmp == NULL)
 		return NULL;
