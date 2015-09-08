@@ -10,6 +10,7 @@
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <kprobe/swap_kprobes.h>
+#include <kprobe/swap_kprobes_deps.h>
 #include <us_manager/us_manager_common.h>
 #include <us_manager/sspt/sspt_page.h>
 #include <us_manager/sspt/sspt_file.h>
@@ -354,12 +355,6 @@ is_handlers_call_out:
 static inline int __msg_sanitization(char *user_msg, size_t len,
 				     char *call_type_p, char *caller_p)
 {
-	int ret;
-
-	ret = access_ok(VERIFY_READ, (unsigned long)user_msg, (unsigned long)len);
-	if (ret == 0)
-		return -EINVAL;
-
 	if ((call_type_p < user_msg) || (call_type_p > user_msg + len) ||
 	    (caller_p < user_msg) || (caller_p > user_msg + len))
 		return -EINVAL;
@@ -785,6 +780,7 @@ static int write_msg_handler(struct kprobe *p, struct pt_regs *regs)
 	bool drop;
 	int ret;
 
+	/* FIXME: swap_get_uarg uses get_user(), it might sleep */
 	user_buf = (char *)swap_get_uarg(regs, 0);
 	len = swap_get_uarg(regs, 1);
 	call_type_p = (char *)swap_get_uarg(regs, 2);
@@ -801,15 +797,16 @@ static int write_msg_handler(struct kprobe *p, struct pt_regs *regs)
 	if (ret == 0 && drop)
 		return 0;
 
-	buf = kmalloc(len, GFP_KERNEL);
+	buf = kmalloc(len, GFP_ATOMIC);
 	if (buf == NULL) {
 		printk(PRELOAD_PREFIX "No mem for buffer! Size = %d\n", len);
 		return 0;
 	}
 
-	if (copy_from_user(buf, user_buf, len)) {
+	ret = read_proc_vm_atomic(current, (unsigned long)user_buf, buf, len);
+	if (ret < 0) {
 		printk(PRELOAD_PREFIX "Cannot copy data from userspace! Size = %d"
-				      " ptr 0x%lx\n", len, (unsigned long)user_buf);
+				      " ptr 0x%lx ret %d\n", len, (unsigned long)user_buf, ret);
 		goto write_msg_fail;
 	}
 
