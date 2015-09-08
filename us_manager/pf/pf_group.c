@@ -80,7 +80,7 @@ static void free_pl_struct(struct pl_struct *pls)
 
 static struct pf_group *pfg_create(void)
 {
-	struct pf_group *pfg = kmalloc(sizeof(*pfg), GFP_KERNEL);
+	struct pf_group *pfg = kmalloc(sizeof(*pfg), GFP_ATOMIC);
 
 	if (pfg == NULL)
 		return NULL;

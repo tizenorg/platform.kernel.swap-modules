@@ -50,7 +50,7 @@ struct img_proc *create_img_proc(void)
 {
 	struct img_proc *proc;
 
-	proc = kmalloc(sizeof(*proc), GFP_KERNEL);
+	proc = kmalloc(sizeof(*proc), GFP_ATOMIC);
 	if (proc) {
 		INIT_LIST_HEAD(&proc->file_list);
 		rwlock_init(&proc->rwlock);

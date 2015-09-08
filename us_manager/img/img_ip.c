@@ -38,7 +38,7 @@ struct img_ip *create_img_ip(unsigned long addr, struct probe_info *info)
 {
 	struct img_ip *ip;
 
-	ip = kmalloc(sizeof(*ip), GFP_KERNEL);
+	ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
 	if (ip) {
 		struct probe_info *info_new;
 

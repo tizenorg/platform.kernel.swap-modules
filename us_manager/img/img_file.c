@@ -41,7 +41,7 @@ struct img_file *create_img_file(struct dentry *dentry)
 {
 	struct img_file *file;
 
-	file = kmalloc(sizeof(*file), GFP_KERNEL);
+	file = kmalloc(sizeof(*file), GFP_ATOMIC);
 	if (file == NULL) {
 		pr_err("%s: failed to allocate memory\n", __func__);
 		return NULL;
