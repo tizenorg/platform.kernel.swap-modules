@@ -114,9 +114,8 @@ static struct kprobe do_exit_probe = {
 	.pre_handler = do_exit_handler
 };
 
-static int __task_data_init(void *data)
+static int __set_helper_probes(void)
 {
-	struct task_struct *g, *t;
 	unsigned long addr;
 	int ret;
 
@@ -140,10 +139,6 @@ static int __task_data_init(void *data)
 	if (ret)
 		goto unreg_copy_process;
 
-	do_each_thread(g, t) {
-		swap_task_data_clean(t);
-	} while_each_thread(g, t);
-
 	return 0;
 
 unreg_copy_process:
@@ -155,12 +150,29 @@ reg_failed:
 	return ret;
 }
 
+static void __remove_helper_probes(void)
+{
+	swap_unregister_kretprobe(&copy_process_rp);
+	swap_unregister_kprobe(&do_exit_probe);
+}
+
+static int __task_data_init(void *data)
+{
+	struct task_struct *g, *t;
+
+	do_each_thread(g, t) {
+		swap_task_data_clean(t);
+	} while_each_thread(g, t);
+
+	return 0;
+
+
+}
+
 static int __task_data_exit(void *data)
 {
 	struct task_struct *g, *t;
 	struct task_data *td;
-
-	swap_unregister_kprobe(&do_exit_probe);
 
 	do_each_thread(g, t) {
 		td = __td(t);
@@ -174,6 +186,10 @@ static void task_data_start(void)
 {
 	int ret;
 
+	ret = __set_helper_probes();
+	if (ret)
+		return;
+
 	/* stop_machine: cannot get tasklist_lock from module */
 	ret = stop_machine(__task_data_init, NULL, NULL);
 	if (ret)
@@ -184,7 +200,7 @@ static void task_data_stop(void)
 {
 	int ret;
 
-	swap_unregister_kretprobe(&copy_process_rp);
+	__remove_helper_probes();
 
 	/* stop_machine: the same here */
 	ret = stop_machine(__task_data_exit, NULL, NULL);
