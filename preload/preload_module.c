@@ -276,6 +276,56 @@ static struct vm_area_struct *__get_libc_vma(struct task_struct *task)
 	return NULL;
 }
 
+static struct vm_area_struct *__get_libpthread_vma(struct task_struct *task)
+{
+	struct vm_area_struct *vma = NULL;
+	struct bin_info *libpthread_info;
+
+	libpthread_info = preload_storage_get_libpthread_info();
+
+	if (!libpthread_info) {
+		printk(PRELOAD_PREFIX "Cannot get libpthread info [%u %u %s]!\n",
+		       task->tgid, task->pid, task->comm);
+		return NULL;
+	}
+
+	for (vma = task->mm->mmap; vma; vma = vma->vm_next) {
+		if (vma->vm_file && vma->vm_flags & VM_EXEC
+		    && vma->vm_file->f_dentry == libpthread_info->dentry) {
+			preload_storage_put_libpthread_info(libpthread_info);
+			return vma;
+		}
+	}
+
+	preload_storage_put_libpthread_info(libpthread_info);
+	return NULL;
+}
+
+static struct vm_area_struct *__get_libsmack_vma(struct task_struct *task)
+{
+	struct vm_area_struct *vma = NULL;
+	struct bin_info *libsmack_info;
+
+	libsmack_info = preload_storage_get_libsmack_info();
+
+	if (!libsmack_info) {
+		printk(PRELOAD_PREFIX "Cannot get libsmack info [%u %u %s]!\n",
+		       task->tgid, task->pid, task->comm);
+		return NULL;
+	}
+
+	for (vma = task->mm->mmap; vma; vma = vma->vm_next) {
+		if (vma->vm_file && vma->vm_flags & VM_EXEC
+		    && vma->vm_file->f_dentry == libsmack_info->dentry) {
+			preload_storage_put_libsmack_info(libsmack_info);
+			return vma;
+		}
+	}
+
+	preload_storage_put_libsmack_info(libsmack_info);
+	return NULL;
+}
+
 static inline struct vm_area_struct *__get_vma_by_addr(struct task_struct *task,
 						        unsigned long caller_addr)
 {
@@ -397,9 +447,18 @@ static bool __not_system_caller(struct task_struct *task,
 {
 	struct vm_area_struct *linker_vma = __get_linker_vma(task);
 	struct vm_area_struct *libc_vma = __get_libc_vma(task);
+	struct vm_area_struct *libpthread_vma = __get_libpthread_vma(task);
+	struct vm_area_struct *libsmack_vma = __get_libsmack_vma(task);
 
-	if (linker_vma == NULL || libc_vma == NULL || caller == NULL ||
-	    caller == linker_vma || caller == libc_vma)
+	  if (linker_vma == NULL ||
+	    libc_vma == NULL ||
+	    libpthread_vma == NULL ||
+	    libsmack_vma == NULL ||
+	    caller == NULL ||
+	    caller == linker_vma ||
+	    caller == libc_vma ||
+	    caller == libpthread_vma ||
+	    caller == libsmack_vma)
 		return false;
 
 	return true;
@@ -409,7 +468,7 @@ static bool __should_we_preload_handlers(struct task_struct *task,
 					 struct pt_regs *regs)
 {
 	unsigned long caller_addr = get_regs_ret_func(regs);
-    struct vm_area_struct *cvma = __get_vma_by_addr(current, caller_addr);
+	struct vm_area_struct *cvma = __get_vma_by_addr(current, caller_addr);
 
 	if (!__is_proc_mmap_mappable(task) ||
 	    !__not_system_caller(task, cvma))
