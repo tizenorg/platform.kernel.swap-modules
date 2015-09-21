@@ -80,10 +80,15 @@ static void clean_loader_info(void)
 {
 	if (__loader_info.path != NULL)
 		kfree(__loader_info.path);
+	__loader_info.path = NULL;
 
 	dentry_lock();
 	if (__loader_info.dentry != NULL)
 		put_dentry(__loader_info.dentry);
+
+	__loader_info.dentry = NULL;
+	__loader_info.offset = 0;
+
 	dentry_unlock();
 }
 
