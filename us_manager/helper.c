@@ -455,12 +455,13 @@ static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	ret = set_kjump_cb(regs, mr_cb, (void *)&task, sizeof(task));
 	if (ret < 0) {
 		printk("##### ERROR: mr_pre_handler, ret=%d\n", ret);
+		ret = 0;
 	} else {
 		atomic_inc(&mm_release_cnt);
 	}
 
 out:
-	return 0;
+	return ret;
 }
 
 static struct kprobe mr_kprobe = {
