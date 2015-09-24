@@ -585,6 +585,11 @@ static void swap_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
 	    (p->list.next == &old_p->list) && (p->list.prev == &old_p->list))) {
 		/* Only probe on the hash list */
 		swap_arch_disarm_kprobe(p);
+
+		/* FIXME: move sync out from atomic context */
+		if (!in_atomic())
+			synchronize_sched();
+
 		hlist_del_rcu(&old_p->hlist);
 		remove_kprobe(old_p);
 
@@ -943,13 +948,14 @@ static int __swap_unregister_kretprobes_top(void *data)
 	unsigned long flags;
 	const size_t end = ((size_t) 0) - 1;
 
-	spin_lock_irqsave(&kretprobe_lock, flags);
 	for (--size; size != end; --size) {
 		swap_unregister_kprobe(&rps[size]->kp);
-		if (rp_disarm)
+		if (rp_disarm) {
+			spin_lock_irqsave(&kretprobe_lock, flags);
 			swap_disarm_krp(rps[size]);
+			spin_unlock_irqrestore(&kretprobe_lock, flags);
+		}
 	}
-	spin_unlock_irqrestore(&kretprobe_lock, flags);
 
 	return 0;
 }
