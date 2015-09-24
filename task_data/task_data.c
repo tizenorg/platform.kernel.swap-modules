@@ -61,8 +61,6 @@ static inline void __td_free(struct task_data *td)
 		td->data = NULL;
 		return;
 	}
-
-	WARN(!ok, TD_PREFIX "td(%p) check failed: %08lx", td, get_magic(td));
 }
 
 void *swap_task_data_get(struct task_struct *task, int *ok)
