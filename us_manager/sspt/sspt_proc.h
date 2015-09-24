@@ -81,6 +81,7 @@ void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *),
 void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data);
 
 struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task);
+struct sspt_proc *sspt_proc_get_by_task_no_lock(struct task_struct *task);
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task);
 void sspt_proc_free_all(void);
 

@@ -33,7 +33,6 @@
 #include <linux/list.h>
 #include <us_manager/us_slot_manager.h>
 
-
 static LIST_HEAD(proc_probes_list);
 static DEFINE_RWLOCK(sspt_proc_rwlock);
 
@@ -169,13 +168,25 @@ void sspt_proc_put(struct sspt_proc *proc)
 	}
 }
 
+struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
+{
+	struct sspt_proc *proc;
+
+	sspt_proc_read_lock();
+	proc = sspt_proc_get_by_task_no_lock(task);
+	sspt_proc_read_unlock();
+
+	return proc;
+}
+EXPORT_SYMBOL_GPL(sspt_proc_get_by_task);
+
 /**
  * @brief Get sspt_proc by task
  *
  * @param task Pointer on the task_struct struct
  * @return Pointer on the sspt_proc struct
  */
-struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
+struct sspt_proc *sspt_proc_get_by_task_no_lock(struct task_struct *task)
 {
 	struct sspt_proc *proc, *tmp;
 
@@ -186,7 +197,7 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(sspt_proc_get_by_task);
+EXPORT_SYMBOL_GPL(sspt_proc_get_by_task_no_lock);
 
 /**
  * @brief Call func() on each proc (no lock)
@@ -228,9 +239,13 @@ EXPORT_SYMBOL_GPL(on_each_proc);
  */
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 {
-	struct sspt_proc *proc = sspt_proc_get_by_task(task);
+	struct sspt_proc *proc;
+
+	sspt_proc_write_lock();
+	proc = sspt_proc_get_by_task_no_lock(task);
 	if (proc == NULL)
 		proc = sspt_proc_create(task);
+	sspt_proc_write_unlock();
 
 	return proc;
 }

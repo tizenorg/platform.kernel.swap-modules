@@ -590,7 +590,7 @@ void call_mm_release(struct task_struct *task)
 	struct sspt_proc *proc;
 
 	sspt_proc_write_lock();
-	proc = sspt_proc_get_by_task(task);
+	proc = sspt_proc_get_by_task_no_lock(task);
 	if (proc)
 		list_del(&proc->list);
 	sspt_proc_write_unlock();

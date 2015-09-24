@@ -266,7 +266,7 @@ static void rm_uprobes_child(struct kretprobe_instance *ri,
 	};
 
 	sspt_proc_write_lock();
-	proc = sspt_proc_get_by_task(current);
+	proc = sspt_proc_get_by_task_no_lock(current);
 	if (proc) {
 		sspt_proc_on_each_ip(proc, func_uinst_creare, (void *)&cdata.head);
 		urinst_info_get_current_hlist(&cdata.rhead, false);
@@ -425,7 +425,7 @@ static unsigned long mr_cb(void *data)
 		/* if the thread is killed we need to discard pending
 		 * uretprobe instances which have not triggered yet */
 		sspt_proc_write_lock();
-		proc = sspt_proc_get_by_task(task);
+		proc = sspt_proc_get_by_task_no_lock(task);
 		if (proc) {
 			urinst_info_get_current_hlist(&head, true);
 		}
@@ -563,7 +563,7 @@ static void remove_unmap_probes(struct task_struct *task,
 
 	sspt_proc_write_lock();
 
-	proc = sspt_proc_get_by_task(task);
+	proc = sspt_proc_get_by_task_no_lock(task);
 	if (proc)
 		__remove_unmap_probes(proc, umd);
 
