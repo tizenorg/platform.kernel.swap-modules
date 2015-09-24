@@ -61,6 +61,7 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	up->kp.addr = (kprobe_opcode_t *)ip->orig_addr;
 	up->task = ip->page->file->proc->task;
 	up->sm = ip->page->file->proc->sm;
+	up->atomic_ctx = true;
 
 	ret = probe_info_register(ip->info, ip);
 	if (ret) {

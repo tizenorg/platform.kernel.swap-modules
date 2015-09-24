@@ -48,6 +48,7 @@ struct uprobe {
 	struct task_struct *task;           /**< Pointer to the task struct */
 	struct slot_manager *sm;            /**< Pointer to slot manager */
 	struct arch_specific_tramp atramp;  /**< Stores trampoline */
+	bool atomic_ctx;                    /**< Handler context */
 };
 
 struct uinst_info {

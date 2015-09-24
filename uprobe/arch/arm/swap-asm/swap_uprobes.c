@@ -935,7 +935,24 @@ int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 
 	p = get_ukprobe((kprobe_opcode_t *)vaddr, tgid);
 	if (p) {
-		if (!p->pre_handler || !p->pre_handler(p, regs))
+		struct uprobe *up = kp2up(p);
+		bool prepare = false;
+
+		if (up->atomic_ctx) {
+			if (!p->pre_handler || !p->pre_handler(p, regs))
+				prepare = true;
+		} else {
+			swap_preempt_enable_no_resched();
+			local_irq_restore(flags);
+
+			if (!p->pre_handler || !p->pre_handler(p, regs))
+				prepare = true;
+
+			local_irq_save(flags);
+			preempt_disable();
+		}
+
+		if (prepare)
 			prepare_singlestep(p, regs);
 	} else {
 		ret = urp_handler(regs, tgid);
