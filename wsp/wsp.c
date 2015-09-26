@@ -40,7 +40,8 @@ struct wsp_bin {
 };
 
 
-static const char webapp_path[] = "/usr/bin/WebProcess";
+/* TODO: configure this from outside (using debugfs) */
+static const char webapp_path[] = "/usr/bin/wrt_launchpad_daemon";
 static const char ewebkit_path[] = "/usr/lib/libewebkit2.so";
 
 
