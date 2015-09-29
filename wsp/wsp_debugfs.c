@@ -51,7 +51,7 @@ free_name:
 }
 
 /* ============================================================================
- * ===                         DEBUGFS FOR ENABLE                           ===
+ * ===                          DEBUGFS FOR CMD                             ===
  * ============================================================================
  */
 static ssize_t write_cmd(struct file *file, const char __user *user_buf,
@@ -140,6 +140,88 @@ static const struct file_operations fops_enabled = {
 };
 
 
+
+
+/* ============================================================================
+ * ===                       DEBUGFS FOR WEBAPP_PATH                        ===
+ * ============================================================================
+ */
+static ssize_t write_webapp_path(struct file *file, const char __user *user_buf,
+			     size_t len, loff_t *ppos)
+{
+	ssize_t ret;
+	char *path;
+
+	path = kmalloc(len, GFP_KERNEL);
+	if (path == NULL) {
+		ret = -ENOMEM;
+		goto write_webapp_path_failed;
+	}
+
+	if (copy_from_user(path, user_buf, len)) {
+		ret = -EINVAL;
+		goto write_webapp_path_failed;
+	}
+
+	path[len - 1] = '\0';
+
+	wsp_set_webapp_path(path, len);
+
+	ret = len;
+
+write_webapp_path_failed:
+	kfree(path);
+
+	return ret;
+}
+
+static const struct file_operations fops_webapp_path = {
+	.write = write_webapp_path
+};
+
+
+
+
+/* ============================================================================
+ * ===                      DEBUGFS FOR EWEBKIT_PATH                        ===
+ * ============================================================================
+ */
+static ssize_t write_ewebkit_path(struct file *file, const char __user *user_buf,
+			     size_t len, loff_t *ppos)
+{
+	ssize_t ret;
+	char *path;
+
+	path = kmalloc(len, GFP_KERNEL);
+	if (path == NULL) {
+		ret = -ENOMEM;
+		goto write_ewebkit_path_failed;
+	}
+
+	if (copy_from_user(path, user_buf, len)) {
+		ret = -EINVAL;
+		goto write_ewebkit_path_failed;
+	}
+
+	path[len - 1] = '\0';
+
+	wsp_set_ewebkit_path(path, len);
+
+	ret = len;
+
+write_ewebkit_path_failed:
+	kfree(path);
+
+	return ret;
+}
+
+static const struct file_operations fops_ewebkit_path = {
+	.write = write_ewebkit_path
+};
+
+
+
+
 static struct dentry *wsp_dir;
 
 void wsp_debugfs_exit(void)
@@ -168,6 +250,16 @@ int wsp_debugfs_init(void)
 		goto fail;
 
 	dentry = debugfs_create_file("cmd", 0600, wsp_dir, NULL, &fops_cmd);
+	if (dentry == NULL)
+		goto fail;
+
+	dentry = debugfs_create_file("webapp_path", 0600, wsp_dir, NULL,
+				     &fops_webapp_path);
+	if (dentry == NULL)
+		goto fail;
+
+	dentry = debugfs_create_file("ewebkit_path", 0600, wsp_dir, NULL,
+				     &fops_ewebkit_path);
 	if (dentry == NULL)
 		goto fail;
 

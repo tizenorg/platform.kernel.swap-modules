@@ -20,6 +20,7 @@
  */
 
 
+#include <linux/string.h>
 #include <uprobe/swap_uaccess.h>
 #include <us_manager/sspt/sspt.h>
 #include <us_manager/probes/probe_info_new.h>
@@ -40,9 +41,8 @@ struct wsp_bin {
 };
 
 
-/* TODO: configure this from outside (using debugfs) */
-static const char webapp_path[] = "/usr/bin/wrt_launchpad_daemon";
-static const char ewebkit_path[] = "/usr/lib/libewebkit2.so";
+static char *webapp_path = NULL;
+static char *ewebkit_path = NULL;
 
 
 #define WSP_PROBE_MAKE(__name, __desc)	\
@@ -296,7 +296,7 @@ enum {
 };
 
 static struct wsp_bin ewebkit = {
-	.name = ewebkit_path,
+	.name = NULL,
 	.cnt = ewebkit_probes_cnt,
 	.probe_array = ewebkit_probe_array
 };
@@ -369,12 +369,35 @@ static void wsp_bin_unregister(struct pf_group *pfg, struct wsp_bin *bin)
 		wsp_probe_unregister(pfg, dentry, &bin->probe_array[i]);
 }
 
+static void do_set_path(char **dest, char *path, size_t len)
+{
+	*dest = kmalloc(len, GFP_KERNEL);
+	if (*dest == NULL) {
+		printk("Not enough memory to init path\n");
+		return;
+	}
+
+	strncpy(*dest, path, len);
+}
+
+static void do_free_path(char **dest)
+{
+	kfree(*dest);
+}
+
 
 static struct pf_group *g_pfg;
 
 static int wsp_app_register(void)
 {
 	struct dentry *dentry;
+
+	if (webapp_path == NULL || ewebkit_path == NULL) {
+		printk("WSP: some required paths are not set!\n");
+		return -EINVAL;
+	}
+
+	ewebkit.name = ewebkit_path;
 
 	dentry = dentry_by_path(webapp_path);
 	if (dentry == NULL) {
@@ -393,6 +416,11 @@ static int wsp_app_register(void)
 
 static void wsp_app_unregister(void)
 {
+	if (ewebkit.name != NULL) {
+		printk("WSP: ewebkit path is not initialized\n");
+		return;
+	}
+
 	wsp_bin_unregister(g_pfg, &ewebkit);
 	put_pf_group(g_pfg);
 }
@@ -417,6 +445,8 @@ static void do_wsp_off(void)
 {
 	wsp_app_unregister();
 	wsp_res_exit();
+	do_free_path(&webapp_path);
+	do_free_path(&ewebkit_path);
 }
 
 
@@ -482,6 +512,18 @@ unlock:
 enum wsp_mode wsp_get_mode(void)
 {
 	return g_mode;
+}
+
+void wsp_set_webapp_path(char *path, size_t len)
+{
+	do_free_path(&webapp_path);
+	do_set_path(&webapp_path, path, len);
+}
+
+void wsp_set_ewebkit_path(char *path, size_t len)
+{
+	do_free_path(&ewebkit_path);
+	do_set_path(&ewebkit_path, path, len);
 }
 
 int wsp_init(void)

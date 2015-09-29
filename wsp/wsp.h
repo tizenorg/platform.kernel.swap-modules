@@ -34,6 +34,9 @@ int wsp_set_addr(const char *name, unsigned long offset);
 int wsp_set_mode(enum wsp_mode mode);
 enum wsp_mode wsp_get_mode(void);
 
+void wsp_set_webapp_path(char *path, size_t len);
+void wsp_set_ewebkit_path(char *path, size_t len);
+
 int wsp_init(void);
 void wsp_exit(void);
 
