@@ -240,7 +240,7 @@ void ksf_msg_file_entry_open(int fd, enum file_api_t api, const char *path,
 	n = strncpy_from_user(p, ofile, size);
 	if (n < 0) {
 		printk(KSF_PREFIX "cannot copy ofile\n");
-		swap_msg_put(m);
+		goto put_msg;
 	}
 
 	swap_msg_flush(m, ret + n + 1);
