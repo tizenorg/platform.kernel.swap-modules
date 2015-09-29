@@ -874,23 +874,35 @@ void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 	struct uretprobe_instance *ri;
 
 	__swap_unregister_uprobe(&rp->up, disarm);
-	spin_lock_irqsave(&uretprobe_lock, flags);
 
+	spin_lock_irqsave(&uretprobe_lock, flags);
 	while ((ri = get_used_urp_inst(rp)) != NULL) {
+		bool is_current = ri->task == current;
+
+		if (is_current)
+			spin_unlock_irqrestore(&uretprobe_lock, flags);
+
+		/* FIXME: arch_disarm_urp_inst() for no current context */
 		if (arch_disarm_urp_inst(ri, ri->task, 0) != 0)
 			printk(KERN_INFO "%s (%d/%d): "
 			       "cannot disarm urp instance (%08lx)\n",
 			       ri->task->comm, ri->task->tgid, ri->task->pid,
 			       (unsigned long)rp->up.kp.addr);
+
+		if (is_current)
+			spin_lock_irqsave(&uretprobe_lock, flags);
+
 		recycle_urp_inst(ri);
 	}
+	spin_unlock_irqrestore(&uretprobe_lock, flags);
 
+	spin_lock_irqsave(&uretprobe_lock, flags);
 	while ((ri = get_used_urp_inst(rp)) != NULL) {
 		ri->rp = NULL;
 		hlist_del(&ri->uflist);
 	}
-
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
+
 	free_urp_inst(rp);
 }
 EXPORT_SYMBOL_GPL(__swap_unregister_uretprobe);
