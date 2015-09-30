@@ -894,9 +894,7 @@ void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 
 		recycle_urp_inst(ri);
 	}
-	spin_unlock_irqrestore(&uretprobe_lock, flags);
 
-	spin_lock_irqsave(&uretprobe_lock, flags);
 	while ((ri = get_used_urp_inst(rp)) != NULL) {
 		ri->rp = NULL;
 		hlist_del(&ri->uflist);
