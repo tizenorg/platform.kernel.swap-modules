@@ -208,6 +208,24 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
+static bool get_long(struct task_struct *task,
+		     unsigned long vaddr, unsigned long *val)
+{
+	return task->mm == current->mm ?
+		!!get_user(*val, (unsigned long *)vaddr) :
+		sizeof(*val) != read_proc_vm_atomic(task, vaddr,
+						    val, sizeof(*val));
+}
+
+static bool put_long(struct task_struct *task,
+		     unsigned long vaddr, unsigned long *val)
+{
+	return task->mm == current->mm ?
+		!!put_user(*val, (unsigned long *)vaddr) :
+		sizeof(*val) != write_proc_vm_atomic(task, vaddr,
+						     val, sizeof(*val));
+}
+
 /**
  * @brief Disarms uretprobe on x86 arch.
  *
@@ -228,14 +246,14 @@ int arch_disarm_urp_inst(struct uretprobe_instance *ri,
 	else
 		tramp_addr = tr; /* ri - invalid */
 
-	if (get_user(ret_addr, (unsigned long *)sp)) {
+	if (get_long(task, sp, &ret_addr)) {
 		printk(KERN_INFO "---> %s (%d/%d): failed to read stack from %08lx\n",
 		       task->comm, task->tgid, task->pid, sp);
 		return -EFAULT;
 	}
 
 	if (tramp_addr == ret_addr) {
-		if (put_user((unsigned long)ri->ret_addr, (unsigned long *)sp)) {
+		if (put_long(task, sp, (unsigned long *)&ri->ret_addr)) {
 			printk(KERN_INFO "---> %s (%d/%d): failed to write "
 			       "orig_ret_addr to %08lx",
 			       task->comm, task->tgid, task->pid, sp);
