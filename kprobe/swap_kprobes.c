@@ -45,7 +45,7 @@
 #include <ksyms/ksyms.h>
 #include <master/swap_initializer.h>
 #include <swap-asm/swap_kprobes.h>
-
+#include "swap_ktd.h"
 #include "swap_slots.h"
 #include "swap_td_raw.h"
 #include "swap_kdebug.h"
@@ -1218,6 +1218,10 @@ static int once(void)
 	if (ret)
 		return ret;
 
+	ret = swap_ktd_once();
+	if (ret)
+		return ret;
+
 	/*
 	 * FIXME allocate the probe table, currently defined statically
 	 * initialize all list heads
@@ -1249,12 +1253,18 @@ static int init_kprobes(void)
 	if (ret)
 		goto td_raw_uninit;
 
-	ret = swap_register_kprobe(&put_task_kp);
+	ret = swap_ktd_init();
 	if (ret)
 		goto arch_kp_exit;
 
+	ret = swap_register_kprobe(&put_task_kp);
+	if (ret)
+		goto ktd_uninit;
+
 	return 0;
 
+ktd_uninit:
+	swap_ktd_uninit();
 arch_kp_exit:
 	swap_arch_exit_kprobes();
 td_raw_uninit:
@@ -1265,6 +1275,7 @@ td_raw_uninit:
 static void exit_kprobes(void)
 {
 	swap_unregister_kprobe(&put_task_kp);
+	swap_ktd_uninit();
 	swap_arch_exit_kprobes();
 	swap_td_raw_uninit();
 	exit_sm();
