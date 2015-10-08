@@ -3,7 +3,8 @@ EXTRA_CFLAGS := $(extra_cflags)
 obj-m := swap_kprobe.o
 swap_kprobe-y := swap_kprobes.o \
                  swap_kprobes_deps.o \
-                 swap_slots.o
+                 swap_slots.o \
+                 swap_td_raw.o
 
 ### ARM
 swap_kprobe-$(CONFIG_ARM) += arch/arm/swap-asm/swap_kprobes.o \

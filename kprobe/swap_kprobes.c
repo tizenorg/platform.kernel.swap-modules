@@ -47,6 +47,7 @@
 #include <swap-asm/swap_kprobes.h>
 
 #include "swap_slots.h"
+#include "swap_td_raw.h"
 #include "swap_kdebug.h"
 #include "swap_kprobes.h"
 #include "swap_kprobes_deps.h"
@@ -1240,23 +1241,32 @@ static int init_kprobes(void)
 	init_sm();
 	atomic_set(&kprobe_count, 0);
 
-	ret = swap_arch_init_kprobes();
+	ret = swap_td_raw_init();
 	if (ret)
 		return ret;
 
+	ret = swap_arch_init_kprobes();
+	if (ret)
+		goto td_raw_uninit;
+
 	ret = swap_register_kprobe(&put_task_kp);
-	if (ret) {
-		swap_arch_exit_kprobes();
-		return ret;
-	}
+	if (ret)
+		goto arch_kp_exit;
 
 	return 0;
+
+arch_kp_exit:
+	swap_arch_exit_kprobes();
+td_raw_uninit:
+	swap_td_raw_uninit();
+	return ret;
 }
 
 static void exit_kprobes(void)
 {
 	swap_unregister_kprobe(&put_task_kp);
 	swap_arch_exit_kprobes();
+	swap_td_raw_uninit();
 	exit_sm();
 }
 
