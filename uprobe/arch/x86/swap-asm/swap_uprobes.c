@@ -211,19 +211,15 @@ int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 static bool get_long(struct task_struct *task,
 		     unsigned long vaddr, unsigned long *val)
 {
-	return task->mm == current->mm ?
-		!!get_user(*val, (unsigned long *)vaddr) :
-		sizeof(*val) != read_proc_vm_atomic(task, vaddr,
-						    val, sizeof(*val));
+	return sizeof(*val) != read_proc_vm_atomic(task, vaddr,
+						   val, sizeof(*val));
 }
 
 static bool put_long(struct task_struct *task,
 		     unsigned long vaddr, unsigned long *val)
 {
-	return task->mm == current->mm ?
-		!!put_user(*val, (unsigned long *)vaddr) :
-		sizeof(*val) != write_proc_vm_atomic(task, vaddr,
-						     val, sizeof(*val));
+	return sizeof(*val) != write_proc_vm_atomic(task, vaddr,
+						    val, sizeof(*val));
 }
 
 /**
