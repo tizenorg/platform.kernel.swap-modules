@@ -356,7 +356,7 @@ int get_preload_probe(struct msg_buf *mb, struct probe_info *pi)
 	}
 
 	pi->probe_type = SWAP_PRELOAD_PROBE;
-	pi->size = sizeof(pi->pl_i) + sizeof(pi->probe_type) + sizeof(pi->size);
+	pi->size = 0;
 	pi->pl_i.handler = handler;
 	pi->pl_i.flags = flags;
 
@@ -384,7 +384,7 @@ void put_preload_probe(struct probe_info *pi)
 int get_get_caller_probe(struct msg_buf *mb, struct probe_info *pi)
 {
 	pi->probe_type = SWAP_GET_CALLER;
-	pi->size = sizeof(pi->gc_i);
+	pi->size = 0;
 
 	return 0;
 }
@@ -409,7 +409,7 @@ void put_get_caller_probe(struct probe_info *pi)
 int get_get_call_type_probe(struct msg_buf *mb, struct probe_info *pi)
 {
 	pi->probe_type = SWAP_GET_CALL_TYPE;
-	pi->size = sizeof(pi->gct_i);
+	pi->size = 0;
 
 	return 0;
 }
@@ -434,7 +434,7 @@ void put_get_call_type_probe(struct probe_info *pi)
 int get_write_msg_probe(struct msg_buf *mb, struct probe_info *pi)
 {
 	pi->probe_type = SWAP_WRITE_MSG;
-	pi->size = sizeof(pi->wm_i);
+	pi->size = 0;
 
 	return 0;
 }
