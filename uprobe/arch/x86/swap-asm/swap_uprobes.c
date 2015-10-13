@@ -34,6 +34,7 @@
 #include <linux/kdebug.h>
 
 #include <kprobe/swap_slots.h>
+#include <kprobe/swap_td_raw.h>
 #include <uprobe/swap_uprobes.h>
 
 #include "swap_uprobes.h"
@@ -48,6 +49,10 @@ struct uprobe_ctlblk {
 	struct uprobe *p;               /**< Pointer to the uprobe */
 };
 
+
+static struct td_raw td_raw;
+
+
 static unsigned long trampoline_addr(struct uprobe *up)
 {
 	return (unsigned long)(up->ainsn.insn +
@@ -61,8 +66,7 @@ unsigned long arch_tramp_by_ri(struct uretprobe_instance *ri)
 
 static struct uprobe_ctlblk *current_ucb(void)
 {
-	/* FIXME hardcoded offset */
-	return (struct uprobe_ctlblk *)(end_of_stack(current) + 20);
+	return (struct uprobe_ctlblk *)swap_td_raw(&td_raw, current);
 }
 
 static struct uprobe *get_current_probe(void)
@@ -571,7 +575,17 @@ static struct notifier_block uprobe_exceptions_nb = {
  */
 int swap_arch_init_uprobes(void)
 {
-	return register_die_notifier(&uprobe_exceptions_nb);
+	int ret;
+
+	ret = swap_td_raw_reg(&td_raw, sizeof(struct uprobe_ctlblk));
+	if (ret)
+		return ret;
+
+	ret = register_die_notifier(&uprobe_exceptions_nb);
+	if (ret)
+		swap_td_raw_unreg(&td_raw);
+
+	return ret;
 }
 
 /**
@@ -582,5 +596,6 @@ int swap_arch_init_uprobes(void)
 void swap_arch_exit_uprobes(void)
 {
 	unregister_die_notifier(&uprobe_exceptions_nb);
+	swap_td_raw_unreg(&td_raw);
 }
 

@@ -3,6 +3,7 @@
 #include <linux/sched.h>
 #include <linux/stop_machine.h>
 #include <linux/slab.h>
+#include <kprobe/swap_td_raw.h>
 #include <kprobe/swap_kprobes.h>
 #include <ksyms/ksyms.h>
 #include <master/swap_initializer.h>
@@ -16,7 +17,6 @@
 #define __DEFINE_TD_MAGIC(m) ((m) & TD_MAGIC_MASK)
 
 #define TD_MAGIC __DEFINE_TD_MAGIC(0xbebebebe)
-#define TD_OFFSET 1  /* skip STACK_END_MAGIC */
 #define TD_PREFIX "[TASK_DATA] "
 
 struct task_data {
@@ -30,9 +30,11 @@ struct task_data {
 static int __task_data_cbs_start_h = -1;
 static int __task_data_cbs_stop_h = -1;
 
+static struct td_raw td_raw;
+
 static inline struct task_data *__td(struct task_struct *task)
 {
-	return (struct task_data *)(end_of_stack(task) + TD_OFFSET);
+	return (struct task_data *)swap_td_raw(&td_raw, task);
 }
 
 static inline bool __td_check(struct task_data *td)
@@ -217,6 +219,10 @@ static int task_data_init(void)
 {
 	int ret = 0;
 
+	ret = swap_td_raw_reg(&td_raw, sizeof(struct task_data));
+	if (ret)
+		return ret;
+
 	__task_data_cbs_start_h = us_manager_reg_cb(START_CB, task_data_start);
 	if (__task_data_cbs_start_h < 0) {
 		ret = __task_data_cbs_start_h;
@@ -232,6 +238,9 @@ static int task_data_init(void)
 	}
 
 out:
+	if (ret)
+		swap_td_raw_unreg(&td_raw);
+
 	return ret;
 }
 
@@ -239,6 +248,7 @@ static void task_data_exit(void)
 {
 	us_manager_unreg_cb(__task_data_cbs_start_h);
 	us_manager_unreg_cb(__task_data_cbs_stop_h);
+	swap_td_raw_unreg(&td_raw);
 }
 
 SWAP_LIGHT_INIT_MODULE(task_data_once, task_data_init, task_data_exit,
