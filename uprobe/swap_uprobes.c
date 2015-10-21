@@ -559,6 +559,10 @@ void __swap_unregister_uprobe(struct uprobe *p, int disarm)
 	struct uprobe *old_p, *list_p;
 	int cleanup_p;
 
+	/* we MUST check probe for uncreated process  */
+	if (!p->task)
+		return;
+
 	old_p = get_uprobe(p->addr, p->task->tgid);
 	if (unlikely(!old_p))
 		return;
