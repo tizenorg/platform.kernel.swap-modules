@@ -4,7 +4,7 @@
 #include <linux/fs.h>
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <linux/mutex.h>
+#include <linux/spinlock.h>
 #include <linux/limits.h>
 #include <asm/uaccess.h>
 #include <master/swap_debugfs.h>
@@ -12,7 +12,6 @@
 #include "preload_debugfs.h"
 #include "preload_module.h"
 #include "preload_control.h"
-#include "preload_patcher.h"
 #include "preload_storage.h"
 
 static const char PRELOAD_FOLDER[] = "preload";
@@ -36,23 +35,19 @@ struct loader_info {
 };
 
 static struct dentry *preload_root;
-static struct loader_info __loader_info = {
-	.path = NULL,
-	.offset = 0,
-	.dentry = NULL
-};
+static struct loader_info __loader_info;
 
 static unsigned long r_debug_offset = 0;
-static DEFINE_MUTEX(__dentry_lock);
+static DEFINE_SPINLOCK(__dentry_lock);
 
 static inline void dentry_lock(void)
 {
-	mutex_lock(&__dentry_lock);
+	spin_lock(&__dentry_lock);
 }
 
 static inline void dentry_unlock(void)
 {
-	mutex_unlock(&__dentry_lock);
+	spin_unlock(&__dentry_lock);
 }
 
 
@@ -85,10 +80,15 @@ static void clean_loader_info(void)
 {
 	if (__loader_info.path != NULL)
 		kfree(__loader_info.path);
+	__loader_info.path = NULL;
 
 	dentry_lock();
 	if (__loader_info.dentry != NULL)
 		put_dentry(__loader_info.dentry);
+
+	__loader_info.dentry = NULL;
+	__loader_info.offset = 0;
+
 	dentry_unlock();
 }
 
@@ -116,7 +116,7 @@ struct dentry *debugfs_create_ptr(const char *name, mode_t mode,
  */
 
 static ssize_t loader_path_write(struct file *file, const char __user *buf,
-			    size_t len, loff_t *ppos)
+				 size_t len, loff_t *ppos)
 {
 	ssize_t ret;
 	char *path;
@@ -128,20 +128,21 @@ static ssize_t loader_path_write(struct file *file, const char __user *buf,
 
 	path = kmalloc(len, GFP_KERNEL);
 	if (path == NULL) {
-		ret = -ENOMEM;
-		goto out;
+		return -ENOMEM;
 	}
 
 	if (copy_from_user(path, buf, len)) {
 		ret = -EINVAL;
-		goto out;
+		goto err;
 	}
 
 	path[len - 1] = '\0';
 	set_loader_file(path);
 	ret = len;
 
-out:
+	return ret;
+err:
+	kfree(path);
 	return ret;
 }
 

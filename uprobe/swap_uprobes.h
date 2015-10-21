@@ -101,7 +101,35 @@ struct uprobe {
 	struct arch_tramp atramp;            /**< Stores trampoline */
 	struct task_struct *task;            /**< Pointer to the task struct */
 	struct slot_manager *sm;             /**< Pointer to slot manager */
+	bool atomic_ctx;                    /**< Handler context */
 };
+
+struct uinst_info {
+	struct hlist_node hlist;
+
+	unsigned long vaddr;
+	kprobe_opcode_t	opcode;
+};
+
+struct urinst_info {
+	struct hlist_node hlist;
+
+	struct task_struct *task;
+	unsigned long sp;
+	unsigned long tramp;
+	unsigned long ret_addr;
+};
+
+struct uinst_info *uinst_info_create(unsigned long vaddr,
+				     kprobe_opcode_t opcode);
+void uinst_info_destroy(struct uinst_info *uinst);
+void uinst_info_disarm(struct uinst_info *uinst, struct task_struct *task);
+
+
+void urinst_info_get_current_hlist(struct hlist_head *head, bool recycle);
+void urinst_info_put_current_hlist(struct hlist_head *head,
+				  struct task_struct *task);
+
 
 /**
  * @brief Uprobe pre-entry handler.
@@ -193,7 +221,6 @@ void swap_unregister_uretprobe(struct uretprobe *rp);
 void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm);
 
 void swap_unregister_all_uprobes(struct task_struct *task);
-void swap_discard_pending_uretprobes(struct task_struct *task);
 
 void swap_ujprobe_return(void);
 struct uprobe *get_uprobe(void *addr, pid_t tgid);

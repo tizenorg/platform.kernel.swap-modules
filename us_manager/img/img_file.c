@@ -41,7 +41,12 @@ struct img_file *create_img_file(struct dentry *dentry)
 {
 	struct img_file *file;
 
-	file = kmalloc(sizeof(*file), GFP_KERNEL);
+	file = kmalloc(sizeof(*file), GFP_ATOMIC);
+	if (file == NULL) {
+		pr_err("%s: failed to allocate memory\n", __func__);
+		return NULL;
+	}
+
 	file->dentry = dentry;
 	INIT_LIST_HEAD(&file->ip_list);
 	INIT_LIST_HEAD(&file->list);
@@ -112,6 +117,8 @@ int img_file_add_ip(struct img_file *file, unsigned long addr,
 	}
 
 	ip = create_img_ip(addr, pd);
+	if (ip == NULL)
+		return -ENOMEM;
 	img_add_ip_by_list(file, ip);
 
 	return 0;

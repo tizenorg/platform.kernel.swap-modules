@@ -153,12 +153,6 @@ struct kprobe {
 	 * NULL if original function should be called.
 	 * Not supported for X86, not tested for MIPS. */
 	kprobe_opcode_t					*ss_addr[NR_CPUS];
-#ifdef CONFIG_ARM
-	/** Safe/unsafe to use probe on ARM.*/
-	unsigned					safe_arm:1;
-	/** Safe/unsafe to use probe on Thumb.*/
-	unsigned					safe_thumb:1;
-#endif
 };
 
 /**
@@ -293,9 +287,6 @@ void swap_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
 void swap_unregister_kretprobe_bottom(struct kretprobe *rp);
 void swap_unregister_kretprobes_bottom(struct kretprobe **rps, size_t size);
 
-
-int swap_disarm_urp_inst_for_task(struct task_struct *parent,
-				  struct task_struct *task);
 
 int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 

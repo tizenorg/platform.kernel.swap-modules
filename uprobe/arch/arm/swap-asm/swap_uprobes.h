@@ -63,7 +63,7 @@ struct arch_insn {
 struct arch_tramp {
 	unsigned long tramp_arm[UPROBES_TRAMP_LEN];     /**< ARM trampoline */
 	unsigned long tramp_thumb[UPROBES_TRAMP_LEN];   /**< Thumb trampoline */
-	void *utramp;                               /**< Pointer to trampoline */
+	void *utramp;                                   /**< Pointer to trampoline */
 };
 
 
@@ -93,11 +93,14 @@ static inline int longjmp_break_uhandler(struct uprobe *p, struct pt_regs *regs)
 void arch_opcode_analysis_uretprobe(struct uretprobe *rp);
 int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs);
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
-			 struct task_struct *task);
+			 struct task_struct *task, unsigned long tr);
+unsigned long arch_tramp_by_ri(struct uretprobe_instance *ri);
 
 unsigned long arch_get_trampoline_addr(struct uprobe *p, struct pt_regs *regs);
 void arch_set_orig_ret_addr(unsigned long orig_ret_addr, struct pt_regs *regs);
 void arch_remove_uprobe(struct uprobe *up);
+int arch_arm_uprobe(struct uprobe *p);
+void arch_disarm_uprobe(struct uprobe *p, struct task_struct *task);
 
 static inline unsigned long swap_get_uarg(struct pt_regs *regs, unsigned long n)
 {
@@ -130,18 +133,21 @@ static inline void swap_put_uarg(struct pt_regs *regs, unsigned long n,
 	switch (n) {
 	case 0:
 		regs->ARM_r0 = val;
+		break;
 	case 1:
 		regs->ARM_r1 = val;
+		break;
 	case 2:
 		regs->ARM_r2 = val;
+		break;
 	case 3:
 		regs->ARM_r3 = val;
+		break;
+	default:
+		ptr = (u32 *)regs->ARM_sp + n - 4;
+		if (put_user(val, ptr))
+			pr_err("failed to dereference a pointer[%p]\n", ptr);
 	}
-
-	ptr = (u32 *)regs->ARM_sp + n - 4;
-	if (put_user(val, ptr))
-		printk(KERN_INFO "failed to dereference a pointer, ptr=%p\n",
-		       ptr);
 }
 
 int swap_arch_init_uprobes(void);

@@ -31,6 +31,7 @@ struct slot_manager;
 struct task_struct;
 struct pf_group;
 struct sspt_filter;
+struct us_ip;
 
 /** Flags for sspt_*_uninstall() */
 enum US_FLAGS {
@@ -47,23 +48,40 @@ struct sspt_proc {
 	struct list_head list;		/**< For global process list */
 	pid_t tgid;			/**< Thread group ID */
 	struct task_struct *task;	/**< Ptr to the task */
+	struct mm_struct *__mm;
+	struct task_struct *__task;
+	unsigned long r_state_addr;	/**< address of r_state */
 	struct slot_manager *sm;	/**< Ptr to the manager slot */
 	struct list_head file_list;	/**< For sspt_file */
+	rwlock_t filter_lock;
 	struct list_head filter_list;	/**< Filter list */
 	unsigned first_install:1;	/**< Install flag */
 	struct sspt_feature *feature;	/**< Ptr to the feature */
+	atomic_t usage;
+
+	/* FIXME: for preload (remove those fields) */
 	void *private_data;		/**< Process private data */
 };
 
+struct sspt_proc_cb {
+	void *(*priv_create)(struct sspt_proc *);
+	void (*priv_destroy)(struct sspt_proc *, void *);
+};
+
+
+struct list_head *sspt_proc_list(void);
 
 struct sspt_proc *sspt_proc_create(struct task_struct *task);
-void sspt_proc_free(struct sspt_proc *proc);
+void sspt_proc_cleanup(struct sspt_proc *proc);
+struct sspt_proc *sspt_proc_get(struct sspt_proc *proc);
+void sspt_proc_put(struct sspt_proc *proc);
 
 void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *),
 			  void *data);
 void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data);
 
 struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task);
+struct sspt_proc *sspt_proc_get_by_task_no_lock(struct task_struct *task);
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task);
 void sspt_proc_free_all(void);
 
@@ -96,6 +114,13 @@ void sspt_proc_on_each_filter(struct sspt_proc *proc,
 			      void (*func)(struct sspt_filter *, void *),
 			      void *data);
 
+void sspt_proc_on_each_ip(struct sspt_proc *proc,
+			  void (*func)(struct us_ip *, void *), void *data);
+
 bool sspt_proc_is_send_event(struct sspt_proc *proc);
+
+int sspt_proc_cb_set(struct sspt_proc_cb *cb);
+void sspt_proc_priv_create(struct sspt_proc *proc);
+void sspt_proc_priv_destroy(struct sspt_proc *proc);
 
 #endif /* __SSPT_PROC__ */

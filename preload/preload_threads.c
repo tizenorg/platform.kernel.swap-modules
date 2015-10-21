@@ -9,7 +9,6 @@
 #include "preload.h"
 #include "preload_threads.h"
 #include "preload_debugfs.h"
-#include "preload_patcher.h"
 #include "preload_pd.h"
 
 struct preload_td {
@@ -57,13 +56,25 @@ static inline struct preload_td *get_preload_td(struct task_struct *task)
 
 unsigned long get_preload_flags(struct task_struct *task)
 {
-	return get_preload_td(task)->flags;
+	struct preload_td *td = get_preload_td(task);
+
+	if (td == NULL)
+		return 0;
+
+	return td->flags;
 }
 
 void set_preload_flags(struct task_struct *task,
 		       unsigned long flags)
 {
-	get_preload_td(task)->flags = flags;
+	struct preload_td *td = get_preload_td(task);
+
+	if (td == NULL) {
+		printk(KERN_ERR "%s: invalid arguments\n", __FUNCTION__);
+		return;
+	}
+
+	td->flags = flags;
 }
 
 
@@ -116,7 +127,7 @@ static inline void __set_slot(struct thread_slot *slot,
 static inline int __add_to_disable_list(struct thread_slot *slot,
 					unsigned long disable_addr)
 {
-	struct disabled_addr *da = kmalloc(sizeof(*da), GFP_KERNEL);
+	struct disabled_addr *da = kmalloc(sizeof(*da), GFP_ATOMIC);
 
 	if (da == NULL)
 		return -ENOMEM;
@@ -143,7 +154,7 @@ static inline struct disabled_addr *__find_disabled_addr(struct thread_slot *slo
 /* Adds a new slot */
 static inline struct thread_slot *__grow_slot(void)
 {
-	struct thread_slot *tmp = kmalloc(sizeof(*tmp), GFP_KERNEL);
+	struct thread_slot *tmp = kmalloc(sizeof(*tmp), GFP_ATOMIC);
 
 	if (tmp == NULL)
 		return NULL;
@@ -170,6 +181,9 @@ static void __clean_slot(struct thread_slot *slot)
 static inline struct thread_slot *__get_task_slot(struct task_struct *task)
 {
 	struct preload_td *td = get_preload_td(task);
+
+	if (td == NULL)
+		return NULL;
 
 	return list_empty(&td->slots) ? NULL :
 		list_last_entry(&td->slots, struct thread_slot, list);
@@ -243,14 +257,14 @@ get_call_type_done:
 	return ret;
 }
 
-int preload_threads_get_drop(struct task_struct *task, bool *drop)
+int preload_threads_get_drop(struct task_struct *task)
 {
 	struct thread_slot *slot;
 	int ret = 0;
 
 	slot = __get_task_slot(task);
 	if (slot != NULL) {
-		*drop = slot->drop;
+		ret = (int) slot->drop;
 		goto get_drop_done;
 	}
 

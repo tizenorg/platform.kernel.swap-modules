@@ -223,3 +223,15 @@ int sspt_unregister_page(struct sspt_page *page,
 
 	return err;
 }
+
+void sspt_page_on_each_ip(struct sspt_page *page,
+			  void (*func)(struct us_ip *, void *), void *data)
+{
+	struct us_ip *ip;
+
+	spin_lock(&page->lock);
+	list_for_each_entry(ip, &page->ip_list_inst, list)
+		func(ip, data);
+
+	spin_unlock(&page->lock);
+}

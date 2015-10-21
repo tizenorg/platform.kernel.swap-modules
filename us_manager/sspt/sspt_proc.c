@@ -33,10 +33,14 @@
 #include <linux/list.h>
 #include <us_manager/us_slot_manager.h>
 
-
 static LIST_HEAD(proc_probes_list);
 static DEFINE_RWLOCK(sspt_proc_rwlock);
 
+
+struct list_head *sspt_proc_list()
+{
+	return &proc_probes_list;
+}
 
 /**
  * @brief Global read lock for sspt_proc
@@ -88,7 +92,7 @@ void sspt_proc_write_unlock(void)
  */
 struct sspt_proc *sspt_proc_create(struct task_struct *task)
 {
-	struct sspt_proc *proc = kmalloc(sizeof(*proc), GFP_ATOMIC);
+	struct sspt_proc *proc = kzalloc(sizeof(*proc), GFP_ATOMIC);
 
 	if (proc) {
 		proc->feature = sspt_create_feature();
@@ -101,10 +105,12 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
 		proc->tgid = task->tgid;
 		proc->task = task->group_leader;
 		proc->sm = create_sm_us(task);
-		proc->first_install = 0;
-		proc->private_data = NULL;
 		INIT_LIST_HEAD(&proc->file_list);
+		rwlock_init(&proc->filter_lock);
 		INIT_LIST_HEAD(&proc->filter_list);
+		atomic_set(&proc->usage, 1);
+
+		get_task_struct(proc->task);
 
 		/* add to list */
 		list_add(&proc->list, &proc_probes_list);
@@ -121,12 +127,11 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
  */
 
 /* called with sspt_proc_write_lock() */
-void sspt_proc_free(struct sspt_proc *proc)
+void sspt_proc_cleanup(struct sspt_proc *proc)
 {
 	struct sspt_file *file, *n;
 
-	/* delete from list */
-	list_del(&proc->list);
+	sspt_proc_del_all_filters(proc);
 
 	list_for_each_entry_safe(file, n, &proc->file_list, list) {
 		list_del(&file->list);
@@ -136,8 +141,44 @@ void sspt_proc_free(struct sspt_proc *proc)
 	sspt_destroy_feature(proc->feature);
 
 	free_sm_us(proc->sm);
-	kfree(proc);
+	sspt_proc_put(proc);
 }
+
+struct sspt_proc *sspt_proc_get(struct sspt_proc *proc)
+{
+	atomic_inc(&proc->usage);
+
+	return proc;
+}
+
+void sspt_proc_put(struct sspt_proc *proc)
+{
+	if (atomic_dec_and_test(&proc->usage)) {
+		if (proc->__mm) {
+			mmput(proc->__mm);
+			proc->__mm = NULL;
+		}
+		if (proc->__task) {
+			put_task_struct(proc->__task);
+			proc->__task = NULL;
+		}
+
+		put_task_struct(proc->task);
+		kfree(proc);
+	}
+}
+
+struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
+{
+	struct sspt_proc *proc;
+
+	sspt_proc_read_lock();
+	proc = sspt_proc_get_by_task_no_lock(task);
+	sspt_proc_read_unlock();
+
+	return proc;
+}
+EXPORT_SYMBOL_GPL(sspt_proc_get_by_task);
 
 /**
  * @brief Get sspt_proc by task
@@ -145,7 +186,7 @@ void sspt_proc_free(struct sspt_proc *proc)
  * @param task Pointer on the task_struct struct
  * @return Pointer on the sspt_proc struct
  */
-struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
+struct sspt_proc *sspt_proc_get_by_task_no_lock(struct task_struct *task)
 {
 	struct sspt_proc *proc, *tmp;
 
@@ -156,7 +197,7 @@ struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(sspt_proc_get_by_task);
+EXPORT_SYMBOL_GPL(sspt_proc_get_by_task_no_lock);
 
 /**
  * @brief Call func() on each proc (no lock)
@@ -198,9 +239,13 @@ EXPORT_SYMBOL_GPL(on_each_proc);
  */
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 {
-	struct sspt_proc *proc = sspt_proc_get_by_task(task);
+	struct sspt_proc *proc;
+
+	sspt_proc_write_lock();
+	proc = sspt_proc_get_by_task_no_lock(task);
 	if (proc == NULL)
 		proc = sspt_proc_create(task);
+	sspt_proc_write_unlock();
 
 	return proc;
 }
@@ -213,9 +258,10 @@ struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 void sspt_proc_free_all(void)
 {
 	struct sspt_proc *proc, *n;
+
 	list_for_each_entry_safe(proc, n, &proc_probes_list, list) {
-		sspt_proc_del_all_filters(proc);
-		sspt_proc_free(proc);
+		list_del(&proc->list);
+		sspt_proc_cleanup(proc);
 	}
 }
 
@@ -240,7 +286,8 @@ struct sspt_file *sspt_proc_find_file_or_new(struct sspt_proc *proc,
 	file = sspt_proc_find_file(proc, dentry);
 	if (file == NULL) {
 		file = sspt_file_create(dentry, 10);
-		sspt_proc_add_file(proc, file);
+		if (file)
+			sspt_proc_add_file(proc, file);
 	}
 
 	return file;
@@ -403,7 +450,11 @@ void sspt_proc_insert_files(struct sspt_proc *proc, struct list_head *head)
  */
 void sspt_proc_add_filter(struct sspt_proc *proc, struct pf_group *pfg)
 {
-	sspt_filter_create(proc, pfg);
+	struct sspt_filter *f;
+
+	f = sspt_filter_create(proc, pfg);
+	if (f)
+		list_add(&f->list, &proc->filter_list);
 }
 
 /**
@@ -417,12 +468,14 @@ void sspt_proc_del_filter(struct sspt_proc *proc, struct pf_group *pfg)
 {
 	struct sspt_filter *fl, *tmp;
 
+	write_lock(&proc->filter_lock);
 	list_for_each_entry_safe(fl, tmp, &proc->filter_list, list) {
 		if (fl->pfg == pfg) {
 			list_del(&fl->list);
 			sspt_filter_free(fl);
 		}
 	}
+	write_unlock(&proc->filter_lock);
 }
 
 /**
@@ -435,10 +488,12 @@ void sspt_proc_del_all_filters(struct sspt_proc *proc)
 {
 	struct sspt_filter *fl, *tmp;
 
+	write_lock(&proc->filter_lock);
 	list_for_each_entry_safe(fl, tmp, &proc->filter_list, list) {
 		list_del(&fl->list);
 		sspt_filter_free(fl);
 	}
+	write_unlock(&proc->filter_lock);
 }
 
 /**
@@ -469,6 +524,15 @@ void sspt_proc_on_each_filter(struct sspt_proc *proc,
 		func(fl, data);
 }
 
+void sspt_proc_on_each_ip(struct sspt_proc *proc,
+			  void (*func)(struct us_ip *, void *), void *data)
+{
+	struct sspt_file *file;
+
+	list_for_each_entry(file, &proc->file_list, list)
+		sspt_file_on_each_ip(file, func, data);
+}
+
 static void is_send_event(struct sspt_filter *f, void *data)
 {
 	bool *is_send = (bool *)data;
@@ -481,7 +545,34 @@ bool sspt_proc_is_send_event(struct sspt_proc *proc)
 {
 	bool is_send = false;
 
+	/* FIXME: add read lock (deadlock in sampler) */
 	sspt_proc_on_each_filter(proc, is_send_event, (void *)&is_send);
 
 	return is_send;
+}
+
+
+static struct sspt_proc_cb *proc_cb;
+
+int sspt_proc_cb_set(struct sspt_proc_cb *cb)
+{
+	if (cb && proc_cb)
+		return -EBUSY;
+
+	proc_cb = cb;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(sspt_proc_cb_set);
+
+void sspt_proc_priv_create(struct sspt_proc *proc)
+{
+	if (proc_cb && proc_cb->priv_create)
+		proc->private_data = proc_cb->priv_create(proc);
+}
+
+void sspt_proc_priv_destroy(struct sspt_proc *proc)
+{
+	if (proc->first_install && proc_cb && proc_cb->priv_destroy)
+		proc_cb->priv_destroy(proc, proc->private_data);
 }

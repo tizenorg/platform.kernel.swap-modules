@@ -300,7 +300,7 @@ static int unregister_multiple_syscalls(size_t *id_p, size_t cnt)
 
 	--cnt;
 
-	rpp = kmalloc(GFP_KERNEL, sizeof(&(((struct ks_probe *) 0)->rp)) * cnt);
+	rpp = kmalloc(GFP_KERNEL, sizeof(*rpp) * cnt);
 	if (rpp == NULL) {
 		for (; cnt != end; --cnt) {
 			ret = unregister_syscall(id_p[cnt]);

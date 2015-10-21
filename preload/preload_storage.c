@@ -10,6 +10,8 @@
 static struct bin_info __handlers_info = { NULL, NULL };
 static struct bin_info __linker_info = { NULL, NULL };
 static struct bin_info __libc_info;
+static struct bin_info __libpthread_info;
+static struct bin_info __libsmack_info;
 
 static inline struct bin_info *__get_handlers_info(void)
 {
@@ -161,6 +163,24 @@ static inline void __drop_libc_info(void)
 	__libc_info.dentry = NULL;
 }
 
+static inline void __drop_libpthread_info(void)
+{
+	if (__libpthread_info.dentry)
+		put_dentry(__libpthread_info.dentry);
+
+	__libpthread_info.path = NULL;
+	__libpthread_info.dentry = NULL;
+}
+
+static inline void __drop_libsmack_info(void)
+{
+	if (__libsmack_info.dentry)
+		put_dentry(__libsmack_info.dentry);
+
+	__libsmack_info.path = NULL;
+	__libsmack_info.dentry = NULL;
+}
+
 void preload_storage_put_linker_info(struct bin_info *info)
 {
 }
@@ -170,7 +190,25 @@ struct bin_info *preload_storage_get_libc_info(void)
 	return &__libc_info;
 }
 
+struct bin_info *preload_storage_get_libpthread_info(void)
+{
+	return &__libpthread_info;
+}
+
+struct bin_info *preload_storage_get_libsmack_info(void)
+{
+	return &__libsmack_info;
+}
+
 void preload_storage_put_libc_info(struct bin_info *info)
+{
+}
+
+void preload_storage_put_libpthread_info(struct bin_info *info)
+{
+}
+
+void preload_storage_put_libsmack_info(struct bin_info *info)
 {
 }
 
@@ -182,11 +220,27 @@ int preload_storage_init(void)
 	if (!__libc_info.dentry)
 		return -ENOENT;
 
+	/* TODO check if we have not library */
+	__libpthread_info.path = "/lib/libpthread.so.0";
+	__libpthread_info.dentry = get_dentry(__libpthread_info.path);
+
+	if (!__libpthread_info.dentry)
+		return -ENOENT;
+
+	/* TODO check if we have not library */
+	__libsmack_info.path = "/usr/lib/libsmack.so.1.0.0";
+	__libsmack_info.dentry = get_dentry(__libsmack_info.path);
+
+	if (!__libsmack_info.dentry)
+		return -ENOENT;
+
 	return 0;
 }
 
 void preload_storage_exit(void)
 {
+	__drop_libsmack_info();
+	__drop_libpthread_info();
 	__drop_libc_info();
 	__drop_handlers_info();
 	__drop_linker_info();

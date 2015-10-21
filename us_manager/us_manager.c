@@ -24,6 +24,7 @@
 
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/stop_machine.h>
 #include "pf/pf_group.h"
 #include "sspt/sspt_proc.h"
 #include "probes/probe_info_new.h"
@@ -39,14 +40,29 @@ static DEFINE_MUTEX(mutex_inst);
 static enum status_type status = ST_OFF;
 
 
+static int __do_usm_stop(void *data)
+{
+	get_all_procs();
+
+	return 0;
+}
+
 static void do_usm_stop(void)
 {
-	exec_cbs(STOP_CB);
+	int ret;
 
+	exec_cbs(STOP_CB);
 	unregister_helper_top();
+
+	ret = stop_machine(__do_usm_stop, NULL, NULL);
+	if (ret)
+		printk("do_usm_stop failed: %d\n", ret);
+
 	uninstall_all();
 	unregister_helper_bottom();
 	sspt_proc_free_all();
+	exec_cbs(STOP_CB_TD);
+
 }
 
 static int do_usm_start(void)
@@ -185,7 +201,8 @@ static int us_filter(struct task_struct *task)
 {
 	struct sspt_proc *proc;
 
-	proc = sspt_proc_get_by_task(task);
+	/* FIXME: add read lock (deadlock in sampler) */
+	proc = sspt_proc_get_by_task_no_lock(task);
 	if (proc)
 		return sspt_proc_is_send_event(proc);
 

@@ -78,6 +78,42 @@ void print_uprobe_hash_table(void)
 }
 #endif
 
+
+struct uinst_info *uinst_info_create(unsigned long vaddr,
+				     kprobe_opcode_t opcode)
+{
+	struct uinst_info *uinst;
+
+	uinst = kmalloc(sizeof(*uinst), GFP_ATOMIC);
+	if (uinst) {
+		INIT_HLIST_NODE(&uinst->hlist);
+		uinst->vaddr = vaddr;
+		uinst->opcode = opcode;
+	} else {
+		pr_err("Cannot allocate memory for uinst\n");
+	}
+
+	return uinst;
+}
+EXPORT_SYMBOL_GPL(uinst_info_create);
+
+void uinst_info_destroy(struct uinst_info *uinst)
+{
+	kfree(uinst);
+}
+EXPORT_SYMBOL_GPL(uinst_info_destroy);
+
+void uinst_info_disarm(struct uinst_info *uinst, struct task_struct *task)
+{
+	int ret = write_proc_vm_atomic(task, uinst->vaddr,
+				       &uinst->opcode, sizeof(uinst->opcode));
+	if (!ret) {
+		printk("uinst_info_disarm: failed to write memory "
+		       "tgid=%u, vaddr=%08lx!\n", task->tgid, uinst->vaddr);
+	}
+}
+EXPORT_SYMBOL_GPL(uinst_info_disarm);
+
 /*
  * Keep all fields in the uprobe consistent
  */
@@ -85,10 +121,6 @@ static inline void copy_uprobe(struct uprobe *old_p, struct uprobe *p)
 {
 	memcpy(&p->opcode, &old_p->opcode, sizeof(uprobe_opcode_t));
 	memcpy(&p->ainsn, &old_p->ainsn, sizeof(struct arch_insn));
-#ifdef CONFIG_ARM
-	p->safe_arm = old_p->safe_arm;
-	p->safe_thumb = old_p->safe_thumb;
-#endif
 }
 
 /*
@@ -207,17 +239,7 @@ static int register_aggr_uprobe(struct uprobe *old_p, struct uprobe *p)
 
 static int arm_uprobe(struct uprobe *p)
 {
-	uprobe_opcode_t insn = BREAKPOINT_INSTRUCTION;
-	int ret = write_proc_vm_atomic(p->task, (unsigned long)p->addr,
-				       &insn, sizeof(insn));
-	if (!ret) {
-		printk("arm_uprobe: failed to write memory "
-		       "tgid=%u addr=%p!\n", p->task->tgid, p->addr);
-
-		return -EACCES;
-	}
-
-	return 0;
+	return arch_arm_uprobe(p);
 }
 
 /**
@@ -229,12 +251,7 @@ static int arm_uprobe(struct uprobe *p)
  */
 void disarm_uprobe(struct uprobe *p, struct task_struct *task)
 {
-	int ret = write_proc_vm_atomic(task, (unsigned long)p->addr,
-				       &p->opcode, sizeof(p->opcode));
-	if (!ret) {
-		printk("disarm_uprobe: failed to write memory "
-		       "tgid=%u, addr=%p!\n", task->tgid, p->addr);
-	}
+	arch_disarm_uprobe(p, task);
 }
 EXPORT_SYMBOL_GPL(disarm_uprobe);
 
@@ -484,14 +501,6 @@ int swap_register_uprobe(struct uprobe *p)
 	if (!p->addr)
 		return -EINVAL;
 
-/* thumb address = address-1; */
-#if defined(CONFIG_ARM)
-	/* TODO: must be corrected in 'bundle' */
-	if ((unsigned long) p->addr & 0x01)
-		p->addr = (uprobe_opcode_t *)((unsigned long)p->addr &
-					      0xfffffffe);
-#endif
-
 	p->ainsn.insn = NULL;
 	INIT_LIST_HEAD(&p->list);
 #ifdef KPROBES_PROFILE
@@ -510,10 +519,7 @@ int swap_register_uprobe(struct uprobe *p)
 		       task->tgid, task->pid, task->comm, p->addr);
 		ret = -EINVAL;
 		goto out;
-#ifdef CONFIG_ARM
-		p->safe_arm = old_p->safe_arm;
-		p->safe_thumb = old_p->safe_thumb;
-#endif
+
 		ret = register_aggr_uprobe(old_p, p);
 		DBPRINTF("goto out\n", ret);
 		goto out;
@@ -829,7 +835,7 @@ int swap_register_uretprobe(struct uretprobe *rp)
 	INIT_HLIST_HEAD(&rp->free_instances);
 
 	for (i = 0; i < rp->maxactive; i++) {
-		inst = kmalloc(sizeof(*inst) + rp->data_size, GFP_ATOMIC);
+		inst = kmalloc(sizeof(*inst) + rp->data_size, GFP_KERNEL);
 		if (inst == NULL) {
 			free_urp_inst(rp);
 			return -ENOMEM;
@@ -853,67 +859,6 @@ int swap_register_uretprobe(struct uretprobe *rp)
 EXPORT_SYMBOL_GPL(swap_register_uretprobe);
 
 /**
- * @brief Disarms uretprobe instances for the specified child task.
- *
- * @param parent Pointer to the parent task struct.
- * @param task Pointer to the child task struct.
- * @return 0
- */
-int swap_disarm_urp_inst_for_task(struct task_struct *parent,
-				  struct task_struct *task)
-{
-	unsigned long flags;
-	struct uretprobe_instance *ri;
-	struct hlist_head *head;
-	struct hlist_node *tmp;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	spin_lock_irqsave(&uretprobe_lock, flags);
-
-	head = uretprobe_inst_table_head(parent->mm);
-	swap_hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
-		if (parent == ri->task)
-			arch_disarm_urp_inst(ri, task);
-	}
-
-	spin_unlock_irqrestore(&uretprobe_lock, flags);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(swap_disarm_urp_inst_for_task);
-
-/**
- * @brief Disarms uretprobes for specified task.
- *
- * @param task Pointer to the task_struct.
- * @return Void.
- */
-void swap_discard_pending_uretprobes(struct task_struct *task)
-{
-	unsigned long flags;
-	struct uretprobe_instance *ri;
-	struct hlist_head *head;
-	struct hlist_node *tmp;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	spin_lock_irqsave(&uretprobe_lock, flags);
-
-	head = uretprobe_inst_table_head(task->mm);
-	swap_hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
-		if (ri->task == task) {
-			printk(KERN_INFO "%s (%d/%d): pending urp inst: %08lx\n",
-			       task->comm, task->tgid, task->pid,
-			       (unsigned long)ri->rp->up.addr);
-			arch_disarm_urp_inst(ri, task);
-			recycle_urp_inst(ri);
-		}
-	}
-
-	spin_unlock_irqrestore(&uretprobe_lock, flags);
-}
-EXPORT_SYMBOL_GPL(swap_discard_pending_uretprobes);
-
-/**
  * @brief Unregisters uretprobe.
  *
  * @param rp Pointer to the ureprobe.
@@ -926,14 +871,24 @@ void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 	struct uretprobe_instance *ri;
 
 	__swap_unregister_uprobe(&rp->up, disarm);
-	spin_lock_irqsave(&uretprobe_lock, flags);
 
+	spin_lock_irqsave(&uretprobe_lock, flags);
 	while ((ri = get_used_urp_inst(rp)) != NULL) {
-		if (arch_disarm_urp_inst(ri, ri->task) != 0)
+		bool is_current = ri->task == current;
+
+		if (is_current)
+			spin_unlock_irqrestore(&uretprobe_lock, flags);
+
+		/* FIXME: arch_disarm_urp_inst() for no current context */
+		if (arch_disarm_urp_inst(ri, ri->task, 0) != 0)
 			printk(KERN_INFO "%s (%d/%d): "
 			       "cannot disarm urp instance (%08lx)\n",
 			       ri->task->comm, ri->task->tgid, ri->task->pid,
 			       (unsigned long)rp->up.addr);
+
+		if (is_current)
+			spin_lock_irqsave(&uretprobe_lock, flags);
+
 		recycle_urp_inst(ri);
 	}
 
@@ -941,8 +896,8 @@ void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 		ri->rp = NULL;
 		hlist_del(&ri->uflist);
 	}
-
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
+
 	free_urp_inst(rp);
 }
 EXPORT_SYMBOL_GPL(__swap_unregister_uretprobe);
@@ -999,6 +954,96 @@ void swap_ujprobe_return(void)
 	arch_ujprobe_return();
 }
 EXPORT_SYMBOL_GPL(swap_ujprobe_return);
+
+
+static struct urinst_info *urinst_info_create(struct uretprobe_instance *ri)
+{
+	struct urinst_info *urinst;
+
+	urinst = kmalloc(sizeof(*urinst), GFP_ATOMIC);
+	if (urinst) {
+		INIT_HLIST_NODE(&urinst->hlist);
+		urinst->task = ri->task;
+		urinst->sp = (unsigned long)ri->sp;
+		urinst->tramp = arch_tramp_by_ri(ri);
+		urinst->ret_addr = (unsigned long)ri->ret_addr;
+	} else {
+		pr_err("Cannot allocate memory for urinst\n");
+	}
+
+	return urinst;
+}
+
+static void urinst_info_destroy(struct urinst_info *urinst)
+{
+	kfree(urinst);
+}
+
+static void urinst_info_disarm(struct urinst_info *urinst, struct task_struct *task)
+{
+	struct uretprobe_instance ri;
+	unsigned long tramp = urinst->tramp;
+
+	/* set necessary data*/
+	ri.task = urinst->task;
+	ri.sp = (kprobe_opcode_t *)urinst->sp;
+	ri.ret_addr = (kprobe_opcode_t *)urinst->ret_addr;
+
+	arch_disarm_urp_inst(&ri, task, tramp);
+}
+
+void urinst_info_get_current_hlist(struct hlist_head *head, bool recycle)
+{
+	unsigned long flags;
+	struct task_struct *task = current;
+	struct uretprobe_instance *ri;
+	struct hlist_head *hhead;
+	struct hlist_node *n;
+	struct hlist_node *last = NULL;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
+
+	spin_lock_irqsave(&uretprobe_lock, flags);
+	hhead = uretprobe_inst_table_head(task->mm);
+	swap_hlist_for_each_entry_safe(ri, node, n, hhead, hlist) {
+		if (task == ri->task) {
+			struct urinst_info *urinst;
+
+			urinst = urinst_info_create(ri);
+			if (urinst) {
+				if (last)
+					hlist_add_after(last, &urinst->hlist);
+				else
+					hlist_add_head(&urinst->hlist, head);
+
+				last = &urinst->hlist;
+			}
+
+			if (recycle)
+				recycle_urp_inst(ri);
+		}
+	}
+	spin_unlock_irqrestore(&uretprobe_lock, flags);
+}
+EXPORT_SYMBOL_GPL(urinst_info_get_current_hlist);
+
+void urinst_info_put_current_hlist(struct hlist_head *head,
+				  struct task_struct *task)
+{
+	struct urinst_info *urinst;
+	struct hlist_node *tmp;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
+
+	swap_hlist_for_each_entry_safe(urinst, node, tmp, head, hlist) {
+		/* check on disarm */
+		if (task)
+			urinst_info_disarm(urinst, task);
+
+		hlist_del(&urinst->hlist);
+		urinst_info_destroy(urinst);
+	}
+}
+EXPORT_SYMBOL_GPL(urinst_info_put_current_hlist);
+
 
 static int once(void)
 {

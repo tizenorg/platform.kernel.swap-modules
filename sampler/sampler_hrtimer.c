@@ -116,5 +116,6 @@ void sampler_timers_stop(int cpu)
  */
 void sampler_timers_set_quantum(unsigned int timer_quantum)
 {
-	sampler_timer_quantum = timer_quantum * 1000 * 1000;
+	u64 tmp = (u64)timer_quantum;
+	sampler_timer_quantum = tmp * 1000 * 1000;
 }

@@ -183,8 +183,10 @@ static ssize_t read_filter(struct file *file, char __user *user_buf,
 	ssize_t ret;
 
 	buf = kmalloc(len + 2, GFP_KERNEL);
-	memcpy(buf, name, len);
+	if (buf == NULL)
+		return -ENOMEM;
 
+	memcpy(buf, name, len);
 	buf[len] = '\0';
 	buf[len + 1] = '\n';
 

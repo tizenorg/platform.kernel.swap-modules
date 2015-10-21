@@ -13,7 +13,7 @@ int preload_threads_set_data(struct task_struct *task, unsigned long caller,
 int preload_threads_get_caller(struct task_struct *task, unsigned long *caller);
 int preload_threads_get_call_type(struct task_struct *task,
 				  unsigned char *call_type);
-int preload_threads_get_drop(struct task_struct *task, bool *drop);
+int preload_threads_get_drop(struct task_struct *task);
 bool preload_threads_check_disabled_probe(struct task_struct *task,
 					  unsigned long addr);
 void preload_threads_enable_probe(struct task_struct *task, unsigned long addr);

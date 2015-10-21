@@ -50,7 +50,7 @@ struct img_proc *create_img_proc(void)
 {
 	struct img_proc *proc;
 
-	proc = kmalloc(sizeof(*proc), GFP_KERNEL);
+	proc = kmalloc(sizeof(*proc), GFP_ATOMIC);
 	if (proc) {
 		INIT_LIST_HEAD(&proc->file_list);
 		rwlock_init(&proc->rwlock);
@@ -182,14 +182,16 @@ void img_proc_copy_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc)
 {
 	struct sspt_file *file;
 	struct img_file *i_file;
-	struct img_ip *i_ip;
 
 	read_lock(&i_proc->rwlock);
 	list_for_each_entry(i_file, &i_proc->file_list, list) {
 		file = sspt_proc_find_file_or_new(proc, i_file->dentry);
+		if (file) {
+			struct img_ip *i_ip;
 
-		list_for_each_entry(i_ip, &i_file->ip_list, list)
-			sspt_file_add_ip(file, i_ip);
+			list_for_each_entry(i_ip, &i_file->ip_list, list)
+				sspt_file_add_ip(file, i_ip);
+		}
 	}
 	read_unlock(&i_proc->rwlock);
 }

@@ -40,7 +40,7 @@ static int retprobe_copy(struct probe_info *dest,
 	memcpy(dest, source, sizeof(*source));
 
 	len = strlen(source->rp_i.args) + 1;
-	dest->rp_i.args = kmalloc(len, GFP_KERNEL);
+	dest->rp_i.args = kmalloc(len, GFP_ATOMIC);
 	if (dest->rp_i.args == NULL)
 		return -ENOMEM;
 	memcpy(dest->rp_i.args, source->rp_i.args, len);

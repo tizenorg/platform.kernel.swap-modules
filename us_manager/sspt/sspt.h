@@ -61,6 +61,7 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	up->addr = (kprobe_opcode_t *)ip->orig_addr;
 	up->task = ip->page->file->proc->task;
 	up->sm = ip->page->file->proc->sm;
+	up->atomic_ctx = true;
 
 	ret = probe_info_register(ip->desc->type, ip);
 	if (ret) {
@@ -89,7 +90,8 @@ static inline int sspt_unregister_usprobe(struct task_struct *task,
 		break;
 	case US_DISARM:
 		up = probe_info_get_uprobe(ip->desc->type, ip);
-		disarm_uprobe(up, task);
+		if (up)
+			disarm_uprobe(up, task);
 		break;
 	case US_UNINSTALL:
 		probe_info_unregister(ip->desc->type, ip, 0);

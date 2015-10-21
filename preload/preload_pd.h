@@ -2,7 +2,7 @@
 #define __PRELOAD_PD_H__
 
 struct process_data;
-struct task_struct;
+struct sspt_proc;
 
 /* process preload states */
 enum preload_state_t {
@@ -12,6 +12,8 @@ enum preload_state_t {
 	FAILED,
 	ERROR
 };
+
+struct process_data *preload_pd_get(struct sspt_proc *proc);
 
 enum preload_state_t preload_pd_get_state(struct process_data *pd);
 void preload_pd_set_state(struct process_data *pd, enum preload_state_t state);
@@ -31,8 +33,6 @@ long preload_pd_get_refs(struct process_data *pd);
 
 char __user *preload_pd_get_path(struct process_data *pd);
 void preload_pd_put_path(struct process_data *pd);
-
-int preload_pd_create_pd(void **target_place, struct task_struct *task);
 
 int preload_pd_init(void);
 void preload_pd_uninit(void);

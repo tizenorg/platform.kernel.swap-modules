@@ -10,6 +10,7 @@
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <kprobe/swap_kprobes.h>
+#include <kprobe/swap_kprobes_deps.h>
 #include <us_manager/us_manager_common.h>
 #include <us_manager/sspt/sspt_page.h>
 #include <us_manager/sspt/sspt_file.h>
@@ -27,7 +28,6 @@
 #include "preload_storage.h"
 #include "preload_control.h"
 #include "preload_threads.h"
-#include "preload_patcher.h"
 #include "preload_pd.h"
 
 #define page_to_proc(page) ((page)->file->proc)
@@ -42,7 +42,7 @@ struct us_priv {
 	unsigned long origin;
 };
 
-static int get_put_counter;
+static atomic_t dentry_balance = ATOMIC_INIT(0);
 
 enum preload_status_t {
 	SWAP_PRELOAD_NOT_READY = 0,
@@ -62,17 +62,15 @@ static int __preload_cbs_stop_h = -1;
 
 static inline struct process_data *__get_process_data(struct uretprobe *rp)
 {
-    struct process_data *pd;
-    struct us_ip *ip = to_us_ip(rp);
+	struct us_ip *ip = to_us_ip(rp);
+	struct sspt_proc *proc = ip_to_proc(ip);
 
-    pd = ip_to_proc(ip)->private_data;
-
-    return pd;
+	return preload_pd_get(proc);
 }
 
 static struct dentry *__get_dentry(struct dentry *dentry)
 {
-	get_put_counter++;
+	atomic_inc(&dentry_balance);
 	return dget(dentry);
 }
 
@@ -132,7 +130,7 @@ struct dentry *get_dentry(const char *filepath)
 
 void put_dentry(struct dentry *dentry)
 {
-	get_put_counter--;
+	atomic_dec(&dentry_balance);
 	dput(dentry);
 }
 
@@ -278,6 +276,56 @@ static struct vm_area_struct *__get_libc_vma(struct task_struct *task)
 	return NULL;
 }
 
+static struct vm_area_struct *__get_libpthread_vma(struct task_struct *task)
+{
+	struct vm_area_struct *vma = NULL;
+	struct bin_info *libpthread_info;
+
+	libpthread_info = preload_storage_get_libpthread_info();
+
+	if (!libpthread_info) {
+		printk(PRELOAD_PREFIX "Cannot get libpthread info [%u %u %s]!\n",
+		       task->tgid, task->pid, task->comm);
+		return NULL;
+	}
+
+	for (vma = task->mm->mmap; vma; vma = vma->vm_next) {
+		if (vma->vm_file && vma->vm_flags & VM_EXEC
+		    && vma->vm_file->f_dentry == libpthread_info->dentry) {
+			preload_storage_put_libpthread_info(libpthread_info);
+			return vma;
+		}
+	}
+
+	preload_storage_put_libpthread_info(libpthread_info);
+	return NULL;
+}
+
+static struct vm_area_struct *__get_libsmack_vma(struct task_struct *task)
+{
+	struct vm_area_struct *vma = NULL;
+	struct bin_info *libsmack_info;
+
+	libsmack_info = preload_storage_get_libsmack_info();
+
+	if (!libsmack_info) {
+		printk(PRELOAD_PREFIX "Cannot get libsmack info [%u %u %s]!\n",
+		       task->tgid, task->pid, task->comm);
+		return NULL;
+	}
+
+	for (vma = task->mm->mmap; vma; vma = vma->vm_next) {
+		if (vma->vm_file && vma->vm_flags & VM_EXEC
+		    && vma->vm_file->f_dentry == libsmack_info->dentry) {
+			preload_storage_put_libsmack_info(libsmack_info);
+			return vma;
+		}
+	}
+
+	preload_storage_put_libsmack_info(libsmack_info);
+	return NULL;
+}
+
 static inline struct vm_area_struct *__get_vma_by_addr(struct task_struct *task,
 						        unsigned long caller_addr)
 {
@@ -357,12 +405,6 @@ is_handlers_call_out:
 static inline int __msg_sanitization(char *user_msg, size_t len,
 				     char *call_type_p, char *caller_p)
 {
-	int ret;
-
-	ret = access_ok(VERIFY_READ, (unsigned long)user_msg, (unsigned long)len);
-	if (ret == 0)
-		return -EINVAL;
-
 	if ((call_type_p < user_msg) || (call_type_p > user_msg + len) ||
 	    (caller_p < user_msg) || (caller_p > user_msg + len))
 		return -EINVAL;
@@ -377,9 +419,10 @@ static inline int __msg_sanitization(char *user_msg, size_t len,
 static bool __is_proc_mmap_mappable(struct task_struct *task)
 {
 	struct vm_area_struct *linker_vma = __get_linker_vma(task);
+	struct sspt_proc *proc;
 	unsigned long r_debug_addr;
 	unsigned int state;
-	int ret;
+	enum { r_state_offset = sizeof(int) + sizeof(void *) + sizeof(long) };
 
 	if (linker_vma == NULL)
 		return false;
@@ -388,13 +431,15 @@ static bool __is_proc_mmap_mappable(struct task_struct *task)
 	if (r_debug_addr == 0)
 		return false;
 
-	ret = preload_patcher_get_ui((void *)r_debug_addr + sizeof(int) +
-				 sizeof(void *) + sizeof(unsigned long),
-				 &state, task);
-	if (ret != sizeof(state))
+	r_debug_addr += r_state_offset;
+	proc = sspt_proc_get_by_task(task);
+	if (proc)
+		proc->r_state_addr = r_debug_addr;
+
+	if (get_user(state, (unsigned long *)r_debug_addr))
 		return false;
 
-	return ( state == 0 ? true : false );
+	return !state;
 }
 
 static bool __not_system_caller(struct task_struct *task,
@@ -402,9 +447,18 @@ static bool __not_system_caller(struct task_struct *task,
 {
 	struct vm_area_struct *linker_vma = __get_linker_vma(task);
 	struct vm_area_struct *libc_vma = __get_libc_vma(task);
+	struct vm_area_struct *libpthread_vma = __get_libpthread_vma(task);
+	struct vm_area_struct *libsmack_vma = __get_libsmack_vma(task);
 
-	if (linker_vma == NULL || libc_vma == NULL || caller == NULL ||
-	    caller == linker_vma || caller == libc_vma)
+	  if (linker_vma == NULL ||
+	    libc_vma == NULL ||
+	    libpthread_vma == NULL ||
+	    libsmack_vma == NULL ||
+	    caller == NULL ||
+	    caller == linker_vma ||
+	    caller == libc_vma ||
+	    caller == libpthread_vma ||
+	    caller == libsmack_vma)
 		return false;
 
 	return true;
@@ -414,7 +468,7 @@ static bool __should_we_preload_handlers(struct task_struct *task,
 					 struct pt_regs *regs)
 {
 	unsigned long caller_addr = get_regs_ret_func(regs);
-    struct vm_area_struct *cvma = __get_vma_by_addr(current, caller_addr);
+	struct vm_area_struct *cvma = __get_vma_by_addr(current, caller_addr);
 
 	if (!__is_proc_mmap_mappable(task) ||
 	    !__not_system_caller(task, cvma))
@@ -425,24 +479,30 @@ static bool __should_we_preload_handlers(struct task_struct *task,
 
 static inline void __write_data_to_msg(char *msg, size_t len,
 				       unsigned long call_type_off,
-				       unsigned long caller_off)
+				       unsigned long caller_off,
+				       unsigned long caller_addr)
 {
 	unsigned char call_type = 0;
 	unsigned long caller = 0;
 	int ret;
 
-	ret = preload_threads_get_caller(current, &caller);
-	if (ret != 0) {
-		caller = 0xbadbeef;
-		printk(PRELOAD_PREFIX "Error! Cannot get caller address for %d/%d\n",
-		       current->tgid, current->pid);
-	}
+	if (caller_addr != 0) {
+		caller = caller_addr;
+		call_type = preload_control_call_type_always_inst((void *)caller);
+	} else {
+		ret = preload_threads_get_caller(current, &caller);
+		if (ret != 0) {
+			caller = 0xbadbeef;
+			printk(PRELOAD_PREFIX "Error! Cannot get caller address for %d/%d\n",
+			       current->tgid, current->pid);
+		}
 
-	ret = preload_threads_get_call_type(current, &call_type);
-	if (ret != 0) {
-		call_type = 0xff;
-		printk(PRELOAD_PREFIX "Error! Cannot get call type for %d/%d\n",
-		       current->tgid, current->pid);
+		ret = preload_threads_get_call_type(current, &call_type);
+		if (ret != 0) {
+			call_type = 0xff;
+			printk(PRELOAD_PREFIX "Error! Cannot get call type for %d/%d\n",
+			       current->tgid, current->pid);
+		}
 	}
 
 	/* Using the same types as in the library. */
@@ -510,6 +570,7 @@ static int mmap_ret_handler(struct kretprobe_instance *ri,
 {
 	struct mmap_priv *priv = (struct mmap_priv *)ri->data;
 	struct task_struct *task = current->group_leader;
+	struct process_data *pd;
 	struct sspt_proc *proc;
 	unsigned long vaddr;
 
@@ -524,12 +585,19 @@ static int mmap_ret_handler(struct kretprobe_instance *ri,
 	if (!proc)
 		return 0;
 
+	pd = preload_pd_get(proc);
+	if (pd == NULL) {
+		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n",
+		       __LINE__, current->tgid, current->comm);
+		return 0;
+	}
+
 	switch (priv->type) {
 	case MMAP_LOADER:
-		preload_pd_set_loader_base(proc->private_data, vaddr);
+		preload_pd_set_loader_base(pd, vaddr);
 		break;
 	case MMAP_HANDLERS:
-		preload_pd_set_handlers_base(proc->private_data, vaddr);
+		preload_pd_set_handlers_base(pd, vaddr);
 		break;
 	case MMAP_SKIP:
 	default:
@@ -568,6 +636,7 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 	unsigned long flags = get_preload_flags(current);
 	unsigned long offset = ip->desc->info.pl_i.handler;
 	unsigned long vaddr = 0;
+	unsigned long base;
 	char __user *path = NULL;
 
 	if ((flags & HANDLER_RUNNING) ||
@@ -580,8 +649,12 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 		if (!__should_we_preload_handlers(current, regs))
 			goto out_set_origin;
 
+		base = preload_pd_get_loader_base(pd);
+		if (base == 0)
+			break;	/* loader isn't mapped */
+
 		/* jump to loader code if ready */
-		vaddr = preload_pd_get_loader_base(pd) + preload_debugfs_get_loader_offset();
+		vaddr = base + preload_debugfs_get_loader_offset();
 		if (vaddr) {
 			/* save original regs state */
 			__save_uregs(ri, regs);
@@ -603,8 +676,12 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 		/* handlers have not yet been loaded... just ignore */
 		break;
 	case LOADED:
+		base = preload_pd_get_handlers_base(pd);
+		if (base == 0)
+			break;	/* handlers isn't mapped */
+
 		/* jump to preloaded handler */
-		vaddr = preload_pd_get_handlers_base(pd) + offset;
+		vaddr = base + offset;
 		if (vaddr) {
 			unsigned long disable_addr;
 			unsigned long caddr = get_regs_ret_func(regs);
@@ -759,9 +836,9 @@ static int write_msg_handler(struct uprobe *p, struct pt_regs *regs)
 	unsigned long caller_offset;
 	unsigned long call_type_offset;
 	unsigned long caller_addr;
-	bool drop;
 	int ret;
 
+	/* FIXME: swap_get_uarg uses get_user(), it might sleep */
 	user_buf = (char *)swap_get_uarg(regs, 0);
 	len = swap_get_uarg(regs, 1);
 	call_type_p = (char *)swap_get_uarg(regs, 2);
@@ -774,19 +851,20 @@ static int write_msg_handler(struct uprobe *p, struct pt_regs *regs)
 		return 0;
 	}
 
-	ret = preload_threads_get_drop(current, &drop);
-	if (ret != 0 || drop)
+	ret = preload_threads_get_drop(current);
+	if (ret > 0)
 		return 0;
 
-	buf = kmalloc(len, GFP_KERNEL);
+	buf = kmalloc(len, GFP_ATOMIC);
 	if (buf == NULL) {
 		printk(PRELOAD_PREFIX "No mem for buffer! Size = %d\n", len);
 		return 0;
 	}
 
-	if (copy_from_user(buf, user_buf, len)) {
+	ret = read_proc_vm_atomic(current, (unsigned long)user_buf, buf, len);
+	if (ret < 0) {
 		printk(PRELOAD_PREFIX "Cannot copy data from userspace! Size = %d"
-				      " ptr 0x%lx\n", len, (unsigned long)user_buf);
+				      " ptr 0x%lx ret %d\n", len, (unsigned long)user_buf, ret);
 		goto write_msg_fail;
 	}
 
@@ -796,11 +874,7 @@ static int write_msg_handler(struct uprobe *p, struct pt_regs *regs)
 	call_type_offset = (unsigned long)(call_type_p - user_buf);
 	caller_offset = (unsigned long)(caller_p - user_buf);
 
-	__write_data_to_msg(buf, len, call_type_offset, caller_offset);
-
-	/* FIXME refactor this hack for opengl tizen probes */
-	if (caller_addr)
-		*(uintptr_t *)(buf + caller_offset) = (uintptr_t)caller_addr;
+	__write_data_to_msg(buf, len, call_type_offset, caller_offset, caller_addr);
 
 	ret = swap_msg_raw(buf, len);
 	if (ret != len)
@@ -858,14 +932,6 @@ void preload_module_write_msg_exit(struct us_ip *ip)
 int preload_module_uprobe_init(struct us_ip *ip)
 {
 	struct uretprobe *rp = &ip->retprobe;
-	struct sspt_proc *proc = page_to_proc(ip->page);
-	int ret;
-
-	if (proc->private_data == NULL) {
-		ret = preload_pd_create_pd(&(proc->private_data), proc->task);
-		if (ret != 0)
-			return ret;
-	}
 
 	rp->entry_handler = preload_us_entry;
 	rp->handler = preload_us_ret;
@@ -873,16 +939,11 @@ int preload_module_uprobe_init(struct us_ip *ip)
 	 * to dlopen */
 	rp->data_size = sizeof(struct us_priv);
 
-	preload_pd_inc_refs(proc->private_data);
-
 	return 0;
 }
 
 void preload_module_uprobe_exit(struct us_ip *ip)
 {
-	struct sspt_proc *proc = ip_to_proc(ip);
-
-	preload_pd_dec_refs(proc->private_data);
 }
 
 int preload_set(void)
@@ -974,6 +1035,8 @@ out_err:
 
 static void preload_module_exit(void)
 {
+	int balance;
+
 	us_manager_unreg_cb(__preload_cbs_start_h);
 	us_manager_unreg_cb(__preload_cbs_stop_h);
 	unregister_preload_probes();
@@ -984,7 +1047,10 @@ static void preload_module_exit(void)
 	preload_storage_exit();
 	preload_debugfs_exit();
 
-	WARN(get_put_counter, "Bad GET/PUT balance: %d\n", get_put_counter);
+	balance = atomic_read(&dentry_balance);
+	atomic_set(&dentry_balance, 0);
+
+	WARN(balance, "Bad GET/PUT dentry balance: %d\n", balance);
 }
 
 SWAP_LIGHT_INIT_MODULE(NULL, preload_module_init, preload_module_exit,

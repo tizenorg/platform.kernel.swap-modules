@@ -52,6 +52,7 @@
 #include <linux/list.h>
 #include <linux/hash.h>
 
+
 #define sign_extend(x, signbit) ((x) | (0 - ((x) & (1 << (signbit)))))
 #define branch_displacement(insn) sign_extend(((insn) & 0xffffff) << 2, 25)
 

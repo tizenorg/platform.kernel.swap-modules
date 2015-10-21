@@ -27,10 +27,12 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/namei.h>
-
+#include <linux/mman.h>
+#include <linux/spinlock.h>
 #include "pf_group.h"
 #include "proc_filters.h"
 #include "../sspt/sspt_filter.h"
+#include "../us_manager_common.h"
 #include <us_manager/img/img_proc.h>
 #include <us_manager/img/img_file.h>
 #include <us_manager/img/img_ip.h>
@@ -44,7 +46,7 @@ struct pf_group {
 	struct pfg_msg_cb *msg_cb;
 	atomic_t usage;
 
-	/* TODO: proc_list*/
+	spinlock_t pl_lock;	/* for proc_list */
 	struct list_head proc_list;
 };
 
@@ -59,46 +61,26 @@ static DEFINE_RWLOCK(pfg_list_lock);
 /* struct pl_struct */
 static struct pl_struct *create_pl_struct(struct sspt_proc *proc)
 {
-	struct pl_struct *pls = kmalloc(sizeof(*pls), GFP_KERNEL);
+	struct pl_struct *pls = kmalloc(sizeof(*pls), GFP_ATOMIC);
 
-	INIT_LIST_HEAD(&pls->list);
-	pls->proc = proc;
+	if (pls) {
+		INIT_LIST_HEAD(&pls->list);
+		pls->proc = sspt_proc_get(proc);
+	}
 
 	return pls;
 }
 
 static void free_pl_struct(struct pl_struct *pls)
 {
+	sspt_proc_put(pls->proc);
 	kfree(pls);
-}
-
-static void add_pl_struct(struct pf_group *pfg, struct pl_struct *pls)
-{
-	list_add(&pls->list, &pfg->proc_list);
-}
-
-static void del_pl_struct(struct pl_struct *pls)
-{
-	list_del(&pls->list);
-}
-
-static struct pl_struct *find_pl_struct(struct pf_group *pfg,
-					struct task_struct *task)
-{
-	struct pl_struct *pls;
-
-	list_for_each_entry(pls, &pfg->proc_list, list) {
-		if (pls->proc->tgid == task->tgid)
-			return pls;
-	}
-
-	return NULL;
 }
 /* struct pl_struct */
 
-static struct pf_group *create_pfg(void)
+static struct pf_group *pfg_create(void)
 {
-	struct pf_group *pfg = kmalloc(sizeof(*pfg), GFP_KERNEL);
+	struct pf_group *pfg = kmalloc(sizeof(*pfg), GFP_ATOMIC);
 
 	if (pfg == NULL)
 		return NULL;
@@ -109,6 +91,7 @@ static struct pf_group *create_pfg(void)
 
 	INIT_LIST_HEAD(&pfg->list);
 	memset(&pfg->filter, 0, sizeof(pfg->filter));
+	spin_lock_init(&pfg->pl_lock);
 	INIT_LIST_HEAD(&pfg->proc_list);
 	pfg->msg_cb = NULL;
 	atomic_set(&pfg->usage, 1);
@@ -122,25 +105,44 @@ create_pfg_fail:
 	return NULL;
 }
 
-static void free_pfg(struct pf_group *pfg)
+static void pfg_free(struct pf_group *pfg)
 {
-	struct pl_struct *pl;
+	struct pl_struct *pl, *n;
 
 	free_img_proc(pfg->i_proc);
 	free_pf(&pfg->filter);
-	list_for_each_entry(pl, &pfg->proc_list, list)
+	list_for_each_entry_safe(pl, n, &pfg->proc_list, list) {
 		sspt_proc_del_filter(pl->proc, pfg);
+		free_pl_struct(pl);
+	}
+
 	kfree(pfg);
 }
 
+static int pfg_add_proc(struct pf_group *pfg, struct sspt_proc *proc)
+{
+	struct pl_struct *pls;
+
+	pls = create_pl_struct(proc);
+	if (pls == NULL)
+		return -ENOMEM;
+
+	spin_lock(&pfg->pl_lock);
+	list_add(&pls->list, &pfg->proc_list);
+	spin_unlock(&pfg->pl_lock);
+
+	return 0;
+}
+
+
 /* called with pfg_list_lock held */
-static void add_pfg_by_list(struct pf_group *pfg)
+static void pfg_add_to_list(struct pf_group *pfg)
 {
 	list_add(&pfg->list, &pfg_list);
 }
 
 /* called with pfg_list_lock held */
-static void del_pfg_by_list(struct pf_group *pfg)
+static void pfg_del_from_list(struct pf_group *pfg)
 {
 	list_del(&pfg->list);
 }
@@ -170,6 +172,8 @@ static void msg_info(struct sspt_filter *f, void *data)
 
 static void first_install(struct task_struct *task, struct sspt_proc *proc)
 {
+	sspt_proc_priv_create(proc);
+
 	down_write(&task->mm->mmap_sem);
 	sspt_proc_on_each_filter(proc, msg_info, NULL);
 	sspt_proc_install(proc);
@@ -260,13 +264,13 @@ struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv)
 		}
 	}
 
-	pfg = create_pfg();
+	pfg = pfg_create();
 	if (pfg == NULL)
 		goto unlock;
 
 	set_pf_by_dentry(&pfg->filter, dentry, priv);
 
-	add_pfg_by_list(pfg);
+	pfg_add_to_list(pfg);
 
 unlock:
 	write_unlock(&pfg_list_lock);
@@ -293,13 +297,13 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv)
 		}
 	}
 
-	pfg = create_pfg();
+	pfg = pfg_create();
 	if (pfg == NULL)
 		goto unlock;
 
 	set_pf_by_tgid(&pfg->filter, tgid, priv);
 
-	add_pfg_by_list(pfg);
+	pfg_add_to_list(pfg);
 
 unlock:
 	write_unlock(&pfg_list_lock);
@@ -327,19 +331,19 @@ struct pf_group *get_pf_group_by_comm(char *comm, void *priv)
 		}
 	}
 
-	pfg = create_pfg();
+	pfg = pfg_create();
 	if (pfg == NULL)
 		goto unlock;
 
 	ret = set_pf_by_comm(&pfg->filter, comm, priv);
 	if (ret) {
 		printk(KERN_ERR "ERROR: set_pf_by_comm, ret=%d\n", ret);
-		free_pfg(pfg);
+		pfg_free(pfg);
 		pfg = NULL;
 		goto unlock;
 	}
 
-	add_pfg_by_list(pfg);
+	pfg_add_to_list(pfg);
 unlock:
 	write_unlock(&pfg_list_lock);
 	return pfg;
@@ -364,13 +368,13 @@ struct pf_group *get_pf_group_dumb(void *priv)
 		}
 	}
 
-	pfg = create_pfg();
+	pfg = pfg_create();
 	if (pfg == NULL)
 		goto unlock;
 
 	set_pf_dumb(&pfg->filter, priv);
 
-	add_pfg_by_list(pfg);
+	pfg_add_to_list(pfg);
 
 unlock:
 	write_unlock(&pfg_list_lock);
@@ -388,10 +392,10 @@ void put_pf_group(struct pf_group *pfg)
 {
 	if (atomic_dec_and_test(&pfg->usage)) {
 		write_lock(&pfg_list_lock);
-		del_pfg_by_list(pfg);
+		pfg_del_from_list(pfg);
 		write_unlock(&pfg_list_lock);
 
-		free_pfg(pfg);
+		pfg_free(pfg);
 	}
 }
 EXPORT_SYMBOL_GPL(put_pf_group);
@@ -453,19 +457,6 @@ unlock:
 	return ret;
 }
 
-static int pfg_add_proc(struct pf_group *pfg, struct sspt_proc *proc)
-{
-	struct pl_struct *pls;
-
-	pls = create_pl_struct(proc);
-	if (pls == NULL)
-		return -ENOMEM;
-
-	add_pl_struct(pfg, pls);
-
-	return 0;
-}
-
 enum pf_inst_flag {
 	PIF_NONE,
 	PIF_FIRST,
@@ -498,11 +489,15 @@ static enum pf_inst_flag pfg_check_task(struct task_struct *task)
 			flag = PIF_FIRST;
 		}
 
-		if (proc && sspt_proc_is_filter_new(proc, pfg)) {
-			img_proc_copy_to_sspt(pfg->i_proc, proc);
-			sspt_proc_add_filter(proc, pfg);
-			pfg_add_proc(pfg, proc);
-			flag = flag == PIF_FIRST ? flag : PIF_ADD_PFG;
+		if (proc) {
+			write_lock(&proc->filter_lock);
+				if (sspt_proc_is_filter_new(proc, pfg)) {
+					img_proc_copy_to_sspt(pfg->i_proc, proc);
+					sspt_proc_add_filter(proc, pfg);
+					pfg_add_proc(pfg, proc);
+					flag = flag == PIF_FIRST ? flag : PIF_ADD_PFG;
+			}
+			write_unlock(&proc->filter_lock);
 		}
 	}
 	read_unlock(&pfg_list_lock);
@@ -526,7 +521,8 @@ void check_task_and_install(struct task_struct *task)
 	case PIF_FIRST:
 	case PIF_ADD_PFG:
 		proc = sspt_proc_get_by_task(task);
-		first_install(task, proc);
+		if (proc)
+			first_install(task, proc);
 		break;
 
 	case PIF_NONE:
@@ -552,12 +548,14 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	case PIF_FIRST:
 	case PIF_ADD_PFG:
 		proc = sspt_proc_get_by_task(task);
-		first_install(task, proc);
+		if (proc)
+			first_install(task, proc);
 		break;
 
 	case PIF_SECOND:
 		proc = sspt_proc_get_by_task(task);
-		subsequent_install(task, proc, page_addr);
+		if (proc)
+			subsequent_install(task, proc, page_addr);
 		break;
 
 	case PIF_NONE:
@@ -576,26 +574,9 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 void uninstall_proc(struct sspt_proc *proc)
 {
 	struct task_struct *task = proc->task;
-	struct pf_group *pfg;
-	struct pl_struct *pls;
 
-	read_lock(&pfg_list_lock);
-	list_for_each_entry(pfg, &pfg_list, list) {
-		pls = find_pl_struct(pfg, task);
-		if (pls) {
-			del_pl_struct(pls);
-			free_pl_struct(pls);
-		}
-	}
-	read_unlock(&pfg_list_lock);
-
-	task_lock(task);
-	BUG_ON(task->mm == NULL);
 	sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
-	task_unlock(task);
-
-	sspt_proc_del_all_filters(proc);
-	sspt_proc_free(proc);
+	sspt_proc_cleanup(proc);
 }
 
 /**
@@ -609,13 +590,13 @@ void call_mm_release(struct task_struct *task)
 	struct sspt_proc *proc;
 
 	sspt_proc_write_lock();
-
-	proc = sspt_proc_get_by_task(task);
+	proc = sspt_proc_get_by_task_no_lock(task);
 	if (proc)
-		/* TODO: uninstall_proc - is not atomic context */
-		uninstall_proc(proc);
-
+		list_del(&proc->list);
 	sspt_proc_write_unlock();
+
+	if (proc)
+		uninstall_proc(proc);
 }
 
 /**
@@ -639,11 +620,6 @@ void install_all(void)
 	/* TODO: to be implemented */
 }
 
-static void on_each_uninstall_proc(struct sspt_proc *proc, void *data)
-{
-	uninstall_proc(proc);
-}
-
 /**
  * @brief Uninstall probes from all processes
  *
@@ -651,9 +627,54 @@ static void on_each_uninstall_proc(struct sspt_proc *proc, void *data)
  */
 void uninstall_all(void)
 {
+	struct list_head *proc_list = sspt_proc_list();
+
 	sspt_proc_write_lock();
-	on_each_proc_no_lock(on_each_uninstall_proc, NULL);
+	while (!list_empty(proc_list)) {
+		struct sspt_proc *proc;
+		proc = list_first_entry(proc_list, struct sspt_proc, list);
+
+		list_del(&proc->list);
+
+		sspt_proc_write_unlock();
+		uninstall_proc(proc);
+		sspt_proc_write_lock();
+	}
 	sspt_proc_write_unlock();
+}
+
+static void __do_get_proc(struct sspt_proc *proc, void *data)
+{
+	get_task_struct(proc->task);
+	proc->__task = proc->task;
+	proc->__mm = get_task_mm(proc->task);
+}
+
+static void __do_put_proc(struct sspt_proc *proc, void *data)
+{
+	if (proc->__mm) {
+		mmput(proc->__mm);
+		proc->__mm = NULL;
+	}
+
+	if (proc->__task) {
+		put_task_struct(proc->__task);
+		proc->__task = NULL;
+	}
+}
+
+void get_all_procs(void)
+{
+	sspt_proc_read_lock();
+	on_each_proc_no_lock(__do_get_proc, NULL);
+	sspt_proc_read_unlock();
+}
+
+void put_all_procs(void)
+{
+	sspt_proc_read_lock();
+	on_each_proc_no_lock(__do_put_proc, NULL);
+	sspt_proc_read_unlock();
 }
 
 /**
