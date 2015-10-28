@@ -16,15 +16,20 @@ BuildRequires: tztv-hawk-kmodules-devel
         %define build_arch arm
         %define kernel_path /usr/include/kernel_header/debug
     %else
-BuildRequires: kernel-devel
-        %define build_arch arm
-        %define kernel_path /usr/src/linux-kernel-build-3.0.101-trats2_defconfig
+        %if "%{?tizen_profile_name}" == "mobile"
+ExcludeArch: %{arm}
+        %else
+            %if "%{?tizen_profile_name}" == "wearable"
+ExcludeArch: %{arm}
+            %endif
+        %endif
     %endif
 %else #i386
     %define build_arch i386
 BuildRequires: emulator-kernel-devel
     %define kernel_path /usr/src/linux-kernel-build-3.14.25
 %endif
+
 Provides: swap-modules
 %description
 Kernel modules for SWAP
