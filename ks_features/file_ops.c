@@ -331,7 +331,7 @@ static int fops_fcheck(struct task_struct *task, struct file *file)
 	if (!task || !file)
 		return -EINVAL;
 
-	dentry = file->f_dentry;
+	dentry = file->f_path.dentry;
 
 	/* check if it is a regular file */
 	if (!S_ISREG(dentry->d_inode->i_mode))
@@ -379,7 +379,7 @@ static int generic_entry_handler(struct kretprobe_instance *ri,
 			ksf_msg_file_entry(fd, fprobe->subtype,
 					   fops_fpath(file, buf, PATH_LEN));
 
-			priv->dentry = file->f_dentry;
+			priv->dentry = file->f_path.dentry;
 		} else {
 			priv->dentry = NULL;
 		}
@@ -551,7 +551,7 @@ static int lock_entry_handler(struct kretprobe_instance *ri,
 				ksf_msg_file_entry(fd, subtype, filepath);
 			}
 
-			priv->dentry = file->f_dentry;
+			priv->dentry = file->f_path.dentry;
 			priv->subtype = subtype;
 		} else {
 			priv->dentry = NULL;
@@ -583,7 +583,7 @@ static int filp_close_entry_handler(struct kretprobe_instance *ri,
 	struct file *file = fops_karg(struct file *, regs, 0);
 
 	if (rp && file && file_count(file)) {
-		struct dentry *dentry = file->f_dentry;
+		struct dentry *dentry = file->f_path.dentry;
 
 		/* release the file if it is going to be removed soon */
 		if (dentry && fops_dcount(dentry) == 2)

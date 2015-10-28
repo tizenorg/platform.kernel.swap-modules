@@ -147,7 +147,7 @@ static struct dentry *__get_caller_dentry(struct task_struct *task,
 	if (unlikely(vma == NULL || vma->vm_file == NULL))
 		goto get_caller_dentry_fail;
 
-	return vma->vm_file->f_dentry;
+	return vma->vm_file->f_path.dentry;
 
 get_caller_dentry_fail:
 

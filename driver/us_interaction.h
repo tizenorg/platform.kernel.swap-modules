@@ -30,6 +30,8 @@
 #ifndef __US_INTERACTION_H__
 #define __US_INTERACTION_H__
 
+#include <linux/version.h>
+
 #ifdef CONFIG_CONNECTOR
 
 int us_interaction_create(void);

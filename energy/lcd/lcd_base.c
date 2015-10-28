@@ -60,7 +60,7 @@ int read_val(const char *path)
 
 	buf[ret >= buf_len ? buf_len - 1 : ret] = '\0';
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret)
 		return ret;
 

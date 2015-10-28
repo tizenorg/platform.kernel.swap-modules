@@ -29,6 +29,7 @@
 
 #include <linux/string.h>
 #include <linux/slab.h>
+#include <linux/fs.h>
 #include <linux/splice.h>
 #include <linux/uaccess.h>
 #include <linux/spinlock.h>

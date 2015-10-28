@@ -327,7 +327,7 @@ void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 
 	vma = find_vma_intersection(mm, page_addr, page_addr + 1);
 	if (vma && check_vma(vma)) {
-		struct dentry *dentry = vma->vm_file->f_dentry;
+		struct dentry *dentry = vma->vm_file->f_path.dentry;
 		struct sspt_file *file = sspt_proc_find_file(proc, dentry);
 		if (file) {
 			struct sspt_page *page;
@@ -356,7 +356,7 @@ void sspt_proc_install(struct sspt_proc *proc)
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (check_vma(vma)) {
-			struct dentry *dentry = vma->vm_file->f_dentry;
+			struct dentry *dentry = vma->vm_file->f_path.dentry;
 			struct sspt_file *file =
 				sspt_proc_find_file(proc, dentry);
 			if (file) {

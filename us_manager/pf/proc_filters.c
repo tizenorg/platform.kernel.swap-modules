@@ -40,7 +40,7 @@ static int check_dentry(struct task_struct *task, struct dentry *dentry)
 		return 0;
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
-		if (check_vma(vma) && vma->vm_file->f_dentry == dentry)
+		if (check_vma(vma) && vma->vm_file->f_path.dentry == dentry)
 			return 1;
 	}
 

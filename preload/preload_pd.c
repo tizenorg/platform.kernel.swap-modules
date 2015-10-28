@@ -36,7 +36,8 @@ static inline bool check_vma(struct vm_area_struct *vma, struct dentry *dentry)
 {
 	struct file *file = vma->vm_file;
 
-	return (file && (vma->vm_flags & VM_EXEC) && (file->f_dentry == dentry));
+	return (file && (vma->vm_flags & VM_EXEC) &&
+		(file->f_path.dentry == dentry));
 }
 
 static inline unsigned long __get_loader_base(struct pd_t *pd)

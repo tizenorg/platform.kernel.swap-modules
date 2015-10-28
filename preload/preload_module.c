@@ -220,7 +220,7 @@ static struct vm_area_struct *__get_linker_vma(struct task_struct *task)
 
 	for (vma = task->mm->mmap; vma; vma = vma->vm_next) {
 		if (vma->vm_file && vma->vm_flags & VM_EXEC
-		    && vma->vm_file->f_dentry == ld_info->dentry) {
+		    && vma->vm_file->f_path.dentry == ld_info->dentry) {
 				preload_storage_put_linker_info(ld_info);
 				return vma;
 		}
@@ -322,8 +322,7 @@ static int mmap_entry_handler(struct kretprobe_instance *ri,
 
 	if (!file)
 		return 0;
-
-	dentry = file->f_dentry;
+	dentry = file->f_path.dentry;
 	if (dentry == NULL)
 		return 0;
 

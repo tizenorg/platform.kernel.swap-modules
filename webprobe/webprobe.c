@@ -99,7 +99,7 @@ static int web_entry_handler(struct uretprobe_instance *ri,
 	vma = find_vma_intersection(current->mm, page_vaddr, page_vaddr + 1);
 	if (vma && check_vma(vma)) {
 		unsigned long addr = vaddr - vma->vm_start;
-		struct dentry *d = vma->vm_file->f_dentry;
+		struct dentry *d = vma->vm_file->f_path.dentry;
 
 		if (addr == web_prof_addr(WILL_EXECUTE) &&
 		    d == web_prof_lib_dentry()) {
@@ -133,7 +133,7 @@ static int web_ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 	vma = find_vma_intersection(current->mm, page_vaddr, page_vaddr + 1);
 	if (vma && check_vma(vma)) {
 		unsigned long addr = vaddr - vma->vm_start;
-		struct dentry *d = vma->vm_file->f_dentry;
+		struct dentry *d = vma->vm_file->f_path.dentry;
 
 		if (addr == web_prof_addr(INSPSERVER_START) &&
 		    d == web_prof_lib_dentry()) {

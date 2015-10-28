@@ -25,6 +25,7 @@
 #include <linux/sched.h>
 #include <linux/dcache.h>
 #include <linux/fdtable.h>
+#include <linux/version.h>
 #include <writer/swap_msg.h>
 #include <master/swap_deps.h>
 #include <us_manager/sspt/sspt.h>	/* ... check_vma() */
@@ -64,6 +65,16 @@ static void kmem_info_fill(struct kmem_info *info, struct mm_struct *mm)
 	}
 #endif /* CONFIG_arch */
 }
+
+static inline struct timespec get_task_start_time(struct task_struct *task)
+{
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 16, 0)
+	return ns_to_timespec(task->real_start_time);
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(3, 16, 0) */
+	return task->real_start_time;
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(3, 16, 0) */
+}
+
 
 
 static int pack_path(void *data, size_t size, struct file *file)
@@ -217,7 +228,7 @@ static struct vm_area_struct *find_vma_exe_by_dentry(struct mm_struct *mm,
 
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (vma->vm_file && (vma->vm_flags & VM_EXEC) &&
-		   (vma->vm_file->f_dentry == dentry))
+		   (vma->vm_file->f_path.dentry == dentry))
 			goto out;
 	}
 
@@ -255,7 +266,7 @@ static int pack_proc_info_bottom(void *data, size_t size,
 		return -ENOMEM;
 
 	getboottime(&boot_time);
-	start_time = timespec_add(boot_time, task->real_start_time);
+	start_time = timespec_add(boot_time, get_task_start_time(task));
 
 	pib->ppid = task->real_parent->tgid;
 	pib->start_time = swap_msg_spec2time(&start_time);

@@ -41,6 +41,7 @@
 #include <linux/wait.h>
 #include <linux/workqueue.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 
 #include <ksyms/ksyms.h>
 #include <master/swap_initializer.h>
@@ -394,8 +395,10 @@ static void swap_device_page_release(struct splice_pipe_desc *spd,
 
 static const struct pipe_buf_operations swap_device_pipe_buf_ops = {
 	.can_merge = 0,
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(3, 14, 0)
 	.map = generic_pipe_buf_map,
 	.unmap = generic_pipe_buf_unmap,
+#endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(3, 14, 0) */
 	.confirm = generic_pipe_buf_confirm,
 	.release = swap_device_pipe_buf_release,
 	.steal = generic_pipe_buf_steal,

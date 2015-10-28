@@ -30,6 +30,8 @@
 
 
 #include <linux/types.h>
+#include <linux/version.h>
+#include <kprobe/swap_kprobes_deps.h>
 #include "sampler_timers.h"
 
 

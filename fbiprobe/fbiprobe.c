@@ -204,7 +204,7 @@ static struct vm_area_struct *find_vma_exe_by_dentry(struct mm_struct *mm,
 	/* TODO FILTER vma */
 	for (vma = mm->mmap; vma; vma = vma->vm_next) {
 		if (vma->vm_file &&
-		   (vma->vm_file->f_dentry == dentry))
+		   (vma->vm_file->f_path.dentry == dentry))
 			/* found */
 			goto exit;
 	}

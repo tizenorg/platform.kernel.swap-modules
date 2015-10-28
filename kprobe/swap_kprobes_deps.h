@@ -33,6 +33,7 @@
 #define _SWAP_KPROBES_DEPS_H
 
 #include <linux/version.h>	/* LINUX_VERSION_CODE, KERNEL_VERSION() */
+#include <linux/mm.h>
 #include <linux/hugetlb.h>
 #include <linux/mempolicy.h>
 #include <linux/highmem.h>
@@ -155,5 +156,14 @@ unsigned long swap_do_mmap_pgoff(struct file *file, unsigned long addr,
 				 unsigned long flags, unsigned long pgoff);
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) */
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 16, 0)
+#define swap_hlist_add_after(node, prev) hlist_add_behind(node, prev)
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(3, 16, 0) */
+#define swap_hlist_add_after(node, prev) hlist_add_after(node, prev)
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(3, 16, 0) */
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 18, 0)
+#define __get_cpu_var(var) (*this_cpu_ptr(&(var)))
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(3, 18, 0) */
 
 #endif /* _SWAP_KPROBES_DEPS_H */

@@ -607,7 +607,11 @@ long __get_user_pages_uprobe(struct task_struct *tsk, struct mm_struct *mm,
 				unsigned int fault_flags = 0;
 
 				/* For mlock, just skip the stack guard page. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+				if (foll_flags & FOLL_POPULATE) {
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0) */
 				if (foll_flags & FOLL_MLOCK) {
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0) */
 					if (stack_guard_page(vma, start))
 						goto next_page;
 				}

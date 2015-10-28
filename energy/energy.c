@@ -332,8 +332,8 @@ static int check_file(int fd)
 	file = fget(fd);
 	if (file) {
 		int magic = 0;
-		if (file->f_dentry && file->f_dentry->d_sb)
-			magic = file->f_dentry->d_sb->s_magic;
+		if (file->f_path.dentry && file->f_path.dentry->d_sb)
+			magic = file->f_path.dentry->d_sb->s_magic;
 
 		fput(file);
 

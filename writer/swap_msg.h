@@ -23,10 +23,20 @@
 #ifndef _SWAP_MSG_H
 #define _SWAP_MSG_H
 
-
-#include <linux/time.h>
+#include <linux/version.h>
 #include <linux/types.h>
 
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 16, 0)
+
+#include <linux/ktime.h>       /* Needed by timekeeping.h */
+#include <linux/timekeeping.h> /* Now getnstimeofday() is here */
+
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(3, 16, 0) */
+
+#include <linux/time.h>
+
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(3, 16, 0) */
 
 enum swap_msg_id {
 	MSG_PROC_INFO			= 0x0001,

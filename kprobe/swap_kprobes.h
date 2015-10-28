@@ -46,13 +46,6 @@
 #include <swap-asm/swap_kprobes.h>
 
 
-#ifdef CONFIG_ARM
-
-#define regs_return_value(regs)     ((regs)->ARM_r0)
-
-#endif
-
-
 /* kprobe_status settings */
 /** Kprobe hit active */
 #define KPROBE_HIT_ACTIVE	0x00000001

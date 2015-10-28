@@ -1041,7 +1041,7 @@ void urinst_info_get_current_hlist(struct hlist_head *head, bool recycle)
 			urinst = urinst_info_create(ri);
 			if (urinst) {
 				if (last)
-					hlist_add_after(last, &urinst->hlist);
+					swap_hlist_add_after(last, &urinst->hlist);
 				else
 					hlist_add_head(&urinst->hlist, head);
 
