@@ -38,6 +38,8 @@
 #include <us_manager/img/img_ip.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include <us_manager/helper.h>
+#include <task_ctx/task_ctx.h>
+
 
 struct pf_group {
 	struct list_head list;
@@ -610,6 +612,37 @@ void uninstall_page(unsigned long addr)
 
 }
 
+
+static struct task_struct *get_untracked_task(void)
+{
+	struct task_struct *task;
+
+	rcu_read_lock();
+	for_each_process(task) {
+		if (task->flags & PF_KTHREAD)
+			continue;
+
+		if (sspt_proc_get_by_task(task))
+			continue;
+
+		if (check_task_on_filters(task)) {
+			get_task_struct(task);
+			goto unlock;
+		}
+	}
+
+	task = NULL;
+
+unlock:
+	rcu_read_unlock();
+	return task;
+}
+
+static void install_cb(void *unused)
+{
+	check_task_and_install(current);
+}
+
 /**
  * @brief Install probes on running processes
  *
@@ -617,7 +650,33 @@ void uninstall_page(unsigned long addr)
  */
 void install_all(void)
 {
-	/* TODO: to be implemented */
+	int ret;
+	struct task_struct *task, *first;
+
+	first = get_untracked_task();
+	if (first == NULL)
+		return;
+
+
+	ret = taskctx_get();
+	if (ret) {
+		put_task_struct(first);
+
+		pr_err("taskctx_get ret=%d\n", ret);;
+		return;
+	}
+
+	for (task = first; task; task = get_untracked_task()) {
+		ret = taskctx_run(task, install_cb, NULL);
+		if (ret) {
+			pr_err("cannot tracking task[%u %u %s] ret=%d\n",
+			       task->tgid, task->pid, task->comm, ret);
+		}
+
+		put_task_struct(task);
+	}
+
+	taskctx_put();
 }
 
 /**
