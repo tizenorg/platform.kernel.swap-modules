@@ -143,60 +143,6 @@ static void unregister_mf(void)
 
 
 
-#ifdef CONFIG_ARM
-/*
- ******************************************************************************
- *                       workaround for already running                       *
- ******************************************************************************
- */
-static unsigned long cb_check_and_install(void *data);
-
-static int ctx_task_pre_handler(struct kprobe *p, struct pt_regs *regs)
-{
-	int ret;
-	struct sspt_proc *proc;
-	struct task_struct *task = current;
-
-	if (is_kthread(task) || check_task_on_filters(task) == 0)
-		return 0;
-
-	proc = sspt_proc_get_by_task(task);
-	if (proc && proc->first_install)
-		return 0;
-
-	ret = set_kjump_cb(regs, cb_check_and_install, NULL, 0);
-	if (ret < 0)
-		pr_err("ctx_task_pre_handler: ret=%d\n", ret);
-
-	return 0;
-}
-
-static struct kprobe ctx_task_kprobe = {
-	.pre_handler = ctx_task_pre_handler,
-};
-
-static int register_ctx_task(void)
-{
-	int ret = 0;
-
-	ret = swap_register_kprobe(&ctx_task_kprobe);
-	if (ret)
-		printk(KERN_INFO "swap_register_kprobe(workaround) ret=%d!\n",
-		       ret);
-
-	return ret;
-}
-
-static void unregister_ctx_task(void)
-{
-	swap_unregister_kprobe(&ctx_task_kprobe);
-}
-#endif /* CONFIG_ARM */
-
-
-
-
-
 /*
  ******************************************************************************
  *                              copy_process()                                *
@@ -822,19 +768,7 @@ int register_helper(void)
 	if (ret)
 		goto unreg_mmap;
 
-#ifdef CONFIG_ARM
-	/* install probe to detect already running process */
-	ret = register_ctx_task();
-	if (ret)
-		goto unreg_mf;
-#endif /* CONFIG_ARM */
-
 	return ret;
-
-#ifdef CONFIG_ARM
-unreg_mf:
-	unregister_mf();
-#endif /* CONFIG_ARM */
 
 unreg_mmap:
 	unregister_mmap();
@@ -861,9 +795,6 @@ unreg_comm:
  */
 void unregister_helper_top(void)
 {
-#ifdef CONFIG_ARM
-	unregister_ctx_task();
-#endif /* CONFIG_ARM */
 	unregister_mf();
 	atomic_set(&stop_flag, 1);
 }
@@ -921,13 +852,6 @@ int once_helper(void)
 	comm_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
 	if (comm_kretprobe.kp.addr == NULL)
 		goto not_found;
-
-#ifdef CONFIG_ARM
-	sym = "ret_to_user";
-	ctx_task_kprobe.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (ctx_task_kprobe.addr == NULL)
-		goto not_found;
-#endif /* CONFIG_ARM */
 
 	return 0;
 

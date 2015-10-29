@@ -433,15 +433,7 @@ int pf_unregister_probe(struct pf_group *pfg, struct dentry *dentry,
 }
 EXPORT_SYMBOL_GPL(pf_unregister_probe);
 
-/**
- * @brief Check the task, to meet the filter criteria
- *
- * @prarm task Pointer on the task_struct struct
- * @return
- *       - 0 - false
- *       - 1 - true
- */
-int check_task_on_filters(struct task_struct *task)
+static int check_task_on_filters(struct task_struct *task)
 {
 	int ret = 0;
 	struct pf_group *pfg;
