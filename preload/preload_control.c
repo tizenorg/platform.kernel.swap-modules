@@ -93,8 +93,6 @@ static int __grow_target_binaries(void)
 	if (ret != 0)
 		return ret;
 
-	target_binaries_slots += DEFAULT_SLOTS_STEP;
-
 	for (i = 0; i < target_binaries_cnt; i++) {
 		target_binaries[i].dentry = tmp[i].dentry;
 		target_binaries[i].filename = tmp[i].filename;
