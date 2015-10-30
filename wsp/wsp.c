@@ -383,6 +383,7 @@ static void do_set_path(char **dest, char *path, size_t len)
 static void do_free_path(char **dest)
 {
 	kfree(*dest);
+	*dest = NULL;
 }
 
 
