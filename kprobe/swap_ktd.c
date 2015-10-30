@@ -25,6 +25,7 @@
 #include <linux/module.h>
 #include <linux/spinlock.h>
 #include <kprobe/swap_kprobes.h>
+#include <ksyms/ksyms.h>
 #include "swap_ktd.h"
 #include "swap_td_raw.h"
 
