@@ -528,18 +528,14 @@ static void msg_unmap(struct sspt_filter *f, void *data)
 static void __remove_unmap_probes(struct sspt_proc *proc,
 				  struct unmap_data *umd)
 {
-	struct task_struct *task = proc->task;
 	unsigned long start = umd->start;
-	size_t len = PAGE_ALIGN(umd->len);
+	size_t len = umd->len;
 	LIST_HEAD(head);
 
 	if (sspt_proc_get_files_by_region(proc, &head, start, len)) {
 		struct sspt_file *file, *n;
 		unsigned long end = start + len;
-		struct msg_unmap_data msg_data = {
-			.start = start,
-			.end = end
-		};
+		struct task_struct *task = proc->task;
 
 		list_for_each_entry_safe(file, n, &head, list) {
 			if (file->vm_start >= end)
@@ -551,8 +547,6 @@ static void __remove_unmap_probes(struct sspt_proc *proc,
 		}
 
 		sspt_proc_insert_files(proc, &head);
-
-		sspt_proc_on_each_filter(proc, msg_unmap, (void *)&msg_data);
 	}
 }
 
@@ -564,8 +558,17 @@ static void remove_unmap_probes(struct task_struct *task,
 	sspt_proc_write_lock();
 
 	proc = sspt_proc_get_by_task_no_lock(task);
-	if (proc)
+	if (proc) {
+		struct msg_unmap_data msg_data = {
+			.start = umd->start,
+			.end = umd->start + umd->len,
+		};
+
 		__remove_unmap_probes(proc, umd);
+
+		/* send unmap region */
+		sspt_proc_on_each_filter(proc, msg_unmap, (void *)&msg_data);
+	}
 
 	sspt_proc_write_unlock();
 }
@@ -579,7 +582,7 @@ static int entry_handler_unmap(struct kretprobe_instance *ri,
 	atomic_inc(&unmap_cnt);
 
 	data->start = swap_get_karg(regs, 1);
-	data->len = (size_t)swap_get_karg(regs, 2);
+	data->len = (size_t)PAGE_ALIGN(swap_get_karg(regs, 2));
 
 	if (!is_kthread(task) && atomic_read(&stop_flag))
 		remove_unmap_probes(task, data);
