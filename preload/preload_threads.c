@@ -5,7 +5,7 @@
 #include <linux/mm.h>
 #include <linux/mman.h>
 #include <linux/list.h>
-#include <task_data/task_data.h>
+#include <kprobe/swap_ktd.h>
 #include "preload.h"
 #include "preload_threads.h"
 #include "preload_debugfs.h"
@@ -31,50 +31,40 @@ struct disabled_addr {
 	unsigned long addr;
 };
 
+static void preload_ktd_init(struct task_struct *task, void *data)
+{
+	struct preload_td *td = (struct preload_td *)data;
+
+	INIT_LIST_HEAD(&td->slots);
+	td->flags = 0;
+}
+
+static void preload_ktd_exit(struct task_struct *task, void *data)
+{
+	/* TODO: to be implement */
+}
+
+static struct ktask_data preload_ktd = {
+	.init = preload_ktd_init,
+	.exit = preload_ktd_exit,
+	.size = sizeof(struct preload_td),
+};
+
+
 static inline struct preload_td *get_preload_td(struct task_struct *task)
 {
-	struct preload_td *td = NULL;
-	int ok;
-
-	td = swap_task_data_get(task, &ok);
-	WARN(!ok, "Preload td[%d/%d] seems corrupted", task->tgid, task->pid);
-
-	if (!td) {
-		td = kzalloc(sizeof(*td), GFP_ATOMIC);
-		WARN(!td, "Failed to allocate preload_td");
-
-		if (td) {
-			INIT_LIST_HEAD(&td->slots);
-			/* We use SWAP_TD_FREE flag, i.e. the data will be
-			 * kfree'd by task_data module. */
-			swap_task_data_set(task, td, SWAP_TD_FREE);
-		}
-	}
-
-	return td;
+	return (struct preload_td *)swap_ktd(&preload_ktd, task);
 }
 
 unsigned long get_preload_flags(struct task_struct *task)
 {
-	struct preload_td *td = get_preload_td(task);
-
-	if (td == NULL)
-		return 0;
-
-	return td->flags;
+	return get_preload_td(task)->flags;
 }
 
 void set_preload_flags(struct task_struct *task,
 		       unsigned long flags)
 {
-	struct preload_td *td = get_preload_td(task);
-
-	if (td == NULL) {
-		printk(KERN_ERR "%s: invalid arguments\n", __FUNCTION__);
-		return;
-	}
-
-	td->flags = flags;
+	get_preload_td(task)->flags = flags;
 }
 
 
@@ -181,9 +171,6 @@ static void __clean_slot(struct thread_slot *slot)
 static inline struct thread_slot *__get_task_slot(struct task_struct *task)
 {
 	struct preload_td *td = get_preload_td(task);
-
-	if (td == NULL)
-		return NULL;
 
 	return list_empty(&td->slots) ? NULL :
 		list_last_entry(&td->slots, struct thread_slot, list);
@@ -325,9 +312,10 @@ put_data_done:
 
 int preload_threads_init(void)
 {
-	return 0;
+	return swap_ktd_reg(&preload_ktd);
 }
 
 void preload_threads_exit(void)
 {
+	swap_ktd_unreg(&preload_ktd);
 }
