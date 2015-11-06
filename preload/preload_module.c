@@ -20,7 +20,6 @@
 #include <writer/kernel_operations.h>
 #include <master/swap_initializer.h>
 #include <writer/swap_msg.h>
-#include <task_data/task_data.h>
 #include "preload.h"
 #include "preload_probe.h"
 #include "preload_debugfs.h"

@@ -61,8 +61,6 @@ static void do_usm_stop(void)
 	uninstall_all();
 	unregister_helper_bottom();
 	sspt_proc_free_all();
-	exec_cbs(STOP_CB_TD);
-
 }
 
 static int do_usm_start(void)

@@ -4,7 +4,6 @@
 enum callback_t {
 	START_CB = 0,
 	STOP_CB,
-	STOP_CB_TD
 };
 
 /* Gets callback type (on start or on stop) and function pointer.

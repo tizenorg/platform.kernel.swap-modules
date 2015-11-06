@@ -15,7 +15,6 @@ obj-m := master/ \
          parser/ \
          retprobe/ \
          webprobe/ \
-         task_data/ \
          preload/ \
          fbiprobe/ \
          wsp/ \
