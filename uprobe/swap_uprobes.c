@@ -105,12 +105,11 @@ EXPORT_SYMBOL_GPL(uinst_info_destroy);
 
 void uinst_info_disarm(struct uinst_info *uinst, struct task_struct *task)
 {
-	int ret = write_proc_vm_atomic(task, uinst->vaddr,
-				       &uinst->opcode, sizeof(uinst->opcode));
-	if (!ret) {
-		printk("uinst_info_disarm: failed to write memory "
-		       "tgid=%u, vaddr=%08lx!\n", task->tgid, uinst->vaddr);
-	}
+	struct uprobe p;
+
+	p.addr = (uprobe_opcode_t *)uinst->vaddr;
+	p.opcode = uinst->opcode;
+	arch_disarm_uprobe(&p, task);
 }
 EXPORT_SYMBOL_GPL(uinst_info_disarm);
 
