@@ -18,7 +18,8 @@ static const char PRELOAD_FOLDER[] = "preload";
 static const char PRELOAD_LOADER[] = "loader";
 static const char PRELOAD_LOADER_OFFSET[] = "loader_offset";
 static const char PRELOAD_LOADER_PATH[] = "loader_path";
-static const char PRELOAD_BINARIES[] = "target_binaries";
+static const char PRELOAD_TARGET[] = "target_binaries";
+static const char PRELOAD_IGNORED[] = "ignored_binaries";
 static const char PRELOAD_BINARIES_LIST[] = "bins_list";
 static const char PRELOAD_BINARIES_ADD[] = "bins_add";
 static const char PRELOAD_BINARIES_REMOVE[] = "bins_remove";
@@ -36,6 +37,14 @@ struct loader_info {
 
 static struct dentry *preload_root;
 static struct loader_info __loader_info;
+
+
+static struct dentry *target_list = NULL;
+static struct dentry *target_add = NULL;
+static struct dentry *target_remove = NULL;
+static struct dentry *ignored_list = NULL;
+static struct dentry *ignored_add = NULL;
+static struct dentry *ignored_remove = NULL;
 
 static unsigned long r_debug_offset = 0;
 static DEFINE_SPINLOCK(__dentry_lock);
@@ -177,7 +186,20 @@ static ssize_t bin_add_write(struct file *file, const char __user *buf,
 
 	path[len - 1] = '\0';
 
-	if (preload_control_add_instrumented_binary(path) != 0) {
+	if (file->f_path.dentry == target_add)
+		ret = preload_control_add_instrumented_binary(path);
+	else if (file->f_path.dentry == ignored_add)
+		ret = preload_control_add_ignored_binary(path);
+	else {
+		/* Should never occur */
+		printk(PRELOAD_PREFIX "%s() called for invalid file %s!\n", __func__,
+		       file->f_path.dentry->d_name.name);
+		ret = -EINVAL;
+		goto bin_add_write_out;
+	}
+
+
+	if (ret != 0) {
 		printk(PRELOAD_PREFIX "Cannot add binary %s\n", path);
 		ret = -EINVAL;
 		goto bin_add_write_out;
@@ -196,7 +218,18 @@ static ssize_t bin_remove_write(struct file *file, const char __user *buf,
 {
 	ssize_t ret;
 
-	ret = preload_control_clean_instrumented_bins();
+	if (file->f_path.dentry == target_remove)
+		ret = preload_control_clean_instrumented_bins();
+	else if (file->f_path.dentry == ignored_remove)
+		ret = preload_control_clean_ignored_bins();
+	else {
+		/* Should never occur */
+		printk(PRELOAD_PREFIX "%s() called for invalid file %s!\n", __func__,
+		       file->f_path.dentry->d_name.name);
+		ret = -EINVAL;
+		goto bin_remove_write_out;
+	}
+
 	if (ret != 0) {
 		printk(PRELOAD_PREFIX "Error during clean!\n");
 		ret = -EINVAL;
@@ -219,7 +252,17 @@ static ssize_t bin_list_read(struct file *file, char __user *usr_buf,
 	char *buf = NULL;
 	char *ptr = NULL;
 
-	files_cnt = preload_control_get_bin_names(&filenames);
+	if (file->f_path.dentry == target_list)
+		files_cnt = preload_control_get_target_names(&filenames);
+	else if (file->f_path.dentry == ignored_list)
+		files_cnt = preload_control_get_ignored_names(&filenames);
+	else {
+		/* Should never occur */
+		printk(PRELOAD_PREFIX "%s() called for invalid file %s!\n", __func__,
+		       file->f_path.dentry->d_name.name);
+		ret = 0;
+		goto bin_list_read_out;
+	}
 
 	if (files_cnt == 0) {
 		printk(PRELOAD_PREFIX "Cannot read binaries names!\n");
@@ -246,12 +289,31 @@ static ssize_t bin_list_read(struct file *file, char __user *usr_buf,
 		ptr += 1;
 	}
 
-	preload_control_release_bin_names(&filenames);
+	if (file->f_path.dentry == target_list)
+		preload_control_release_target_names(&filenames);
+	else if (file->f_path.dentry == ignored_list)
+		preload_control_release_ignored_names(&filenames);
+	else {
+		/* Should never occur */
+		printk(PRELOAD_PREFIX "%s() called for invalid file %s!\n", __func__,
+		       file->f_path.dentry->d_name.name);
+		ret = 0;
+		goto bin_list_read_out;
+	}
 
 	return simple_read_from_buffer(usr_buf, count, ppos, buf, len);
 
 bin_list_read_fail:
-	preload_control_release_bin_names(&filenames);
+	if (file->f_path.dentry == target_list)
+		preload_control_release_target_names(&filenames);
+	else if (file->f_path.dentry == ignored_list)
+		preload_control_release_ignored_names(&filenames);
+	else {
+		/* Should never occur */
+		printk(PRELOAD_PREFIX "%s() called for invalid file %s!\n", __func__,
+		       file->f_path.dentry->d_name.name);
+		ret = 0;
+	}
 
 bin_list_read_out:
 	return ret;
@@ -373,8 +435,8 @@ unsigned long preload_debugfs_r_debug_offset(void)
 int preload_debugfs_init(void)
 {
 	struct dentry *swap_dentry, *root, *loader, *open_p, *lib_path,
-		  *bin_path, *bin_list, *bin_add, *bin_remove,
-		  *linker_dir, *linker_path, *linker_offset, *handlers_path;
+		  *target_path, *ignored_path, *linker_dir, *linker_path,
+		  *linker_offset, *handlers_path;
 	int ret;
 
 	ret = -ENODEV;
@@ -413,30 +475,62 @@ int preload_debugfs_init(void)
 		goto remove;
 	}
 
-	bin_path = debugfs_create_dir(PRELOAD_BINARIES, root);
-	if (IS_ERR_OR_NULL(bin_path)) {
+	target_path = debugfs_create_dir(PRELOAD_TARGET, root);
+	if (IS_ERR_OR_NULL(target_path)) {
 		ret = -ENOMEM;
 		goto remove;
 	}
 
-	bin_list = debugfs_create_file(PRELOAD_BINARIES_LIST, PRELOAD_DEFAULT_PERMS,
-				       bin_path, NULL, &bin_list_file_ops);
-	if (IS_ERR_OR_NULL(bin_list)) {
+	target_list = debugfs_create_file(PRELOAD_BINARIES_LIST,
+					  PRELOAD_DEFAULT_PERMS, target_path, NULL,
+					  &bin_list_file_ops);
+	if (IS_ERR_OR_NULL(target_list)) {
 		ret = -ENOMEM;
 		goto remove;
 	}
 
-	bin_add = debugfs_create_file(PRELOAD_BINARIES_ADD, PRELOAD_DEFAULT_PERMS,
-				       bin_path, NULL, &bin_add_file_ops);
-	if (IS_ERR_OR_NULL(bin_add)) {
+	target_add = debugfs_create_file(PRELOAD_BINARIES_ADD,
+					 PRELOAD_DEFAULT_PERMS, target_path, NULL,
+					 &bin_add_file_ops);
+	if (IS_ERR_OR_NULL(target_add)) {
 		ret = -ENOMEM;
 		goto remove;
 	}
 
-	bin_remove = debugfs_create_file(PRELOAD_BINARIES_REMOVE,
-					 PRELOAD_DEFAULT_PERMS, bin_path, NULL,
-					 &bin_remove_file_ops);
-	if (IS_ERR_OR_NULL(bin_remove)) {
+	target_remove = debugfs_create_file(PRELOAD_BINARIES_REMOVE,
+					    PRELOAD_DEFAULT_PERMS, target_path,
+					    NULL, &bin_remove_file_ops);
+	if (IS_ERR_OR_NULL(target_remove)) {
+		ret = -ENOMEM;
+		goto remove;
+	}
+
+	ignored_path = debugfs_create_dir(PRELOAD_IGNORED, root);
+	if (IS_ERR_OR_NULL(ignored_path)) {
+		ret = -ENOMEM;
+		goto remove;
+	}
+
+	ignored_list = debugfs_create_file(PRELOAD_BINARIES_LIST,
+					   PRELOAD_DEFAULT_PERMS, ignored_path,
+					   NULL, &bin_list_file_ops);
+	if (IS_ERR_OR_NULL(ignored_list)) {
+		ret = -ENOMEM;
+		goto remove;
+	}
+
+	ignored_add = debugfs_create_file(PRELOAD_BINARIES_ADD,
+					  PRELOAD_DEFAULT_PERMS, ignored_path, NULL,
+					  &bin_add_file_ops);
+	if (IS_ERR_OR_NULL(ignored_add)) {
+		ret = -ENOMEM;
+		goto remove;
+	}
+
+	ignored_remove = debugfs_create_file(PRELOAD_BINARIES_REMOVE,
+					     PRELOAD_DEFAULT_PERMS, ignored_path, NULL,
+					     &bin_remove_file_ops);
+	if (IS_ERR_OR_NULL(ignored_remove)) {
 		ret = -ENOMEM;
 		goto remove;
 	}
@@ -487,6 +581,12 @@ void preload_debugfs_exit(void)
 {
 	if (preload_root)
 		debugfs_remove_recursive(preload_root);
+	target_list = NULL;
+	target_add = NULL;
+	target_remove = NULL;
+	ignored_list = NULL;
+	ignored_add = NULL;
+	ignored_remove = NULL;
 	preload_root = NULL;
 
 	preload_module_set_not_ready();

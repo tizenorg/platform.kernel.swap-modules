@@ -1,4 +1,3 @@
-#include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/limits.h>
@@ -6,8 +5,7 @@
 
 #include <us_manager/sspt/ip.h>
 
-#include "preload.h"
-
+#include "pre
 #include "preload_control.h"
 #include "preload_probe.h"
 #include "preload_module.h"
@@ -18,17 +16,31 @@ struct bin_desc {
 	char *filename;
 };
 
-static LIST_HEAD(target_binaries_list);
-static DEFINE_RWLOCK(target_binaries_lock);
-static int target_binaries_cnt = 0;
+struct list_desc {
+	struct list_head list;
+	rwlock_t lock;
+	int cnt;
+};
+
+static struct list_desc target = {
+	.list = LIST_HEAD_INIT(target.list),
+	.lock = __RW_LOCK_UNLOCKED(&target.lock),
+	.cnt = 0
+};
+
+static struct list_desc ignored = {
+	.list = LIST_HEAD_INIT(ignored.list),
+	.lock = __RW_LOCK_UNLOCKED(&ignored.lock),
+	.cnt = 0
+};
 
 static inline struct task_struct *__get_task_struct(void)
 {
 	return current;
 }
 
-static struct bin_desc *__alloc_target_binary(struct dentry *dentry,
-					      char *name, int namelen)
+static struct bin_desc *__alloc_binary(struct dentry *dentry, char *name,
+				       int namelen)
 {
 	struct bin_desc *p = NULL;
 
@@ -50,56 +62,58 @@ fail:
 	return NULL;
 }
 
-static void __free_target_binary(struct bin_desc *p)
+static void __free_binary(struct bin_desc *p)
 {
 	kfree(p->filename);
 	kfree(p);
 }
 
-static void __free_target_binaries(void)
+static void __free_binaries(struct list_desc *tl)
 {
 	struct bin_desc *p, *n;
 	struct list_head rm_head;
 
 	INIT_LIST_HEAD(&rm_head);
-	write_lock(&target_binaries_lock);
-	list_for_each_entry_safe(p, n, &target_binaries_list, list) {
+	write_lock(&tl->lock);
+	list_for_each_entry_safe(p, n, &tl->list, list) {
 		list_move(&p->list, &rm_head);
 	}
-	target_binaries_cnt = 0;
-	write_unlock(&target_binaries_lock);
+	tl->cnt = 0;
+	write_unlock(&tl->lock);
 
 	list_for_each_entry_safe(p, n, &rm_head, list) {
 		list_del(&p->list);
 		put_dentry(p->dentry);
-		__free_target_binary(p);
+		__free_binary(p);
 	}
 }
 
-static bool __check_dentry_already_exist(struct dentry *dentry)
+static bool __check_dentry_already_exist(struct dentry *dentry,
+					 struct list_desc *tl)
 {
 	struct bin_desc *p;
 	bool ret = false;
 
-	read_lock(&target_binaries_lock);
-	list_for_each_entry(p, &target_binaries_list, list) {
+	read_lock(&tl->lock);
+	list_for_each_entry(p, &tl->list, list) {
 		if (p->dentry == dentry) {
 			ret = true;
 			goto out;
 		}
 	}
 out:
-	read_unlock(&target_binaries_lock);
+	read_unlock(&tl->lock);
 
 	return ret;
 }
 
-static int __add_target_binary(struct dentry *dentry, char *filename)
+static int __add_binary(struct dentry *dentry, char *filename,
+			struct list_desc *tl)
 {
 	struct bin_desc *p;
 	size_t len;
 
-	if (__check_dentry_already_exist(dentry)) {
+	if (__check_dentry_already_exist(dentry, tl)) {
 		printk(PRELOAD_PREFIX "Binary already exist\n");
 		return EALREADY;
 	}
@@ -109,14 +123,14 @@ static int __add_target_binary(struct dentry *dentry, char *filename)
 	if (len == PATH_MAX)
 		return -EINVAL;
 
-	p = __alloc_target_binary(dentry, filename, len);
+	p = __alloc_binary(dentry, filename, len);
 	if (!p)
 		return -ENOMEM;
 
-	write_lock(&target_binaries_lock);
-	list_add_tail(&p->list, &target_binaries_list);
-	target_binaries_cnt++;
-	write_unlock(&target_binaries_lock);
+	write_lock(&tl->lock);
+	list_add_tail(&p->list, &tl->list);
+	tl->cnt++;
+	write_unlock(&tl->lock);
 
 	return 0;
 }
@@ -143,7 +157,7 @@ get_caller_dentry_fail:
 static bool __check_if_instrumented(struct task_struct *task,
 				    struct dentry *dentry)
 {
-	return __check_dentry_already_exist(dentry);
+	return __check_dentry_already_exist(dentry, &target);
 }
 
 static bool __is_instrumented(void *caller)
@@ -156,6 +170,34 @@ static bool __is_instrumented(void *caller)
 		return false;
 
 	return __check_if_instrumented(task, caller_dentry);
+}
+
+static unsigned int __get_names(struct list_desc *tl, char ***filenames_p)
+{
+	unsigned int i, ret = 0;
+	struct bin_desc *p;
+	char **a = NULL;
+
+	read_lock(&tl->lock);
+	if (tl->cnt == 0)
+		goto out;
+
+	a = kmalloc(sizeof(*a) * tl->cnt, GFP_KERNEL);
+	if (!a)
+		goto out;
+
+	i = 0;
+	list_for_each_entry(p, &tl->list, list) {
+		if (i >= tl->cnt)
+			break;
+		a[i++] = p->filename;
+	}
+
+	*filenames_p = a;
+	ret = i;
+out:
+	read_unlock(&tl->lock);
+	return ret;
 }
 
 
@@ -188,7 +230,7 @@ int preload_control_add_instrumented_binary(char *filename)
 	if (dentry == NULL)
 		return -EINVAL;
 
-	res = __add_target_binary(dentry, filename);
+	res = __add_binary(dentry, filename, &target);
 	if (res != 0)
 		put_dentry(dentry);
 
@@ -197,42 +239,73 @@ int preload_control_add_instrumented_binary(char *filename)
 
 int preload_control_clean_instrumented_bins(void)
 {
-	__free_target_binaries();
+	__free_binaries(&target);
 
 	return 0;
 }
 
-unsigned int preload_control_get_bin_names(char ***filenames_p)
+int preload_control_add_ignored_binary(char *filename)
 {
-	unsigned int i, ret = 0;
-	struct bin_desc *p;
-	char **a = NULL;
+	struct dentry *dentry = get_dentry(filename);
+	int res = 0;
 
-	read_lock(&target_binaries_lock);
-	if (target_binaries_cnt == 0)
-		goto out;
+	if (dentry == NULL)
+		return -EINVAL;
 
-	a = kmalloc(sizeof(*a) * target_binaries_cnt, GFP_KERNEL);
-	if (!a)
-		goto out;
+	res = __add_binary(dentry, filename, &ignored);
+	if (res != 0)
+		put_dentry(dentry);
 
-	i = 0;
-	list_for_each_entry(p, &target_binaries_list, list) {
-		if (i >= target_binaries_cnt)
-			break;
-		a[i++] = p->filename;
-	}
-
-	*filenames_p = a;
-	ret = i;
-out:
-	read_unlock(&target_binaries_lock);
-	return ret;
+	return res > 0 ? 0 : res;
 }
 
-void preload_control_release_bin_names(char ***filenames_p)
+int preload_control_clean_ignored_bins(void)
+{
+	__free_binaries(&ignored);
+
+	return 0;
+}
+
+unsigned int preload_control_get_target_names(char ***filenames_p)
+{
+	return __get_names(&target, filenames_p);
+}
+
+void preload_control_release_target_names(char ***filenames_p)
 {
 	kfree(*filenames_p);
+}
+
+unsigned int preload_control_get_ignored_names(char ***filenames_p)
+{
+	return __get_names(&ignored, filenames_p);
+}
+
+void preload_control_release_ignored_names(char ***filenames_p)
+{
+	kfree(*filenames_p);
+}
+
+bool preload_control_check_dentry_is_ignored(struct dentry *dentry)
+{
+	struct bin_desc *p;
+	bool ret = false;
+
+	if (dentry == NULL)
+		return false;
+
+	read_lock(&ignored.lock);
+
+	list_for_each_entry(p, &ignored.list, list) {
+		if (p->dentry == dentry) {
+			ret = true;
+			break;
+		}
+	}
+
+	read_unlock(&ignored.lock);
+
+	return ret;
 }
 
 int preload_control_init(void)
@@ -242,6 +315,6 @@ int preload_control_init(void)
 
 void preload_control_exit(void)
 {
-	__free_target_binaries();
+	__free_binaries(&target);
+	__free_binaries(&ignored);
 }
-
