@@ -1,6 +1,6 @@
 #include <linux/mm.h>
 #include <linux/slab.h>
-#include <linux/rwsem.h>
+#include <linux/spinlock.h>
 #include <linux/limits.h>
 #include <linux/list.h>
 
@@ -19,7 +19,7 @@ struct bin_desc {
 };
 
 static LIST_HEAD(target_binaries_list);
-static DECLARE_RWSEM(target_binaries_lock);
+static DEFINE_RWLOCK(target_binaries_lock);
 static int target_binaries_cnt = 0;
 
 static inline struct task_struct *__get_task_struct(void)
@@ -59,14 +59,21 @@ static void __free_target_binary(struct bin_desc *p)
 static void __free_target_binaries(void)
 {
 	struct bin_desc *p, *n;
+	struct list_head rm_head;
 
-	down_write(&target_binaries_lock);
+	INIT_LIST_HEAD(&rm_head);
+	write_lock(&target_binaries_lock);
 	list_for_each_entry_safe(p, n, &target_binaries_list, list) {
-		list_del(&p->list);
-		__free_target_binary(p);
+		list_move(&p->list, &rm_head);
 	}
 	target_binaries_cnt = 0;
-	up_write(&target_binaries_lock);
+	write_unlock(&target_binaries_lock);
+
+	list_for_each_entry_safe(p, n, &rm_head, list) {
+		list_del(&p->list);
+		put_dentry(p->dentry);
+		__free_target_binary(p);
+	}
 }
 
 static bool __check_dentry_already_exist(struct dentry *dentry)
@@ -74,7 +81,7 @@ static bool __check_dentry_already_exist(struct dentry *dentry)
 	struct bin_desc *p;
 	bool ret = false;
 
-	down_read(&target_binaries_lock);
+	read_lock(&target_binaries_lock);
 	list_for_each_entry(p, &target_binaries_list, list) {
 		if (p->dentry == dentry) {
 			ret = true;
@@ -82,9 +89,9 @@ static bool __check_dentry_already_exist(struct dentry *dentry)
 		}
 	}
 out:
-	up_read(&target_binaries_lock);
+	read_unlock(&target_binaries_lock);
 
-	return false;
+	return ret;
 }
 
 static int __add_target_binary(struct dentry *dentry, char *filename)
@@ -106,10 +113,10 @@ static int __add_target_binary(struct dentry *dentry, char *filename)
 	if (!p)
 		return -ENOMEM;
 
-	down_write(&target_binaries_lock);
+	write_lock(&target_binaries_lock);
 	list_add_tail(&p->list, &target_binaries_list);
 	target_binaries_cnt++;
-	up_write(&target_binaries_lock);
+	write_unlock(&target_binaries_lock);
 
 	return 0;
 }
@@ -201,7 +208,7 @@ unsigned int preload_control_get_bin_names(char ***filenames_p)
 	struct bin_desc *p;
 	char **a = NULL;
 
-	down_read(&target_binaries_lock);
+	read_lock(&target_binaries_lock);
 	if (target_binaries_cnt == 0)
 		goto out;
 
@@ -219,7 +226,7 @@ unsigned int preload_control_get_bin_names(char ***filenames_p)
 	*filenames_p = a;
 	ret = i;
 out:
-	up_read(&target_binaries_lock);
+	read_unlock(&target_binaries_lock);
 	return ret;
 }
 
