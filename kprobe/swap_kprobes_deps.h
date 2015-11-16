@@ -89,6 +89,14 @@ do { \
 #endif /* !(defined(MODULE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)) */
 
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 1, 0)
+    #define task_job(task) (task->jobctl)
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(3, 1, 0) */
+    #define task_job(task) (task->group_stop)
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(3, 1, 0) */
+
+
+
 /* --------------------- Declaration of module dependencies ----------------- */
 
 #define DECLARE_MOD_FUNC_DEP(name, ret, ...) ret(*__ref_##name)(__VA_ARGS__)

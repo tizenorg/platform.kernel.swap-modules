@@ -25,6 +25,7 @@
 #include <linux/module.h>
 #include <linux/spinlock.h>
 #include <kprobe/swap_kprobes.h>
+#include <kprobe/swap_kprobes_deps.h>
 #include <ksyms/ksyms.h>
 #include "swap_ktd.h"
 #include "swap_td_raw.h"
@@ -110,13 +111,13 @@ static void ktd_exit_all(struct td *td, struct task_struct *task)
 
 static bool task_prepare_is(struct task_struct *task)
 {
-	return !!(task->jobctl & kTD_JOBCTL_PREPARE);
+	return !!(task_job(task) & kTD_JOBCTL_PREPARE);
 }
 
 static void task_prepare_set(struct task_struct *task)
 {
-	if (!(task->jobctl & kTD_JOBCTL_PREPARE))
-		task->jobctl |= kTD_JOBCTL_PREPARE;
+	if (!(task_job(task) & kTD_JOBCTL_PREPARE))
+		task_job(task) |= kTD_JOBCTL_PREPARE;
 	else
 		WARN(1, KTD_PREFIX "already prepare");
 
@@ -125,8 +126,8 @@ static void task_prepare_set(struct task_struct *task)
 
 static void task_prepare_clear(struct task_struct *task)
 {
-	if (task->jobctl & kTD_JOBCTL_PREPARE)
-		task->jobctl &= ~kTD_JOBCTL_PREPARE;
+	if (task_job(task) & kTD_JOBCTL_PREPARE)
+		task_job(task) &= ~kTD_JOBCTL_PREPARE;
 	else
 		WARN(1, KTD_PREFIX "is not prepare");
 
