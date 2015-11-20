@@ -9,28 +9,19 @@ Source: swap-modules-3.0.tar.gz
 
 BuildRequires: perl
 BuildRequires: python
-%ifarch %{arm}
-    %if "%{?tizen_profile_name}" == "tv"
-BuildConflicts: vd_kernel-headers
-BuildRequires: tztv-hawk-kmodules-devel
-        %define build_arch arm
-        %define kernel_path /usr/include/kernel_header/debug
-    %else
-        %if "%{?tizen_profile_name}" == "mobile"
-ExcludeArch: %{arm}
-        %else
-            %if "%{?tizen_profile_name}" == "wearable"
-ExcludeArch: %{arm}
-            %endif
-        %endif
-    %endif
-%else #i386
-    %define build_arch i386
-BuildRequires: emulator-kernel-devel
-    %define kernel_path /usr/src/linux-kernel-build-3.14.25
-%endif
-
 Provides: swap-modules
+
+
+# setup kernel_path and build_arch
+%if "%tizen_target_name" == "TM1"
+BuildRequires: kernel-devel-3.10-sc7730
+    %define build_arch arm
+    %define kernel_path /boot/kernel/devel/kernel-devel-tizen_tm1
+%else # TM1
+ExcludeArch: %{arm} %{ix86} aarch64 x86_64
+%endif # TM1
+
+
 %description
 Kernel modules for SWAP
 
