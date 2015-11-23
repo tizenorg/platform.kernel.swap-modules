@@ -532,16 +532,157 @@ static void preload_stop_cb(void)
 	swap_unregister_kretprobe(&mmap_rp);
 }
 
+static unsigned long __not_loaded_entry(struct uretprobe_instance *ri,
+					struct pt_regs *regs,
+					struct process_data *pd)
+{
+	char __user *path = NULL;
+	unsigned long vaddr = 0;
+	unsigned long base;
+
+	/* if linker is still doing its work, we do nothing */
+	if (!__should_we_preload_handlers(current, regs))
+		return 0;
+
+	base = preload_pd_get_loader_base(pd);
+	if (base == 0)
+		return 0;   /* loader isn't mapped */
+
+	/* jump to loader code if ready */
+	vaddr = base + preload_debugfs_get_loader_offset();
+	if (vaddr) {
+		/* save original regs state */
+		__save_uregs(ri, regs);
+		print_regs("PROBE ORIG", regs, ri);
+
+		path = preload_pd_get_path(pd);
+
+		/* set dlopen args: filename, flags */
+		swap_set_arg(regs, 0, (unsigned long)path/*swap_get_stack_ptr(regs)*/);
+		swap_set_arg(regs, 1, 2 /* RTLD_NOW */);
+
+		/* do the jump to dlopen */
+		__prepare_ujump(ri, regs, vaddr);
+		/* set new state */
+		preload_pd_set_state(pd, LOADING);
+	}
+
+	return vaddr;
+}
+
+static unsigned long __loaded_entry(struct uretprobe_instance *ri,
+				    struct pt_regs *regs,
+				    struct process_data *pd)
+{
+	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
+	unsigned long offset = ip->desc->info.pl_i.handler;
+	unsigned long vaddr = 0;
+	unsigned long base;
+	unsigned long disable_addr;
+	unsigned long caddr;
+	struct vm_area_struct *cvma;
+	enum preload_call_type ct;
+
+	base = preload_pd_get_handlers_base(pd);
+	if (base == 0)
+		return 0;	/* handlers isn't mapped */
+
+	/* jump to preloaded handler */
+	vaddr = base + offset;
+	if (vaddr) {
+		caddr = get_regs_ret_func(regs);
+		cvma = __get_vma_by_addr(current, caddr);
+		ct = preload_control_call_type(ip, (void *)caddr);
+		disable_addr = __is_probe_non_block(ip) ? ip->orig_addr : 0;
+
+		/* jump only if caller is instumented and it is not a system lib -
+		 * this leads to some errors */
+		if ((cvma != NULL) && ((cvma->vm_file != NULL) &&
+		     (cvma->vm_file->f_path.dentry != NULL) &&
+		     !preload_control_check_dentry_is_ignored(cvma->vm_file->f_path.dentry)) &&
+		    __check_flag_and_call_type(ip, ct) &&
+		    !__is_handlers_call(cvma)) {
+			if (preload_threads_set_data(current, caddr, ct, disable_addr,
+						     __should_drop(ip, ct)) != 0)
+				printk(PRELOAD_PREFIX "Error! Failed to set caller 0x%lx"
+				       " for %d/%d\n", caddr, current->tgid, current->pid);
+			/* args are not changed */
+			__prepare_ujump(ri, regs, vaddr);
+			if (disable_addr == 0)
+				set_preload_flags(current, HANDLER_RUNNING);
+		}
+	}
+
+	return vaddr;
+}
+
+static void __loading_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
+			  struct process_data *pd)
+{
+	struct us_priv *priv = (struct us_priv *)ri->data;
+	unsigned long vaddr = 0;
+
+	/* check if preloading has been completed */
+	vaddr = preload_pd_get_loader_base(pd) + preload_debugfs_get_loader_offset();
+	if (vaddr && (priv->origin == vaddr)) {
+		preload_pd_set_handle(pd, (void __user *)regs_return_value(regs));
+
+		/* restore original regs state */
+		__restore_uregs(ri, regs);
+		print_regs("PROBE REST", regs, ri);
+		/* check if preloading done */
+
+		if (preload_pd_get_handle(pd)) {
+			preload_pd_set_state(pd, LOADED);
+		} else {
+			preload_pd_dec_attempts(pd);
+			preload_pd_set_state(pd, FAILED);
+		}
+	}
+}
+
+static void __loaded_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
+			 struct process_data *pd)
+{
+	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
+	struct us_priv *priv = (struct us_priv *)ri->data;
+	unsigned long flags = get_preload_flags(current);
+	unsigned long offset = ip->desc->info.pl_i.handler;
+	unsigned long vaddr = 0;
+
+	if ((flags & HANDLER_RUNNING) ||
+	    preload_threads_check_disabled_probe(current, ip->orig_addr)) {
+		bool non_blk_probe = __is_probe_non_block(ip);
+
+		/* drop the flag if the handler has completed */
+		vaddr = preload_pd_get_handlers_base(pd) + offset;
+		if (vaddr && (priv->origin == vaddr)) {
+			if (preload_threads_put_data(current) != 0)
+				printk(PRELOAD_PREFIX "Error! Failed to put caller slot"
+				       " for %d/%d\n", current->tgid, current->pid);
+			if (!non_blk_probe) {
+				flags &= ~HANDLER_RUNNING;
+				set_preload_flags(current, flags);
+			}
+		}
+	}
+}
+
+static void __failed_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
+			 struct process_data *pd)
+{
+	if (preload_pd_get_attempts(pd)) {
+		preload_pd_set_state(pd, NOT_LOADED);
+	}
+}
+
 static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct process_data *pd = __get_process_data(ri->rp);
 	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 	struct us_priv *priv = (struct us_priv *)ri->data;
 	unsigned long flags = get_preload_flags(current);
-	unsigned long offset = ip->desc->info.pl_i.handler;
 	unsigned long vaddr = 0;
-	unsigned long base;
-	char __user *path = NULL;
 
 	if ((flags & HANDLER_RUNNING) ||
 	    preload_threads_check_disabled_probe(current, ip->orig_addr))
@@ -549,74 +690,13 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 	switch (preload_pd_get_state(pd)) {
 	case NOT_LOADED:
-		/* if linker is still doing its work, we do nothing */
-		if (!__should_we_preload_handlers(current, regs))
-			goto out_set_origin;
-
-		base = preload_pd_get_loader_base(pd);
-		if (base == 0)
-			break;	/* loader isn't mapped */
-
-		/* jump to loader code if ready */
-		vaddr = base + preload_debugfs_get_loader_offset();
-		if (vaddr) {
-			/* save original regs state */
-			__save_uregs(ri, regs);
-			print_regs("ORIG", regs, ri);
-
-			path = preload_pd_get_path(pd);
-
-			/* set dlopen args: filename, flags */
-			swap_set_arg(regs, 0, (unsigned long)path/*swap_get_stack_ptr(regs)*/);
-			swap_set_arg(regs, 1, 2 /* RTLD_NOW */);
-
-			/* do the jump to dlopen */
-			__prepare_ujump(ri, regs, vaddr);
-			/* set new state */
-			preload_pd_set_state(pd, LOADING);
-		}
+		vaddr = __not_loaded_entry(ri, regs, pd);
 		break;
 	case LOADING:
 		/* handlers have not yet been loaded... just ignore */
 		break;
 	case LOADED:
-		base = preload_pd_get_handlers_base(pd);
-		if (base == 0)
-			break;	/* handlers isn't mapped */
-
-		/* jump to preloaded handler */
-		vaddr = base + offset;
-		if (vaddr) {
-			unsigned long disable_addr;
-			unsigned long caddr = get_regs_ret_func(regs);
-			struct vm_area_struct *cvma = __get_vma_by_addr(current, caddr);
-			enum preload_call_type ct;
-
-			ct = preload_control_call_type(ip, (void *)caddr);
-			disable_addr = __is_probe_non_block(ip) ?
-				       ip->orig_addr : 0;
-
-			/* jump only if caller is instumented and it is not a system lib -
-			 * this leads to some errors */
-			if ((cvma != NULL) && ((cvma->vm_file != NULL) &&
-			     (cvma->vm_file->f_path.dentry != NULL) &&
-			     !preload_control_check_dentry_is_ignored(cvma->vm_file->f_path.dentry)) &&
-			    __check_flag_and_call_type(ip, ct) &&
-			    !__is_handlers_call(cvma)) {
-				if (preload_threads_set_data(current,
-							     caddr, ct,
-							     disable_addr,
-							     __should_drop(ip,
-							     ct)) != 0)
-					printk(PRELOAD_PREFIX "Error! Failed to set caller 0x%lx"
-					       " for %d/%d\n", caddr, current->tgid,
-							       current->pid);
-				/* args are not changed */
-				__prepare_ujump(ri, regs, vaddr);
-				if (disable_addr == 0)
-					set_preload_flags(current, HANDLER_RUNNING);
-			}
-		}
+		vaddr = __loaded_entry(ri, regs, pd);
 		break;
 	case FAILED:
 	case ERROR:
@@ -633,60 +713,19 @@ out_set_origin:
 static int preload_us_ret(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct process_data *pd = __get_process_data(ri->rp);
-	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
-	struct us_priv *priv = (struct us_priv *)ri->data;
-	unsigned long flags = get_preload_flags(current);
-	unsigned long offset = ip->desc->info.pl_i.handler;
-	unsigned long vaddr = 0;
 
 	switch (preload_pd_get_state(pd)) {
 	case NOT_LOADED:
 		/* loader has not yet been mapped... just ignore */
 		break;
 	case LOADING:
-		/* check if preloading has been completed */
-		vaddr = preload_pd_get_loader_base(pd) + preload_debugfs_get_loader_offset();
-		if (vaddr && (priv->origin == vaddr)) {
-			preload_pd_set_handle(pd, (void __user *)regs_return_value(regs));
-
-			/* restore original regs state */
-			__restore_uregs(ri, regs);
-			print_regs("REST", regs, ri);
-			/* check if preloading done */
-
-			if (preload_pd_get_handle(pd)) {
-				preload_pd_set_state(pd, LOADED);
-				preload_pd_put_path(pd);
-			} else {
-				preload_pd_dec_attempts(pd);
-				preload_pd_set_state(pd, FAILED);
-				preload_pd_put_path(pd);
-			}
-		}
+		__loading_ret(ri, regs, pd);
 		break;
 	case LOADED:
-		if ((flags & HANDLER_RUNNING) ||
-		    preload_threads_check_disabled_probe(current, ip->orig_addr)) {
-			bool non_blk_probe = __is_probe_non_block(ip);
-
-			/* drop the flag if the handler has completed */
-			vaddr = preload_pd_get_handlers_base(pd) + offset;
-			if (vaddr && (priv->origin == vaddr)) {
-				if (preload_threads_put_data(current) != 0)
-					printk(PRELOAD_PREFIX "Error! Failed to put caller slot"
-					       " for %d/%d\n", current->tgid, current->pid);
-				if (!non_blk_probe) {
-					flags &= ~HANDLER_RUNNING;
-					set_preload_flags(current, flags);
-				}
-			}
-		}
+		__loaded_ret(ri, regs, pd);
 		break;
 	case FAILED:
-		if (preload_pd_get_attempts(pd)) {
-			preload_pd_set_state(pd, NOT_LOADED);
-			preload_pd_put_path(pd);
-		}
+		__failed_ret(ri, regs, pd);
 		break;
 	case ERROR:
 	default:
