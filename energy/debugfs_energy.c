@@ -119,8 +119,47 @@ static u64 fw_apps(void)
 }
 
 
+/* wifi recv */
+static DEFINE_RATIONAL(wf_recv_coef);
 
+static u64 wf_recv_system(void)
+{
+	u64 byte = 0;
 
+	get_parameter_energy(PE_WF_RECV_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * wf_recv_coef.num, wf_recv_coef.denom);
+}
+
+static u64 wf_recv_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_WF_RECV_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * wf_recv_coef.num, wf_recv_coef.denom);
+}
+
+/* wifi send */
+static DEFINE_RATIONAL(wf_send_coef);
+
+static u64 wf_send_system(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_WF_SEND_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * wf_send_coef.num, wf_send_coef.denom);
+}
+
+static u64 wf_send_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_WF_SEND_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * wf_send_coef.num, wf_send_coef.denom);
+}
 
 /* ============================================================================
  * ===                             PARAMETERS                               ===
@@ -211,6 +250,18 @@ struct param_data parameters[] = {
 		.coef = &fw_coef,
 		.system = fw_system,
 		.apps = fw_apps
+	},
+	{
+		.name = "wf_recv",
+		.coef = &wf_recv_coef,
+		.system = wf_recv_system,
+		.apps = wf_recv_apps
+	},
+	{
+		.name = "wf_send",
+		.coef = &wf_send_coef,
+		.system = wf_send_system,
+		.apps = wf_send_apps
 	}
 };
 

@@ -30,6 +30,11 @@
 #include <linux/magic.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <linux/net.h>
+#include <linux/socket.h>
+#include <linux/skbuff.h>
+#include <linux/string.h>
+#include <net/sock.h>
 #include <kprobe/swap_kprobes.h>
 #include <ksyms/ksyms.h>
 #include <us_manager/sspt/sspt_proc.h>
@@ -130,6 +135,11 @@ struct energy_data {
 	/*for sys_write */
 	atomic64_t bytes_written;
 
+	/*for recvmsg*/
+	atomic64_t bytes_recv;
+
+	/* for sock_send */
+	atomic64_t bytes_send;
 };
 
 static sspt_feature_id_t feature_id = SSPT_FEATURE_ID_BAD;
@@ -142,6 +152,8 @@ static void init_ed(struct energy_data *ed)
 	cpus_time_init(&ed->ct, 0);
 	atomic64_set(&ed->bytes_read, 0);
 	atomic64_set(&ed->bytes_written, 0);
+	atomic64_set(&ed->bytes_recv, 0);
+	atomic64_set(&ed->bytes_send, 0);
 }
 
 static void uninit_ed(struct energy_data *ed)
@@ -149,6 +161,8 @@ static void uninit_ed(struct energy_data *ed)
 	cpus_time_init(&ed->ct, 0);
 	atomic64_set(&ed->bytes_read, 0);
 	atomic64_set(&ed->bytes_written, 0);
+	atomic64_set(&ed->bytes_recv, 0);
+	atomic64_set(&ed->bytes_send, 0);
 }
 
 static void *create_ed(void)
@@ -439,10 +453,153 @@ static struct kretprobe sys_write_krp = {
 
 
 
+/* ============================================================================
+ * =                                wifi                                      =
+ * ============================================================================
+ */
+static bool check_wlan0(struct socket *sock)
+{
+	/* FIXME: hardcode interface */
+	const char *name_intrf = "wlan0";
+
+	if (sock->sk->sk_dst_cache &&
+	    sock->sk->sk_dst_cache->dev &&
+	    !strcmp(sock->sk->sk_dst_cache->dev->name, name_intrf))
+		return true;
+
+	return false;
+}
+
+static int entry_handler_wf_sock(struct kretprobe_instance *ri,
+				 struct pt_regs *regs)
+{
+	bool *ok = (bool *)ri->data;
+	struct socket *socket = (struct socket *)swap_get_karg(regs, 0);
+
+	*ok = check_wlan0(socket);
+
+	return 0;
+}
+
+static int ret_handler_wf_sock_recv(struct kretprobe_instance *ri,
+				    struct pt_regs *regs)
+{
+	int ret = regs_return_value(regs);
+
+	if (ret > 0) {
+		bool ok = *(bool *)ri->data;
+
+		if (ok) {
+			struct energy_data *ed;
+
+			ed = get_energy_data(current);
+			if (ed)
+				atomic64_add(ret, &ed->bytes_recv);
+			atomic64_add(ret, &ed_system.bytes_recv);
+		}
+	}
+
+	return 0;
+}
+
+static int ret_handler_wf_sock_send(struct kretprobe_instance *ri,
+				    struct pt_regs *regs)
+{
+	int ret = regs_return_value(regs);
+
+	if (ret > 0) {
+		bool ok = *(bool *)ri->data;
+
+		if (ok) {
+			struct energy_data *ed;
+
+			ed = get_energy_data(current);
+			if (ed)
+				atomic64_add(ret, &ed->bytes_send);
+			atomic64_add(ret, &ed_system.bytes_send);
+		}
+	}
+
+	return 0;
+}
+
+static struct kretprobe sock_recv_krp = {
+	.entry_handler = entry_handler_wf_sock,
+	.handler = ret_handler_wf_sock_recv,
+	.data_size = sizeof(bool)
+};
+
+static struct kretprobe sock_send_krp = {
+	.entry_handler = entry_handler_wf_sock,
+	.handler = ret_handler_wf_sock_send,
+	.data_size = sizeof(bool)
+};
+
+static int energy_wifi_once(void)
+{
+	const char *sym;
+
+	sym = "sock_recvmsg";
+	sock_recv_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (sock_recv_krp.kp.addr == NULL)
+		goto not_found;
+
+	sym = "sock_sendmsg";
+	sock_send_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (sock_send_krp.kp.addr == NULL)
+		goto  not_found;
+
+	return 0;
+
+not_found:
+	printk(KERN_INFO "ERROR: symbol '%s' not found\n", sym);
+	return -ESRCH;
+}
+
+static int energy_wifi_flag = 0;
+
+static int energy_wifi_set(void)
+{
+	int ret;
+
+	ret = swap_register_kretprobe(&sock_recv_krp);
+	if (ret) {
+		pr_err("swap_register_kretprobe(sock_recv_krp) ret=%d\n" ,ret);
+		return ret;
+	}
+
+	ret = swap_register_kretprobe(&sock_send_krp);
+	if (ret) {
+		pr_err("swap_register_kretprobe(sock_send_krp) ret=%d\n" ,ret);
+		swap_unregister_kretprobe(&sock_recv_krp);
+	}
+
+	energy_wifi_flag = 1;
+
+	return ret;
+}
+
+static void energy_wifi_unset(void)
+{
+	if (energy_wifi_flag == 0)
+		return;
+
+	swap_unregister_kretprobe(&sock_send_krp);
+	swap_unregister_kretprobe(&sock_recv_krp);
+
+	energy_wifi_flag = 0;
+}
+
+
+
+
+
 enum parameter_type {
 	PT_CPU,
 	PT_READ,
-	PT_WRITE
+	PT_WRITE,
+	PT_WF_RECV,
+	PT_WF_SEND
 };
 
 struct cmd_pt {
@@ -472,6 +629,12 @@ static void callback_for_proc(struct sspt_proc *proc, void *data)
 			break;
 		case PT_WRITE:
 			*val += atomic64_read(&ed->bytes_written);
+			break;
+		case PT_WF_RECV:
+			*val += atomic64_read(&ed->bytes_recv);
+			break;
+		case PT_WF_SEND:
+			*val += atomic64_read(&ed->bytes_send);
 			break;
 		default:
 			break;
@@ -527,11 +690,23 @@ int get_parameter_energy(enum parameter_energy pe, void *buf, size_t sz)
 	case PE_WRITE_SYSTEM:
 		*val = atomic64_read(&ed_system.bytes_written);
 		break;
+	case PE_WF_RECV_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_recv);
+		break;
+	case PE_WF_SEND_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_send);
+		break;
 	case PE_READ_APPS:
 		current_parameter_apps(PT_READ, buf, sz);
 		break;
 	case PE_WRITE_APPS:
 		current_parameter_apps(PT_WRITE, buf, sz);
+		break;
+	case PE_WF_RECV_APPS:
+		current_parameter_apps(PT_WF_RECV, buf, sz);
+		break;
+	case PE_WF_SEND_APPS:
+		current_parameter_apps(PT_WF_SEND, buf, sz);
 		break;
 	default:
 		ret = -EINVAL;
@@ -569,6 +744,8 @@ int do_set_energy(void)
 		goto unregister_sys_write;
 	}
 
+	energy_wifi_set();
+
 	/* TODO: check return value */
 	lcd_set_energy();
 
@@ -586,6 +763,7 @@ unregister_sys_write:
 void do_unset_energy(void)
 {
 	lcd_unset_energy();
+	energy_wifi_unset();
 
 	swap_unregister_kretprobe(&switch_to_krp);
 	swap_unregister_kretprobe(&sys_write_krp);
@@ -667,6 +845,8 @@ int energy_once(void)
 	sys_write_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
 	if (sys_write_krp.kp.addr == NULL)
 		goto not_found;
+
+	energy_wifi_once();
 
 	return 0;
 

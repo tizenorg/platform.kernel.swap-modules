@@ -39,7 +39,11 @@ enum parameter_energy {
 	PE_READ_SYSTEM,		/**< number of bytes are read by system */
 	PE_WRITE_SYSTEM,	/**< number of bytes are write by system */
 	PE_READ_APPS,		/**< number of bytes are read by apps */
-	PE_WRITE_APPS		/**< number of bytes are write by apps*/
+	PE_WRITE_APPS,		/**< number of bytes are write by apps */
+	PE_WF_RECV_SYSTEM,	/**< number of bytes are receive by system through wifi */
+	PE_WF_SEND_SYSTEM,	/**< number of bytes are send by system through wifi */
+	PE_WF_RECV_APPS,	/**< number of bytes are receive by apps through wifi */
+	PE_WF_SEND_APPS,	/**< number of bytes are send by apps through wifi */
 };
 
 
