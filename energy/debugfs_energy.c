@@ -39,15 +39,28 @@
 static DEFINE_RATIONAL(cpu0_running_coef); /* boot core uses distinct coeff */
 static DEFINE_RATIONAL(cpuN_running_coef);
 
-static u64 __energy_cpu(enum parameter_energy pe)
+static u64 __energy_cpu0(enum parameter_energy pe)
 {
 	u64 times[NR_CPUS] = { 0 };
 	u64 val = 0;
-	int i;
 
+	/* TODO: make for only cpu0 */
 	if (get_parameter_energy(pe, times, sizeof(times)) == 0) {
 		val = div_u64(times[0] * cpu0_running_coef.num,
 			      cpu0_running_coef.denom);
+	}
+
+	return val;
+}
+
+static u64 __energy_cpuN(enum parameter_energy pe)
+{
+	u64 times[NR_CPUS] = { 0 };
+	u64 val = 0;
+
+	if (get_parameter_energy(pe, times, sizeof(times)) == 0) {
+		int i;
+
 		for (i = 1; i < NR_CPUS; i++)
 			val += div_u64(times[i] * cpuN_running_coef.num,
 				       cpuN_running_coef.denom);
@@ -56,14 +69,24 @@ static u64 __energy_cpu(enum parameter_energy pe)
 	return val;
 }
 
-static u64 cpu_system(void)
+static u64 cpu0_system(void)
 {
-	return __energy_cpu(PE_TIME_SYSTEM);
+	return __energy_cpu0(PE_TIME_SYSTEM);
 }
 
-static u64 cpu_apps(void)
+static u64 cpuN_system(void)
 {
-	return __energy_cpu(PE_TIME_APPS);
+	return __energy_cpuN(PE_TIME_SYSTEM);
+}
+
+static u64 cpu0_apps(void)
+{
+	return __energy_cpu0(PE_TIME_APPS);
+}
+
+static u64 cpuN_apps(void)
+{
+	return __energy_cpuN(PE_TIME_APPS);
 }
 
 
@@ -316,14 +339,14 @@ struct param_data parameters[] = {
 	{
 		.name = "cpu_running",
 		.coef = &cpu0_running_coef,
-		.system = cpu_system,
-		.apps = cpu_apps
+		.system = cpu0_system,
+		.apps = cpu0_apps
 	},
 	{
 		.name = "cpuN_running",
 		.coef = &cpuN_running_coef,
-		.system = cpu_system,
-		.apps = cpu_apps
+		.system = cpuN_system,
+		.apps = cpuN_apps
 	},
 	{
 		.name = "cpu_idle",
