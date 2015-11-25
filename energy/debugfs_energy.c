@@ -161,6 +161,98 @@ static u64 wf_send_apps(void)
 	return div_u64(byte * wf_send_coef.num, wf_send_coef.denom);
 }
 
+/* l2cap_recv_acldata */
+static DEFINE_RATIONAL(l2cap_recv_acldata_coef);
+
+static u64 l2cap_recv_acldata_system(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_L2CAP_RECV_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * l2cap_recv_acldata_coef.num,
+		       l2cap_recv_acldata_coef.denom);
+}
+
+static u64 l2cap_recv_acldata_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_L2CAP_RECV_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * l2cap_recv_acldata_coef.num,
+		       l2cap_recv_acldata_coef.denom);
+}
+
+/* sco_recv_scodata */
+static DEFINE_RATIONAL(sco_recv_scodata_coef);
+
+static u64 sco_recv_scodata_system(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_SCO_RECV_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * sco_recv_scodata_coef.num,
+		       sco_recv_scodata_coef.denom);
+}
+
+static u64 sco_recv_scodata_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_SCO_RECV_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * sco_recv_scodata_coef.num,
+		       sco_recv_scodata_coef.denom);
+}
+
+/* hci_send_acl */
+static DEFINE_RATIONAL(hci_send_acl_coef);
+
+static u64 hci_send_acl_system(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PT_SEND_ACL_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * hci_send_acl_coef.num, hci_send_acl_coef.denom);
+}
+
+static u64 hci_send_acl_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PT_SEND_ACL_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * hci_send_acl_coef.num, hci_send_acl_coef.denom);
+}
+
+/* hci_send_sco */
+static DEFINE_RATIONAL(hci_send_sco_coef);
+
+static u64 hci_send_sco_system(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PT_SEND_SCO_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * hci_send_sco_coef.num, hci_send_sco_coef.denom);
+}
+
+static u64 hci_send_sco_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PT_SEND_SCO_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * hci_send_sco_coef.num, hci_send_sco_coef.denom);
+}
+
+
+
+
+
 /* ============================================================================
  * ===                             PARAMETERS                               ===
  * ============================================================================
@@ -262,6 +354,30 @@ struct param_data parameters[] = {
 		.coef = &wf_send_coef,
 		.system = wf_send_system,
 		.apps = wf_send_apps
+	},
+	{
+		.name = "sco_recv_scodata",
+		.coef = &sco_recv_scodata_coef,
+		.system = sco_recv_scodata_system,
+		.apps = sco_recv_scodata_apps
+	},
+	{
+		.name = "l2cap_recv_acldata",
+		.coef = &l2cap_recv_acldata_coef,
+		.system = l2cap_recv_acldata_system,
+		.apps = l2cap_recv_acldata_apps
+	},
+	{
+		.name = "hci_send_acl",
+		.coef = &hci_send_acl_coef,
+		.system = hci_send_acl_system,
+		.apps = hci_send_acl_apps
+	},
+	{
+		.name = "hci_send_sco",
+		.coef = &hci_send_sco_coef,
+		.system = hci_send_sco_system,
+		.apps = hci_send_sco_apps
 	}
 };
 

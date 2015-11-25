@@ -140,6 +140,18 @@ struct energy_data {
 
 	/* for sock_send */
 	atomic64_t bytes_send;
+
+	/* for l2cap_recv */
+	atomic64_t bytes_l2cap_recv_acldata;
+
+	/* for sco_recv_scodata */
+	atomic64_t bytes_sco_recv_scodata;
+
+	/* for hci_send_acl */
+	atomic64_t bytes_hci_send_acl;
+
+	/* for hci_send_sco */
+	atomic64_t bytes_hci_send_sco;
 };
 
 static sspt_feature_id_t feature_id = SSPT_FEATURE_ID_BAD;
@@ -154,6 +166,10 @@ static void init_ed(struct energy_data *ed)
 	atomic64_set(&ed->bytes_written, 0);
 	atomic64_set(&ed->bytes_recv, 0);
 	atomic64_set(&ed->bytes_send, 0);
+	atomic64_set(&ed->bytes_l2cap_recv_acldata, 0);
+	atomic64_set(&ed->bytes_sco_recv_scodata, 0);
+	atomic64_set(&ed->bytes_hci_send_acl, 0);
+	atomic64_set(&ed->bytes_hci_send_sco, 0);
 }
 
 static void uninit_ed(struct energy_data *ed)
@@ -163,6 +179,10 @@ static void uninit_ed(struct energy_data *ed)
 	atomic64_set(&ed->bytes_written, 0);
 	atomic64_set(&ed->bytes_recv, 0);
 	atomic64_set(&ed->bytes_send, 0);
+	atomic64_set(&ed->bytes_l2cap_recv_acldata, 0);
+	atomic64_set(&ed->bytes_sco_recv_scodata, 0);
+	atomic64_set(&ed->bytes_hci_send_acl, 0);
+	atomic64_set(&ed->bytes_hci_send_sco, 0);
 }
 
 static void *create_ed(void)
@@ -594,12 +614,170 @@ static void energy_wifi_unset(void)
 
 
 
+/* ============================================================================
+ * =                                bluetooth                                 =
+ * ============================================================================
+ */
+#define RET_HANDLER_BT_NAME(name)	ret_handler_bt_##name
+#define DEFINE_RET_HANDLER_BT(name) \
+	int RET_HANDLER_BT_NAME(name)(struct kretprobe_instance *ri, \
+				      struct pt_regs *regs) \
+	{ \
+		unsigned int len = *(unsigned int *)ri->data; \
+		if (len) { \
+			struct energy_data *ed = get_energy_data(current); \
+			if (ed) \
+				atomic64_add(len, &ed->bytes_##name); \
+			atomic64_add(len, &ed_system.bytes_##name); \
+		} \
+	return 0; \
+}
+
+static DEFINE_RET_HANDLER_BT(l2cap_recv_acldata)
+static DEFINE_RET_HANDLER_BT(sco_recv_scodata)
+static DEFINE_RET_HANDLER_BT(hci_send_acl)
+static DEFINE_RET_HANDLER_BT(hci_send_sco)
+
+static int entry_handler_generic_bt(struct kretprobe_instance *ri,
+				    struct pt_regs *regs)
+{
+	struct sk_buff *skb = (struct sk_buff *)swap_get_sarg(regs, 1);
+	unsigned int *len = (unsigned int *)ri->data;
+
+	*len = skb ? skb->len : 0;
+
+	return 0;
+}
+
+static struct kretprobe l2cap_recv_acldata_krp = {
+	.entry_handler = entry_handler_generic_bt,
+	.handler = RET_HANDLER_BT_NAME(l2cap_recv_acldata),
+	.data_size = sizeof(unsigned int)
+};
+
+static struct kretprobe sco_recv_scodata_krp = {
+	.entry_handler = entry_handler_generic_bt,
+	.handler = RET_HANDLER_BT_NAME(sco_recv_scodata),
+	.data_size = sizeof(unsigned int)
+};
+
+static struct kretprobe hci_send_acl_krp = {
+	.entry_handler = entry_handler_generic_bt,
+	.handler = RET_HANDLER_BT_NAME(hci_send_acl),
+	.data_size = sizeof(unsigned int)
+};
+
+static struct kretprobe hci_send_sco_krp = {
+	.entry_handler = entry_handler_generic_bt,
+	.handler = RET_HANDLER_BT_NAME(hci_send_sco),
+	.data_size = sizeof(unsigned int)
+};
+
+
+static int energy_bt_once(void)
+{
+	const char *sym;
+
+	sym = "l2cap_recv_acldata";
+	l2cap_recv_acldata_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (l2cap_recv_acldata_krp.kp.addr == NULL)
+		goto not_found;
+
+	sym = "sco_recv_scodata";
+	sco_recv_scodata_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (sco_recv_scodata_krp.kp.addr == NULL)
+		goto not_found;
+
+	sym = "hci_send_acl";
+	hci_send_acl_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (hci_send_acl_krp.kp.addr == NULL)
+		goto not_found;
+
+	sym = "hci_send_sco";
+	hci_send_sco_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (hci_send_sco_krp.kp.addr == NULL)
+		goto not_found;
+
+	return 0;
+
+not_found:
+	printk(KERN_INFO "ERROR: symbol '%s' not found\n", sym);
+	return -ESRCH;
+}
+
+static int energy_bt_flag = 0;
+
+static int energy_bt_set(void)
+{
+	int ret;
+
+	ret = swap_register_kretprobe(&l2cap_recv_acldata_krp);
+	if (ret) {
+		pr_err("register fail 'l2cap_recv_acldata_krp' ret=%d\n", ret);
+		return ret;
+	}
+
+	ret = swap_register_kretprobe(&sco_recv_scodata_krp);
+	if (ret) {
+		printk("register fail 'sco_recv_scodata_krp' ret=%d\n" ,ret);
+		goto unreg_l2cap_recv_acldata;
+	}
+
+	ret = swap_register_kretprobe(&hci_send_acl_krp);
+	if (ret) {
+		printk("register fail 'hci_send_acl_krp' ret=%d\n", ret);
+		goto unreg_sco_recv_scodata;
+	}
+
+	ret = swap_register_kretprobe(&hci_send_sco_krp);
+	if (ret) {
+		printk("register fail 'hci_send_sco_krp' ret=%d\n", ret);
+		goto unreg_hci_send_acl;
+	}
+
+	energy_bt_flag = 1;
+
+	return 0;
+
+unreg_hci_send_acl:
+	swap_unregister_kretprobe(&hci_send_acl_krp);
+
+unreg_sco_recv_scodata:
+	swap_unregister_kretprobe(&sco_recv_scodata_krp);
+
+unreg_l2cap_recv_acldata:
+	swap_unregister_kretprobe(&l2cap_recv_acldata_krp);
+
+	return ret;
+}
+
+static void energy_bt_unset(void)
+{
+	if (energy_bt_flag == 0)
+		return;
+
+	swap_unregister_kretprobe(&hci_send_sco_krp);
+	swap_unregister_kretprobe(&hci_send_acl_krp);
+	swap_unregister_kretprobe(&sco_recv_scodata_krp);
+	swap_unregister_kretprobe(&l2cap_recv_acldata_krp);
+
+	energy_bt_flag = 0;
+}
+
+
+
+
+
 enum parameter_type {
 	PT_CPU,
 	PT_READ,
 	PT_WRITE,
 	PT_WF_RECV,
-	PT_WF_SEND
+	PT_WF_SEND,
+	PT_L2CAP_RECV,
+	PT_SCO_RECV,
+	PT_SEND_ACL,
+	PT_SEND_SCO
 };
 
 struct cmd_pt {
@@ -635,6 +813,18 @@ static void callback_for_proc(struct sspt_proc *proc, void *data)
 			break;
 		case PT_WF_SEND:
 			*val += atomic64_read(&ed->bytes_send);
+			break;
+		case PT_L2CAP_RECV:
+			*val += atomic64_read(&ed->bytes_l2cap_recv_acldata);
+			break;
+		case PT_SCO_RECV:
+			*val += atomic64_read(&ed->bytes_sco_recv_scodata);
+			break;
+		case PT_SEND_ACL:
+			*val += atomic64_read(&ed->bytes_hci_send_acl);
+			break;
+		case PT_SEND_SCO:
+			*val += atomic64_read(&ed->bytes_hci_send_sco);
 			break;
 		default:
 			break;
@@ -696,6 +886,18 @@ int get_parameter_energy(enum parameter_energy pe, void *buf, size_t sz)
 	case PE_WF_SEND_SYSTEM:
 		*val = atomic64_read(&ed_system.bytes_send);
 		break;
+	case PE_L2CAP_RECV_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_l2cap_recv_acldata);
+		break;
+	case PE_SCO_RECV_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_sco_recv_scodata);
+		break;
+	case PT_SEND_ACL_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_hci_send_acl);
+		break;
+	case PT_SEND_SCO_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_hci_send_sco);
+		break;
 	case PE_READ_APPS:
 		current_parameter_apps(PT_READ, buf, sz);
 		break;
@@ -707,6 +909,18 @@ int get_parameter_energy(enum parameter_energy pe, void *buf, size_t sz)
 		break;
 	case PE_WF_SEND_APPS:
 		current_parameter_apps(PT_WF_SEND, buf, sz);
+		break;
+	case PE_L2CAP_RECV_APPS:
+		current_parameter_apps(PT_L2CAP_RECV, buf, sz);
+		break;
+	case PE_SCO_RECV_APPS:
+		current_parameter_apps(PT_SCO_RECV, buf, sz);
+		break;
+	case PT_SEND_ACL_APPS:
+		current_parameter_apps(PT_SEND_ACL, buf, sz);
+		break;
+	case PT_SEND_SCO_APPS:
+		current_parameter_apps(PT_SEND_SCO, buf, sz);
 		break;
 	default:
 		ret = -EINVAL;
@@ -744,6 +958,7 @@ int do_set_energy(void)
 		goto unregister_sys_write;
 	}
 
+	energy_bt_set();
 	energy_wifi_set();
 
 	/* TODO: check return value */
@@ -764,6 +979,7 @@ void do_unset_energy(void)
 {
 	lcd_unset_energy();
 	energy_wifi_unset();
+	energy_bt_unset();
 
 	swap_unregister_kretprobe(&switch_to_krp);
 	swap_unregister_kretprobe(&sys_write_krp);
@@ -846,6 +1062,7 @@ int energy_once(void)
 	if (sys_write_krp.kp.addr == NULL)
 		goto not_found;
 
+	energy_bt_once();
 	energy_wifi_once();
 
 	return 0;
