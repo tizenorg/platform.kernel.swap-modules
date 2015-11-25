@@ -231,16 +231,22 @@ int web_prof_disable(void)
 			ret = -EFAULT;
 		} else {
 			if (!__web_func_inst_remove(web_data->inspserver_addr,
-					     web_data->inspserver))
+						    web_data->inspserver)) {
 				kfree(web_data->inspserver);
+				web_data->inspserver = NULL;
+			}
 
 			if (!__web_func_inst_remove(web_data->willexecute_addr,
-					     web_data->willexecute))
+						    web_data->willexecute)) {
 				kfree(web_data->willexecute);
+				web_data->willexecute = NULL;
+			}
 
 			if (!__web_func_inst_remove(web_data->didexecute_addr,
-					     web_data->didexecute))
-				kfree(web_data->willexecute);
+						    web_data->didexecute)) {
+				kfree(web_data->didexecute);
+				web_data->didexecute = NULL;
+			}
 		}
 	} else {
 		pr_err("ERROR: Web profiling is already disabled\n");
