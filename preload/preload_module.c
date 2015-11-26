@@ -417,14 +417,8 @@ static inline void __write_data_to_msg(char *msg, size_t len,
 
 
 
-enum mmap_type_t {
-	MMAP_LOADER,
-	MMAP_HANDLERS,
-	MMAP_SKIP
-};
-
 struct mmap_priv {
-	enum mmap_type_t type;
+	struct dentry *dentry;
 };
 
 static inline bool check_prot(unsigned long prot)
@@ -441,7 +435,7 @@ static int mmap_entry_handler(struct kretprobe_instance *ri,
 	struct dentry *dentry, *loader_dentry;
 	struct bin_info *hi;
 
-	priv->type = MMAP_SKIP;
+	priv->dentry = NULL;
 	if (!check_prot(prot))
 		return 0;
 
@@ -460,9 +454,9 @@ static int mmap_entry_handler(struct kretprobe_instance *ri,
 
 	loader_dentry = preload_debugfs_get_loader_dentry();
 	if (dentry == loader_dentry)
-		priv->type = MMAP_LOADER;
+		priv->dentry = loader_dentry;
 	else if (hi->dentry != NULL && dentry == hi->dentry)
-		priv->type = MMAP_HANDLERS;
+		priv->dentry = hi->dentry;
 
 	preload_storage_put_handlers_info(hi);
 
@@ -476,9 +470,14 @@ static int mmap_ret_handler(struct kretprobe_instance *ri,
 	struct task_struct *task = current->group_leader;
 	struct process_data *pd;
 	struct sspt_proc *proc;
+	struct dentry *loader_dentry;
+	struct bin_info *hi;
 	unsigned long vaddr;
 
 	if (!task->mm)
+		return 0;
+
+	if (priv->dentry == NULL)
 		return 0;
 
 	vaddr = (unsigned long)regs_return_value(regs);
@@ -496,17 +495,21 @@ static int mmap_ret_handler(struct kretprobe_instance *ri,
 		return 0;
 	}
 
-	switch (priv->type) {
-	case MMAP_LOADER:
-		preload_pd_set_loader_base(pd, vaddr);
-		break;
-	case MMAP_HANDLERS:
-		preload_pd_set_handlers_base(pd, vaddr);
-		break;
-	case MMAP_SKIP:
-	default:
-		break;
+	hi = preload_storage_get_handlers_info();
+	if (hi == NULL) {
+		printk(PRELOAD_PREFIX "Cannot get handlers info [%u %u %s]\n",
+		       current->tgid, current->pid, current->comm);
+		return 0;
 	}
+
+	loader_dentry = preload_debugfs_get_loader_dentry();
+
+	if (priv->dentry == loader_dentry)
+		preload_pd_set_loader_base(pd, vaddr);
+	else if (priv->dentry == hi->dentry)
+		preload_pd_set_handlers_base(pd, vaddr);
+
+	preload_storage_put_handlers_info(hi);
 
 	return 0;
 }
