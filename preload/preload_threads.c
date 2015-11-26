@@ -9,7 +9,6 @@
 #include "preload.h"
 #include "preload_threads.h"
 #include "preload_debugfs.h"
-#include "preload_pd.h"
 
 struct preload_td {
 	struct list_head slots;

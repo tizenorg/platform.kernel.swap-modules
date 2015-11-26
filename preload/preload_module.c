@@ -59,7 +59,7 @@ static enum preload_status_t __preload_status = SWAP_PRELOAD_NOT_READY;
 static int __preload_cbs_start_h = -1;
 static int __preload_cbs_stop_h = -1;
 
-static inline struct process_data *__get_process_data(struct uretprobe *rp)
+static inline struct pd_t *__get_process_data(struct uretprobe *rp)
 {
 	struct us_ip *ip = to_us_ip(rp);
 	struct sspt_proc *proc = ip_to_proc(ip);
@@ -468,7 +468,7 @@ static int mmap_ret_handler(struct kretprobe_instance *ri,
 {
 	struct mmap_priv *priv = (struct mmap_priv *)ri->data;
 	struct task_struct *task = current->group_leader;
-	struct process_data *pd;
+	struct pd_t *pd;
 	struct sspt_proc *proc;
 	struct dentry *loader_dentry;
 	struct bin_info *hi;
@@ -537,7 +537,7 @@ static void preload_stop_cb(void)
 
 static unsigned long __not_loaded_entry(struct uretprobe_instance *ri,
 					struct pt_regs *regs,
-					struct process_data *pd)
+					struct pd_t *pd)
 {
 	char __user *path = NULL;
 	unsigned long vaddr = 0;
@@ -575,7 +575,7 @@ static unsigned long __not_loaded_entry(struct uretprobe_instance *ri,
 
 static unsigned long __loaded_entry(struct uretprobe_instance *ri,
 				    struct pt_regs *regs,
-				    struct process_data *pd)
+				    struct pd_t *pd)
 {
 	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 	unsigned long offset = ip->desc->info.pl_i.handler;
@@ -620,7 +620,7 @@ static unsigned long __loaded_entry(struct uretprobe_instance *ri,
 }
 
 static void __loading_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
-			  struct process_data *pd)
+			  struct pd_t *pd)
 {
 	struct us_priv *priv = (struct us_priv *)ri->data;
 	unsigned long vaddr = 0;
@@ -645,7 +645,7 @@ static void __loading_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
 }
 
 static void __loaded_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
-			 struct process_data *pd)
+			 struct pd_t *pd)
 {
 	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 	struct us_priv *priv = (struct us_priv *)ri->data;
@@ -672,7 +672,7 @@ static void __loaded_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
 }
 
 static void __failed_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
-			 struct process_data *pd)
+			 struct pd_t *pd)
 {
 	if (preload_pd_get_attempts(pd)) {
 		preload_pd_set_state(pd, NOT_LOADED);
@@ -681,7 +681,7 @@ static void __failed_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
 
 static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct process_data *pd = __get_process_data(ri->rp);
+	struct pd_t *pd = __get_process_data(ri->rp);
 	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 	struct us_priv *priv = (struct us_priv *)ri->data;
 	unsigned long flags = get_preload_flags(current);
@@ -715,7 +715,7 @@ out_set_origin:
 
 static int preload_us_ret(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct process_data *pd = __get_process_data(ri->rp);
+	struct pd_t *pd = __get_process_data(ri->rp);
 
 	switch (preload_pd_get_state(pd)) {
 	case NOT_LOADED:

@@ -13,15 +13,15 @@
 #include "preload_storage.h"
 #include "preload.h"
 
-struct process_data {
-	enum preload_state_t state;
+struct pd_t {
+	enum ps_t state;
 	unsigned long loader_base;
 	unsigned long handlers_base;
 	unsigned long data_page;
 	void __user *handle;
 	long attempts;
-	long refcount;
 };
+
 
 static struct bin_info *handlers_info;
 
@@ -34,82 +34,72 @@ static inline bool check_vma(struct vm_area_struct *vma, struct dentry *dentry)
 	return (file && (vma->vm_flags & VM_EXEC) && (file->f_dentry == dentry));
 }
 
-static inline enum preload_state_t __get_state(struct process_data *pd)
+static inline enum ps_t __get_state(struct pd_t *pd)
 {
 	return pd->state;
 }
 
-static inline void __set_state(struct process_data *pd,
-				   enum preload_state_t state)
+static inline void __set_state(struct pd_t *pd,
+				   enum ps_t state)
 {
 	pd->state = state;
 }
 
-static inline unsigned long __get_loader_base(struct process_data *pd)
+static inline unsigned long __get_loader_base(struct pd_t *pd)
 {
 	return pd->loader_base;
 }
 
-static inline void __set_loader_base(struct process_data *pd,
+static inline void __set_loader_base(struct pd_t *pd,
 				     unsigned long addr)
 {
 	pd->loader_base = addr;
 }
 
-static inline unsigned long __get_handlers_base(struct process_data *pd)
+static inline unsigned long __get_handlers_base(struct pd_t *pd)
 {
 	return pd->handlers_base;
 }
 
-static inline void __set_handlers_base(struct process_data *pd,
+static inline void __set_handlers_base(struct pd_t *pd,
 				       unsigned long addr)
 {
 	pd->handlers_base = addr;
 }
 
-static inline char __user *__get_path(struct process_data *pd)
+static inline char __user *__get_path(struct pd_t *pd)
 {
 	return (char *)pd->data_page;
 }
 
-static inline unsigned long __get_data_page(struct process_data *pd)
+static inline unsigned long __get_data_page(struct pd_t *pd)
 {
 	return pd->data_page;
 }
 
-static inline void __set_data_page(struct process_data *pd, unsigned long page)
+static inline void __set_data_page(struct pd_t *pd, unsigned long page)
 {
 	pd->data_page = page;
 }
 
-static inline void *__get_handle(struct process_data *pd)
+static inline void *__get_handle(struct pd_t *pd)
 {
 	return pd->handle;
 }
 
-static inline void __set_handle(struct process_data *pd, void __user *handle)
+static inline void __set_handle(struct pd_t *pd, void __user *handle)
 {
 	pd->handle = handle;
 }
 
-static inline long __get_attempts(struct process_data *pd)
+static inline long __get_attempts(struct pd_t *pd)
 {
 	return pd->attempts;
 }
 
-static inline void __set_attempts(struct process_data *pd, long attempts)
+static inline void __set_attempts(struct pd_t *pd, long attempts)
 {
 	pd->attempts = attempts;
-}
-
-static inline long __get_refcount(struct process_data *pd)
-{
-	return pd->refcount;
-}
-
-static inline void __set_refcount(struct process_data *pd, long refcount)
-{
-	pd->refcount = refcount;
 }
 
 
@@ -128,7 +118,7 @@ static int __pd_create_on_demand(void)
 
 
 
-enum preload_state_t preload_pd_get_state(struct process_data *pd)
+enum ps_t preload_pd_get_state(struct pd_t *pd)
 {
 	if (pd == NULL)
 		return 0;
@@ -136,7 +126,7 @@ enum preload_state_t preload_pd_get_state(struct process_data *pd)
 	return __get_state(pd);
 }
 
-void preload_pd_set_state(struct process_data *pd, enum preload_state_t state)
+void preload_pd_set_state(struct pd_t *pd, enum ps_t state)
 {
 	if (pd == NULL) {
 		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
@@ -147,7 +137,7 @@ void preload_pd_set_state(struct process_data *pd, enum preload_state_t state)
 	__set_state(pd, state);
 }
 
-unsigned long preload_pd_get_loader_base(struct process_data *pd)
+unsigned long preload_pd_get_loader_base(struct pd_t *pd)
 {
 	if (pd == NULL)
 		return 0;
@@ -155,12 +145,12 @@ unsigned long preload_pd_get_loader_base(struct process_data *pd)
 	return __get_loader_base(pd);
 }
 
-void preload_pd_set_loader_base(struct process_data *pd, unsigned long vaddr)
+void preload_pd_set_loader_base(struct pd_t *pd, unsigned long vaddr)
 {
 	__set_loader_base(pd, vaddr);
 }
 
-unsigned long preload_pd_get_handlers_base(struct process_data *pd)
+unsigned long preload_pd_get_handlers_base(struct pd_t *pd)
 {
 	if (pd == NULL)
 		return 0;
@@ -168,26 +158,12 @@ unsigned long preload_pd_get_handlers_base(struct process_data *pd)
 	return __get_handlers_base(pd);
 }
 
-void preload_pd_set_handlers_base(struct process_data *pd, unsigned long vaddr)
+void preload_pd_set_handlers_base(struct pd_t *pd, unsigned long vaddr)
 {
 	__set_handlers_base(pd, vaddr);
 }
 
-void preload_pd_put_path(struct process_data *pd)
-{
-	if (pd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
-               current->tgid, current->comm);
-		return;
-	}
-
-	if (__get_data_page(pd) == 0)
-		return;
-
-	__set_data_page(pd, 0);
-}
-
-char __user *preload_pd_get_path(struct process_data *pd)
+char __user *preload_pd_get_path(struct pd_t *pd)
 {
 	char __user *path = __get_path(pd);
 
@@ -196,7 +172,7 @@ char __user *preload_pd_get_path(struct process_data *pd)
 
 
 
-void *preload_pd_get_handle(struct process_data *pd)
+void *preload_pd_get_handle(struct pd_t *pd)
 {
 	if (pd == NULL)
 		return NULL;
@@ -204,7 +180,7 @@ void *preload_pd_get_handle(struct process_data *pd)
 	return __get_handle(pd);
 }
 
-void preload_pd_set_handle(struct process_data *pd, void __user *handle)
+void preload_pd_set_handle(struct pd_t *pd, void __user *handle)
 {
 	if (pd == NULL) {
 		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
@@ -215,7 +191,7 @@ void preload_pd_set_handle(struct process_data *pd, void __user *handle)
 	__set_handle(pd, handle);
 }
 
-long preload_pd_get_attempts(struct process_data *pd)
+long preload_pd_get_attempts(struct pd_t *pd)
 {
 	if (pd == NULL)
 		return -EINVAL;
@@ -223,7 +199,7 @@ long preload_pd_get_attempts(struct process_data *pd)
 	return __get_attempts(pd);
 }
 
-void preload_pd_dec_attempts(struct process_data *pd)
+void preload_pd_dec_attempts(struct pd_t *pd)
 {
 	long attempts;
 
@@ -238,47 +214,9 @@ void preload_pd_dec_attempts(struct process_data *pd)
 	__set_attempts(pd, attempts);
 }
 
-void preload_pd_inc_refs(struct process_data *pd)
+struct pd_t *preload_pd_get(struct sspt_proc *proc)
 {
-	long refs;
-
-	if (pd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
-               current->tgid, current->comm);
-		return;
-	}
-
-	refs = __get_refcount(pd);
-	refs++;
-	__set_refcount(pd, refs);
-}
-
-void preload_pd_dec_refs(struct process_data *pd)
-{
-	long refs;
-
-	if (pd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
-               current->tgid, current->comm);
-		return;
-	}
-
-	refs = __get_refcount(pd);
-	refs--;
-	__set_refcount(pd, refs);
-}
-
-long preload_pd_get_refs(struct process_data *pd)
-{
-	if (pd == NULL)
-		return -EINVAL;
-
-	return __get_refcount(pd);
-}
-
-struct process_data *preload_pd_get(struct sspt_proc *proc)
-{
-	return (struct process_data *)proc->private_data;
+	return (struct pd_t *)proc->private_data;
 }
 
 static unsigned long make_preload_path(void)
@@ -322,7 +260,7 @@ static struct vm_area_struct *find_vma_by_dentry(struct mm_struct *mm,
         return NULL;
 }
 
-static void set_already_mapp(struct process_data *pd, struct mm_struct *mm)
+static void set_already_mapp(struct pd_t *pd, struct mm_struct *mm)
 {
 	struct vm_area_struct *vma;
 	struct dentry *ld = preload_debugfs_get_loader_dentry();
@@ -345,9 +283,9 @@ static void set_already_mapp(struct process_data *pd, struct mm_struct *mm)
 	up_read(&mm->mmap_sem);
 }
 
-static struct process_data *do_create_pd(struct task_struct *task)
+static struct pd_t *do_create_pd(struct task_struct *task)
 {
-	struct process_data *pd;
+	struct pd_t *pd;
 	unsigned long page;
 	int ret;
 
@@ -383,7 +321,7 @@ create_pd_exit:
 
 static void *pd_create(struct sspt_proc *proc)
 {
-	struct process_data *pd;
+	struct pd_t *pd;
 
 	pd = do_create_pd(proc->task);
 
