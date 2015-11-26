@@ -38,10 +38,12 @@ struct img_file {
 	struct list_head list;		/**< For img_proc */
 	struct dentry *dentry;		/**< Dentry of file */
 	struct list_head ip_list;	/**< For img_ip */
+	atomic_t use;
 };
 
-struct img_file *create_img_file(struct dentry *dentry);
-void free_img_file(struct img_file *ip);
+struct img_file *img_file_create(struct dentry *dentry);
+void img_file_get(struct img_file *file);
+void img_file_put(struct img_file *file);
 
 int img_file_add_ip(struct img_file *file, unsigned long addr,
 		    struct probe_desc *pd);
