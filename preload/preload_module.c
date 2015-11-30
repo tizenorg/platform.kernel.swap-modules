@@ -59,6 +59,8 @@ static enum preload_status_t __preload_status = SWAP_PRELOAD_NOT_READY;
 static int __preload_cbs_start_h = -1;
 static int __preload_cbs_stop_h = -1;
 
+static struct dentry *handler_dentry = NULL;
+
 static inline struct pd_t *__get_process_data(struct uretprobe *rp)
 {
 	struct us_ip *ip = to_us_ip(rp);
@@ -189,24 +191,30 @@ static inline void __restore_uregs(struct uretprobe_instance *ri,
 }
 
 static inline void print_regs(const char *prefix, struct pt_regs *regs,
-			      struct uretprobe_instance *ri)
+			      struct uretprobe_instance *ri, struct hd_t *hd)
 {
+	struct dentry *dentry = preload_pd_get_dentry(hd);
+
 #ifdef CONFIG_ARM
-	printk(PRELOAD_PREFIX "%s[%d/%d] (%d) %s addr(%08lx), "
+	printk(PRELOAD_PREFIX "%s[%d/%d] %s (%d) %s addr(%08lx), "
 	       "r0(%08lx), r1(%08lx), r2(%08lx), r3(%08lx), "
 	       "r4(%08lx), r5(%08lx), r6(%08lx), r7(%08lx), "
 	       "sp(%08lx), lr(%08lx), pc(%08lx)\n",
 	       current->comm, current->tgid, current->pid,
-	       (int)preload_pd_get_state(__get_process_data(ri->rp)),
+	       dentry != NULL ? (char *)(dentry->d_name.name) :
+				(char *)("NULL"),
+	       (int)preload_pd_get_state(hd),
 	       prefix, (unsigned long)ri->rp->up.addr,
 	       regs->ARM_r0, regs->ARM_r1, regs->ARM_r2, regs->ARM_r3,
 	       regs->ARM_r4, regs->ARM_r5, regs->ARM_r6, regs->ARM_r7,
 	       regs->ARM_sp, regs->ARM_lr, regs->ARM_pc);
 #else /* !CONFIG_ARM */
-	printk(PRELOAD_PREFIX "%s[%d/%d] (%d) %s addr(%08lx), "
+	printk(PRELOAD_PREFIX "%s[%d/%d] %s (%d) %s addr(%08lx), "
 	       "ip(%08lx), arg0(%08lx), arg1(%08lx), raddr(%08lx)\n",
 	       current->comm, current->tgid, current->pid,
-	       (int)preload_pd_get_state(__get_process_data(ri->rp)),
+	       dentry != NULL ? (char *)(dentry->d_name.name) :
+				(char *)("NULL"),
+	       (int)preload_pd_get_state(hd),
 	       prefix, (unsigned long)ri->rp->up.addr,
 	       regs->EREG(ip), swap_get_arg(regs, 0), swap_get_arg(regs, 1),
 	       swap_get_ret_addr(regs));
@@ -299,31 +307,21 @@ static inline bool __is_probe_non_block(struct us_ip *ip)
 	return false;
 }
 
-static inline bool __is_handlers_call(struct vm_area_struct *caller)
+static inline bool __is_handlers_call(struct vm_area_struct *caller,
+				      struct pd_t *pd)
 {
-	/* TODO Optimize using start/stop callbacks */
-
-	struct bin_info *hi = preload_storage_get_handlers_info();
-	bool res = false;
-
-	if (hi == NULL) {
-		printk(PRELOAD_PREFIX "Cannot get handlers dentry!\n");
-		goto is_handlers_call_out;
-	}
+	struct hd_t *hd;
 
 	if (caller == NULL || caller->vm_file == NULL ||
-		caller->vm_file->f_dentry == NULL) {
-		goto is_handlers_call_out;
+		caller->vm_file->f_path.dentry == NULL) {
+		return false;
 	}
 
-	if (hi->dentry == caller->vm_file->f_dentry)
-		res = true;
+	hd = preload_pd_get_hd(pd, caller->vm_file->f_path.dentry);
+	if (hd != NULL)
+		return true;
 
-is_handlers_call_out:
-
-	preload_storage_put_handlers_info(hi);
-
-	return res;
+	return false;
 }
 
 static inline int __msg_sanitization(char *user_msg, size_t len,
@@ -432,8 +430,11 @@ static int mmap_entry_handler(struct kretprobe_instance *ri,
 	struct file *file = (struct file *)swap_get_karg(regs, 0);
 	unsigned long prot = swap_get_karg(regs, 3);
 	struct mmap_priv *priv = (struct mmap_priv *)ri->data;
+	struct task_struct *task = current->group_leader;
 	struct dentry *dentry, *loader_dentry;
-	struct bin_info *hi;
+	struct pd_t *pd;
+	struct hd_t *hd;
+	struct sspt_proc *proc;
 
 	priv->dentry = NULL;
 	if (!check_prot(prot))
@@ -441,24 +442,31 @@ static int mmap_entry_handler(struct kretprobe_instance *ri,
 
 	if (!file)
 		return 0;
+
 	dentry = file->f_dentry;
 	if (dentry == NULL)
 		return 0;
 
-	hi = preload_storage_get_handlers_info();
-	if (hi == NULL) {
-		printk(PRELOAD_PREFIX "Cannot get handlers info [%u %u %s]\n",
-		       current->tgid, current->pid, current->comm);
+	loader_dentry = preload_debugfs_get_loader_dentry();
+	if (dentry == loader_dentry) {
+		priv->dentry = loader_dentry;
 		return 0;
 	}
 
-	loader_dentry = preload_debugfs_get_loader_dentry();
-	if (dentry == loader_dentry)
-		priv->dentry = loader_dentry;
-	else if (hi->dentry != NULL && dentry == hi->dentry)
-		priv->dentry = hi->dentry;
+	proc = sspt_proc_get_by_task(task);
+	if (!proc)
+		return 0;
 
-	preload_storage_put_handlers_info(hi);
+	pd = preload_pd_get(proc);
+	if (pd == NULL) {
+		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n",
+		       __LINE__, current->tgid, current->comm);
+		return 0;
+	}
+
+	hd = preload_pd_get_hd(pd, dentry);
+	if (hd != NULL)
+		priv->dentry = preload_pd_get_dentry(hd);
 
 	return 0;
 }
@@ -469,9 +477,9 @@ static int mmap_ret_handler(struct kretprobe_instance *ri,
 	struct mmap_priv *priv = (struct mmap_priv *)ri->data;
 	struct task_struct *task = current->group_leader;
 	struct pd_t *pd;
+	struct hd_t *hd;
 	struct sspt_proc *proc;
 	struct dentry *loader_dentry;
-	struct bin_info *hi;
 	unsigned long vaddr;
 
 	if (!task->mm)
@@ -495,21 +503,14 @@ static int mmap_ret_handler(struct kretprobe_instance *ri,
 		return 0;
 	}
 
-	hi = preload_storage_get_handlers_info();
-	if (hi == NULL) {
-		printk(PRELOAD_PREFIX "Cannot get handlers info [%u %u %s]\n",
-		       current->tgid, current->pid, current->comm);
-		return 0;
-	}
-
 	loader_dentry = preload_debugfs_get_loader_dentry();
-
 	if (priv->dentry == loader_dentry)
 		preload_pd_set_loader_base(pd, vaddr);
-	else if (priv->dentry == hi->dentry)
-		preload_pd_set_handlers_base(pd, vaddr);
 
-	preload_storage_put_handlers_info(hi);
+
+	hd = preload_pd_get_hd(pd, priv->dentry);
+	if (hd != NULL)
+		preload_pd_set_handlers_base(hd, vaddr);
 
 	return 0;
 }
@@ -537,7 +538,7 @@ static void preload_stop_cb(void)
 
 static unsigned long __not_loaded_entry(struct uretprobe_instance *ri,
 					struct pt_regs *regs,
-					struct pd_t *pd)
+					struct pd_t *pd, struct hd_t *hd)
 {
 	char __user *path = NULL;
 	unsigned long vaddr = 0;
@@ -556,9 +557,9 @@ static unsigned long __not_loaded_entry(struct uretprobe_instance *ri,
 	if (vaddr) {
 		/* save original regs state */
 		__save_uregs(ri, regs);
-		print_regs("PROBE ORIG", regs, ri);
+		print_regs("ORIG", regs, ri, hd);
 
-		path = preload_pd_get_path(pd);
+		path = preload_pd_get_path(pd, hd);
 
 		/* set dlopen args: filename, flags */
 		swap_set_arg(regs, 0, (unsigned long)path/*swap_get_stack_ptr(regs)*/);
@@ -567,15 +568,51 @@ static unsigned long __not_loaded_entry(struct uretprobe_instance *ri,
 		/* do the jump to dlopen */
 		__prepare_ujump(ri, regs, vaddr);
 		/* set new state */
-		preload_pd_set_state(pd, LOADING);
+		preload_pd_set_state(hd, LOADING);
 	}
 
 	return vaddr;
 }
 
-static unsigned long __loaded_entry(struct uretprobe_instance *ri,
-				    struct pt_regs *regs,
-				    struct pd_t *pd)
+static void __loading_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
+			  struct pd_t *pd, struct hd_t *hd)
+{
+	struct us_priv *priv = (struct us_priv *)ri->data;
+	unsigned long vaddr = 0;
+
+	/* check if preloading has been completed */
+	vaddr = preload_pd_get_loader_base(pd) +
+		preload_debugfs_get_loader_offset();
+	if (vaddr && (priv->origin == vaddr)) {
+		preload_pd_set_handle(hd,
+				      (void __user *)regs_return_value(regs));
+
+		/* restore original regs state */
+		__restore_uregs(ri, regs);
+		print_regs("REST", regs, ri, hd);
+		/* check if preloading done */
+
+		if (preload_pd_get_handle(hd)) {
+			preload_pd_set_state(hd, LOADED);
+		} else {
+			preload_pd_dec_attempts(hd);
+			preload_pd_set_state(hd, FAILED);
+		}
+	}
+}
+
+static void __failed_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
+			 struct pd_t *pd, struct hd_t *hd)
+{
+	if (preload_pd_get_attempts(hd))
+		preload_pd_set_state(hd, NOT_LOADED);
+}
+
+
+
+static unsigned long __do_preload_entry(struct uretprobe_instance *ri,
+					struct pt_regs *regs,
+					struct hd_t *hd)
 {
 	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 	unsigned long offset = ip->desc->info.pl_i.handler;
@@ -586,7 +623,7 @@ static unsigned long __loaded_entry(struct uretprobe_instance *ri,
 	struct vm_area_struct *cvma;
 	enum preload_call_type ct;
 
-	base = preload_pd_get_handlers_base(pd);
+	base = preload_pd_get_handlers_base(hd);
 	if (base == 0)
 		return 0;	/* handlers isn't mapped */
 
@@ -604,7 +641,7 @@ static unsigned long __loaded_entry(struct uretprobe_instance *ri,
 		     (cvma->vm_file->f_path.dentry != NULL) &&
 		     !preload_control_check_dentry_is_ignored(cvma->vm_file->f_path.dentry)) &&
 		    __check_flag_and_call_type(ip, ct) &&
-		    !__is_handlers_call(cvma)) {
+		    !__is_handlers_call(cvma, preload_pd_get_parent_pd(hd))) {
 			if (preload_threads_set_data(current, caddr, ct, disable_addr,
 						     __should_drop(ip, ct)) != 0)
 				printk(PRELOAD_PREFIX "Error! Failed to set caller 0x%lx"
@@ -619,33 +656,42 @@ static unsigned long __loaded_entry(struct uretprobe_instance *ri,
 	return vaddr;
 }
 
-static void __loading_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
-			  struct pd_t *pd)
+static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
+	struct pd_t *pd = __get_process_data(ri->rp);
+	struct hd_t *hd;
+	unsigned long flags = get_preload_flags(current);
+	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 	struct us_priv *priv = (struct us_priv *)ri->data;
 	unsigned long vaddr = 0;
 
-	/* check if preloading has been completed */
-	vaddr = preload_pd_get_loader_base(pd) + preload_debugfs_get_loader_offset();
-	if (vaddr && (priv->origin == vaddr)) {
-		preload_pd_set_handle(pd, (void __user *)regs_return_value(regs));
+	if (handler_dentry == NULL)
+		goto out_set_orig;
 
-		/* restore original regs state */
-		__restore_uregs(ri, regs);
-		print_regs("PROBE REST", regs, ri);
-		/* check if preloading done */
+	if ((flags & HANDLER_RUNNING) ||
+	    preload_threads_check_disabled_probe(current, ip->orig_addr))
+		goto out_set_orig;
 
-		if (preload_pd_get_handle(pd)) {
-			preload_pd_set_state(pd, LOADED);
-		} else {
-			preload_pd_dec_attempts(pd);
-			preload_pd_set_state(pd, FAILED);
-		}
-	}
+	hd = preload_pd_get_hd(pd, handler_dentry);
+	if (hd == NULL)
+		goto out_set_orig;
+
+	if ((flags & HANDLER_RUNNING) ||
+	    preload_threads_check_disabled_probe(current, ip->orig_addr))
+		goto out_set_orig;
+
+	if (preload_pd_get_state(hd) == NOT_LOADED ||
+	    preload_pd_get_state(hd) == FAILED)
+		vaddr = __not_loaded_entry(ri, regs, pd, hd);
+	else if (preload_pd_get_state(hd) == LOADED)
+		vaddr =__do_preload_entry(ri, regs, hd);
+
+out_set_orig:
+	priv->origin = vaddr;
+	return 0;
 }
 
-static void __loaded_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
-			 struct pd_t *pd)
+static void __do_preload_ret(struct uretprobe_instance *ri, struct hd_t *hd)
 {
 	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 	struct us_priv *priv = (struct us_priv *)ri->data;
@@ -658,7 +704,7 @@ static void __loaded_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
 		bool non_blk_probe = __is_probe_non_block(ip);
 
 		/* drop the flag if the handler has completed */
-		vaddr = preload_pd_get_handlers_base(pd) + offset;
+		vaddr = preload_pd_get_handlers_base(hd) + offset;
 		if (vaddr && (priv->origin == vaddr)) {
 			if (preload_threads_put_data(current) != 0)
 				printk(PRELOAD_PREFIX "Error! Failed to put caller slot"
@@ -671,64 +717,30 @@ static void __loaded_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
 	}
 }
 
-static void __failed_ret(struct uretprobe_instance *ri, struct pt_regs *regs,
-			 struct pd_t *pd)
-{
-	if (preload_pd_get_attempts(pd)) {
-		preload_pd_set_state(pd, NOT_LOADED);
-	}
-}
-
-static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
-{
-	struct pd_t *pd = __get_process_data(ri->rp);
-	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
-	struct us_priv *priv = (struct us_priv *)ri->data;
-	unsigned long flags = get_preload_flags(current);
-	unsigned long vaddr = 0;
-
-	if ((flags & HANDLER_RUNNING) ||
-	    preload_threads_check_disabled_probe(current, ip->orig_addr))
-		goto out_set_origin;
-
-	switch (preload_pd_get_state(pd)) {
-	case NOT_LOADED:
-		vaddr = __not_loaded_entry(ri, regs, pd);
-		break;
-	case LOADING:
-		/* handlers have not yet been loaded... just ignore */
-		break;
-	case LOADED:
-		vaddr = __loaded_entry(ri, regs, pd);
-		break;
-	case FAILED:
-	case ERROR:
-	default:
-		/* do nothing */
-		break;
-	}
-
-out_set_origin:
-	priv->origin = vaddr;
-	return 0;
-}
-
 static int preload_us_ret(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct pd_t *pd = __get_process_data(ri->rp);
+	struct hd_t *hd;
 
-	switch (preload_pd_get_state(pd)) {
+	if (handler_dentry == NULL)
+		return 0;
+
+	hd = preload_pd_get_hd(pd, handler_dentry);
+	if (hd == NULL)
+		return 0;
+
+	switch (preload_pd_get_state(hd)) {
 	case NOT_LOADED:
 		/* loader has not yet been mapped... just ignore */
 		break;
 	case LOADING:
-		__loading_ret(ri, regs, pd);
+		__loading_ret(ri, regs, pd, hd);
 		break;
 	case LOADED:
-		__loaded_ret(ri, regs, pd);
+		__do_preload_ret(ri, hd);
 		break;
 	case FAILED:
-		__failed_ret(ri, regs, pd);
+		__failed_ret(ri, regs, pd, hd);
 		break;
 	case ERROR:
 	default:
@@ -908,6 +920,11 @@ void preload_unset(void)
 	/*module_put(THIS_MODULE);*/
 	preload_module_set_not_ready();
 
+}
+
+void preload_module_set_handler_dentry(struct dentry *dentry)
+{
+	handler_dentry = dentry;
 }
 
 static int preload_module_init(void)
