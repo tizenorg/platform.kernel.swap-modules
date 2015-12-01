@@ -100,7 +100,7 @@ static void restore_current_flags(struct pt_regs *regs, unsigned long flags)
 int arch_prepare_uprobe(struct uprobe *p)
 {
 	struct task_struct *task = p->task;
-	u8 *tramp = p->atramp.tramp;
+	u8 tramp[UPROBES_TRAMP_LEN + BP_INSN_SIZE];	/* BP for uretprobe */
 	enum { call_relative_opcode = 0xe8 };
 
 	if (!read_proc_vm_atomic(task, (unsigned long)p->addr,
@@ -116,9 +116,7 @@ int arch_prepare_uprobe(struct uprobe *p)
 
 	tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
 
-	/* TODO: remove dual info */
 	p->opcode = tramp[0];
-
 	p->ainsn.boostable = swap_can_boost(tramp) ? 0 : -1;
 
 	p->ainsn.insn = swap_slot_alloc(p->sm);
@@ -128,7 +126,7 @@ int arch_prepare_uprobe(struct uprobe *p)
 	}
 
 	if (!write_proc_vm_atomic(task, (unsigned long)p->ainsn.insn,
-				  tramp, sizeof(p->atramp.tramp))) {
+				  tramp, sizeof(tramp))) {
 		swap_slot_free(p->sm, p->ainsn.insn);
 		printk(KERN_INFO "failed to write memory %p!\n", tramp);
 		return -EINVAL;

@@ -57,14 +57,6 @@ struct arch_insn {
 	int boostable;
 };
 
-/**
- * @struct arch_tramp
- * @brief Stores x86 trampoline
- */
-struct arch_tramp {
-	u8 tramp[UPROBES_TRAMP_LEN + BP_INSN_SIZE]; /**< BP for uretprobe */
-};
-
 
 static inline u32 swap_get_urp_float(struct pt_regs *regs)
 {

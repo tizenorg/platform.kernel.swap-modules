@@ -56,16 +56,6 @@ struct arch_insn {
 	uprobe_opcode_t *insn;
 };
 
-/**
- * @struct arch_tramp
- * @brief Stores arch-dependent trampolines.
- */
-struct arch_tramp {
-	unsigned long tramp_arm[UPROBES_TRAMP_LEN];     /**< ARM trampoline */
-	unsigned long tramp_thumb[UPROBES_TRAMP_LEN];   /**< Thumb trampoline */
-	void *utramp;                                   /**< Pointer to trampoline */
-};
-
 
 static inline u32 swap_get_urp_float(struct pt_regs *regs)
 {

@@ -98,7 +98,6 @@ struct uprobe {
 	unsigned safe_thumb:1;
 #endif
 	struct arch_insn ainsn;              /**< Copy of the original instruction.*/
-	struct arch_tramp atramp;            /**< Stores trampoline */
 	struct task_struct *task;            /**< Pointer to the task struct */
 	struct slot_manager *sm;             /**< Pointer to slot manager */
 	bool atomic_ctx;                    /**< Handler context */
