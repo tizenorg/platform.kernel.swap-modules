@@ -5,8 +5,11 @@ obj-m := swap_uprobe.o
 swap_uprobe-y := swap_uprobes.o
 
 ### ARM
-swap_uprobe-$(CONFIG_ARM) += arch/arm/swap-asm/swap_uprobes.o \
-                             arch/arm/swap-asm/trampoline_thumb.o
+swap_uprobe-$(CONFIG_ARM) += \
+	arch/arm/swap-asm/swap_uprobes.o \
+	arch/arm/swap-asm/trampoline_thumb.o \
+	arch/arm/swap-asm/decode_thumb.o \
+	arch/arm/swap-asm/thumb_tramps.o
 
 
 ### X86

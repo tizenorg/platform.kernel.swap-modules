@@ -44,7 +44,7 @@
 
 #include <swap-asm/swap_kprobes.h>
 #include <swap-asm/trampoline_arm.h>
-
+#include "decode_thumb.h"
 #include "swap_uprobes.h"
 #include "trampoline_thumb.h"
 
@@ -602,10 +602,21 @@ int arch_prepare_uprobe(struct uprobe *p)
 		return -EINVAL;
 	}
 
-	ret = thumb_mode ?
-			arch_make_trampoline_thumb(vaddr, insn,
-						   tramp, tramp_len) :
-			arch_make_trampoline_arm(vaddr, insn, tramp);
+	if (thumb_mode) {
+		ret = arch_make_trampoline_thumb(vaddr, insn,
+						 tramp, tramp_len);
+		if (ret) {
+			struct decode_info info = {
+				.vaddr = vaddr,
+				.tramp = tramp,
+			};
+
+			ret = decode_thumb(insn, &info);
+		}
+	} else {
+		ret = arch_make_trampoline_arm(vaddr, insn, tramp);
+	}
+
 	if (ret) {
 		pr_err("failed to make tramp, addr=%p\n", p->addr);
 		return ret;
