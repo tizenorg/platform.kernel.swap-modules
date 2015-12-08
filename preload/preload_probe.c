@@ -31,6 +31,7 @@
 #include "preload_probe.h"
 #include "preload.h"
 #include "preload_module.h"
+#include "preload_handlers.h"
 #include "preload_debugfs.h"
 
 static unsigned long long probes_count = 0;
@@ -120,12 +121,12 @@ static void preload_unregister_probe(struct us_ip *ip, int disarm)
 
 static void preload_init(struct us_ip *ip)
 {
-	preload_module_uprobe_init(ip);
+	ph_uprobe_init(ip);
 }
 
 static void preload_uninit(struct us_ip *ip)
 {
-	preload_module_uprobe_exit(ip);
+	ph_uprobe_exit(ip);
 
 	preload_info_cleanup(&ip->desc->info);
 }
@@ -169,12 +170,12 @@ static void get_caller_unregister_probe(struct us_ip *ip, int disarm)
 
 static void get_caller_init(struct us_ip *ip)
 {
-	preload_module_get_caller_init(ip);
+	ph_get_caller_init(ip);
 }
 
 static void get_caller_uninit(struct us_ip *ip)
 {
-	preload_module_get_caller_exit(ip);
+	ph_get_caller_exit(ip);
 
 	get_caller_info_cleanup(&ip->desc->info);
 }
@@ -191,12 +192,12 @@ static struct probe_iface get_caller_iface = {
 
 static void get_call_type_init(struct us_ip *ip)
 {
-	preload_module_get_call_type_init(ip);
+	ph_get_call_type_init(ip);
 }
 
 static void get_call_type_uninit(struct us_ip *ip)
 {
-	preload_module_get_call_type_exit(ip);
+	ph_get_call_type_exit(ip);
 
 	get_caller_info_cleanup(&ip->desc->info);
 }
@@ -213,7 +214,7 @@ static struct probe_iface get_call_type_iface = {
 
 static void write_msg_init(struct us_ip *ip)
 {
-	preload_module_write_msg_init(ip);
+	ph_write_msg_init(ip);
 }
 
 static int write_msg_reg(struct us_ip *ip)
@@ -225,7 +226,7 @@ static int write_msg_reg(struct us_ip *ip)
 
 static void write_msg_uninit(struct us_ip *ip)
 {
-	preload_module_write_msg_exit(ip);
+	ph_write_msg_exit(ip);
 
 	get_caller_info_cleanup(&ip->desc->info);
 }

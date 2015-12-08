@@ -1,6 +1,8 @@
 #ifndef __PRELOAD_CONTROL_H__
 #define __PRELOAD_CONTROL_H__
 
+struct us_ip;
+
 enum preload_call_type {
 	NOT_INSTRUMENTED,
 	EXTERNAL_CALL,

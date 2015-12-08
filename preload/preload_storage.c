@@ -7,6 +7,7 @@
 #include "preload.h"
 #include "preload_module.h"
 #include "preload_storage.h"
+#include "preload_handlers.h"
 
 static struct bin_info __handlers_info = { NULL, NULL };
 static struct bin_info __linker_info = { NULL, NULL };
@@ -191,7 +192,7 @@ int preload_storage_set_handlers_info(char *path)
 	if (ret != 0)
 		return ret;
 
-	preload_module_set_handler_dentry(__handlers_info.dentry);
+	ph_set_handler_dentry(__handlers_info.dentry);
 
 	return ret;
 }

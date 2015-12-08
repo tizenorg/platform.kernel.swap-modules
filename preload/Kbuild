@@ -2,6 +2,7 @@ EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_preload.o
 swap_preload-y := preload_module.o \
+                  preload_handlers.o \
                   preload_debugfs.o \
                   preload_storage.o \
                   preload_probe.o \
