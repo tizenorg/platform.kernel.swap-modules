@@ -195,6 +195,8 @@ void sspt_file_add_ip(struct sspt_file *file, struct img_ip *img_ip)
 
 	offset = img_ip->addr & PAGE_MASK;
 	page = sspt_find_page_or_new(file, offset);
+	if (!page)
+		return;
 
 	/* FIXME: delete ip */
 	ip = create_ip(img_ip);

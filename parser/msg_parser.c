@@ -793,6 +793,7 @@ free_func:
 		list_del(&fi->list);
 		destroy_func_inst_data(fi);
 	}
+	kfree(li);
 
 free_path:
 	put_string(path);
@@ -937,13 +938,13 @@ struct app_inst_data *create_app_inst_data(struct msg_buf *mb)
 
 	if (get_u32(mb, &cnt_func)) {
 		print_err("failed to read count of functions\n");
-		goto err;
+		goto free_app_inst;
 	}
 	print_parse_debug("func count:%d", cnt_func);
 
 	if (remained_mb(mb) / MIN_SIZE_FUNC_INST < cnt_func) {
 		print_err("to match count of functions(%u)\n", cnt_func);
-		goto err;
+		goto free_app_inst;
 	}
 
 	if (cnt_func) {
@@ -994,6 +995,10 @@ free_func:
 		list_del(&func->list);
 		destroy_func_inst_data(func);
 	}
+
+free_app_inst:
+	put_string(app_inst->path);
+	put_string(app_inst->id);
 
 err:
 	kfree(app_inst);

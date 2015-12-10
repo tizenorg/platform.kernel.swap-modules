@@ -267,7 +267,7 @@ static ssize_t bin_list_read(struct file *file, char __user *usr_buf,
 	if (files_cnt == 0) {
 		printk(PRELOAD_PREFIX "Cannot read binaries names!\n");
 		ret = 0;
-		goto bin_list_read_out;
+		goto bin_list_read_fail;
 	}
 
 	for (i = 0; i < files_cnt; i++)

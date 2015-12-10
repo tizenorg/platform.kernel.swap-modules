@@ -598,7 +598,7 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 			/* jump only if caller is instumented and it is not a system lib -
 			 * this leads to some errors */
-			if (((cvma->vm_file != NULL) &&
+			if ((cvma != NULL) && ((cvma->vm_file != NULL) &&
 			     (cvma->vm_file->f_path.dentry != NULL) &&
 			     !preload_control_check_dentry_is_ignored(cvma->vm_file->f_path.dentry)) &&
 			    __check_flag_and_call_type(ip, ct) &&
