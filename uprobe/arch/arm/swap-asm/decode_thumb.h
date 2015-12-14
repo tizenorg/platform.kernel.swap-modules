@@ -24,9 +24,13 @@
 #define _ARM_DECODE_THUMB_H
 
 
+#include "swap_uprobes.h"
+
+
 struct decode_info {
 	unsigned long vaddr;
 	void *tramp;
+	uprobe_handler_t handeler;
 };
 
 

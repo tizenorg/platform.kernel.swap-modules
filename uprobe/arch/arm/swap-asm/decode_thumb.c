@@ -22,6 +22,7 @@
 
 #include <linux/types.h>
 #include <linux/errno.h>
+#include <linux/ptrace.h>
 #include "decode_thumb.h"
 #include "thumb_tramps.h"
 
@@ -113,6 +114,69 @@ static int t32_b1110_100(thumb_insn_t insn, struct decode_info *info)
 	return thumb_not_implement(insn, info);
 }
 
+static void t32_simulate_branch(unsigned long insn,
+				struct arch_insn *ainsn,
+				struct pt_regs *regs)
+{
+	unsigned long pc = regs->ARM_pc;
+	thumb_insn_t i = { .val = insn };
+
+	long offset = GET_FIELD(i.hw2, 0, 11);		/* imm11 */
+	offset += GET_FIELD(i.hw1, 0, 10) << 11;	/* imm10 */
+	offset += GET_BIT(i.hw2, 13) << 21;		/* J1 */
+	offset += GET_BIT(i.hw2, 11) << 22;		/* J2 */
+
+	/* check S bit */
+	if (GET_BIT(i.hw1, 10))
+		offset -= 0x00800000;	/* Apply sign bit */
+	else
+		offset ^= 0x00600000;	/* Invert J1 and J2 */
+
+	/* check link */
+	if (GET_BIT(i.hw2, 14)) {
+		/* BL or BLX */
+		regs->ARM_lr = regs->ARM_pc | 1;
+		if (!GET_BIT(i.hw2, 12)) {
+			/* BLX so switch to ARM mode */
+			regs->ARM_cpsr &= ~PSR_T_BIT;
+			pc &= ~3;
+		}
+	}
+
+	regs->ARM_pc = pc + (offset * 2);
+}
+
+static int t32_branch(thumb_insn_t insn, struct decode_info *info)
+{
+	info->handeler = t32_simulate_branch;
+
+	return 0;
+}
+
+static decode_handler_t table_branches[8] = {
+	/* hw2[14 12 0] */
+	/* Bc   0  0 0  */	thumb_not_implement,
+	/* Bc   0  0 1  */	thumb_not_implement,
+	/* B    0  1 0  */	t32_branch,
+	/* B    0  1 1  */	t32_branch,
+	/* BLX  1  0 0  */	t32_branch,
+	/* res  1  0 1  */	thumb_unpredictable,
+	/* BL   1  1 0  */	t32_branch,
+	/* BL   1  1 1  */	t32_branch,
+};
+
+
+
+static int t32_b1111_0xxx_xxxx_xxxx_1(thumb_insn_t insn,
+				      struct decode_info *info)
+{
+	unsigned long s = GET_BIT(insn.hw2, 14) << 2 |
+			  GET_BIT(insn.hw2, 12) << 1 |
+			  GET_BIT(insn.hw2, 0);
+
+	return table_branches[s](insn, info);
+}
+
 static int b111(thumb_insn_t insn, struct decode_info *info)
 {
 	/* hw1[111x xxx? ???? ????] */
@@ -120,6 +184,10 @@ static int b111(thumb_insn_t insn, struct decode_info *info)
 	case 0b0100:
 		return t32_b1110_100(insn, info);
 	}
+
+	/* [1111 0xxx xxxx xxxx 1xxx xxxx xxxx xxxx] */
+	if (GET_FIELD(insn.hw1, 11, 2) == 0b10 && GET_BIT(insn.hw2, 15) == 1)
+		return t32_b1111_0xxx_xxxx_xxxx_1(insn, info);
 
 	return thumb_not_implement(insn, info);
 }

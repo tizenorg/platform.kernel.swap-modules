@@ -609,9 +609,15 @@ int arch_prepare_uprobe(struct uprobe *p)
 			struct decode_info info = {
 				.vaddr = vaddr,
 				.tramp = tramp,
+				.handeler = NULL,
 			};
 
 			ret = decode_thumb(insn, &info);
+			if (info.handeler) {
+				unsigned short *tr = (unsigned short *)tramp;
+				tr[13] = 0xdeff; /* breakpoint for uretprobe */
+				p->ainsn.handler = info.handeler;
+			}
 		}
 	} else {
 		ret = arch_make_trampoline_arm(vaddr, insn, tramp);
@@ -938,7 +944,12 @@ static void arch_prepare_singlestep(struct uprobe *p, struct pt_regs *regs)
 		regs->ARM_pc = (unsigned long)p->ss_addr[cpu];
 		p->ss_addr[cpu] = NULL;
 	} else {
-		regs->ARM_pc = (unsigned long)p->ainsn.insn;
+		if (p->ainsn.handler) {
+			regs->ARM_pc += 4;
+			p->ainsn.handler(p->opcode, &p->ainsn, regs);
+		} else {
+			regs->ARM_pc = (unsigned long)p->ainsn.insn;
+		}
 	}
 }
 
