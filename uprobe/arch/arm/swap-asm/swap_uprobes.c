@@ -109,6 +109,8 @@ static int arch_check_insn_thumb(unsigned long insn)
 
 	/* check instructions that can change PC */
 	if (THUMB_INSN_MATCH(UNDEF, insn) ||
+	    THUMB2_INSN_MATCH(BLX1, insn) ||
+	    THUMB2_INSN_MATCH(BL, insn) ||
 	    THUMB_INSN_MATCH(SWI, insn) ||
 	    THUMB_INSN_MATCH(BREAK, insn) ||
 	    THUMB2_INSN_MATCH(B1, insn) ||
@@ -547,17 +549,6 @@ static int arch_make_trampoline_thumb(unsigned long vaddr, unsigned long insn,
 		*((unsigned short *)tramp + 13) = 0xdeff;
 		*((unsigned short *)tramp + 4) = insn;
 		addr = vaddr + 2;
-		*((unsigned short *)tramp + 16) = (addr & 0x0000ffff) | 0x1;
-		*((unsigned short *)tramp + 17) = addr >> 16;
-
-	} else if (THUMB2_INSN_MATCH(BLX1, insn) ||
-		   THUMB2_INSN_MATCH(BL, insn)) {
-		memcpy(tramp, blx_off_insn_execbuf_thumb, tramp_len);
-		*((unsigned short *)tramp + 13) = 0xdeff;
-		addr = branch_t32_dest(insn, vaddr);
-		*((unsigned short *)tramp + 14) = (addr & 0x0000ffff);
-		*((unsigned short *)tramp + 15) = addr >> 16;
-		addr = vaddr + 4;
 		*((unsigned short *)tramp + 16) = (addr & 0x0000ffff) | 0x1;
 		*((unsigned short *)tramp + 17) = addr >> 16;
 
