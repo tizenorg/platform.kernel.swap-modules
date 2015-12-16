@@ -38,7 +38,7 @@ Kernel modules for SWAP
 %setup -q
 
 %build
-./build.sh %kernel_path %build_arch
+./build.sh --kernel %kernel_path --arch %build_arch compile
 
 %install
 mkdir -p %{buildroot}/opt/swap/sdk
