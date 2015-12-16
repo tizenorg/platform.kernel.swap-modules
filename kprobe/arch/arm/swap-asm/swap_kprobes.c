@@ -460,7 +460,16 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 
 	local_irq_save(flags);
 	preempt_disable();
-	ret = kprobe_handler(regs);
+
+	if (likely(instr == BREAKPOINT_INSTRUCTION)) {
+		ret = kprobe_handler(regs);
+	} else {
+		struct kprobe *p = swap_get_kprobe((void *)regs->ARM_pc);
+
+		/* skip false exeption */
+		ret = p && (p->opcode == instr) ? 0 : 1;
+	}
+
 	swap_preempt_enable_no_resched();
 	local_irq_restore(flags);
 
@@ -852,8 +861,8 @@ EXPORT_SYMBOL_GPL(swap_unregister_undef_hook);
 
 /* kernel probes hook */
 static struct undef_hook undef_ho_k = {
-	.instr_mask	= 0xffffffff,
-	.instr_val	= BREAKPOINT_INSTRUCTION,
+	.instr_mask	= 0,
+	.instr_val	= 0,
 	.cpsr_mask	= MODE_MASK,
 	.cpsr_val	= SVC_MODE,
 	.fn		= kprobe_trap_handler
