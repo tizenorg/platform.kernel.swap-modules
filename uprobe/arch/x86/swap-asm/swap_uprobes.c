@@ -148,8 +148,6 @@ int arch_prepare_uprobe(struct uprobe *p)
 int setjmp_upre_handler(struct uprobe *p, struct pt_regs *regs)
 {
 	struct ujprobe *jp = container_of(p, struct ujprobe, up);
-	uprobe_pre_entry_handler_t pre_entry =
-		(uprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
 	unsigned long args[6];
 
@@ -165,10 +163,6 @@ int setjmp_upre_handler(struct uprobe *p, struct pt_regs *regs)
 		printk(KERN_WARNING
 		       "failed to read user space func arguments %lx!\n",
 		       regs->sp + 4);
-
-	if (pre_entry)
-		p->ss_addr[smp_processor_id()] = (uprobe_opcode_t *)
-						 pre_entry(jp->priv_arg, regs);
 
 	if (entry)
 		entry(args[0], args[1], args[2], args[3], args[4], args[5]);
@@ -450,18 +444,9 @@ no_change:
 	return;
 }
 
-static bool prepare_ss_addr(struct uprobe *p, struct pt_regs *regs)
+static void prepare_tramp(struct uprobe *p, struct pt_regs *regs)
 {
-	unsigned long *ss_addr = (long *)&p->ss_addr[smp_processor_id()];
-
-	if (*ss_addr) {
-		regs->ip = *ss_addr;
-		*ss_addr = 0;
-		return true;
-	} else {
-		regs->ip = (unsigned long)p->ainsn.insn;
-		return false;
-	}
+	regs->ip = (unsigned long)p->ainsn.insn;
 }
 
 static void prepare_ss(struct pt_regs *regs)
@@ -496,15 +481,12 @@ static int uprobe_handler(struct pt_regs *regs)
 		return 1;
 	} else {
 		if (!p->pre_handler || !p->pre_handler(p, regs)) {
-			if (p->ainsn.boostable == 1 && !p->post_handler) {
-				prepare_ss_addr(p, regs);
+			prepare_tramp(p, regs);
+			if (p->ainsn.boostable == 1 && !p->post_handler)
 				return 1;
-			}
 
-			if (prepare_ss_addr(p, regs) == false) {
-				set_current_probe(p);
-				prepare_ss(regs);
-			}
+			set_current_probe(p);
+			prepare_ss(regs);
 		}
 	}
 

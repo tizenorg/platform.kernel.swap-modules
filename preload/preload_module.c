@@ -113,7 +113,7 @@ static inline void __prepare_ujump(struct uretprobe_instance *ri,
 				   struct pt_regs *regs,
 				   unsigned long vaddr)
 {
-	ri->rp->up.ss_addr[smp_processor_id()] = (kprobe_opcode_t *)vaddr;
+	swap_set_instr_ptr(regs, vaddr);
 
 #ifdef CONFIG_ARM
 	if (thumb_mode(regs)) {

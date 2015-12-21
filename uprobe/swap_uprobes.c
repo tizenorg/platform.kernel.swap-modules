@@ -763,6 +763,7 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 #endif
 	struct uretprobe_instance *ri;
 	unsigned long flags;
+	int ret = 0;
 
 #ifdef CONFIG_ARM
 	if (noret)
@@ -776,7 +777,7 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 	/* TODO: test - remove retprobe after func entry but before its exit */
 	ri = get_free_urp_inst(rp);
 	if (ri != NULL) {
-		int ret;
+		int err;
 
 		ri->rp = rp;
 		ri->task = current;
@@ -785,11 +786,11 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 #endif
 
 		if (rp->entry_handler)
-			rp->entry_handler(ri, regs);
+			ret = rp->entry_handler(ri, regs);
 
-		ret = arch_prepare_uretprobe(ri, regs);
+		err = arch_prepare_uretprobe(ri, regs);
 		add_urp_inst(ri);
-		if (ret) {
+		if (err) {
 			recycle_urp_inst(ri);
 			++rp->nmissed;
 		}
@@ -799,7 +800,7 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
 
-	return 0;
+	return ret;
 }
 
 /**

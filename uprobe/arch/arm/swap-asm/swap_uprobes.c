@@ -797,15 +797,7 @@ check_lr: /* check lr anyway */
 int setjmp_upre_handler(struct uprobe *p, struct pt_regs *regs)
 {
 	struct ujprobe *jp = container_of(p, struct ujprobe, up);
-
-	uprobe_pre_entry_handler_t pre_entry =
-		(uprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
-
-	if (pre_entry) {
-		p->ss_addr[smp_processor_id()] = (uprobe_opcode_t *)
-						 pre_entry(jp->priv_arg, regs);
-	}
 
 	if (entry) {
 		entry(regs->ARM_r0, regs->ARM_r1, regs->ARM_r2,
@@ -929,18 +921,11 @@ static int urp_handler(struct pt_regs *regs, pid_t tgid)
  */
 static void arch_prepare_singlestep(struct uprobe *p, struct pt_regs *regs)
 {
-	int cpu = smp_processor_id();
-
-	if (p->ss_addr[cpu]) {
-		regs->ARM_pc = (unsigned long)p->ss_addr[cpu];
-		p->ss_addr[cpu] = NULL;
+	if (p->ainsn.handler) {
+		regs->ARM_pc += 4;
+		p->ainsn.handler(p->opcode, &p->ainsn, regs);
 	} else {
-		if (p->ainsn.handler) {
-			regs->ARM_pc += 4;
-			p->ainsn.handler(p->opcode, &p->ainsn, regs);
-		} else {
-			regs->ARM_pc = (unsigned long)p->ainsn.insn;
-		}
+		regs->ARM_pc = (unsigned long)p->ainsn.insn;
 	}
 }
 

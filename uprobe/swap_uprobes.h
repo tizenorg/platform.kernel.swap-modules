@@ -84,13 +84,6 @@ struct uprobe {
 	uprobe_break_handler_t break_handler;
 	/** Saved opcode (which has been replaced with breakpoint).*/
 	uprobe_opcode_t opcode;
-	/** Override single-step target address, may be used to redirect
-	 * control-flow to arbitrary address after probe point without
-	 * invocation of original instruction; useful for functions
-	 * replacement. If jprobe.entry should return address of function or
-	 * NULL if original function should be called.
-	 * Not supported for X86, not tested for MIPS. */
-	uprobe_opcode_t *ss_addr[NR_CPUS];
 #ifdef CONFIG_ARM
 	/** Safe/unsafe to use probe on ARM.*/
 	unsigned safe_arm:1;

@@ -171,6 +171,7 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct pd_t *pd = __get_process_data(ri->rp);
 	struct hd_t *hd;
+	unsigned long old_pc = swap_get_instr_ptr(regs);
 	unsigned long flags = get_preload_flags(current);
 	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
 	unsigned long vaddr = 0;
@@ -199,7 +200,8 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 out_set_orig:
 	preload_set_priv_origin(ri, vaddr);
 
-	return 0;
+	/* PC change check */
+	return old_pc != swap_get_instr_ptr(regs);
 }
 
 static void __do_preload_ret(struct uretprobe_instance *ri, struct hd_t *hd)
