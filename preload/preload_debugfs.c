@@ -252,11 +252,11 @@ static ssize_t bin_list_read(struct file *file, char __user *usr_buf,
 	char *buf = NULL;
 	char *ptr = NULL;
 
-	if (file->f_path.dentry == target_list)
+	if (file->f_path.dentry == target_list) {
 		files_cnt = preload_control_get_target_names(&filenames);
-	else if (file->f_path.dentry == ignored_list)
+	} else if (file->f_path.dentry == ignored_list) {
 		files_cnt = preload_control_get_ignored_names(&filenames);
-	else {
+	} else {
 		/* Should never occur */
 		printk(PRELOAD_PREFIX "%s() called for invalid file %s!\n", __func__,
 		       file->f_path.dentry->d_name.name);
@@ -289,26 +289,16 @@ static ssize_t bin_list_read(struct file *file, char __user *usr_buf,
 		ptr += 1;
 	}
 
-	if (file->f_path.dentry == target_list)
-		preload_control_release_target_names(&filenames);
-	else if (file->f_path.dentry == ignored_list)
-		preload_control_release_ignored_names(&filenames);
-	else {
-		/* Should never occur */
-		printk(PRELOAD_PREFIX "%s() called for invalid file %s!\n", __func__,
-		       file->f_path.dentry->d_name.name);
-		ret = 0;
-		goto bin_list_read_out;
-	}
+	ret = simple_read_from_buffer(usr_buf, count, ppos, buf, len);
 
-	return simple_read_from_buffer(usr_buf, count, ppos, buf, len);
+	kfree(buf);
 
 bin_list_read_fail:
-	if (file->f_path.dentry == target_list)
+	if (file->f_path.dentry == target_list) {
 		preload_control_release_target_names(&filenames);
-	else if (file->f_path.dentry == ignored_list)
+	} else if (file->f_path.dentry == ignored_list)  {
 		preload_control_release_ignored_names(&filenames);
-	else {
+	} else {
 		/* Should never occur */
 		printk(PRELOAD_PREFIX "%s() called for invalid file %s!\n", __func__,
 		       file->f_path.dentry->d_name.name);
