@@ -35,7 +35,7 @@ static inline struct vm_area_struct *__get_vma_by_addr(struct task_struct *task,
 {
 	struct vm_area_struct *vma = NULL;
 
-	if ((task == NULL) && (task->mm == NULL))
+	if ((task == NULL) || (task->mm == NULL))
 		return NULL;
 	vma = find_vma_intersection(task->mm, caddr, caddr + 1);
 
