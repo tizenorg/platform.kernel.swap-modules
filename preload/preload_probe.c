@@ -219,8 +219,6 @@ static void write_msg_init(struct us_ip *ip)
 
 static int write_msg_reg(struct us_ip *ip)
 {
-	ip->uprobe.atomic_ctx = false;
-
 	return get_caller_register_probe(ip);
 }
 

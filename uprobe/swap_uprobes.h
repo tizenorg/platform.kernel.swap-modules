@@ -93,7 +93,6 @@ struct uprobe {
 	struct arch_insn ainsn;              /**< Copy of the original instruction.*/
 	struct task_struct *task;            /**< Pointer to the task struct */
 	struct slot_manager *sm;             /**< Pointer to slot manager */
-	bool atomic_ctx;                    /**< Handler context */
 };
 
 struct uinst_info {

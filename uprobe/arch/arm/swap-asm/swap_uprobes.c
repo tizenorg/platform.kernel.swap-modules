@@ -936,41 +936,21 @@ static void arch_prepare_singlestep(struct uprobe *p, struct pt_regs *regs)
  * @param instr Instruction.
  * @return uprobe_handler results.
  */
-int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
+static int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 {
 	int ret = 0;
 	struct uprobe *p;
-	unsigned long flags;
 	unsigned long vaddr = regs->ARM_pc | !!thumb_mode(regs);
 	pid_t tgid = current->tgid;
 
-	local_irq_save(flags);
-	preempt_disable();
-
 	p = get_uprobe((uprobe_opcode_t *)vaddr, tgid);
 	if (p) {
-		bool prepare = false;
-
-		if (p->atomic_ctx) {
-			if (!p->pre_handler || !p->pre_handler(p, regs))
-				prepare = true;
-		} else {
-			swap_preempt_enable_no_resched();
-			local_irq_restore(flags);
-
-			if (!p->pre_handler || !p->pre_handler(p, regs))
-				prepare = true;
-
-			local_irq_save(flags);
-			preempt_disable();
-		}
-
-		if (prepare)
+		if (!p->pre_handler || !p->pre_handler(p, regs))
 			arch_prepare_singlestep(p, regs);
 	} else {
 		ret = urp_handler(regs, tgid);
 
-		/* check ARM/THUMB mode on correct */
+		/* check ARM/THUMB CPU mode matches installed probe mode */
 		if (ret) {
 			vaddr ^= 1;
 			p = get_uprobe((uprobe_opcode_t *)vaddr, tgid);
@@ -979,19 +959,10 @@ int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 				       !!thumb_mode(regs), p->addr, p->opcode);
 				ret = 0;
 
-				swap_preempt_enable_no_resched();
-				local_irq_restore(flags);
-
 				disarm_uprobe(p, current);
-
-				local_irq_save(flags);
-				preempt_disable();
 			}
 		}
 	}
-
-	swap_preempt_enable_no_resched();
-	local_irq_restore(flags);
 
 	return ret;
 }
