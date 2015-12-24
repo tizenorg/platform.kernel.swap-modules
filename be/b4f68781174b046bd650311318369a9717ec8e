@@ -1,0 +1,7 @@
+Verified+1: Vasiliy Ulyanov <v.ulyanov@samsung.com>
+Code-Review+2: Dmitry Kovalenko <d.kovalenko@samsung.com>
+Submitted-by: Dmitry Kovalenko <d.kovalenko@samsung.com>
+Submitted-at: Sun, 20 Jul 2014 21:34:24 -0800
+Reviewed-on: https://review.tizen.org/gerrit/24741
+Project: platform/kernel/swap-modules
+Branch: refs/heads/prod_rel

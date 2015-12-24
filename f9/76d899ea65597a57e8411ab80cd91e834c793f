@@ -1,0 +1,7 @@
+Verified+1: Alexander Aksenov <a.aksenov@samsung.com>
+Code-Review+2: Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+Submitted-by: Vyacheslav Cherkashin <v.cherkashin@samsung.com>
+Submitted-at: Thu, 13 Nov 2014 05:53:18 -0800
+Reviewed-on: https://review.tizen.org/gerrit/29556
+Project: platform/kernel/swap-modules
+Branch: refs/heads/new_protocol

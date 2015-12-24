@@ -1,0 +1,8 @@
+Code-Review+1: Vitaliy Andreevich <v.cherepanov@samsung.com>
+Verified+1: Ruslan Soloviev <r.soloviev@samsung.com>
+Code-Review+2: Dmitry Kovalenko <d.kovalenko@samsung.com>
+Submitted-by: Dmitry Kovalenko <d.kovalenko@samsung.com>
+Submitted-at: Mon, 15 Dec 2014 05:26:28 -0800
+Reviewed-on: https://review.tizen.org/gerrit/31303
+Project: platform/kernel/swap-modules
+Branch: refs/heads/new_protocol
