@@ -710,155 +710,150 @@ static int wifi_flag = 0;
  * =                                bluetooth                                 =
  * ============================================================================
  */
-#define RET_HANDLER_BT_NAME(name)	ret_handler_bt_##name
-#define DEFINE_RET_HANDLER_BT(name) \
-	int RET_HANDLER_BT_NAME(name)(struct kretprobe_instance *ri, \
-				      struct pt_regs *regs) \
-	{ \
-		unsigned int len = *(unsigned int *)ri->data; \
-		if (len) { \
-			struct energy_data *ed = get_energy_data(current); \
-			if (ed) \
-				atomic64_add(len, &ed->bytes_##name); \
-			atomic64_add(len, &ed_system.bytes_##name); \
-		} \
-	return 0; \
-}
 
-static DEFINE_RET_HANDLER_BT(l2cap_recv_acldata)
-static DEFINE_RET_HANDLER_BT(sco_recv_scodata)
-static DEFINE_RET_HANDLER_BT(hci_send_acl)
-static DEFINE_RET_HANDLER_BT(hci_send_sco)
+struct swap_bt_data {
+	struct socket *socket;
+};
 
-static int entry_handler_generic_bt(struct kretprobe_instance *ri,
-				    struct pt_regs *regs)
+static int bt_entry_handler(struct kretprobe_instance *ri,
+			    struct pt_regs *regs)
 {
-	struct sk_buff *skb = (struct sk_buff *)swap_get_sarg(regs, 1);
-	unsigned int *len = (unsigned int *)ri->data;
+	struct swap_bt_data *data = (struct swap_bt_data *)ri->data;
+	struct socket *sock = (struct socket *)swap_get_sarg(regs, 1);
 
-	*len = skb ? skb->len : 0;
+	data->socket = sock ? sock : NULL;
 
 	return 0;
 }
 
-static struct kretprobe l2cap_recv_acldata_krp = {
-	.entry_handler = entry_handler_generic_bt,
-	.handler = RET_HANDLER_BT_NAME(l2cap_recv_acldata),
-	.data_size = sizeof(unsigned int)
-};
-
-static struct kretprobe sco_recv_scodata_krp = {
-	.entry_handler = entry_handler_generic_bt,
-	.handler = RET_HANDLER_BT_NAME(sco_recv_scodata),
-	.data_size = sizeof(unsigned int)
-};
-
-static struct kretprobe hci_send_acl_krp = {
-	.entry_handler = entry_handler_generic_bt,
-	.handler = RET_HANDLER_BT_NAME(hci_send_acl),
-	.data_size = sizeof(unsigned int)
-};
-
-static struct kretprobe hci_send_sco_krp = {
-	.entry_handler = entry_handler_generic_bt,
-	.handler = RET_HANDLER_BT_NAME(hci_send_sco),
-	.data_size = sizeof(unsigned int)
-};
-
-
-static int energy_bt_once(void)
+static int bt_recvmsg_handler(struct kretprobe_instance *ri,
+			      struct pt_regs *regs)
 {
-	const char *sym;
+	int ret = regs_return_value(regs);
+	struct swap_bt_data *data = (struct swap_bt_data *)ri->data;
 
-	sym = "l2cap_recv_acldata";
-	l2cap_recv_acldata_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (l2cap_recv_acldata_krp.kp.addr == NULL)
-		goto not_found;
+	if (ret > 0) {
+		struct socket *socket = data->socket;
 
-	sym = "sco_recv_scodata";
-	sco_recv_scodata_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (sco_recv_scodata_krp.kp.addr == NULL)
-		goto not_found;
+		if (socket) {
+			struct energy_data *ed;
 
-	sym = "hci_send_acl";
-	hci_send_acl_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (hci_send_acl_krp.kp.addr == NULL)
-		goto not_found;
-
-	sym = "hci_send_sco";
-	hci_send_sco_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (hci_send_sco_krp.kp.addr == NULL)
-		goto not_found;
+			ed = get_energy_data_by_socket(current, socket);
+			if (ed)
+				atomic64_add(ret, &ed->bytes_l2cap_recv_acldata);
+		}
+		atomic64_add(ret, &ed_system.bytes_l2cap_recv_acldata);
+	}
 
 	return 0;
-
-not_found:
-	printk(KERN_INFO "ERROR: symbol '%s' not found\n", sym);
-	return -ESRCH;
 }
 
+static int bt_sendmsg_handler(struct kretprobe_instance *ri,
+			      struct pt_regs *regs)
+{
+	int ret = regs_return_value(regs);
+	struct swap_bt_data *data = (struct swap_bt_data *)ri->data;
+
+	if (ret > 0) {
+		struct socket *socket = data->socket;
+
+		if (socket) {
+			struct energy_data *ed;
+
+			ed = get_energy_data_by_socket(current, socket);
+			if (ed)
+				atomic64_add(ret, &ed->bytes_hci_send_sco);
+		}
+		atomic64_add(ret, &ed_system.bytes_hci_send_sco);
+	}
+
+	return 0;
+}
+
+static struct kretprobe rfcomm_sock_recvmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_recvmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe l2cap_sock_recvmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_recvmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe hci_sock_recvmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_recvmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe sco_sock_recvmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_recvmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+static struct kretprobe rfcomm_sock_sendmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_sendmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe l2cap_sock_sendmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_sendmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe hci_sock_sendmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_sendmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe sco_sock_sendmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_sendmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kern_probe bt_probes[] = {
+	{
+		.name = "rfcomm_sock_recvmsg",
+		.rp = &rfcomm_sock_recvmsg_krp,
+	},
+	{
+		.name = "l2cap_sock_recvmsg",
+		.rp = &l2cap_sock_recvmsg_krp,
+	},
+	{
+		.name = "hci_sock_recvmsg",
+		.rp = &hci_sock_recvmsg_krp,
+	},
+	{
+		.name = "sco_sock_recvmsg",
+		.rp = &sco_sock_recvmsg_krp,
+	},
+	{
+		.name = "rfcomm_sock_sendmsg",
+		.rp = &rfcomm_sock_sendmsg_krp,
+	},
+	{
+		.name = "l2cap_sock_sendmsg",
+		.rp = &l2cap_sock_sendmsg_krp,
+	},
+	{
+		.name = "hci_sock_sendmsg",
+		.rp = &hci_sock_sendmsg_krp,
+	},
+	{
+		.name = "sco_sock_sendmsg",
+		.rp = &sco_sock_sendmsg_krp,
+	}
+};
+
+enum { bt_probes_cnt = ARRAY_SIZE(bt_probes) };
 static int energy_bt_flag = 0;
-
-static int energy_bt_set(void)
-{
-	int ret;
-
-	ret = swap_register_kretprobe(&l2cap_recv_acldata_krp);
-	if (ret) {
-		pr_err("register fail 'l2cap_recv_acldata_krp' ret=%d\n", ret);
-		return ret;
-	}
-
-	ret = swap_register_kretprobe(&sco_recv_scodata_krp);
-	if (ret) {
-		printk("register fail 'sco_recv_scodata_krp' ret=%d\n" ,ret);
-		goto unreg_l2cap_recv_acldata;
-	}
-
-	ret = swap_register_kretprobe(&hci_send_acl_krp);
-	if (ret) {
-		printk("register fail 'hci_send_acl_krp' ret=%d\n", ret);
-		goto unreg_sco_recv_scodata;
-	}
-
-	ret = swap_register_kretprobe(&hci_send_sco_krp);
-	if (ret) {
-		printk("register fail 'hci_send_sco_krp' ret=%d\n", ret);
-		goto unreg_hci_send_acl;
-	}
-
-	energy_bt_flag = 1;
-
-	return 0;
-
-unreg_hci_send_acl:
-	swap_unregister_kretprobe(&hci_send_acl_krp);
-
-unreg_sco_recv_scodata:
-	swap_unregister_kretprobe(&sco_recv_scodata_krp);
-
-unreg_l2cap_recv_acldata:
-	swap_unregister_kretprobe(&l2cap_recv_acldata_krp);
-
-	return ret;
-}
-
-static void energy_bt_unset(void)
-{
-	if (energy_bt_flag == 0)
-		return;
-
-	swap_unregister_kretprobe(&hci_send_sco_krp);
-	swap_unregister_kretprobe(&hci_send_acl_krp);
-	swap_unregister_kretprobe(&sco_recv_scodata_krp);
-	swap_unregister_kretprobe(&l2cap_recv_acldata_krp);
-
-	energy_bt_flag = 0;
-}
-
-
-
-
 
 enum parameter_type {
 	PT_CPU,
@@ -1050,7 +1045,7 @@ int do_set_energy(void)
 		goto unregister_sys_write;
 	}
 
-	energy_bt_set();
+	energy_xxx_set(bt_probes, bt_probes_cnt, &energy_bt_flag);
 	energy_xxx_set(wifi_probes, wifi_probes_cnt, &wifi_flag);
 
 	/* TODO: check return value */
@@ -1071,7 +1066,7 @@ void do_unset_energy(void)
 {
 	lcd_unset_energy();
 	energy_xxx_unset(wifi_probes, wifi_probes_cnt, &wifi_flag);
-	energy_bt_unset();
+	energy_xxx_unset(bt_probes, bt_probes_cnt, &energy_bt_flag);
 
 	swap_unregister_kretprobe(&switch_to_krp);
 	swap_unregister_kretprobe(&sys_write_krp);
@@ -1154,7 +1149,7 @@ int energy_once(void)
 	if (sys_write_krp.kp.addr == NULL)
 		goto not_found;
 
-	energy_bt_once();
+	energy_xxx_once(bt_probes, bt_probes_cnt);
 	energy_xxx_once(wifi_probes, wifi_probes_cnt);
 
 	return 0;
