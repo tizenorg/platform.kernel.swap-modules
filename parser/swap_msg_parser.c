@@ -170,10 +170,6 @@ static int once(void)
 		return ret;
 
 	ret = init_cpu_deps();
-	if (ret)
-		return ret;
-
-	ret = usm_msg_once();
 
 	return ret;
 }

@@ -26,38 +26,11 @@
 #include <linux/dcache.h>
 #include <linux/fdtable.h>
 #include <writer/swap_msg.h>
+#include <master/swap_deps.h>
 #include <us_manager/sspt/sspt.h>	/* ... check_vma() */
 
 
 #define USM_PREFIX      KERN_INFO "[USM] "
-
-
-static struct files_struct *(*swap_get_files_struct)(struct task_struct *);
-static void (*swap_put_files_struct)(struct files_struct *fs);
-
-int usm_msg_once(void)
-{
-	const char *sym;
-
-	sym = "get_files_struct";
-	swap_get_files_struct = (void *)swap_ksyms(sym);
-	if (swap_get_files_struct == NULL)
-		goto not_found;
-
-	sym = "put_files_struct";
-	swap_put_files_struct = (void *)swap_ksyms(sym);
-	if (swap_put_files_struct == NULL)
-		goto not_found;
-
-	return 0;
-
-not_found:
-	printk("ERROR: symbol '%s' not found\n", sym);
-	return -ESRCH;
-}
-
-
-
 
 
 struct kmem_info {

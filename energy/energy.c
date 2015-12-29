@@ -34,15 +34,86 @@
 #include <linux/socket.h>
 #include <linux/skbuff.h>
 #include <linux/string.h>
+#include <linux/fdtable.h>
 #include <net/sock.h>
 #include <kprobe/swap_kprobes.h>
 #include <ksyms/ksyms.h>
+#include <master/swap_deps.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include <us_manager/sspt/sspt_feature.h>
 #include <linux/atomic.h>
 #include "energy.h"
 #include "lcd/lcd_base.h"
 #include "tm_stat.h"
+
+
+/* ============================================================================
+ * =                              ENERGY_XXX                                  =
+ * ============================================================================
+ */
+struct kern_probe {
+	const char *name;
+	struct kretprobe *rp;
+};
+
+static int energy_xxx_once(struct kern_probe p[], int size)
+{
+	int i;
+	const char *sym;
+
+	for (i = 0; i < size; ++i) {
+		struct kretprobe *rp = p[i].rp;
+
+		sym = p[i].name;
+		rp->kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+		if (rp->kp.addr == NULL)
+			goto not_found;
+	}
+
+	return 0;
+
+not_found:
+	printk(KERN_INFO "ERROR: symbol '%s' not found\n", sym);
+	return -ESRCH;
+}
+
+static int energy_xxx_set(struct kern_probe p[], int size, int *flag)
+{
+	int i, ret;
+
+	for (i = 0; i < size; ++i) {
+		ret = swap_register_kretprobe(p[i].rp);
+		if (ret)
+			goto fail;
+	}
+
+	*flag = 1;
+	return 0;
+
+fail:
+	pr_err("swap_register_kretprobe(%s) ret=%d\n", p[i].name, ret);
+
+	for (--i; i != -1; --i)
+		swap_unregister_kretprobe(p[i].rp);
+
+	return ret;
+}
+
+static void energy_xxx_unset(struct kern_probe p[], int size, int *flag)
+{
+	int i;
+
+	if (*flag == 0)
+		return;
+
+	for (i = size - 1; i != -1; --i)
+		swap_unregister_kretprobe(p[i].rp);
+
+	*flag = 0;
+}
+
+
+
 
 
 /* ============================================================================
@@ -490,29 +561,72 @@ static bool check_wlan0(struct socket *sock)
 	return false;
 }
 
-static int entry_handler_wf_sock(struct kretprobe_instance *ri,
-				 struct pt_regs *regs)
+static bool check_socket(struct task_struct *task, struct socket *socket)
 {
-	bool *ok = (bool *)ri->data;
+	bool ret = false;
+	unsigned int fd;
+	struct files_struct *files;
+
+	files = swap_get_files_struct(task);
+	if (files == NULL)
+		return false;
+
+	rcu_read_lock();
+	for (fd = 0; fd < files_fdtable(files)->max_fds; ++fd) {
+		if (fcheck_files(files, fd) == socket->file) {
+			ret = true;
+			goto unlock;
+		}
+	}
+
+unlock:
+	rcu_read_unlock();
+	swap_put_files_struct(files);
+	return ret;
+}
+
+static struct energy_data *get_energy_data_by_socket(struct task_struct *task,
+						     struct socket *socket)
+{
+	struct energy_data *ed;
+
+	ed = get_energy_data(task);
+	if (ed)
+		ed = check_socket(task, socket) ? ed : NULL;
+
+	return ed;
+}
+
+static int wf_sock_eh(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
 	struct socket *socket = (struct socket *)swap_get_karg(regs, 0);
 
-	*ok = check_wlan0(socket);
+	*(struct socket **)ri->data = check_wlan0(socket) ? socket : NULL;
 
 	return 0;
 }
 
-static int ret_handler_wf_sock_recv(struct kretprobe_instance *ri,
-				    struct pt_regs *regs)
+static int wf_sock_aio_eh(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct kiocb *iocb = (struct kiocb *)swap_get_karg(regs, 0);
+	struct socket *socket = iocb->ki_filp->private_data;
+
+	*(struct socket **)ri->data = check_wlan0(socket) ? socket : NULL;
+
+	return 0;
+}
+
+static int wf_sock_recv_rh(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	int ret = regs_return_value(regs);
 
 	if (ret > 0) {
-		bool ok = *(bool *)ri->data;
+		struct socket *socket = *(struct socket **)ri->data;
 
-		if (ok) {
+		if (socket) {
 			struct energy_data *ed;
 
-			ed = get_energy_data(current);
+			ed = get_energy_data_by_socket(current, socket);
 			if (ed)
 				atomic64_add(ret, &ed->bytes_recv);
 			atomic64_add(ret, &ed_system.bytes_recv);
@@ -522,18 +636,17 @@ static int ret_handler_wf_sock_recv(struct kretprobe_instance *ri,
 	return 0;
 }
 
-static int ret_handler_wf_sock_send(struct kretprobe_instance *ri,
-				    struct pt_regs *regs)
+static int wf_sock_send_rh(struct kretprobe_instance *ri, struct pt_regs *regs)
 {
 	int ret = regs_return_value(regs);
 
 	if (ret > 0) {
-		bool ok = *(bool *)ri->data;
+		struct socket *socket = *(struct socket **)ri->data;
 
-		if (ok) {
+		if (socket) {
 			struct energy_data *ed;
 
-			ed = get_energy_data(current);
+			ed = get_energy_data_by_socket(current, socket);
 			if (ed)
 				atomic64_add(ret, &ed->bytes_send);
 			atomic64_add(ret, &ed_system.bytes_send);
@@ -544,71 +657,50 @@ static int ret_handler_wf_sock_send(struct kretprobe_instance *ri,
 }
 
 static struct kretprobe sock_recv_krp = {
-	.entry_handler = entry_handler_wf_sock,
-	.handler = ret_handler_wf_sock_recv,
-	.data_size = sizeof(bool)
+	.entry_handler = wf_sock_eh,
+	.handler = wf_sock_recv_rh,
+	.data_size = sizeof(struct socket *)
 };
 
 static struct kretprobe sock_send_krp = {
-	.entry_handler = entry_handler_wf_sock,
-	.handler = ret_handler_wf_sock_send,
-	.data_size = sizeof(bool)
+	.entry_handler = wf_sock_eh,
+	.handler = wf_sock_send_rh,
+	.data_size = sizeof(struct socket *)
 };
 
-static int energy_wifi_once(void)
-{
-	const char *sym;
+static struct kretprobe sock_aio_read_krp = {
+	.entry_handler = wf_sock_aio_eh,
+	.handler = wf_sock_recv_rh,
+	.data_size = sizeof(struct socket *)
+};
 
-	sym = "sock_recvmsg";
-	sock_recv_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (sock_recv_krp.kp.addr == NULL)
-		goto not_found;
+static struct kretprobe sock_aio_write_krp = {
+	.entry_handler = wf_sock_aio_eh,
+	.handler = wf_sock_send_rh,
+	.data_size = sizeof(struct socket *)
+};
 
-	sym = "sock_sendmsg";
-	sock_send_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (sock_send_krp.kp.addr == NULL)
-		goto  not_found;
-
-	return 0;
-
-not_found:
-	printk(KERN_INFO "ERROR: symbol '%s' not found\n", sym);
-	return -ESRCH;
-}
-
-static int energy_wifi_flag = 0;
-
-static int energy_wifi_set(void)
-{
-	int ret;
-
-	ret = swap_register_kretprobe(&sock_recv_krp);
-	if (ret) {
-		pr_err("swap_register_kretprobe(sock_recv_krp) ret=%d\n" ,ret);
-		return ret;
+static struct kern_probe wifi_probes[] = {
+	{
+		.name = "sock_recvmsg",
+		.rp = &sock_recv_krp,
+	},
+	{
+		.name = "sock_sendmsg",
+		.rp = &sock_send_krp,
+	},
+	{
+		.name = "sock_aio_read",
+		.rp = &sock_aio_read_krp,
+	},
+	{
+		.name = "sock_aio_write",
+		.rp = &sock_aio_write_krp,
 	}
+};
 
-	ret = swap_register_kretprobe(&sock_send_krp);
-	if (ret) {
-		pr_err("swap_register_kretprobe(sock_send_krp) ret=%d\n" ,ret);
-		swap_unregister_kretprobe(&sock_recv_krp);
-	}
-
-	energy_wifi_flag = 1;
-
-	return ret;
-}
-
-static void energy_wifi_unset(void)
-{
-	if (energy_wifi_flag == 0)
-		return;
-
-	swap_unregister_kretprobe(&sock_send_krp);
-	swap_unregister_kretprobe(&sock_recv_krp);
-
-	energy_wifi_flag = 0;
-}
+enum { wifi_probes_cnt = ARRAY_SIZE(wifi_probes) };
+static int wifi_flag = 0;
 
 
 
@@ -959,7 +1051,7 @@ int do_set_energy(void)
 	}
 
 	energy_bt_set();
-	energy_wifi_set();
+	energy_xxx_set(wifi_probes, wifi_probes_cnt, &wifi_flag);
 
 	/* TODO: check return value */
 	lcd_set_energy();
@@ -978,7 +1070,7 @@ unregister_sys_write:
 void do_unset_energy(void)
 {
 	lcd_unset_energy();
-	energy_wifi_unset();
+	energy_xxx_unset(wifi_probes, wifi_probes_cnt, &wifi_flag);
 	energy_bt_unset();
 
 	swap_unregister_kretprobe(&switch_to_krp);
@@ -1063,7 +1155,7 @@ int energy_once(void)
 		goto not_found;
 
 	energy_bt_once();
-	energy_wifi_once();
+	energy_xxx_once(wifi_probes, wifi_probes_cnt);
 
 	return 0;
 

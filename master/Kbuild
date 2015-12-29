@@ -3,4 +3,5 @@ EXTRA_CFLAGS := $(extra_cflags)
 obj-m := swap_master.o
 swap_master-y := master_module.o \
                  swap_debugfs.o \
-                 swap_initializer.o
+                 swap_initializer.o \
+                 swap_deps.o
