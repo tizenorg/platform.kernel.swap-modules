@@ -40,6 +40,13 @@
 #include "swap_uprobes.h"
 
 
+struct save_context {
+	struct pt_regs save_regs;
+	struct pt_regs *ptr_regs;
+	unsigned long val;
+	int (*handler)(struct pt_regs *);
+};
+
 /**
  * @struct uprobe_ctlblk
  * @brief Uprobe control block
@@ -47,6 +54,8 @@
 struct uprobe_ctlblk {
 	unsigned long flags;            /**< Flags */
 	struct uprobe *p;               /**< Pointer to the uprobe */
+
+	struct save_context ctx;
 };
 
 
@@ -67,6 +76,11 @@ unsigned long arch_tramp_by_ri(struct uretprobe_instance *ri)
 static struct uprobe_ctlblk *current_ucb(void)
 {
 	return (struct uprobe_ctlblk *)swap_td_raw(&td_raw, current);
+}
+
+static struct save_context *current_ctx(void)
+{
+	return &current_ucb()->ctx;
 }
 
 static struct uprobe *get_current_probe(void)
@@ -493,6 +507,61 @@ static int uprobe_handler(struct pt_regs *regs)
 	return 1;
 }
 
+
+static unsigned long resume_userspace_addr;
+
+static void __used __up_handler(void)
+{
+	struct pt_regs *regs = current_ctx()->ptr_regs;
+	struct thread_info *tinfo = current_thread_info();
+	int (*handler)(struct pt_regs *) = current_ctx()->handler;
+
+	/* restore KS regs */
+	*regs = current_ctx()->save_regs;
+
+	/* call handler */
+	handler(regs);
+
+	/* resume_userspace */
+	asm volatile (
+		"movl %0, %%esp\n"
+		"movl %1, %%ebp\n"
+		"jmpl *%2\n"
+	        : /* No outputs. */
+	        : "r" (regs), "r" (tinfo) , "r" (resume_userspace_addr)
+	);
+}
+
+void up_handler(void);
+__asm(
+	"up_handler:\n"
+	/* skip hex tractor-driver bytes to make some free space (skip regs) */
+	"sub $0x300, %esp\n"
+	"jmp __up_handler\n"
+);
+
+static int exceptions_handler(struct pt_regs *regs,
+			      int (*handler)(struct pt_regs *))
+{
+	/* save regs */
+	current_ctx()->save_regs = *regs;
+	current_ctx()->ptr_regs = regs;
+
+	/* set handler */
+	current_ctx()->handler = handler;
+
+	/* setup regs to return to KS */
+	regs->ip = (unsigned long)up_handler;
+	regs->ds = __USER_DS;
+	regs->es = __USER_DS;
+	regs->fs = __KERNEL_PERCPU;
+	regs->cs = __KERNEL_CS | get_kernel_rpl();
+	regs->gs = 0;
+	regs->flags = X86_EFLAGS_IF | X86_EFLAGS_FIXED;
+
+	return 1;
+}
+
 static int post_uprobe_handler(struct pt_regs *regs)
 {
 	struct uprobe *p = get_current_probe();
@@ -529,11 +598,11 @@ static int uprobe_exceptions_notify(struct notifier_block *self,
 #else
 	case DIE_TRAP:
 #endif
-		if (uprobe_handler(args->regs))
+		if (exceptions_handler(args->regs, uprobe_handler))
 			ret = NOTIFY_STOP;
 		break;
 	case DIE_DEBUG:
-		if (post_uprobe_handler(args->regs))
+		if (exceptions_handler(args->regs, post_uprobe_handler))
 			ret = NOTIFY_STOP;
 		break;
 	default:
@@ -556,6 +625,12 @@ static struct notifier_block uprobe_exceptions_nb = {
 int swap_arch_init_uprobes(void)
 {
 	int ret;
+
+	resume_userspace_addr = swap_ksyms("resume_userspace");
+	if (resume_userspace_addr == 0) {
+		pr_err("symbol 'resume_userspace' not found\n");
+		return -ESRCH;
+	}
 
 	ret = swap_td_raw_reg(&td_raw, sizeof(struct uprobe_ctlblk));
 	if (ret)
