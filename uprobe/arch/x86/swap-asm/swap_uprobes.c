@@ -44,7 +44,7 @@ struct save_context {
 	struct pt_regs save_regs;
 	struct pt_regs *ptr_regs;
 	unsigned long val;
-	int (*handler)(struct pt_regs *);
+	int (*handler)(struct uprobe *, struct pt_regs *);
 };
 
 /**
@@ -470,43 +470,6 @@ static void prepare_ss(struct pt_regs *regs)
 	regs->flags &= ~IF_MASK;
 }
 
-static int uprobe_handler(struct pt_regs *regs)
-{
-	struct uprobe *p;
-	uprobe_opcode_t *addr;
-	struct task_struct *task = current;
-	pid_t tgid = task->tgid;
-
-	save_current_flags(regs);
-
-	addr = (uprobe_opcode_t *)(regs->EREG(ip) - sizeof(uprobe_opcode_t));
-	p = get_uprobe(addr, tgid);
-
-	if (p == NULL) {
-		void *tramp_addr = (void *)addr - UPROBES_TRAMP_RET_BREAK_IDX;
-
-		p = get_uprobe_by_insn_slot(tramp_addr, tgid, regs);
-		if (p == NULL) {
-			printk(KERN_INFO "no_uprobe\n");
-			return 0;
-		}
-
-		trampoline_uprobe_handler(p, regs);
-		return 1;
-	} else {
-		if (!p->pre_handler || !p->pre_handler(p, regs)) {
-			prepare_tramp(p, regs);
-			if (p->ainsn.boostable == 1 && !p->post_handler)
-				return 1;
-
-			set_current_probe(p);
-			prepare_ss(regs);
-		}
-	}
-
-	return 1;
-}
-
 
 static unsigned long resume_userspace_addr;
 
@@ -514,13 +477,13 @@ static void __used __up_handler(void)
 {
 	struct pt_regs *regs = current_ctx()->ptr_regs;
 	struct thread_info *tinfo = current_thread_info();
-	int (*handler)(struct pt_regs *) = current_ctx()->handler;
+	struct uprobe *p = current_ucb()->p;
 
 	/* restore KS regs */
 	*regs = current_ctx()->save_regs;
 
 	/* call handler */
-	handler(regs);
+	current_ctx()->handler(p, regs);
 
 	/* resume_userspace */
 	asm volatile (
@@ -541,7 +504,7 @@ __asm(
 );
 
 static int exceptions_handler(struct pt_regs *regs,
-			      int (*handler)(struct pt_regs *))
+			      int (*handler)(struct uprobe *, struct pt_regs *))
 {
 	/* save regs */
 	current_ctx()->save_regs = *regs;
@@ -562,25 +525,76 @@ static int exceptions_handler(struct pt_regs *regs,
 	return 1;
 }
 
-static int post_uprobe_handler(struct pt_regs *regs)
+static int uprobe_handler_part2(struct uprobe *p, struct pt_regs *regs)
 {
-	struct uprobe *p = get_current_probe();
-	unsigned long flags = current_ucb()->flags;
+	if (!p->pre_handler(p, regs)) {
+		prepare_tramp(p, regs);
+		if (p->ainsn.boostable == 1 && !p->post_handler)
+			return 1;
 
-	if (p == NULL) {
-		printk("task[%u %u %s] current uprobe is not found\n",
-		       current->tgid, current->pid, current->comm);
-		return 0;
+		save_current_flags(regs);
+		set_current_probe(p);
+		prepare_ss(regs);
 	}
+
+	return 1;
+}
+
+static int uprobe_handler_atomic(struct pt_regs *regs)
+{
+	pid_t tgid = current->tgid;
+	unsigned long vaddr = regs->ip - 1;
+	struct uprobe *p = get_uprobe((void *)vaddr, tgid);
+
+	if (p) {
+		if (p->pre_handler) {
+			set_current_probe(p);
+			exceptions_handler(regs, uprobe_handler_part2);
+		} else {
+			uprobe_handler_part2(p, regs);
+		}
+	} else {
+		unsigned long tramp_vaddr;
+
+		tramp_vaddr = vaddr - UPROBES_TRAMP_RET_BREAK_IDX;
+		p = get_uprobe_by_insn_slot((void *)tramp_vaddr, tgid, regs);
+		if (p == NULL) {
+			pr_info("no_uprobe\n");
+			return 0;
+		}
+
+		set_current_probe(p);
+		exceptions_handler(regs, trampoline_uprobe_handler);
+	}
+
+	return 1;
+}
+
+static int post_uprobe_handler(struct uprobe *p, struct pt_regs *regs)
+{
+	unsigned long flags = current_ucb()->flags;
 
 	resume_execution(p, regs, flags);
 	restore_current_flags(regs, flags);
 
-	/* clean stack */
-	current_ucb()->p = 0;
-	current_ucb()->flags = 0;
+	/* reset current probe */
+	set_current_probe(NULL);
 
 	return 1;
+}
+
+static int post_uprobe_handler_atomic(struct pt_regs *regs)
+{
+	struct uprobe *p = get_current_probe();
+
+	if (p) {
+		exceptions_handler(regs, post_uprobe_handler);
+	} else {
+		pr_info("task[%u %u %s] current uprobe is not found\n",
+			current->tgid, current->pid, current->comm);
+	}
+
+	return !!p;
 }
 
 static int uprobe_exceptions_notify(struct notifier_block *self,
@@ -598,11 +612,11 @@ static int uprobe_exceptions_notify(struct notifier_block *self,
 #else
 	case DIE_TRAP:
 #endif
-		if (exceptions_handler(args->regs, uprobe_handler))
+		if (uprobe_handler_atomic(args->regs))
 			ret = NOTIFY_STOP;
 		break;
 	case DIE_DEBUG:
-		if (exceptions_handler(args->regs, post_uprobe_handler))
+		if (post_uprobe_handler_atomic(args->regs))
 			ret = NOTIFY_STOP;
 		break;
 	default:
