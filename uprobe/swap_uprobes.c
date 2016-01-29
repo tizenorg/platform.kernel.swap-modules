@@ -502,11 +502,6 @@ int swap_register_uprobe(struct uprobe *p)
 
 	p->ainsn.insn = NULL;
 	INIT_LIST_HEAD(&p->list);
-#ifdef KPROBES_PROFILE
-	p->start_tm.tv_sec = p->start_tm.tv_usec = 0;
-	p->hnd_tm_sum.tv_sec = p->hnd_tm_sum.tv_usec = 0;
-	p->count = 0;
-#endif
 
 	/* get the first item */
 	old_p = get_uprobe(p->addr, p->task->tgid);
