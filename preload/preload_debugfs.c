@@ -147,6 +147,13 @@ static ssize_t loader_path_write(struct file *file, const char __user *buf,
 
 	path[len - 1] = '\0';
 	set_loader_file(path);
+
+	ret = preload_control_add_ignored_binary(path);
+	if (ret < 0) {
+		printk(PRELOAD_PREFIX "Cannot add loader %s to ignored list\n", path);
+		goto err;
+	}
+
 	ret = len;
 
 	return ret;
@@ -353,6 +360,12 @@ static ssize_t linker_path_write(struct file *file, const char __user *buf,
 	if (preload_storage_set_linker_info(path) != 0) {
 		printk(PRELOAD_PREFIX "Cannot set linker path %s\n", path);
 		ret = -EINVAL;
+		goto linker_path_write_out;
+	}
+
+	ret = preload_control_add_ignored_binary(path);
+	if (ret < 0) {
+		printk(PRELOAD_PREFIX "Cannot add linker %s to ignored list\n", path);
 		goto linker_path_write_out;
 	}
 
