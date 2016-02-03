@@ -894,21 +894,27 @@ void arch_disarm_uprobe(struct uprobe *p, struct task_struct *task)
 static int urp_handler(struct pt_regs *regs, pid_t tgid)
 {
 	struct uprobe *p;
+	unsigned long flags;
 	unsigned long vaddr = regs->ARM_pc;
 	unsigned long offset_bp = thumb_mode(regs) ?
 				  0x1a :
 				  4 * UPROBES_TRAMP_RET_BREAK_IDX;
 	unsigned long tramp_addr = vaddr - offset_bp;
 
+	local_irq_save(flags);
 	p = get_uprobe_by_insn_slot((void *)tramp_addr, tgid, regs);
-	if (p == NULL) {
-		printk(KERN_INFO
-		       "no_uprobe: Not one of ours: let kernel handle it %lx\n",
-		       vaddr);
+	if (unlikely(p == NULL)) {
+		local_irq_restore(flags);
+
+		pr_info("no_uprobe: Not one of ours: let kernel handle it %lx\n",
+			vaddr);
 		return 1;
 	}
 
+	get_up(p);
+	local_irq_restore(flags);
 	trampoline_uprobe_handler(p, regs);
+	put_up(p);
 
 	return 0;
 }
@@ -940,26 +946,39 @@ static int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 {
 	int ret = 0;
 	struct uprobe *p;
+	unsigned long flags;
 	unsigned long vaddr = regs->ARM_pc | !!thumb_mode(regs);
 	pid_t tgid = current->tgid;
 
+	local_irq_save(flags);
 	p = get_uprobe((uprobe_opcode_t *)vaddr, tgid);
 	if (p) {
+		get_up(p);
+		local_irq_restore(flags);
 		if (!p->pre_handler || !p->pre_handler(p, regs))
 			arch_prepare_singlestep(p, regs);
+		put_up(p);
 	} else {
+		local_irq_restore(flags);
 		ret = urp_handler(regs, tgid);
 
 		/* check ARM/THUMB CPU mode matches installed probe mode */
 		if (ret) {
 			vaddr ^= 1;
+
+			local_irq_save(flags);
 			p = get_uprobe((uprobe_opcode_t *)vaddr, tgid);
 			if (p) {
+				get_up(p);
+				local_irq_restore(flags);
 				pr_err("invalid mode: thumb=%d addr=%p insn=%08lx\n",
 				       !!thumb_mode(regs), p->addr, p->opcode);
 				ret = 0;
 
 				disarm_uprobe(p, current);
+				put_up(p);
+			} else {
+				local_irq_restore(flags);
 			}
 		}
 	}

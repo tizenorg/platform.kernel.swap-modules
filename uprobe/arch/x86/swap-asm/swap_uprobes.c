@@ -525,18 +525,34 @@ static int exceptions_handler(struct pt_regs *regs,
 	return 1;
 }
 
+static int uprobe_handler_retprobe(struct uprobe *p, struct pt_regs *regs)
+{
+	int ret;
+
+	ret = trampoline_uprobe_handler(p, regs);
+	set_current_probe(NULL);
+	put_up(p);
+
+	return ret;
+}
+
 static int uprobe_handler_part2(struct uprobe *p, struct pt_regs *regs)
 {
 	if (!p->pre_handler(p, regs)) {
 		prepare_tramp(p, regs);
 		if (p->ainsn.boostable == 1 && !p->post_handler)
-			return 1;
+			goto exit_and_put_up;
 
 		save_current_flags(regs);
 		set_current_probe(p);
 		prepare_ss(regs);
+
+		return 1;
 	}
 
+exit_and_put_up:
+	set_current_probe(NULL);
+	put_up(p);
 	return 1;
 }
 
@@ -547,6 +563,7 @@ static int uprobe_handler_atomic(struct pt_regs *regs)
 	struct uprobe *p = get_uprobe((void *)vaddr, tgid);
 
 	if (p) {
+		get_up(p);
 		if (p->pre_handler) {
 			set_current_probe(p);
 			exceptions_handler(regs, uprobe_handler_part2);
@@ -564,7 +581,8 @@ static int uprobe_handler_atomic(struct pt_regs *regs)
 		}
 
 		set_current_probe(p);
-		exceptions_handler(regs, trampoline_uprobe_handler);
+		get_up(p);
+		exceptions_handler(regs, uprobe_handler_retprobe);
 	}
 
 	return 1;
@@ -579,6 +597,7 @@ static int post_uprobe_handler(struct uprobe *p, struct pt_regs *regs)
 
 	/* reset current probe */
 	set_current_probe(NULL);
+	put_up(p);
 
 	return 1;
 }
@@ -631,6 +650,52 @@ static struct notifier_block uprobe_exceptions_nb = {
 	.priority = INT_MAX
 };
 
+struct up_valid_struct {
+	struct uprobe *p;
+	bool found;
+};
+
+static int __uprobe_is_valid(struct uprobe *p, void *data)
+{
+	struct up_valid_struct *valid = (struct up_valid_struct *)data;
+
+	if (valid->p == p) {
+		valid->found = true;
+		return 1;
+	}
+
+	return 0;
+}
+
+static bool uprobe_is_valid(struct uprobe *p)
+{
+	struct up_valid_struct valid = {
+		.p = p,
+		.found = false,
+	};
+
+	for_each_uprobe(__uprobe_is_valid, (void *)&valid);
+
+	return valid.found;
+}
+
+static int do_exit_handler(struct kprobe *kp, struct pt_regs *regs)
+{
+	struct uprobe *p;
+
+	p = get_current_probe();
+	if (p && uprobe_is_valid(p)) {
+		set_current_probe(NULL);
+		put_up(p);
+	}
+
+	return 0;
+}
+
+static struct kprobe kp_do_exit = {
+	.pre_handler = do_exit_handler
+};
+
 /**
  * @brief Registers notify.
  *
@@ -639,12 +704,17 @@ static struct notifier_block uprobe_exceptions_nb = {
 int swap_arch_init_uprobes(void)
 {
 	int ret;
+	const char *sym;
 
-	resume_userspace_addr = swap_ksyms("resume_userspace");
-	if (resume_userspace_addr == 0) {
-		pr_err("symbol 'resume_userspace' not found\n");
-		return -ESRCH;
-	}
+	sym = "resume_userspace";
+	resume_userspace_addr = swap_ksyms(sym);
+	if (resume_userspace_addr == 0)
+		goto not_found;
+
+	sym = "do_exit";
+	kp_do_exit.addr = (void *)swap_ksyms(sym);
+	if (kp_do_exit.addr == NULL)
+		goto not_found;
 
 	ret = swap_td_raw_reg(&td_raw, sizeof(struct uprobe_ctlblk));
 	if (ret)
@@ -652,9 +722,23 @@ int swap_arch_init_uprobes(void)
 
 	ret = register_die_notifier(&uprobe_exceptions_nb);
 	if (ret)
-		swap_td_raw_unreg(&td_raw);
+		goto unreg_td;
 
+	ret = swap_register_kprobe(&kp_do_exit);
+	if (ret)
+		goto unreg_exeption;
+
+	return 0;
+
+unreg_exeption:
+	unregister_die_notifier(&uprobe_exceptions_nb);
+unreg_td:
+	swap_td_raw_unreg(&td_raw);
 	return ret;
+
+not_found:
+	pr_err("symbol '%s' not found\n", sym);
+	return -ESRCH;
 }
 
 /**
@@ -664,6 +748,7 @@ int swap_arch_init_uprobes(void)
  */
 void swap_arch_exit_uprobes(void)
 {
+	swap_unregister_kprobe(&kp_do_exit);
 	unregister_die_notifier(&uprobe_exceptions_nb);
 	swap_td_raw_unreg(&td_raw);
 }
