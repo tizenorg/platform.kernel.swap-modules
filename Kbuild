@@ -13,6 +13,7 @@ obj-m := master/ \
          uprobe/ \
          us_manager/ \
          ks_features/ \
+         loader/ \
          sampler/ \
          energy/ \
          parser/ \

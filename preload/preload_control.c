@@ -6,9 +6,9 @@
 #include <us_manager/sspt/sspt_ip.h>
 
 #include "preload.h"
+#include "preload_module.h"
 #include "preload_control.h"
 #include "preload_probe.h"
-#include "preload_module.h"
 
 struct bin_desc {
 	struct list_head list;
@@ -202,7 +202,7 @@ out:
 
 
 /* Called only form handlers. If we're there, then it is instrumented. */
-enum preload_call_type preload_control_call_type_always_inst(void *caller)
+enum preload_call_type pc_call_type_always_inst(void *caller)
 {
 	if (__is_instrumented(caller))
 		return INTERNAL_CALL;
@@ -211,7 +211,7 @@ enum preload_call_type preload_control_call_type_always_inst(void *caller)
 
 }
 
-enum preload_call_type preload_control_call_type(struct sspt_ip *ip, void *caller)
+enum preload_call_type pc_call_type(struct sspt_ip *ip, void *caller)
 {
 	if (__is_instrumented(caller))
 		return INTERNAL_CALL;
@@ -222,7 +222,7 @@ enum preload_call_type preload_control_call_type(struct sspt_ip *ip, void *calle
 	return NOT_INSTRUMENTED;
 }
 
-int preload_control_add_instrumented_binary(char *filename)
+int pc_add_instrumented_binary(char *filename)
 {
 	struct dentry *dentry = get_dentry(filename);
 	int res = 0;
@@ -237,14 +237,14 @@ int preload_control_add_instrumented_binary(char *filename)
 	return res > 0 ? 0 : res;
 }
 
-int preload_control_clean_instrumented_bins(void)
+int pc_clean_instrumented_bins(void)
 {
 	__free_binaries(&target);
 
 	return 0;
 }
 
-int preload_control_add_ignored_binary(char *filename)
+int pc_add_ignored_binary(char *filename)
 {
 	struct dentry *dentry = get_dentry(filename);
 	int res = 0;
@@ -259,34 +259,34 @@ int preload_control_add_ignored_binary(char *filename)
 	return res > 0 ? 0 : res;
 }
 
-int preload_control_clean_ignored_bins(void)
+int pc_clean_ignored_bins(void)
 {
 	__free_binaries(&ignored);
 
 	return 0;
 }
 
-unsigned int preload_control_get_target_names(char ***filenames_p)
+unsigned int pc_get_target_names(char ***filenames_p)
 {
 	return __get_names(&target, filenames_p);
 }
 
-void preload_control_release_target_names(char ***filenames_p)
+void pc_release_target_names(char ***filenames_p)
 {
 	kfree(*filenames_p);
 }
 
-unsigned int preload_control_get_ignored_names(char ***filenames_p)
+unsigned int pc_get_ignored_names(char ***filenames_p)
 {
 	return __get_names(&ignored, filenames_p);
 }
 
-void preload_control_release_ignored_names(char ***filenames_p)
+void pc_release_ignored_names(char ***filenames_p)
 {
 	kfree(*filenames_p);
 }
 
-bool preload_control_check_dentry_is_ignored(struct dentry *dentry)
+bool pc_check_dentry_is_ignored(struct dentry *dentry)
 {
 	struct bin_desc *p;
 	bool ret = false;
@@ -308,12 +308,12 @@ bool preload_control_check_dentry_is_ignored(struct dentry *dentry)
 	return ret;
 }
 
-int preload_control_init(void)
+int pc_init(void)
 {
 	return 0;
 }
 
-void preload_control_exit(void)
+void pc_exit(void)
 {
 	__free_binaries(&target);
 	__free_binaries(&ignored);

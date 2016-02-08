@@ -31,10 +31,6 @@
 #include "preload_probe.h"
 #include "preload.h"
 #include "preload_module.h"
-#include "preload_handlers.h"
-#include "preload_debugfs.h"
-
-static unsigned long long probes_count = 0;
 
 static int preload_info_copy(struct probe_info *dest,
 			      const struct probe_info *source)
@@ -53,80 +49,26 @@ static struct uprobe *preload_get_uprobe(struct sspt_ip *ip)
 	return &ip->retprobe.up;
 }
 
-/* We count all preload probes to know current state of the preload module:
- * if there are registered probes, than it is currently running, if there is no
- * probes, module is just ready to be used.
- *
- * If there was no registered probes and now they're appeared, change state to
- * 'running'.
- */
-static inline void inc_probes(void)
-{
-	if (probes_count == 0)
-		preload_module_set_running();
-
-	probes_count++;
-}
-
-/* If there were probes, but now there's no of them, change state to 'ready'.
- */
-static inline void dec_probes(void)
-{
-	if (unlikely(probes_count == 0))
-		printk(KERN_ERR PRELOAD_PREFIX "Trying to remove probe when there is no one!\n");
-
-	probes_count--;
-	if (probes_count == 0)
-		preload_module_set_ready();
-}
-
-/* Checks if preload can be in 'ready' state. It is so, if loader's dentry and
- * offset are specified.
- */
-static inline bool can_be_ready(void)
-{
-	struct dentry *dentry = preload_debugfs_get_loader_dentry();
-	unsigned long offset = preload_debugfs_get_loader_offset();
-
-	if (dentry != NULL && offset != 0)
-		return true;
-
-	return false;
-}
-
 /* Registers probe if preload is 'running' or 'ready'.
  */
 static int preload_register_probe(struct sspt_ip *ip)
 {
-	if (preload_module_is_not_ready()) {
-		if (can_be_ready()) {
-			preload_module_set_ready();
-		} else {
-			printk(PRELOAD_PREFIX "Module is not initialized!\n");
-			return -EINVAL;
-		}
-	}
-
-	inc_probes();
-
 	return swap_register_uretprobe(&ip->retprobe);
 }
 
 static void preload_unregister_probe(struct sspt_ip *ip, int disarm)
 {
 	__swap_unregister_uretprobe(&ip->retprobe, disarm);
-
-	dec_probes();
 }
 
 static void preload_init(struct sspt_ip *ip)
 {
-	ph_uprobe_init(ip);
+	pm_uprobe_init(ip);
 }
 
 static void preload_uninit(struct sspt_ip *ip)
 {
-	ph_uprobe_exit(ip);
+	pm_uprobe_exit(ip);
 
 	preload_info_cleanup(&ip->desc->info);
 }
@@ -170,12 +112,12 @@ static void get_caller_unregister_probe(struct sspt_ip *ip, int disarm)
 
 static void get_caller_init(struct sspt_ip *ip)
 {
-	ph_get_caller_init(ip);
+	pm_get_caller_init(ip);
 }
 
 static void get_caller_uninit(struct sspt_ip *ip)
 {
-	ph_get_caller_exit(ip);
+	pm_get_caller_exit(ip);
 
 	get_caller_info_cleanup(&ip->desc->info);
 }
@@ -192,12 +134,12 @@ static struct probe_iface get_caller_iface = {
 
 static void get_call_type_init(struct sspt_ip *ip)
 {
-	ph_get_call_type_init(ip);
+	pm_get_call_type_init(ip);
 }
 
 static void get_call_type_uninit(struct sspt_ip *ip)
 {
-	ph_get_call_type_exit(ip);
+	pm_get_call_type_exit(ip);
 
 	get_caller_info_cleanup(&ip->desc->info);
 }
@@ -214,7 +156,7 @@ static struct probe_iface get_call_type_iface = {
 
 static void write_msg_init(struct sspt_ip *ip)
 {
-	ph_write_msg_init(ip);
+	pm_write_msg_init(ip);
 }
 
 static int write_msg_reg(struct sspt_ip *ip)
@@ -224,7 +166,7 @@ static int write_msg_reg(struct sspt_ip *ip)
 
 static void write_msg_uninit(struct sspt_ip *ip)
 {
-	ph_write_msg_exit(ip);
+	pm_write_msg_exit(ip);
 
 	get_caller_info_cleanup(&ip->desc->info);
 }

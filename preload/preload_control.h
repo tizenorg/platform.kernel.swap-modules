@@ -9,22 +9,22 @@ enum preload_call_type {
 	INTERNAL_CALL
 };
 
-int preload_control_init(void);
-void preload_control_exit(void);
+int pc_init(void);
+void pc_exit(void);
 
-enum preload_call_type preload_control_call_type_always_inst(void *caller);
-enum preload_call_type preload_control_call_type(struct sspt_ip *ip, void *caller);
-int preload_control_add_instrumented_binary(char *filename);
-int preload_control_clean_instrumented_bins(void);
-int preload_control_add_ignored_binary(char *filename);
-int preload_control_clean_ignored_bins(void);
+enum preload_call_type pc_call_type_always_inst(void *caller);
+enum preload_call_type pc_call_type(struct sspt_ip *ip, void *caller);
+int pc_add_instrumented_binary(char *filename);
+int pc_clean_instrumented_bins(void);
+int pc_add_ignored_binary(char *filename);
+int pc_clean_ignored_bins(void);
 
-unsigned int preload_control_get_target_names(char ***filenames_p);
-void preload_control_release_target_names(char ***filenames_p);
+unsigned int pc_get_target_names(char ***filenames_p);
+void pc_release_target_names(char ***filenames_p);
 
-unsigned int preload_control_get_ignored_names(char ***filenames_p);
-void preload_control_release_ignored_names(char ***filenames_p);
+unsigned int pc_get_ignored_names(char ***filenames_p);
+void pc_release_ignored_names(char ***filenames_p);
 
-bool preload_control_check_dentry_is_ignored(struct dentry *dentry);
+bool pc_check_dentry_is_ignored(struct dentry *dentry);
 
-#endif /* __PRELOAD_CONTROL_H__ */
+#endif /* __PRELOAD_HANDLERS_CONTROL_H__ */

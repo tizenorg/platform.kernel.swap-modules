@@ -8,11 +8,10 @@
 #include <linux/list.h>
 #include <us_manager/us_manager_common.h>
 #include <us_manager/sspt/sspt_proc.h>
-#include "preload_pd.h"
-#include "preload_threads.h"
-#include "preload_debugfs.h"
-#include "preload_storage.h"
-#include "preload.h"
+#include "loader_pd.h"
+#include "loader_debugfs.h"
+#include "loader_storage.h"
+#include "loader.h"
 
 struct pd_t {
 	unsigned long loader_base;
@@ -136,7 +135,7 @@ static struct pd_t *__create_pd(void)
 			    MAP_ANONYMOUS | MAP_PRIVATE, 0);
 	up_write(&current->mm->mmap_sem);
 	if (IS_ERR_VALUE(page)) {
-		printk(KERN_ERR PRELOAD_PREFIX
+		printk(KERN_ERR LOADER_PREFIX
 		       "Cannot alloc page for %u\n", current->tgid);
 		goto create_pd_fail;
 	}
@@ -160,7 +159,7 @@ static size_t __copy_path(char *src, unsigned long page, unsigned long offset)
 
 	/* set handler path */
 	if (copy_to_user((void __user *)dest, src, len) != 0) {
-		printk(KERN_ERR PRELOAD_PREFIX
+		printk(KERN_ERR LOADER_PREFIX
 		       "Cannot copy string to user!\n");
 		return 0;
 	}
@@ -171,7 +170,7 @@ static size_t __copy_path(char *src, unsigned long page, unsigned long offset)
 static void __set_ld_mapped(struct pd_t *pd, struct mm_struct *mm)
 {
 	struct vm_area_struct *vma;
-	struct dentry *ld = preload_debugfs_get_loader_dentry();
+	struct dentry *ld = ld_get_loader_dentry();
 
 	down_read(&mm->mmap_sem);
 	if (ld) {
@@ -212,7 +211,7 @@ static int __get_handlers(struct pd_t *pd, struct task_struct *task)
 	size_t len;
 	int ret = 0;
 
-	handlers = preload_storage_get_handlers();
+	handlers = ls_get_handlers();
 	if (handlers == NULL)
 		return -EINVAL;
 
@@ -225,7 +224,7 @@ static int __get_handlers(struct pd_t *pd, struct task_struct *task)
 
 		hd = kzalloc(sizeof(*hd), GFP_ATOMIC);
 		if (hd == NULL) {
-			printk(KERN_ERR PRELOAD_PREFIX "No atomic mem!\n");
+			printk(KERN_ERR LOADER_PREFIX "No atomic mem!\n");
 			ret = -ENOMEM;
 			goto get_handlers_out;
 		}
@@ -236,7 +235,7 @@ static int __get_handlers(struct pd_t *pd, struct task_struct *task)
 		hd->dentry = bin->dentry;
 		hd->offset = offset;
 		__set_handler_mapped(hd, task->mm);
-		__set_attempts(hd, PRELOAD_MAX_ATTEMPTS);
+		__set_attempts(hd, LOADER_MAX_ATTEMPTS);
 		list_add_tail(&hd->list, &pd->handlers);
 
 		/* inc handlers path's on page */
@@ -245,25 +244,26 @@ static int __get_handlers(struct pd_t *pd, struct task_struct *task)
 
 get_handlers_out:
 	/* TODO Cleanup already created */
-	preload_storage_put_handlers();
+	ls_put_handlers();
 
 	return ret;
 }
 
 
 
-enum ps_t preload_pd_get_state(struct hd_t *hd)
+enum ps_t lpd_get_state(struct hd_t *hd)
 {
 	if (hd == NULL)
 		return 0;
 
 	return __get_state(hd);
 }
+EXPORT_SYMBOL_GPL(lpd_get_state);
 
-void preload_pd_set_state(struct hd_t *hd, enum ps_t state)
+void lpd_set_state(struct hd_t *hd, enum ps_t state)
 {
 	if (hd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No handler data! Current %d %s\n",
+		printk(LOADER_PREFIX "%d: No handler data! Current %d %s\n",
 		       __LINE__, current->tgid, current->comm);
 		return;
 	}
@@ -271,7 +271,7 @@ void preload_pd_set_state(struct hd_t *hd, enum ps_t state)
 	__set_state(hd, state);
 }
 
-unsigned long preload_pd_get_loader_base(struct pd_t *pd)
+unsigned long lpd_get_loader_base(struct pd_t *pd)
 {
 	if (pd == NULL)
 		return 0;
@@ -279,25 +279,26 @@ unsigned long preload_pd_get_loader_base(struct pd_t *pd)
 	return __get_loader_base(pd);
 }
 
-void preload_pd_set_loader_base(struct pd_t *pd, unsigned long vaddr)
+void lpd_set_loader_base(struct pd_t *pd, unsigned long vaddr)
 {
 	__set_loader_base(pd, vaddr);
 }
 
-unsigned long preload_pd_get_handlers_base(struct hd_t *hd)
+unsigned long lpd_get_handlers_base(struct hd_t *hd)
 {
 	if (hd == NULL)
 		return 0;
 
 	return __get_handlers_base(hd);
 }
+EXPORT_SYMBOL_GPL(lpd_get_handlers_base);
 
-void preload_pd_set_handlers_base(struct hd_t *hd, unsigned long vaddr)
+void lpd_set_handlers_base(struct hd_t *hd, unsigned long vaddr)
 {
 	__set_handlers_base(hd, vaddr);
 }
 
-char __user *preload_pd_get_path(struct pd_t *pd, struct hd_t *hd)
+char __user *lpd_get_path(struct pd_t *pd, struct hd_t *hd)
 {
 	unsigned long page = __get_data_page(pd);
 	unsigned long offset = __get_offset(hd);
@@ -307,7 +308,7 @@ char __user *preload_pd_get_path(struct pd_t *pd, struct hd_t *hd)
 
 
 
-void *preload_pd_get_handle(struct hd_t *hd)
+void *lpd_get_handle(struct hd_t *hd)
 {
 	if (hd == NULL)
 		return NULL;
@@ -315,10 +316,10 @@ void *preload_pd_get_handle(struct hd_t *hd)
 	return __get_handle(hd);
 }
 
-void preload_pd_set_handle(struct hd_t *hd, void __user *handle)
+void lpd_set_handle(struct hd_t *hd, void __user *handle)
 {
 	if (hd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No handler data! Current %d %s\n",
+		printk(LOADER_PREFIX "%d: No handler data! Current %d %s\n",
 		       __LINE__, current->tgid, current->comm);
 		return;
 	}
@@ -326,7 +327,7 @@ void preload_pd_set_handle(struct hd_t *hd, void __user *handle)
 	__set_handle(hd, handle);
 }
 
-long preload_pd_get_attempts(struct hd_t *hd)
+long lpd_get_attempts(struct hd_t *hd)
 {
 	if (hd == NULL)
 		return -EINVAL;
@@ -334,12 +335,12 @@ long preload_pd_get_attempts(struct hd_t *hd)
 	return __get_attempts(hd);
 }
 
-void preload_pd_dec_attempts(struct hd_t *hd)
+void lpd_dec_attempts(struct hd_t *hd)
 {
 	long attempts;
 
 	if (hd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No handler data! Current %d %s\n",
+		printk(LOADER_PREFIX "%d: No handler data! Current %d %s\n",
 		       __LINE__, current->tgid, current->comm);
 		return;
 	}
@@ -349,22 +350,24 @@ void preload_pd_dec_attempts(struct hd_t *hd)
 	__set_attempts(hd, attempts);
 }
 
-struct dentry *preload_pd_get_dentry(struct hd_t *hd)
+struct dentry *lpd_get_dentry(struct hd_t *hd)
 {
 	return hd->dentry;
 }
 
-struct pd_t *preload_pd_get_parent_pd(struct hd_t *hd)
+struct pd_t *lpd_get_parent_pd(struct hd_t *hd)
 {
 	return hd->parent;
 }
+EXPORT_SYMBOL_GPL(lpd_get_parent_pd);
 
-struct pd_t *preload_pd_get(struct sspt_proc *proc)
+struct pd_t *lpd_get(struct sspt_proc *proc)
 {
 	return (struct pd_t *)proc->private_data;
 }
+EXPORT_SYMBOL_GPL(lpd_get);
 
-struct hd_t *preload_pd_get_hd(struct pd_t *pd, struct dentry *dentry)
+struct hd_t *lpd_get_hd(struct pd_t *pd, struct dentry *dentry)
 {
 	struct hd_t *hd;
 
@@ -375,6 +378,7 @@ struct hd_t *preload_pd_get_hd(struct pd_t *pd, struct dentry *dentry)
 
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(lpd_get_hd);
 
 static struct pd_t *do_create_pd(struct task_struct *task)
 {
@@ -399,7 +403,7 @@ free_pd:
 	kfree(pd);
 
 create_pd_exit:
-	printk(KERN_ERR PRELOAD_PREFIX "do_pd_create_pd: error=%d\n", ret);
+	printk(KERN_ERR LOADER_PREFIX "do_pd_create_pd: error=%d\n", ret);
 	return NULL;
 }
 
@@ -422,7 +426,7 @@ struct sspt_proc_cb pd_cb = {
 	.priv_destroy = pd_destroy
 };
 
-int preload_pd_init(void)
+int lpd_init(void)
 {
 	int ret;
 
@@ -431,7 +435,7 @@ int preload_pd_init(void)
 	return ret;
 }
 
-void preload_pd_uninit(void)
+void lpd_uninit(void)
 {
 	sspt_proc_cb_set(NULL);
 

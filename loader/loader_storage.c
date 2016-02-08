@@ -4,24 +4,29 @@
 #include <linux/fs.h>
 #include <linux/list.h>
 #include <ks_features/ks_map.h>
-#include "preload.h"
-#include "preload_module.h"
-#include "preload_storage.h"
-#include "preload_handlers.h"
+#include "loader.h"
+#include "loader_module.h"
+#include "loader_storage.h"
 
-static struct bin_info __handlers_info = { NULL, NULL };
 static struct bin_info __linker_info = { NULL, NULL };
 
 static LIST_HEAD(handlers_list);
 
-static inline struct bin_info *__get_handlers_info(void)
-{
-	return &__handlers_info;
-}
 
-static inline bool __check_handlers_info(void)
+static bool __check_dentry_already_exist(struct dentry *dentry)
 {
-	return (__handlers_info.dentry != NULL); /* TODO */
+	struct bin_info_el *bin;
+	bool ret = false;
+
+	list_for_each_entry(bin, &handlers_list, list) {
+		if (bin->dentry == dentry) {
+			ret = true;
+			goto out;
+		}
+	}
+
+out:
+	return ret;
 }
 
 static inline int __add_handler(char *path)
@@ -31,22 +36,27 @@ static inline int __add_handler(char *path)
 	struct bin_info_el *bin;
 	int ret = 0;
 
+	dentry = get_dentry(path);
+	if (!dentry) {
+		ret = -ENOENT;
+		goto add_handler_out;
+	}
+
+	if (__check_dentry_already_exist(dentry)) {
+		ret = 1;
+		goto add_handler_out;
+	}
+
 	bin = kmalloc(sizeof(*bin), GFP_KERNEL);
 	if (bin == NULL) {
 		ret = -ENOMEM;
-		goto add_handler_fail;
+		goto add_handler_fail_release_dentry;
 	}
 
 	bin->path = kmalloc(len + 1, GFP_KERNEL);
 	if (bin->path == NULL) {
 		ret = -ENOMEM;
 		goto add_handler_fail_free_bin;
-	}
-
-	dentry = get_dentry(path);
-	if (!dentry) {
-		ret = -ENOENT;
-		goto add_handler_fail_free_path;
 	}
 
 	INIT_LIST_HEAD(&bin->list);
@@ -57,13 +67,13 @@ static inline int __add_handler(char *path)
 
 	return ret;
 
-add_handler_fail_free_path:
-	kfree(bin->path);
-
 add_handler_fail_free_bin:
 	kfree(bin);
 
-add_handler_fail:
+add_handler_fail_release_dentry:
+	put_dentry(dentry);
+
+add_handler_out:
 	return ret;
 }
 
@@ -81,47 +91,6 @@ static inline void __remove_handlers(void)
 
 	list_for_each_entry_safe(bin, tmp, &handlers_list, list)
 		__remove_handler(bin);
-}
-
-static inline int __init_handlers_info(char *path)
-{
-	struct dentry *dentry;
-	size_t len = strnlen(path, PATH_MAX);
-	int ret = 0;
-
-	__handlers_info.path = kmalloc(len + 1, GFP_KERNEL);
-	if (__handlers_info.path == NULL) {
-		ret = -ENOMEM;
-		goto init_handlers_fail;
-	}
-
-	dentry = get_dentry(path);
-	if (!dentry) {
-		ret = -ENOENT;
-		goto init_handlers_fail_free;
-	}
-
-	strncpy(__handlers_info.path, path, len);
-	__handlers_info.path[len] = '\0';
-	__handlers_info.dentry = dentry;
-
-	return ret;
-
-init_handlers_fail_free:
-	kfree(__handlers_info.path);
-
-init_handlers_fail:
-	return ret;
-}
-
-static inline void __drop_handlers_info(void)
-{
-	kfree(__handlers_info.path);
-	__handlers_info.path = NULL;
-
-	if (__handlers_info.dentry)
-		put_dentry(__handlers_info.dentry);
-	__handlers_info.dentry = NULL;
 }
 
 static inline struct bin_info *__get_linker_info(void)
@@ -180,65 +149,36 @@ static inline void __drop_linker_info(void)
 
 
 
-int preload_storage_set_handlers_info(char *path)
+int ls_add_handler(char *path)
 {
 	int ret;
 
-	ret = __init_handlers_info(path);
-	if (ret != 0)
-		return ret;
-
+	/* If ret is positive - handler was not added, because it is
+	 * already exists */
 	ret = __add_handler(path);
-	if (ret != 0)
+	if (ret < 0)
 		return ret;
 
-	ph_set_handler_dentry(__handlers_info.dentry);
-
-	return ret;
+	return 0;
 }
 
-int preload_storage_add_handler(char *path)
-{
-	int ret;
-
-	ret = __add_handler(path);
-	if (ret != 0)
-		return ret;
-
-	return ret;
-}
-
-struct bin_info *preload_storage_get_handlers_info(void)
-{
-	struct bin_info *info = __get_handlers_info();
-
-	if (__check_handlers_info())
-		return info;
-
-	return NULL;
-}
-
-struct list_head *preload_storage_get_handlers(void)
+struct list_head *ls_get_handlers(void)
 {
 	/* TODO counter, syncs */
 	return &handlers_list;
 }
 
-void preload_storage_put_handlers_info(struct bin_info *info)
-{
-}
-
-void preload_storage_put_handlers(void)
+void ls_put_handlers(void)
 {
 	/* TODO dec counter, release sync */
 }
 
-int preload_storage_set_linker_info(char *path)
+int ls_set_linker_info(char *path)
 {
 	return __init_linker_info(path);
 }
 
-struct bin_info *preload_storage_get_linker_info(void)
+struct bin_info *ls_get_linker_info(void)
 {
 	struct bin_info *info = __get_linker_info();
 
@@ -248,18 +188,17 @@ struct bin_info *preload_storage_get_linker_info(void)
 	return NULL;
 }
 
-void preload_storage_put_linker_info(struct bin_info *info)
+void ls_put_linker_info(struct bin_info *info)
 {
 }
 
-int preload_storage_init(void)
+int ls_init(void)
 {
 	return 0;
 }
 
-void preload_storage_exit(void)
+void ls_exit(void)
 {
-	__drop_handlers_info();
 	__drop_linker_info();
 	__remove_handlers();
 }
