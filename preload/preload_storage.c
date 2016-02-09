@@ -228,7 +228,7 @@ int preload_storage_init(void)
 		return -ENOENT;
 
 	/* TODO check if we have not library */
-	__libsmack_info.path = "/usr/lib/libsmack.so.1.0.0";
+	__libsmack_info.path = "/usr/lib/libsmack.so.1.1.0";
 	__libsmack_info.dentry = get_dentry(__libsmack_info.path);
 
 	if (!__libsmack_info.dentry)
