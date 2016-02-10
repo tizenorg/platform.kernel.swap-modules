@@ -546,12 +546,6 @@ int swap_register_kprobe(struct kprobe *p)
 	p->addr = (kprobe_opcode_t *)(((char *)p->addr) + p->offset);
 	DBPRINTF("p->addr = 0x%p p = 0x%p\n", p->addr, p);
 
-#ifdef KPROBES_PROFILE
-	p->start_tm.tv_sec = p->start_tm.tv_usec = 0;
-	p->hnd_tm_sum.tv_sec = p->hnd_tm_sum.tv_usec = 0;
-	p->count = 0;
-#endif
-	p->mod_refcounted = 0;
 	p->nmissed = 0;
 	INIT_LIST_HEAD(&p->list);
 

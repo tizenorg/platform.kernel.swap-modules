@@ -485,6 +485,36 @@ static struct uretprobe_instance *get_free_urp_inst(struct uretprobe *rp)
 }
 /* =================================================================== */
 
+
+void for_each_uprobe(int (*func)(struct uprobe *, void *), void *data)
+{
+	int i;
+	struct uprobe *p;
+	struct hlist_head *head;
+	struct hlist_node *tnode;
+	DECLARE_NODE_PTR_FOR_HLIST(node);
+
+	for (i = 0; i < UPROBE_TABLE_SIZE; ++i) {
+		head = &uprobe_table[i];
+		swap_hlist_for_each_entry_safe(p, node, tnode, head, hlist) {
+			if (func(p, data))
+				return;
+		}
+	}
+}
+
+static int wait_up_action(atomic_t *val)
+{
+	BUG_ON(atomic_read(val));
+	schedule();
+	return 0;
+}
+
+static void wait_up(struct uprobe *p)
+{
+	wait_on_atomic_t(&p->usage, wait_up_action, TASK_UNINTERRUPTIBLE);
+}
+
 /**
  * @brief Registers uprobe.
  *
@@ -502,11 +532,7 @@ int swap_register_uprobe(struct uprobe *p)
 
 	p->ainsn.insn = NULL;
 	INIT_LIST_HEAD(&p->list);
-#ifdef KPROBES_PROFILE
-	p->start_tm.tv_sec = p->start_tm.tv_usec = 0;
-	p->hnd_tm_sum.tv_sec = p->hnd_tm_sum.tv_usec = 0;
-	p->count = 0;
-#endif
+	atomic_set(&p->usage, 1);
 
 	/* get the first item */
 	old_p = get_uprobe(p->addr, p->task->tgid);
@@ -603,8 +629,12 @@ valid_p:
 			kfree(old_p);
 		}
 
-		if (!in_atomic())
+		if (!in_atomic()) {
 			synchronize_sched();
+
+			atomic_dec(&p->usage);
+			wait_up(p);
+		}
 
 		remove_uprobe(p);
 	} else {
@@ -763,6 +793,7 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 #endif
 	struct uretprobe_instance *ri;
 	unsigned long flags;
+	int ret = 0;
 
 #ifdef CONFIG_ARM
 	if (noret)
@@ -776,7 +807,7 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 	/* TODO: test - remove retprobe after func entry but before its exit */
 	ri = get_free_urp_inst(rp);
 	if (ri != NULL) {
-		int ret;
+		int err;
 
 		ri->rp = rp;
 		ri->task = current;
@@ -785,11 +816,11 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 #endif
 
 		if (rp->entry_handler)
-			rp->entry_handler(ri, regs);
+			ret = rp->entry_handler(ri, regs);
 
-		ret = arch_prepare_uretprobe(ri, regs);
+		err = arch_prepare_uretprobe(ri, regs);
 		add_urp_inst(ri);
-		if (ret) {
+		if (err) {
 			recycle_urp_inst(ri);
 			++rp->nmissed;
 		}
@@ -799,7 +830,7 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 
 	spin_unlock_irqrestore(&uretprobe_lock, flags);
 
-	return 0;
+	return ret;
 }
 
 /**

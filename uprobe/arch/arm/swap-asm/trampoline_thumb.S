@@ -89,28 +89,6 @@ bd:		nop			// branch displacement hi
 np2:            nop                     // stored PC-4(next insn addr) hi
                 nop                     // stored PC-4(next insn addr) lo
 
-		.global blx_off_insn_execbuf_thumb
-		.align 4
-blx_off_insn_execbuf_thumb:
-                push {r0}
-                ldr r0, bd3
-                mov lr, r0
-                pop {r0}
-                blx lr
-                nop
-                push {r0,r1}
-                ldr r0, np3
-                nop
-                str r0, [sp, #4]
-                pop {r0,pc}
-                nop
-                nop                     // ssbreak
-                nop                     // retbreak
-bd3:		nop			// branch displacement hi
-                nop			// branch displacement lo
-np3:            nop                     // stored PC-4(next insn addr) hi
-                nop                     // stored PC-4(next insn addr) lo
-
 		.global b_cond_insn_execbuf_thumb
 		.align 4
 b_cond_insn_execbuf_thumb:

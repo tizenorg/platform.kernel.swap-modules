@@ -34,8 +34,8 @@
 #define _SWAP_UPROBES_H
 
 
+#include <master/wait.h>
 #include <kprobe/swap_kprobes.h>
-
 #include <swap-asm/swap_uprobes.h>
 
 /**
@@ -84,13 +84,7 @@ struct uprobe {
 	uprobe_break_handler_t break_handler;
 	/** Saved opcode (which has been replaced with breakpoint).*/
 	uprobe_opcode_t opcode;
-	/** Override single-step target address, may be used to redirect
-	 * control-flow to arbitrary address after probe point without
-	 * invocation of original instruction; useful for functions
-	 * replacement. If jprobe.entry should return address of function or
-	 * NULL if original function should be called.
-	 * Not supported for X86, not tested for MIPS. */
-	uprobe_opcode_t *ss_addr[NR_CPUS];
+	atomic_t usage;
 #ifdef CONFIG_ARM
 	/** Safe/unsafe to use probe on ARM.*/
 	unsigned safe_arm:1;
@@ -98,10 +92,8 @@ struct uprobe {
 	unsigned safe_thumb:1;
 #endif
 	struct arch_insn ainsn;              /**< Copy of the original instruction.*/
-	struct arch_tramp atramp;            /**< Stores trampoline */
 	struct task_struct *task;            /**< Pointer to the task struct */
 	struct slot_manager *sm;             /**< Pointer to slot manager */
-	bool atomic_ctx;                    /**< Handler context */
 };
 
 struct uinst_info {
@@ -208,6 +200,19 @@ struct uretprobe_instance {
 	char data[0];                       /**< Custom data */
 };
 
+
+static void inline get_up(struct uprobe *p)
+{
+	atomic_inc(&p->usage);
+}
+
+static void inline put_up(struct uprobe *p)
+{
+	if (atomic_dec_and_test(&p->usage))
+		wake_up_atomic_t(&p->usage);
+}
+
+void for_each_uprobe(int (*func)(struct uprobe *, void *), void *data);
 int swap_register_uprobe(struct uprobe *p);
 void swap_unregister_uprobe(struct uprobe *p);
 void __swap_unregister_uprobe(struct uprobe *up, int disarm);

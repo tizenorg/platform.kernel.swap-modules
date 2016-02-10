@@ -124,8 +124,6 @@ struct kprobe {
 	struct hlist_node				is_hlist;
 	/** List of kprobes for multi-handler support.*/
 	struct list_head				list;
-	/** Indicates that the corresponding module has been ref counted.*/
-	unsigned int					mod_refcounted;
 	/** Count the number of times this probe was temporarily disarmed.*/
 	unsigned long					nmissed;
 	/** Location of the probe point. */

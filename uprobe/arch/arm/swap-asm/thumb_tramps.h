@@ -20,21 +20,17 @@
  */
 
 
-#ifndef _USM_MSG_H
-#define _USM_MSG_H
+#ifndef _ARM_THUMB_TRAMPS_H
+#define _ARM_THUMB_TRAMPS_H
 
 
-struct dentry;
-struct task_struct;
-struct vm_area_struct;
+#include <linux/types.h>
 
 
-void usm_msg_info(struct task_struct *task, struct dentry *dentry);
-void usm_msg_term(struct task_struct *task);
-void usm_msg_map(struct vm_area_struct *vma);
-void usm_msg_unmap(unsigned long start, unsigned long end);
-void usm_msg_comm(struct task_struct *task);
-void usm_msg_status_info(struct task_struct *task);
+void tt_make_common(void *tramp, unsigned long insn,
+		    unsigned long vaddr, bool t2);
+void tt_make_pc_deps(void *tramp, unsigned long mod_insn,
+		     unsigned long vaddr, bool t2);
 
 
-#endif /* _USM_MSG_H */
+#endif /* _ARM_THUMB_TRAMPS_H */

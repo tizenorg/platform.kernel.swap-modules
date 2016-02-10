@@ -39,15 +39,28 @@
 static DEFINE_RATIONAL(cpu0_running_coef); /* boot core uses distinct coeff */
 static DEFINE_RATIONAL(cpuN_running_coef);
 
-static u64 __energy_cpu(enum parameter_energy pe)
+static u64 __energy_cpu0(enum parameter_energy pe)
 {
 	u64 times[NR_CPUS] = { 0 };
 	u64 val = 0;
-	int i;
 
+	/* TODO: make for only cpu0 */
 	if (get_parameter_energy(pe, times, sizeof(times)) == 0) {
 		val = div_u64(times[0] * cpu0_running_coef.num,
 			      cpu0_running_coef.denom);
+	}
+
+	return val;
+}
+
+static u64 __energy_cpuN(enum parameter_energy pe)
+{
+	u64 times[NR_CPUS] = { 0 };
+	u64 val = 0;
+
+	if (get_parameter_energy(pe, times, sizeof(times)) == 0) {
+		int i;
+
 		for (i = 1; i < NR_CPUS; i++)
 			val += div_u64(times[i] * cpuN_running_coef.num,
 				       cpuN_running_coef.denom);
@@ -56,14 +69,24 @@ static u64 __energy_cpu(enum parameter_energy pe)
 	return val;
 }
 
-static u64 cpu_system(void)
+static u64 cpu0_system(void)
 {
-	return __energy_cpu(PE_TIME_SYSTEM);
+	return __energy_cpu0(PE_TIME_SYSTEM);
 }
 
-static u64 cpu_apps(void)
+static u64 cpuN_system(void)
 {
-	return __energy_cpu(PE_TIME_APPS);
+	return __energy_cpuN(PE_TIME_SYSTEM);
+}
+
+static u64 cpu0_apps(void)
+{
+	return __energy_cpu0(PE_TIME_APPS);
+}
+
+static u64 cpuN_apps(void)
+{
+	return __energy_cpuN(PE_TIME_APPS);
 }
 
 
@@ -116,6 +139,137 @@ static u64 fw_apps(void)
 
 	get_parameter_energy(PE_WRITE_APPS, &byte, sizeof(byte));
 	return div_u64(byte * fw_coef.num, fw_coef.denom);
+}
+
+
+/* wifi recv */
+static DEFINE_RATIONAL(wf_recv_coef);
+
+static u64 wf_recv_system(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_WF_RECV_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * wf_recv_coef.num, wf_recv_coef.denom);
+}
+
+static u64 wf_recv_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_WF_RECV_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * wf_recv_coef.num, wf_recv_coef.denom);
+}
+
+/* wifi send */
+static DEFINE_RATIONAL(wf_send_coef);
+
+static u64 wf_send_system(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_WF_SEND_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * wf_send_coef.num, wf_send_coef.denom);
+}
+
+static u64 wf_send_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_WF_SEND_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * wf_send_coef.num, wf_send_coef.denom);
+}
+
+/* l2cap_recv_acldata */
+static DEFINE_RATIONAL(l2cap_recv_acldata_coef);
+
+static u64 l2cap_recv_acldata_system(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_L2CAP_RECV_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * l2cap_recv_acldata_coef.num,
+		       l2cap_recv_acldata_coef.denom);
+}
+
+static u64 l2cap_recv_acldata_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_L2CAP_RECV_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * l2cap_recv_acldata_coef.num,
+		       l2cap_recv_acldata_coef.denom);
+}
+
+/* sco_recv_scodata */
+static DEFINE_RATIONAL(sco_recv_scodata_coef);
+
+static u64 sco_recv_scodata_system(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_SCO_RECV_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * sco_recv_scodata_coef.num,
+		       sco_recv_scodata_coef.denom);
+}
+
+static u64 sco_recv_scodata_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PE_SCO_RECV_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * sco_recv_scodata_coef.num,
+		       sco_recv_scodata_coef.denom);
+}
+
+/* hci_send_acl */
+static DEFINE_RATIONAL(hci_send_acl_coef);
+
+static u64 hci_send_acl_system(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PT_SEND_ACL_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * hci_send_acl_coef.num, hci_send_acl_coef.denom);
+}
+
+static u64 hci_send_acl_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PT_SEND_ACL_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * hci_send_acl_coef.num, hci_send_acl_coef.denom);
+}
+
+/* hci_send_sco */
+static DEFINE_RATIONAL(hci_send_sco_coef);
+
+static u64 hci_send_sco_system(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PT_SEND_SCO_SYSTEM, &byte, sizeof(byte));
+
+	return div_u64(byte * hci_send_sco_coef.num, hci_send_sco_coef.denom);
+}
+
+static u64 hci_send_sco_apps(void)
+{
+	u64 byte = 0;
+
+	get_parameter_energy(PT_SEND_SCO_APPS, &byte, sizeof(byte));
+
+	return div_u64(byte * hci_send_sco_coef.num, hci_send_sco_coef.denom);
 }
 
 
@@ -185,14 +339,14 @@ struct param_data parameters[] = {
 	{
 		.name = "cpu_running",
 		.coef = &cpu0_running_coef,
-		.system = cpu_system,
-		.apps = cpu_apps
+		.system = cpu0_system,
+		.apps = cpu0_apps
 	},
 	{
 		.name = "cpuN_running",
 		.coef = &cpuN_running_coef,
-		.system = cpu_system,
-		.apps = cpu_apps
+		.system = cpuN_system,
+		.apps = cpuN_apps
 	},
 	{
 		.name = "cpu_idle",
@@ -211,6 +365,42 @@ struct param_data parameters[] = {
 		.coef = &fw_coef,
 		.system = fw_system,
 		.apps = fw_apps
+	},
+	{
+		.name = "wf_recv",
+		.coef = &wf_recv_coef,
+		.system = wf_recv_system,
+		.apps = wf_recv_apps
+	},
+	{
+		.name = "wf_send",
+		.coef = &wf_send_coef,
+		.system = wf_send_system,
+		.apps = wf_send_apps
+	},
+	{
+		.name = "sco_recv_scodata",
+		.coef = &sco_recv_scodata_coef,
+		.system = sco_recv_scodata_system,
+		.apps = sco_recv_scodata_apps
+	},
+	{
+		.name = "l2cap_recv_acldata",
+		.coef = &l2cap_recv_acldata_coef,
+		.system = l2cap_recv_acldata_system,
+		.apps = l2cap_recv_acldata_apps
+	},
+	{
+		.name = "hci_send_acl",
+		.coef = &hci_send_acl_coef,
+		.system = hci_send_acl_system,
+		.apps = hci_send_acl_apps
+	},
+	{
+		.name = "hci_send_sco",
+		.coef = &hci_send_sco_coef,
+		.system = hci_send_sco_system,
+		.apps = hci_send_sco_apps
 	}
 };
 

@@ -69,10 +69,12 @@ void free_img_proc(struct img_proc *proc)
 {
 	struct img_file *file, *tmp;
 
+	write_lock(&proc->rwlock);
 	list_for_each_entry_safe(file, tmp, &proc->file_list, list) {
 		img_del_file_by_list(file);
-		free_img_file(file);
+		img_file_put(file);
 	}
+	write_unlock(&proc->rwlock);
 
 	kfree(proc);
 }
@@ -90,14 +92,16 @@ static void img_del_file_by_list(struct img_file *file)
 }
 
 /* called with read_[lock/unlock](&proc->rwlock) */
-static struct img_file *find_img_file(struct img_proc *proc,
-				      struct dentry *dentry)
+static struct img_file *img_file_find_get(struct img_proc *proc,
+					  struct dentry *dentry)
 {
 	struct img_file *file;
 
 	list_for_each_entry(file, &proc->file_list, list) {
-		if (file->dentry == dentry)
+		if (file->dentry == dentry) {
+			img_file_get(file);
 			return file;
+		}
 	}
 
 	return NULL;
@@ -119,28 +123,25 @@ int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 	struct img_file *file;
 
 	write_lock(&proc->rwlock);
-	file = find_img_file(proc, dentry);
-	if (file) {
-		ret = img_file_add_ip(file, addr, pd);
-		goto unlock;
-	}
+	file = img_file_find_get(proc, dentry);
+	write_unlock(&proc->rwlock);
 
-	file = create_img_file(dentry);
-	if (file == NULL) {
-		ret = -ENOMEM;
-		goto unlock;
+	if (!file) {
+		file = img_file_create(dentry);
+		if (!file)
+			return -ENOMEM;
+
+		img_file_get(file);
+		write_lock(&proc->rwlock);
+		img_add_file_by_list(proc, file);
+		write_unlock(&proc->rwlock);
 	}
 
 	ret = img_file_add_ip(file, addr, pd);
-	if (ret) {
+	if (ret)
 		printk(KERN_INFO "Cannot add ip to img file\n");
-		free_img_file(file);
-	} else {
-		img_add_file_by_list(proc, file);
-	}
 
-unlock:
-	write_unlock(&proc->rwlock);
+	img_file_put(file);
 	return ret;
 }
 
@@ -161,21 +162,23 @@ int img_proc_del_ip(struct img_proc *proc,
 	struct img_file *file;
 
 	write_lock(&proc->rwlock);
-	file = find_img_file(proc, dentry);
-	if (file == NULL) {
-		ret = -EINVAL;
-		goto unlock;
-	}
+	file = img_file_find_get(proc, dentry);
+	write_unlock(&proc->rwlock);
+
+	if (!file)
+		return -EINVAL;
 
 	ret = img_file_del_ip(file, addr, pd);
 	if (ret == 0 && img_file_empty(file)) {
+		write_lock(&proc->rwlock);
 		img_del_file_by_list(file);
-		free_img_file(file);
+		write_unlock(&proc->rwlock);
+		img_file_put(file);
 	}
 
-unlock:
-	write_unlock(&proc->rwlock);
-	return ret;
+	img_file_put(file);
+
+	return 0;
 }
 
 void img_proc_copy_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc)

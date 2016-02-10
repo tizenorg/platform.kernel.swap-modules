@@ -20,21 +20,21 @@
  */
 
 
-#ifndef _USM_MSG_H
-#define _USM_MSG_H
+#ifndef _ARM_DECODE_THUMB_H
+#define _ARM_DECODE_THUMB_H
 
 
-struct dentry;
-struct task_struct;
-struct vm_area_struct;
+#include "swap_uprobes.h"
 
 
-void usm_msg_info(struct task_struct *task, struct dentry *dentry);
-void usm_msg_term(struct task_struct *task);
-void usm_msg_map(struct vm_area_struct *vma);
-void usm_msg_unmap(unsigned long start, unsigned long end);
-void usm_msg_comm(struct task_struct *task);
-void usm_msg_status_info(struct task_struct *task);
+struct decode_info {
+	unsigned long vaddr;
+	void *tramp;
+	uprobe_handler_t handeler;
+};
 
 
-#endif /* _USM_MSG_H */
+int decode_thumb(unsigned long insn, struct decode_info *info);
+
+
+#endif /* _ARM_DECODE_THUMB_H */

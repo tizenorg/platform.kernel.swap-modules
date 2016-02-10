@@ -5,6 +5,7 @@
 #include <linux/mm.h>
 #include <linux/mman.h>
 #include <linux/hardirq.h>
+#include <linux/list.h>
 #include <us_manager/us_manager_common.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include "preload_pd.h"
@@ -13,18 +14,22 @@
 #include "preload_storage.h"
 #include "preload.h"
 
-struct process_data {
-	enum preload_state_t state;
+struct pd_t {
 	unsigned long loader_base;
-	unsigned long handlers_base;
 	unsigned long data_page;
-	void __user *handle;
-	long attempts;
-	long refcount;
+	struct list_head handlers;
 };
 
-static struct bin_info *handlers_info;
-
+struct hd_t {
+	struct list_head list;
+	struct dentry *dentry;
+	enum ps_t state;
+	struct pd_t *parent;
+	unsigned long base;
+	unsigned long offset;
+	void __user *handle;
+	long attempts;
+};
 
 
 static inline bool check_vma(struct vm_area_struct *vma, struct dentry *dentry)
@@ -34,281 +39,76 @@ static inline bool check_vma(struct vm_area_struct *vma, struct dentry *dentry)
 	return (file && (vma->vm_flags & VM_EXEC) && (file->f_dentry == dentry));
 }
 
-static inline enum preload_state_t __get_state(struct process_data *pd)
-{
-	return pd->state;
-}
-
-static inline void __set_state(struct process_data *pd,
-				   enum preload_state_t state)
-{
-	pd->state = state;
-}
-
-static inline unsigned long __get_loader_base(struct process_data *pd)
+static inline unsigned long __get_loader_base(struct pd_t *pd)
 {
 	return pd->loader_base;
 }
 
-static inline void __set_loader_base(struct process_data *pd,
+static inline void __set_loader_base(struct pd_t *pd,
 				     unsigned long addr)
 {
 	pd->loader_base = addr;
 }
 
-static inline unsigned long __get_handlers_base(struct process_data *pd)
-{
-	return pd->handlers_base;
-}
-
-static inline void __set_handlers_base(struct process_data *pd,
-				       unsigned long addr)
-{
-	pd->handlers_base = addr;
-}
-
-static inline char __user *__get_path(struct process_data *pd)
-{
-	return (char *)pd->data_page;
-}
-
-static inline unsigned long __get_data_page(struct process_data *pd)
+static inline unsigned long __get_data_page(struct pd_t *pd)
 {
 	return pd->data_page;
 }
 
-static inline void __set_data_page(struct process_data *pd, unsigned long page)
+static inline void __set_data_page(struct pd_t *pd, unsigned long page)
 {
 	pd->data_page = page;
 }
 
-static inline void *__get_handle(struct process_data *pd)
+
+
+static inline enum ps_t __get_state(struct hd_t *hd)
 {
-	return pd->handle;
+	return hd->state;
 }
 
-static inline void __set_handle(struct process_data *pd, void __user *handle)
+static inline void __set_state(struct hd_t *hd, enum ps_t state)
 {
-	pd->handle = handle;
+	hd->state = state;
 }
 
-static inline long __get_attempts(struct process_data *pd)
+static inline unsigned long __get_handlers_base(struct hd_t *hd)
 {
-	return pd->attempts;
+	return hd->base;
 }
 
-static inline void __set_attempts(struct process_data *pd, long attempts)
+static inline void __set_handlers_base(struct hd_t *hd,
+				       unsigned long addr)
 {
-	pd->attempts = attempts;
+	hd->base = addr;
 }
 
-static inline long __get_refcount(struct process_data *pd)
+static inline unsigned long __get_offset(struct hd_t *hd)
 {
-	return pd->refcount;
+	return hd->offset;
 }
 
-static inline void __set_refcount(struct process_data *pd, long refcount)
+static inline void *__get_handle(struct hd_t *hd)
 {
-	pd->refcount = refcount;
+	return hd->handle;
 }
 
-
-
-
-static int __pd_create_on_demand(void)
+static inline void __set_handle(struct hd_t *hd, void __user *handle)
 {
-	if (handlers_info == NULL) {
-		handlers_info = preload_storage_get_handlers_info();
-		if (handlers_info == NULL)
-			return -EINVAL;
-	}
-
-	return 0;
+	hd->handle = handle;
 }
 
-
-
-enum preload_state_t preload_pd_get_state(struct process_data *pd)
+static inline long __get_attempts(struct hd_t *hd)
 {
-	if (pd == NULL)
-		return 0;
-
-	return __get_state(pd);
+	return hd->attempts;
 }
 
-void preload_pd_set_state(struct process_data *pd, enum preload_state_t state)
+static inline void __set_attempts(struct hd_t *hd, long attempts)
 {
-	if (pd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
-               current->tgid, current->comm);
-		return;
-	}
-
-	__set_state(pd, state);
-}
-
-unsigned long preload_pd_get_loader_base(struct process_data *pd)
-{
-	if (pd == NULL)
-		return 0;
-
-	return __get_loader_base(pd);
-}
-
-void preload_pd_set_loader_base(struct process_data *pd, unsigned long vaddr)
-{
-	__set_loader_base(pd, vaddr);
-}
-
-unsigned long preload_pd_get_handlers_base(struct process_data *pd)
-{
-	if (pd == NULL)
-		return 0;
-
-	return __get_handlers_base(pd);
-}
-
-void preload_pd_set_handlers_base(struct process_data *pd, unsigned long vaddr)
-{
-	__set_handlers_base(pd, vaddr);
-}
-
-void preload_pd_put_path(struct process_data *pd)
-{
-	if (pd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
-               current->tgid, current->comm);
-		return;
-	}
-
-	if (__get_data_page(pd) == 0)
-		return;
-
-	__set_data_page(pd, 0);
-}
-
-char __user *preload_pd_get_path(struct process_data *pd)
-{
-	char __user *path = __get_path(pd);
-
-	return path;
+	hd->attempts = attempts;
 }
 
 
-
-void *preload_pd_get_handle(struct process_data *pd)
-{
-	if (pd == NULL)
-		return NULL;
-
-	return __get_handle(pd);
-}
-
-void preload_pd_set_handle(struct process_data *pd, void __user *handle)
-{
-	if (pd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
-               current->tgid, current->comm);
-		return;
-	}
-
-	__set_handle(pd, handle);
-}
-
-long preload_pd_get_attempts(struct process_data *pd)
-{
-	if (pd == NULL)
-		return -EINVAL;
-
-	return __get_attempts(pd);
-}
-
-void preload_pd_dec_attempts(struct process_data *pd)
-{
-	long attempts;
-
-	if (pd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
-               current->tgid, current->comm);
-		return;
-	}
-
-	attempts = __get_attempts(pd);
-	attempts--;
-	__set_attempts(pd, attempts);
-}
-
-void preload_pd_inc_refs(struct process_data *pd)
-{
-	long refs;
-
-	if (pd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
-               current->tgid, current->comm);
-		return;
-	}
-
-	refs = __get_refcount(pd);
-	refs++;
-	__set_refcount(pd, refs);
-}
-
-void preload_pd_dec_refs(struct process_data *pd)
-{
-	long refs;
-
-	if (pd == NULL) {
-		printk(PRELOAD_PREFIX "%d: No process data! Current %d %s\n", __LINE__,
-               current->tgid, current->comm);
-		return;
-	}
-
-	refs = __get_refcount(pd);
-	refs--;
-	__set_refcount(pd, refs);
-}
-
-long preload_pd_get_refs(struct process_data *pd)
-{
-	if (pd == NULL)
-		return -EINVAL;
-
-	return __get_refcount(pd);
-}
-
-struct process_data *preload_pd_get(struct sspt_proc *proc)
-{
-	return (struct process_data *)proc->private_data;
-}
-
-static unsigned long make_preload_path(void)
-{
-	unsigned long page = -EINVAL;
-
-	if (handlers_info) {
-		const char *path = handlers_info->path;
-		size_t len = strnlen(path, PATH_MAX);
-
-		down_write(&current->mm->mmap_sem);
-		page = swap_do_mmap(NULL, 0, PAGE_SIZE, PROT_READ | PROT_WRITE,
-				    MAP_ANONYMOUS | MAP_PRIVATE, 0);
-		up_write(&current->mm->mmap_sem);
-
-		if (IS_ERR_VALUE(page)) {
-			printk(KERN_ERR PRELOAD_PREFIX
-			       "Cannot alloc page for %u\n", current->tgid);
-			goto out;
-		}
-
-		/* set preload_library path */
-		if (copy_to_user((void __user *)page, path, len) != 0)
-			printk(KERN_ERR PRELOAD_PREFIX
-			       "Cannot copy string to user!\n");
-	}
-
-out:
-	return page;
-}
 
 static struct vm_area_struct *find_vma_by_dentry(struct mm_struct *mm,
 						 struct dentry *dentry)
@@ -319,14 +119,59 @@ static struct vm_area_struct *find_vma_by_dentry(struct mm_struct *mm,
 		if (check_vma(vma, dentry))
 			return vma;
 
-        return NULL;
+	return NULL;
 }
 
-static void set_already_mapp(struct process_data *pd, struct mm_struct *mm)
+static struct pd_t *__create_pd(void)
+{
+	struct pd_t *pd;
+	unsigned long page;
+
+	pd = kzalloc(sizeof(*pd), GFP_ATOMIC);
+	if (pd == NULL)
+		return NULL;
+
+	down_write(&current->mm->mmap_sem);
+	page = swap_do_mmap(NULL, 0, PAGE_SIZE, PROT_READ | PROT_WRITE,
+			    MAP_ANONYMOUS | MAP_PRIVATE, 0);
+	up_write(&current->mm->mmap_sem);
+	if (IS_ERR_VALUE(page)) {
+		printk(KERN_ERR PRELOAD_PREFIX
+		       "Cannot alloc page for %u\n", current->tgid);
+		goto create_pd_fail;
+	}
+
+	__set_data_page(pd, page);
+
+	INIT_LIST_HEAD(&pd->handlers);
+
+	return pd;
+
+create_pd_fail:
+	kfree(pd);
+
+	return NULL;
+}
+
+static size_t __copy_path(char *src, unsigned long page, unsigned long offset)
+{
+	unsigned long dest = page + offset;
+	size_t len = strnlen(src, PATH_MAX);
+
+	/* set handler path */
+	if (copy_to_user((void __user *)dest, src, len) != 0) {
+		printk(KERN_ERR PRELOAD_PREFIX
+		       "Cannot copy string to user!\n");
+		return 0;
+	}
+
+	return len;
+}
+
+static void __set_ld_mapped(struct pd_t *pd, struct mm_struct *mm)
 {
 	struct vm_area_struct *vma;
 	struct dentry *ld = preload_debugfs_get_loader_dentry();
-	struct dentry *handlers = handlers_info->dentry;
 
 	down_read(&mm->mmap_sem);
 	if (ld) {
@@ -334,42 +179,219 @@ static void set_already_mapp(struct process_data *pd, struct mm_struct *mm)
 		if (vma)
 			__set_loader_base(pd, vma->vm_start);
 	}
-
-	if (handlers) {
-		vma = find_vma_by_dentry(mm, handlers);
-		if (vma) {
-			__set_handlers_base(pd, vma->vm_start);
-			__set_state(pd, LOADED);
-		}
-	}
 	up_read(&mm->mmap_sem);
 }
 
-static struct process_data *do_create_pd(struct task_struct *task)
+static void __set_handler_mapped(struct hd_t *hd, struct mm_struct *mm)
 {
-	struct process_data *pd;
-	unsigned long page;
+	struct vm_area_struct *vma;
+	struct dentry *handlers = hd->dentry;
+
+	down_read(&mm->mmap_sem);
+	if (handlers) {
+		vma = find_vma_by_dentry(mm, handlers);
+		if (vma) {
+			__set_handlers_base(hd, vma->vm_start);
+			__set_state(hd, LOADED);
+			goto set_handler_mapped_out;
+		}
+	}
+	__set_state(hd, NOT_LOADED);
+
+set_handler_mapped_out:
+	up_read(&mm->mmap_sem);
+}
+
+
+static int __get_handlers(struct pd_t *pd, struct task_struct *task)
+{
+	struct list_head *handlers = NULL;
+	struct bin_info_el *bin;
+	struct hd_t *hd;
+	unsigned long offset = 0;
+	size_t len;
+	int ret = 0;
+
+	handlers = preload_storage_get_handlers();
+	if (handlers == NULL)
+		return -EINVAL;
+
+	list_for_each_entry(bin, handlers, list) {
+		len = __copy_path(bin->path, pd->data_page, offset);
+		if (len == 0) {
+			ret = -EINVAL;
+			goto get_handlers_out;
+		}
+
+		hd = kzalloc(sizeof(*hd), GFP_ATOMIC);
+		if (hd == NULL) {
+			printk(KERN_ERR PRELOAD_PREFIX "No atomic mem!\n");
+			ret = -ENOMEM;
+			goto get_handlers_out;
+		}
+
+
+		INIT_LIST_HEAD(&hd->list);
+		hd->parent = pd;
+		hd->dentry = bin->dentry;
+		hd->offset = offset;
+		__set_handler_mapped(hd, task->mm);
+		__set_attempts(hd, PRELOAD_MAX_ATTEMPTS);
+		list_add_tail(&hd->list, &pd->handlers);
+
+		/* inc handlers path's on page */
+		offset += len + 1;
+	}
+
+get_handlers_out:
+	/* TODO Cleanup already created */
+	preload_storage_put_handlers();
+
+	return ret;
+}
+
+
+
+enum ps_t preload_pd_get_state(struct hd_t *hd)
+{
+	if (hd == NULL)
+		return 0;
+
+	return __get_state(hd);
+}
+
+void preload_pd_set_state(struct hd_t *hd, enum ps_t state)
+{
+	if (hd == NULL) {
+		printk(PRELOAD_PREFIX "%d: No handler data! Current %d %s\n",
+		       __LINE__, current->tgid, current->comm);
+		return;
+	}
+
+	__set_state(hd, state);
+}
+
+unsigned long preload_pd_get_loader_base(struct pd_t *pd)
+{
+	if (pd == NULL)
+		return 0;
+
+	return __get_loader_base(pd);
+}
+
+void preload_pd_set_loader_base(struct pd_t *pd, unsigned long vaddr)
+{
+	__set_loader_base(pd, vaddr);
+}
+
+unsigned long preload_pd_get_handlers_base(struct hd_t *hd)
+{
+	if (hd == NULL)
+		return 0;
+
+	return __get_handlers_base(hd);
+}
+
+void preload_pd_set_handlers_base(struct hd_t *hd, unsigned long vaddr)
+{
+	__set_handlers_base(hd, vaddr);
+}
+
+char __user *preload_pd_get_path(struct pd_t *pd, struct hd_t *hd)
+{
+	unsigned long page = __get_data_page(pd);
+	unsigned long offset = __get_offset(hd);
+
+	return (char __user *)(page + offset);
+}
+
+
+
+void *preload_pd_get_handle(struct hd_t *hd)
+{
+	if (hd == NULL)
+		return NULL;
+
+	return __get_handle(hd);
+}
+
+void preload_pd_set_handle(struct hd_t *hd, void __user *handle)
+{
+	if (hd == NULL) {
+		printk(PRELOAD_PREFIX "%d: No handler data! Current %d %s\n",
+		       __LINE__, current->tgid, current->comm);
+		return;
+	}
+
+	__set_handle(hd, handle);
+}
+
+long preload_pd_get_attempts(struct hd_t *hd)
+{
+	if (hd == NULL)
+		return -EINVAL;
+
+	return __get_attempts(hd);
+}
+
+void preload_pd_dec_attempts(struct hd_t *hd)
+{
+	long attempts;
+
+	if (hd == NULL) {
+		printk(PRELOAD_PREFIX "%d: No handler data! Current %d %s\n",
+		       __LINE__, current->tgid, current->comm);
+		return;
+	}
+
+	attempts = __get_attempts(hd);
+	attempts--;
+	__set_attempts(hd, attempts);
+}
+
+struct dentry *preload_pd_get_dentry(struct hd_t *hd)
+{
+	return hd->dentry;
+}
+
+struct pd_t *preload_pd_get_parent_pd(struct hd_t *hd)
+{
+	return hd->parent;
+}
+
+struct pd_t *preload_pd_get(struct sspt_proc *proc)
+{
+	return (struct pd_t *)proc->private_data;
+}
+
+struct hd_t *preload_pd_get_hd(struct pd_t *pd, struct dentry *dentry)
+{
+	struct hd_t *hd;
+
+	list_for_each_entry(hd, &pd->handlers, list) {
+		if (hd->dentry == dentry)
+			return hd;
+	}
+
+	return NULL;
+}
+
+static struct pd_t *do_create_pd(struct task_struct *task)
+{
+	struct pd_t *pd;
 	int ret;
 
-	ret = __pd_create_on_demand();
-	if (ret)
-		goto create_pd_exit;
-
-	pd = kzalloc(sizeof(*pd), GFP_ATOMIC);
+	pd = __create_pd();
 	if (pd == NULL) {
 		ret = -ENOMEM;
 		goto create_pd_exit;
 	}
 
-	page = make_preload_path();
-	if (IS_ERR_VALUE(page)) {
-		ret = (long)page;
+	ret = __get_handlers(pd, task);
+	if (ret)
 		goto free_pd;
-	}
 
-	__set_data_page(pd, page);
-	__set_attempts(pd, PRELOAD_MAX_ATTEMPTS);
-	set_already_mapp(pd, task->mm);
+	__set_ld_mapped(pd, task->mm);
 
 	return pd;
 
@@ -383,7 +405,7 @@ create_pd_exit:
 
 static void *pd_create(struct sspt_proc *proc)
 {
-	struct process_data *pd;
+	struct pd_t *pd;
 
 	pd = do_create_pd(proc->task);
 
@@ -413,7 +435,5 @@ void preload_pd_uninit(void)
 {
 	sspt_proc_cb_set(NULL);
 
-	if (handlers_info)
-		preload_storage_put_handlers_info(handlers_info);
-	handlers_info = NULL;
+	/* TODO Cleanup */
 }

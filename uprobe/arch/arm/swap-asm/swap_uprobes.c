@@ -44,7 +44,7 @@
 
 #include <swap-asm/swap_kprobes.h>
 #include <swap-asm/trampoline_arm.h>
-
+#include "decode_thumb.h"
 #include "swap_uprobes.h"
 #include "trampoline_thumb.h"
 
@@ -109,6 +109,8 @@ static int arch_check_insn_thumb(unsigned long insn)
 
 	/* check instructions that can change PC */
 	if (THUMB_INSN_MATCH(UNDEF, insn) ||
+	    THUMB2_INSN_MATCH(BLX1, insn) ||
+	    THUMB2_INSN_MATCH(BL, insn) ||
 	    THUMB_INSN_MATCH(SWI, insn) ||
 	    THUMB_INSN_MATCH(BREAK, insn) ||
 	    THUMB2_INSN_MATCH(B1, insn) ||
@@ -550,17 +552,6 @@ static int arch_make_trampoline_thumb(unsigned long vaddr, unsigned long insn,
 		*((unsigned short *)tramp + 16) = (addr & 0x0000ffff) | 0x1;
 		*((unsigned short *)tramp + 17) = addr >> 16;
 
-	} else if (THUMB2_INSN_MATCH(BLX1, insn) ||
-		   THUMB2_INSN_MATCH(BL, insn)) {
-		memcpy(tramp, blx_off_insn_execbuf_thumb, tramp_len);
-		*((unsigned short *)tramp + 13) = 0xdeff;
-		addr = branch_t32_dest(insn, vaddr);
-		*((unsigned short *)tramp + 14) = (addr & 0x0000ffff);
-		*((unsigned short *)tramp + 15) = addr >> 16;
-		addr = vaddr + 4;
-		*((unsigned short *)tramp + 16) = (addr & 0x0000ffff) | 0x1;
-		*((unsigned short *)tramp + 17) = addr >> 16;
-
 	} else if (THUMB_INSN_MATCH(CBZ, insn)) {
 		memcpy(tramp, cbz_insn_execbuf_thumb, tramp_len);
 		*((unsigned short *)tramp + 13) = 0xdeff;
@@ -602,10 +593,27 @@ int arch_prepare_uprobe(struct uprobe *p)
 		return -EINVAL;
 	}
 
-	ret = thumb_mode ?
-			arch_make_trampoline_thumb(vaddr, insn,
-						   tramp, tramp_len) :
-			arch_make_trampoline_arm(vaddr, insn, tramp);
+	if (thumb_mode) {
+		ret = arch_make_trampoline_thumb(vaddr, insn,
+						 tramp, tramp_len);
+		if (ret) {
+			struct decode_info info = {
+				.vaddr = vaddr,
+				.tramp = tramp,
+				.handeler = NULL,
+			};
+
+			ret = decode_thumb(insn, &info);
+			if (info.handeler) {
+				unsigned short *tr = (unsigned short *)tramp;
+				tr[13] = 0xdeff; /* breakpoint for uretprobe */
+				p->ainsn.handler = info.handeler;
+			}
+		}
+	} else {
+		ret = arch_make_trampoline_arm(vaddr, insn, tramp);
+	}
+
 	if (ret) {
 		pr_err("failed to make tramp, addr=%p\n", p->addr);
 		return ret;
@@ -789,15 +797,7 @@ check_lr: /* check lr anyway */
 int setjmp_upre_handler(struct uprobe *p, struct pt_regs *regs)
 {
 	struct ujprobe *jp = container_of(p, struct ujprobe, up);
-
-	uprobe_pre_entry_handler_t pre_entry =
-		(uprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
-
-	if (pre_entry) {
-		p->ss_addr[smp_processor_id()] = (uprobe_opcode_t *)
-						 pre_entry(jp->priv_arg, regs);
-	}
 
 	if (entry) {
 		entry(regs->ARM_r0, regs->ARM_r1, regs->ARM_r2,
@@ -894,21 +894,27 @@ void arch_disarm_uprobe(struct uprobe *p, struct task_struct *task)
 static int urp_handler(struct pt_regs *regs, pid_t tgid)
 {
 	struct uprobe *p;
+	unsigned long flags;
 	unsigned long vaddr = regs->ARM_pc;
 	unsigned long offset_bp = thumb_mode(regs) ?
 				  0x1a :
 				  4 * UPROBES_TRAMP_RET_BREAK_IDX;
 	unsigned long tramp_addr = vaddr - offset_bp;
 
+	local_irq_save(flags);
 	p = get_uprobe_by_insn_slot((void *)tramp_addr, tgid, regs);
-	if (p == NULL) {
-		printk(KERN_INFO
-		       "no_uprobe: Not one of ours: let kernel handle it %lx\n",
-		       vaddr);
+	if (unlikely(p == NULL)) {
+		local_irq_restore(flags);
+
+		pr_info("no_uprobe: Not one of ours: let kernel handle it %lx\n",
+			vaddr);
 		return 1;
 	}
 
+	get_up(p);
+	local_irq_restore(flags);
 	trampoline_uprobe_handler(p, regs);
+	put_up(p);
 
 	return 0;
 }
@@ -921,11 +927,9 @@ static int urp_handler(struct pt_regs *regs, pid_t tgid)
  */
 static void arch_prepare_singlestep(struct uprobe *p, struct pt_regs *regs)
 {
-	int cpu = smp_processor_id();
-
-	if (p->ss_addr[cpu]) {
-		regs->ARM_pc = (unsigned long)p->ss_addr[cpu];
-		p->ss_addr[cpu] = NULL;
+	if (p->ainsn.handler) {
+		regs->ARM_pc += 4;
+		p->ainsn.handler(p->opcode, &p->ainsn, regs);
 	} else {
 		regs->ARM_pc = (unsigned long)p->ainsn.insn;
 	}
@@ -938,7 +942,7 @@ static void arch_prepare_singlestep(struct uprobe *p, struct pt_regs *regs)
  * @param instr Instruction.
  * @return uprobe_handler results.
  */
-int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
+static int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 {
 	int ret = 0;
 	struct uprobe *p;
@@ -947,53 +951,37 @@ int uprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 	pid_t tgid = current->tgid;
 
 	local_irq_save(flags);
-	preempt_disable();
-
 	p = get_uprobe((uprobe_opcode_t *)vaddr, tgid);
 	if (p) {
-		bool prepare = false;
-
-		if (p->atomic_ctx) {
-			if (!p->pre_handler || !p->pre_handler(p, regs))
-				prepare = true;
-		} else {
-			swap_preempt_enable_no_resched();
-			local_irq_restore(flags);
-
-			if (!p->pre_handler || !p->pre_handler(p, regs))
-				prepare = true;
-
-			local_irq_save(flags);
-			preempt_disable();
-		}
-
-		if (prepare)
+		get_up(p);
+		local_irq_restore(flags);
+		if (!p->pre_handler || !p->pre_handler(p, regs))
 			arch_prepare_singlestep(p, regs);
+		put_up(p);
 	} else {
+		local_irq_restore(flags);
 		ret = urp_handler(regs, tgid);
 
-		/* check ARM/THUMB mode on correct */
+		/* check ARM/THUMB CPU mode matches installed probe mode */
 		if (ret) {
 			vaddr ^= 1;
+
+			local_irq_save(flags);
 			p = get_uprobe((uprobe_opcode_t *)vaddr, tgid);
 			if (p) {
+				get_up(p);
+				local_irq_restore(flags);
 				pr_err("invalid mode: thumb=%d addr=%p insn=%08lx\n",
 				       !!thumb_mode(regs), p->addr, p->opcode);
 				ret = 0;
 
-				swap_preempt_enable_no_resched();
-				local_irq_restore(flags);
-
 				disarm_uprobe(p, current);
-
-				local_irq_save(flags);
-				preempt_disable();
+				put_up(p);
+			} else {
+				local_irq_restore(flags);
 			}
 		}
 	}
-
-	swap_preempt_enable_no_resched();
-	local_irq_restore(flags);
 
 	return ret;
 }

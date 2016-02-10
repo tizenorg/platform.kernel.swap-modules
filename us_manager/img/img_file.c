@@ -37,7 +37,7 @@ static void img_del_ip_by_list(struct img_ip *ip);
  * @param dentry Dentry of file
  * @return Pointer to the created img_file struct
  */
-struct img_file *create_img_file(struct dentry *dentry)
+struct img_file *img_file_create(struct dentry *dentry)
 {
 	struct img_file *file;
 
@@ -50,6 +50,7 @@ struct img_file *create_img_file(struct dentry *dentry)
 	file->dentry = dentry;
 	INIT_LIST_HEAD(&file->ip_list);
 	INIT_LIST_HEAD(&file->list);
+	atomic_set(&file->use, 1);
 
 	return file;
 }
@@ -60,7 +61,7 @@ struct img_file *create_img_file(struct dentry *dentry)
  * @param file remove object
  * @return Void
  */
-void free_img_file(struct img_file *file)
+static void img_file_free(struct img_file *file)
 {
 	struct img_ip *ip, *tmp;
 
@@ -80,6 +81,20 @@ static void img_add_ip_by_list(struct img_file *file, struct img_ip *ip)
 static void img_del_ip_by_list(struct img_ip *ip)
 {
 	list_del(&ip->list);
+}
+
+void img_file_get(struct img_file *file)
+{
+	WARN_ON(!atomic_read(&file->use));
+	atomic_inc(&file->use);
+}
+
+void img_file_put(struct img_file *file)
+{
+	if (atomic_dec_and_test(&file->use))
+		img_file_free(file);
+
+	return;
 }
 
 static struct img_ip *find_img_ip(struct img_file *file, unsigned long addr,

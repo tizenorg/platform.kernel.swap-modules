@@ -20,21 +20,19 @@
  */
 
 
-#ifndef _USM_MSG_H
-#define _USM_MSG_H
+#ifndef _SWAP_DEPS_H
+#define _SWAP_DEPS_H
 
 
-struct dentry;
 struct task_struct;
-struct vm_area_struct;
+struct files_struct;
 
 
-void usm_msg_info(struct task_struct *task, struct dentry *dentry);
-void usm_msg_term(struct task_struct *task);
-void usm_msg_map(struct vm_area_struct *vma);
-void usm_msg_unmap(unsigned long start, unsigned long end);
-void usm_msg_comm(struct task_struct *task);
-void usm_msg_status_info(struct task_struct *task);
+struct files_struct *swap_get_files_struct(struct task_struct *task);
+void swap_put_files_struct(struct files_struct *fs);
 
 
-#endif /* _USM_MSG_H */
+int chef_once(void);
+
+
+#endif /* _SWAP_DEPS_H */

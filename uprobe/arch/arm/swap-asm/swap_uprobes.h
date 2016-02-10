@@ -41,10 +41,15 @@
 
 struct task_struct;
 struct uprobe;
+struct arch_insn;
 struct uretprobe;
 struct uretprobe_instance;
 
 typedef unsigned long uprobe_opcode_t;
+typedef void (*uprobe_handler_t)(unsigned long insn,
+				 struct arch_insn *, struct pt_regs *);
+
+
 
 /**
  * @struct arch_insn
@@ -54,16 +59,7 @@ typedef unsigned long uprobe_opcode_t;
  */
 struct arch_insn {
 	uprobe_opcode_t *insn;
-};
-
-/**
- * @struct arch_tramp
- * @brief Stores arch-dependent trampolines.
- */
-struct arch_tramp {
-	unsigned long tramp_arm[UPROBES_TRAMP_LEN];     /**< ARM trampoline */
-	unsigned long tramp_thumb[UPROBES_TRAMP_LEN];   /**< Thumb trampoline */
-	void *utramp;                                   /**< Pointer to trampoline */
+	uprobe_handler_t handler;
 };
 
 

@@ -30,14 +30,90 @@
 #include <linux/magic.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <linux/net.h>
+#include <linux/socket.h>
+#include <linux/skbuff.h>
+#include <linux/string.h>
+#include <linux/fdtable.h>
+#include <net/sock.h>
 #include <kprobe/swap_kprobes.h>
 #include <ksyms/ksyms.h>
+#include <master/swap_deps.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include <us_manager/sspt/sspt_feature.h>
 #include <linux/atomic.h>
 #include "energy.h"
 #include "lcd/lcd_base.h"
 #include "tm_stat.h"
+
+
+/* ============================================================================
+ * =                              ENERGY_XXX                                  =
+ * ============================================================================
+ */
+struct kern_probe {
+	const char *name;
+	struct kretprobe *rp;
+};
+
+static int energy_xxx_once(struct kern_probe p[], int size)
+{
+	int i;
+	const char *sym;
+
+	for (i = 0; i < size; ++i) {
+		struct kretprobe *rp = p[i].rp;
+
+		sym = p[i].name;
+		rp->kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+		if (rp->kp.addr == NULL)
+			goto not_found;
+	}
+
+	return 0;
+
+not_found:
+	printk(KERN_INFO "ERROR: symbol '%s' not found\n", sym);
+	return -ESRCH;
+}
+
+static int energy_xxx_set(struct kern_probe p[], int size, int *flag)
+{
+	int i, ret;
+
+	for (i = 0; i < size; ++i) {
+		ret = swap_register_kretprobe(p[i].rp);
+		if (ret)
+			goto fail;
+	}
+
+	*flag = 1;
+	return 0;
+
+fail:
+	pr_err("swap_register_kretprobe(%s) ret=%d\n", p[i].name, ret);
+
+	for (--i; i != -1; --i)
+		swap_unregister_kretprobe(p[i].rp);
+
+	return ret;
+}
+
+static void energy_xxx_unset(struct kern_probe p[], int size, int *flag)
+{
+	int i;
+
+	if (*flag == 0)
+		return;
+
+	for (i = size - 1; i != -1; --i)
+		swap_unregister_kretprobe(p[i].rp);
+
+	*flag = 0;
+}
+
+
+
 
 
 /* ============================================================================
@@ -130,6 +206,23 @@ struct energy_data {
 	/*for sys_write */
 	atomic64_t bytes_written;
 
+	/*for recvmsg*/
+	atomic64_t bytes_recv;
+
+	/* for sock_send */
+	atomic64_t bytes_send;
+
+	/* for l2cap_recv */
+	atomic64_t bytes_l2cap_recv_acldata;
+
+	/* for sco_recv_scodata */
+	atomic64_t bytes_sco_recv_scodata;
+
+	/* for hci_send_acl */
+	atomic64_t bytes_hci_send_acl;
+
+	/* for hci_send_sco */
+	atomic64_t bytes_hci_send_sco;
 };
 
 static sspt_feature_id_t feature_id = SSPT_FEATURE_ID_BAD;
@@ -142,6 +235,12 @@ static void init_ed(struct energy_data *ed)
 	cpus_time_init(&ed->ct, 0);
 	atomic64_set(&ed->bytes_read, 0);
 	atomic64_set(&ed->bytes_written, 0);
+	atomic64_set(&ed->bytes_recv, 0);
+	atomic64_set(&ed->bytes_send, 0);
+	atomic64_set(&ed->bytes_l2cap_recv_acldata, 0);
+	atomic64_set(&ed->bytes_sco_recv_scodata, 0);
+	atomic64_set(&ed->bytes_hci_send_acl, 0);
+	atomic64_set(&ed->bytes_hci_send_sco, 0);
 }
 
 static void uninit_ed(struct energy_data *ed)
@@ -149,6 +248,12 @@ static void uninit_ed(struct energy_data *ed)
 	cpus_time_init(&ed->ct, 0);
 	atomic64_set(&ed->bytes_read, 0);
 	atomic64_set(&ed->bytes_written, 0);
+	atomic64_set(&ed->bytes_recv, 0);
+	atomic64_set(&ed->bytes_send, 0);
+	atomic64_set(&ed->bytes_l2cap_recv_acldata, 0);
+	atomic64_set(&ed->bytes_sco_recv_scodata, 0);
+	atomic64_set(&ed->bytes_hci_send_acl, 0);
+	atomic64_set(&ed->bytes_hci_send_sco, 0);
 }
 
 static void *create_ed(void)
@@ -439,10 +544,327 @@ static struct kretprobe sys_write_krp = {
 
 
 
+/* ============================================================================
+ * =                                wifi                                      =
+ * ============================================================================
+ */
+static bool check_wlan0(struct socket *sock)
+{
+	/* FIXME: hardcode interface */
+	const char *name_intrf = "wlan0";
+
+	if (sock->sk->sk_dst_cache &&
+	    sock->sk->sk_dst_cache->dev &&
+	    !strcmp(sock->sk->sk_dst_cache->dev->name, name_intrf))
+		return true;
+
+	return false;
+}
+
+static bool check_socket(struct task_struct *task, struct socket *socket)
+{
+	bool ret = false;
+	unsigned int fd;
+	struct files_struct *files;
+
+	files = swap_get_files_struct(task);
+	if (files == NULL)
+		return false;
+
+	rcu_read_lock();
+	for (fd = 0; fd < files_fdtable(files)->max_fds; ++fd) {
+		if (fcheck_files(files, fd) == socket->file) {
+			ret = true;
+			goto unlock;
+		}
+	}
+
+unlock:
+	rcu_read_unlock();
+	swap_put_files_struct(files);
+	return ret;
+}
+
+static struct energy_data *get_energy_data_by_socket(struct task_struct *task,
+						     struct socket *socket)
+{
+	struct energy_data *ed;
+
+	ed = get_energy_data(task);
+	if (ed)
+		ed = check_socket(task, socket) ? ed : NULL;
+
+	return ed;
+}
+
+static int wf_sock_eh(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct socket *socket = (struct socket *)swap_get_karg(regs, 0);
+
+	*(struct socket **)ri->data = check_wlan0(socket) ? socket : NULL;
+
+	return 0;
+}
+
+static int wf_sock_aio_eh(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+	struct kiocb *iocb = (struct kiocb *)swap_get_karg(regs, 0);
+	struct socket *socket = iocb->ki_filp->private_data;
+
+	*(struct socket **)ri->data = check_wlan0(socket) ? socket : NULL;
+
+	return 0;
+}
+
+static int wf_sock_recv_rh(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+	int ret = regs_return_value(regs);
+
+	if (ret > 0) {
+		struct socket *socket = *(struct socket **)ri->data;
+
+		if (socket) {
+			struct energy_data *ed;
+
+			ed = get_energy_data_by_socket(current, socket);
+			if (ed)
+				atomic64_add(ret, &ed->bytes_recv);
+			atomic64_add(ret, &ed_system.bytes_recv);
+		}
+	}
+
+	return 0;
+}
+
+static int wf_sock_send_rh(struct kretprobe_instance *ri, struct pt_regs *regs)
+{
+	int ret = regs_return_value(regs);
+
+	if (ret > 0) {
+		struct socket *socket = *(struct socket **)ri->data;
+
+		if (socket) {
+			struct energy_data *ed;
+
+			ed = get_energy_data_by_socket(current, socket);
+			if (ed)
+				atomic64_add(ret, &ed->bytes_send);
+			atomic64_add(ret, &ed_system.bytes_send);
+		}
+	}
+
+	return 0;
+}
+
+static struct kretprobe sock_recv_krp = {
+	.entry_handler = wf_sock_eh,
+	.handler = wf_sock_recv_rh,
+	.data_size = sizeof(struct socket *)
+};
+
+static struct kretprobe sock_send_krp = {
+	.entry_handler = wf_sock_eh,
+	.handler = wf_sock_send_rh,
+	.data_size = sizeof(struct socket *)
+};
+
+static struct kretprobe sock_aio_read_krp = {
+	.entry_handler = wf_sock_aio_eh,
+	.handler = wf_sock_recv_rh,
+	.data_size = sizeof(struct socket *)
+};
+
+static struct kretprobe sock_aio_write_krp = {
+	.entry_handler = wf_sock_aio_eh,
+	.handler = wf_sock_send_rh,
+	.data_size = sizeof(struct socket *)
+};
+
+static struct kern_probe wifi_probes[] = {
+	{
+		.name = "sock_recvmsg",
+		.rp = &sock_recv_krp,
+	},
+	{
+		.name = "sock_sendmsg",
+		.rp = &sock_send_krp,
+	},
+	{
+		.name = "sock_aio_read",
+		.rp = &sock_aio_read_krp,
+	},
+	{
+		.name = "sock_aio_write",
+		.rp = &sock_aio_write_krp,
+	}
+};
+
+enum { wifi_probes_cnt = ARRAY_SIZE(wifi_probes) };
+static int wifi_flag = 0;
+
+
+
+
+
+/* ============================================================================
+ * =                                bluetooth                                 =
+ * ============================================================================
+ */
+
+struct swap_bt_data {
+	struct socket *socket;
+};
+
+static int bt_entry_handler(struct kretprobe_instance *ri,
+			    struct pt_regs *regs)
+{
+	struct swap_bt_data *data = (struct swap_bt_data *)ri->data;
+	struct socket *sock = (struct socket *)swap_get_sarg(regs, 1);
+
+	data->socket = sock ? sock : NULL;
+
+	return 0;
+}
+
+static int bt_recvmsg_handler(struct kretprobe_instance *ri,
+			      struct pt_regs *regs)
+{
+	int ret = regs_return_value(regs);
+	struct swap_bt_data *data = (struct swap_bt_data *)ri->data;
+
+	if (ret > 0) {
+		struct socket *socket = data->socket;
+
+		if (socket) {
+			struct energy_data *ed;
+
+			ed = get_energy_data_by_socket(current, socket);
+			if (ed)
+				atomic64_add(ret, &ed->bytes_l2cap_recv_acldata);
+		}
+		atomic64_add(ret, &ed_system.bytes_l2cap_recv_acldata);
+	}
+
+	return 0;
+}
+
+static int bt_sendmsg_handler(struct kretprobe_instance *ri,
+			      struct pt_regs *regs)
+{
+	int ret = regs_return_value(regs);
+	struct swap_bt_data *data = (struct swap_bt_data *)ri->data;
+
+	if (ret > 0) {
+		struct socket *socket = data->socket;
+
+		if (socket) {
+			struct energy_data *ed;
+
+			ed = get_energy_data_by_socket(current, socket);
+			if (ed)
+				atomic64_add(ret, &ed->bytes_hci_send_sco);
+		}
+		atomic64_add(ret, &ed_system.bytes_hci_send_sco);
+	}
+
+	return 0;
+}
+
+static struct kretprobe rfcomm_sock_recvmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_recvmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe l2cap_sock_recvmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_recvmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe hci_sock_recvmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_recvmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe sco_sock_recvmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_recvmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+static struct kretprobe rfcomm_sock_sendmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_sendmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe l2cap_sock_sendmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_sendmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe hci_sock_sendmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_sendmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kretprobe sco_sock_sendmsg_krp = {
+	.entry_handler = bt_entry_handler,
+	.handler = bt_sendmsg_handler,
+	.data_size = sizeof(struct swap_bt_data)
+};
+
+static struct kern_probe bt_probes[] = {
+	{
+		.name = "rfcomm_sock_recvmsg",
+		.rp = &rfcomm_sock_recvmsg_krp,
+	},
+	{
+		.name = "l2cap_sock_recvmsg",
+		.rp = &l2cap_sock_recvmsg_krp,
+	},
+	{
+		.name = "hci_sock_recvmsg",
+		.rp = &hci_sock_recvmsg_krp,
+	},
+	{
+		.name = "sco_sock_recvmsg",
+		.rp = &sco_sock_recvmsg_krp,
+	},
+	{
+		.name = "rfcomm_sock_sendmsg",
+		.rp = &rfcomm_sock_sendmsg_krp,
+	},
+	{
+		.name = "l2cap_sock_sendmsg",
+		.rp = &l2cap_sock_sendmsg_krp,
+	},
+	{
+		.name = "hci_sock_sendmsg",
+		.rp = &hci_sock_sendmsg_krp,
+	},
+	{
+		.name = "sco_sock_sendmsg",
+		.rp = &sco_sock_sendmsg_krp,
+	}
+};
+
+enum { bt_probes_cnt = ARRAY_SIZE(bt_probes) };
+static int energy_bt_flag = 0;
+
 enum parameter_type {
 	PT_CPU,
 	PT_READ,
-	PT_WRITE
+	PT_WRITE,
+	PT_WF_RECV,
+	PT_WF_SEND,
+	PT_L2CAP_RECV,
+	PT_SCO_RECV,
+	PT_SEND_ACL,
+	PT_SEND_SCO
 };
 
 struct cmd_pt {
@@ -472,6 +894,24 @@ static void callback_for_proc(struct sspt_proc *proc, void *data)
 			break;
 		case PT_WRITE:
 			*val += atomic64_read(&ed->bytes_written);
+			break;
+		case PT_WF_RECV:
+			*val += atomic64_read(&ed->bytes_recv);
+			break;
+		case PT_WF_SEND:
+			*val += atomic64_read(&ed->bytes_send);
+			break;
+		case PT_L2CAP_RECV:
+			*val += atomic64_read(&ed->bytes_l2cap_recv_acldata);
+			break;
+		case PT_SCO_RECV:
+			*val += atomic64_read(&ed->bytes_sco_recv_scodata);
+			break;
+		case PT_SEND_ACL:
+			*val += atomic64_read(&ed->bytes_hci_send_acl);
+			break;
+		case PT_SEND_SCO:
+			*val += atomic64_read(&ed->bytes_hci_send_sco);
 			break;
 		default:
 			break;
@@ -527,11 +967,47 @@ int get_parameter_energy(enum parameter_energy pe, void *buf, size_t sz)
 	case PE_WRITE_SYSTEM:
 		*val = atomic64_read(&ed_system.bytes_written);
 		break;
+	case PE_WF_RECV_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_recv);
+		break;
+	case PE_WF_SEND_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_send);
+		break;
+	case PE_L2CAP_RECV_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_l2cap_recv_acldata);
+		break;
+	case PE_SCO_RECV_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_sco_recv_scodata);
+		break;
+	case PT_SEND_ACL_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_hci_send_acl);
+		break;
+	case PT_SEND_SCO_SYSTEM:
+		*val = atomic64_read(&ed_system.bytes_hci_send_sco);
+		break;
 	case PE_READ_APPS:
 		current_parameter_apps(PT_READ, buf, sz);
 		break;
 	case PE_WRITE_APPS:
 		current_parameter_apps(PT_WRITE, buf, sz);
+		break;
+	case PE_WF_RECV_APPS:
+		current_parameter_apps(PT_WF_RECV, buf, sz);
+		break;
+	case PE_WF_SEND_APPS:
+		current_parameter_apps(PT_WF_SEND, buf, sz);
+		break;
+	case PE_L2CAP_RECV_APPS:
+		current_parameter_apps(PT_L2CAP_RECV, buf, sz);
+		break;
+	case PE_SCO_RECV_APPS:
+		current_parameter_apps(PT_SCO_RECV, buf, sz);
+		break;
+	case PT_SEND_ACL_APPS:
+		current_parameter_apps(PT_SEND_ACL, buf, sz);
+		break;
+	case PT_SEND_SCO_APPS:
+		current_parameter_apps(PT_SEND_SCO, buf, sz);
 		break;
 	default:
 		ret = -EINVAL;
@@ -569,6 +1045,9 @@ int do_set_energy(void)
 		goto unregister_sys_write;
 	}
 
+	energy_xxx_set(bt_probes, bt_probes_cnt, &energy_bt_flag);
+	energy_xxx_set(wifi_probes, wifi_probes_cnt, &wifi_flag);
+
 	/* TODO: check return value */
 	lcd_set_energy();
 
@@ -586,6 +1065,8 @@ unregister_sys_write:
 void do_unset_energy(void)
 {
 	lcd_unset_energy();
+	energy_xxx_unset(wifi_probes, wifi_probes_cnt, &wifi_flag);
+	energy_xxx_unset(bt_probes, bt_probes_cnt, &energy_bt_flag);
 
 	swap_unregister_kretprobe(&switch_to_krp);
 	swap_unregister_kretprobe(&sys_write_krp);
@@ -667,6 +1148,9 @@ int energy_once(void)
 	sys_write_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
 	if (sys_write_krp.kp.addr == NULL)
 		goto not_found;
+
+	energy_xxx_once(bt_probes, bt_probes_cnt);
+	energy_xxx_once(wifi_probes, wifi_probes_cnt);
 
 	return 0;
 

@@ -1,31 +1,100 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# NOTE: This requires GNU getopt.  On Mac OS X and FreeBSD, you have to install
+# this separately; see below.
 
-modules_dir=`pwd`
+IDENT=${0}
 
-if [ "$#" -lt 2 ] ; then
-	echo "Usage: $0 <kernel dir> <arch (arm/i386)> [<cross compile>]"
+show_usage_and_exit () {
+	echo -e "Usage: ${IDENT} <options> <compile|check|clean>"
+	echo -e "\tOptions:"
+	echo -e "\t--verbose"
+	echo -e "\t--file <config file>"
+#	echo -e "\t--debug"
+	echo -e "\t--kernel <kernel path>"
+	echo -e "\t--arch <arm|i386>"
+	echo -e "\t[--toolchain <cross compile path>]"
 	exit 1
+}
+
+TEMP=`getopt -o vk:t:a:f: --long verbose,kernel:,toolchain:,arch:,file: \
+	-n '${IDENT}' -- "$@"`
+
+if [ $? != 0 ] ; then
+	show_usage_and_exit
 fi
 
-kernel_dir=$1
-arch=$2
-cross_compile=$3
+# Note the quotes around `$TEMP': they are essential!
+eval set -- "$TEMP"
 
-if [ ${arch} = "arm" ] ; then
-	link_name="arm"
-elif [ ${arch} = "i386" ] ; then
-	link_name="x86"
+MDIR=`pwd`
+VERBOSE=false
+CONFIG_FILE="build.config"
+KERNELDIR=""
+TOOLCHAIN=""
+ARCH=""
+
+while true; do
+	case "$1" in
+		-v | --verbose ) VERBOSE=true; shift ;;
+		-k | --kernel ) KERNELDIR="$2"; shift 2 ;;
+		-t | --toolchain ) TOOLCHAIN="$2"; shift 2;;
+		-a | --arch ) ARCH="$2"; shift 2;;
+		-f | --file ) CONFIG_FILE="$2"; shift 2;;
+		-- ) shift; break ;;
+		* ) break ;;
+	esac
+done
+
+if  [ "${1}" != "compile" -a "${1}" != "clean" -a "${1}" != "check"  ] ; then
+	ACTION="compile"
+        ARCH=${2}
+	KERNELDIR=${1}
+	if [ "${3}" != "" ] ; then
+		TOOLCHAIN=${3}
+	fi
 else
-	echo "Unknown arch $arch"
-	exit 1
+	if [ -r ${CONFIG_FILE} ]; then
+		. ${CONFIG_FILE}
+		KERNELDIR=${kernel}
+		TOOLCHAIN=${toolchain}
+		ARCH=$arch
+	fi
+	ACTION="${1}"
 fi
 
-install_dir="/opt/swap/sdk"
+if [ "${KERNELDIR}" = "" ] ; then
+	show_usage_and_exit
+fi
 
-asm_kprobe_dir=${modules_dir}/kprobe/arch/${link_name}/
-asm_uprobe_dir=${modules_dir}/uprobe/arch/${link_name}/
+if [ "${ARCH}" = "arm" ] ; then
+	LINKNAME="arm"
+elif [ "${ARCH}" = "i386" ] ; then
+	LINKNAME="x86"
+else
+	show_usage_and_exit
+fi
 
-make CROSS_COMPILE=${cross_compile} ARCH=${arch} -C ${kernel_dir} \
-	M=${modules_dir} extra_cflags="-Werror -I${modules_dir} -I${asm_kprobe_dir} \
-	-I${asm_uprobe_dir}" modules || exit 1
+MCFLAGS="-Werror"
+
+CMDLINE_ARGS=""
+CMDLINE_ARGS="CROSS_COMPILE=${TOOLCHAIN} ARCH=${ARCH} -C ${KERNELDIR}"
+CMDLINE_ARGS="${CMDLINE_ARGS} M=${MDIR} MCFLAGS=${MCFLAGS} LINKNAME=${LINKNAME}"
+
+if [ "${ACTION}" = "check" ] ; then
+	CMDLINE="make C=2 CF=\"-Wsparse-all\" ${CMDLINE_ARGS} modules"
+elif [ "${ACTION}" = "clean" ] ; then
+	CMDLINE="make ${CMDLINE_ARGS} clean"
+else
+	CMDLINE="make ${CMDLINE_ARGS} modules"
+fi
+
+if [ ${VERBOSE} = "true" ] ; then
+	CMDLINE="${CMDLINE} V=1"
+fi
+
+#echo -n "CMDLINE ${CMDLINE}\n"
+
+${CMDLINE} || exit 1
+
+exit 0
 

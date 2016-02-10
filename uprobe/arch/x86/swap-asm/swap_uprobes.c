@@ -40,6 +40,13 @@
 #include "swap_uprobes.h"
 
 
+struct save_context {
+	struct pt_regs save_regs;
+	struct pt_regs *ptr_regs;
+	unsigned long val;
+	int (*handler)(struct uprobe *, struct pt_regs *);
+};
+
 /**
  * @struct uprobe_ctlblk
  * @brief Uprobe control block
@@ -47,6 +54,8 @@
 struct uprobe_ctlblk {
 	unsigned long flags;            /**< Flags */
 	struct uprobe *p;               /**< Pointer to the uprobe */
+
+	struct save_context ctx;
 };
 
 
@@ -67,6 +76,11 @@ unsigned long arch_tramp_by_ri(struct uretprobe_instance *ri)
 static struct uprobe_ctlblk *current_ucb(void)
 {
 	return (struct uprobe_ctlblk *)swap_td_raw(&td_raw, current);
+}
+
+static struct save_context *current_ctx(void)
+{
+	return &current_ucb()->ctx;
 }
 
 static struct uprobe *get_current_probe(void)
@@ -100,7 +114,7 @@ static void restore_current_flags(struct pt_regs *regs, unsigned long flags)
 int arch_prepare_uprobe(struct uprobe *p)
 {
 	struct task_struct *task = p->task;
-	u8 *tramp = p->atramp.tramp;
+	u8 tramp[UPROBES_TRAMP_LEN + BP_INSN_SIZE];	/* BP for uretprobe */
 	enum { call_relative_opcode = 0xe8 };
 
 	if (!read_proc_vm_atomic(task, (unsigned long)p->addr,
@@ -116,9 +130,7 @@ int arch_prepare_uprobe(struct uprobe *p)
 
 	tramp[UPROBES_TRAMP_RET_BREAK_IDX] = BREAKPOINT_INSTRUCTION;
 
-	/* TODO: remove dual info */
 	p->opcode = tramp[0];
-
 	p->ainsn.boostable = swap_can_boost(tramp) ? 0 : -1;
 
 	p->ainsn.insn = swap_slot_alloc(p->sm);
@@ -128,7 +140,7 @@ int arch_prepare_uprobe(struct uprobe *p)
 	}
 
 	if (!write_proc_vm_atomic(task, (unsigned long)p->ainsn.insn,
-				  tramp, sizeof(p->atramp.tramp))) {
+				  tramp, sizeof(tramp))) {
 		swap_slot_free(p->sm, p->ainsn.insn);
 		printk(KERN_INFO "failed to write memory %p!\n", tramp);
 		return -EINVAL;
@@ -150,8 +162,6 @@ int arch_prepare_uprobe(struct uprobe *p)
 int setjmp_upre_handler(struct uprobe *p, struct pt_regs *regs)
 {
 	struct ujprobe *jp = container_of(p, struct ujprobe, up);
-	uprobe_pre_entry_handler_t pre_entry =
-		(uprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
 	unsigned long args[6];
 
@@ -167,10 +177,6 @@ int setjmp_upre_handler(struct uprobe *p, struct pt_regs *regs)
 		printk(KERN_WARNING
 		       "failed to read user space func arguments %lx!\n",
 		       regs->sp + 4);
-
-	if (pre_entry)
-		p->ss_addr[smp_processor_id()] = (uprobe_opcode_t *)
-						 pre_entry(jp->priv_arg, regs);
 
 	if (entry)
 		entry(args[0], args[1], args[2], args[3], args[4], args[5]);
@@ -452,18 +458,9 @@ no_change:
 	return;
 }
 
-static bool prepare_ss_addr(struct uprobe *p, struct pt_regs *regs)
+static void prepare_tramp(struct uprobe *p, struct pt_regs *regs)
 {
-	unsigned long *ss_addr = (long *)&p->ss_addr[smp_processor_id()];
-
-	if (*ss_addr) {
-		regs->ip = *ss_addr;
-		*ss_addr = 0;
-		return true;
-	} else {
-		regs->ip = (unsigned long)p->ainsn.insn;
-		return false;
-	}
+	regs->ip = (unsigned long)p->ainsn.insn;
 }
 
 static void prepare_ss(struct pt_regs *regs)
@@ -473,65 +470,150 @@ static void prepare_ss(struct pt_regs *regs)
 	regs->flags &= ~IF_MASK;
 }
 
-static int uprobe_handler(struct pt_regs *regs)
+
+static unsigned long resume_userspace_addr;
+
+static void __used __up_handler(void)
 {
-	struct uprobe *p;
-	uprobe_opcode_t *addr;
-	struct task_struct *task = current;
-	pid_t tgid = task->tgid;
+	struct pt_regs *regs = current_ctx()->ptr_regs;
+	struct thread_info *tinfo = current_thread_info();
+	struct uprobe *p = current_ucb()->p;
 
-	save_current_flags(regs);
+	/* restore KS regs */
+	*regs = current_ctx()->save_regs;
 
-	addr = (uprobe_opcode_t *)(regs->EREG(ip) - sizeof(uprobe_opcode_t));
-	p = get_uprobe(addr, tgid);
+	/* call handler */
+	current_ctx()->handler(p, regs);
 
-	if (p == NULL) {
-		void *tramp_addr = (void *)addr - UPROBES_TRAMP_RET_BREAK_IDX;
+	/* resume_userspace */
+	asm volatile (
+		"movl %0, %%esp\n"
+		"movl %1, %%ebp\n"
+		"jmpl *%2\n"
+	        : /* No outputs. */
+	        : "r" (regs), "r" (tinfo) , "r" (resume_userspace_addr)
+	);
+}
 
-		p = get_uprobe_by_insn_slot(tramp_addr, tgid, regs);
+void up_handler(void);
+__asm(
+	"up_handler:\n"
+	/* skip hex tractor-driver bytes to make some free space (skip regs) */
+	"sub $0x300, %esp\n"
+	"jmp __up_handler\n"
+);
+
+static int exceptions_handler(struct pt_regs *regs,
+			      int (*handler)(struct uprobe *, struct pt_regs *))
+{
+	/* save regs */
+	current_ctx()->save_regs = *regs;
+	current_ctx()->ptr_regs = regs;
+
+	/* set handler */
+	current_ctx()->handler = handler;
+
+	/* setup regs to return to KS */
+	regs->ip = (unsigned long)up_handler;
+	regs->ds = __USER_DS;
+	regs->es = __USER_DS;
+	regs->fs = __KERNEL_PERCPU;
+	regs->cs = __KERNEL_CS | get_kernel_rpl();
+	regs->gs = 0;
+	regs->flags = X86_EFLAGS_IF | X86_EFLAGS_FIXED;
+
+	return 1;
+}
+
+static int uprobe_handler_retprobe(struct uprobe *p, struct pt_regs *regs)
+{
+	int ret;
+
+	ret = trampoline_uprobe_handler(p, regs);
+	set_current_probe(NULL);
+	put_up(p);
+
+	return ret;
+}
+
+static int uprobe_handler_part2(struct uprobe *p, struct pt_regs *regs)
+{
+	if (!p->pre_handler(p, regs)) {
+		prepare_tramp(p, regs);
+		if (p->ainsn.boostable == 1 && !p->post_handler)
+			goto exit_and_put_up;
+
+		save_current_flags(regs);
+		set_current_probe(p);
+		prepare_ss(regs);
+
+		return 1;
+	}
+
+exit_and_put_up:
+	set_current_probe(NULL);
+	put_up(p);
+	return 1;
+}
+
+static int uprobe_handler_atomic(struct pt_regs *regs)
+{
+	pid_t tgid = current->tgid;
+	unsigned long vaddr = regs->ip - 1;
+	struct uprobe *p = get_uprobe((void *)vaddr, tgid);
+
+	if (p) {
+		get_up(p);
+		if (p->pre_handler) {
+			set_current_probe(p);
+			exceptions_handler(regs, uprobe_handler_part2);
+		} else {
+			uprobe_handler_part2(p, regs);
+		}
+	} else {
+		unsigned long tramp_vaddr;
+
+		tramp_vaddr = vaddr - UPROBES_TRAMP_RET_BREAK_IDX;
+		p = get_uprobe_by_insn_slot((void *)tramp_vaddr, tgid, regs);
 		if (p == NULL) {
-			printk(KERN_INFO "no_uprobe\n");
+			pr_info("no_uprobe\n");
 			return 0;
 		}
 
-		trampoline_uprobe_handler(p, regs);
-		return 1;
-	} else {
-		if (!p->pre_handler || !p->pre_handler(p, regs)) {
-			if (p->ainsn.boostable == 1 && !p->post_handler) {
-				prepare_ss_addr(p, regs);
-				return 1;
-			}
-
-			if (prepare_ss_addr(p, regs) == false) {
-				set_current_probe(p);
-				prepare_ss(regs);
-			}
-		}
+		set_current_probe(p);
+		get_up(p);
+		exceptions_handler(regs, uprobe_handler_retprobe);
 	}
 
 	return 1;
 }
 
-static int post_uprobe_handler(struct pt_regs *regs)
+static int post_uprobe_handler(struct uprobe *p, struct pt_regs *regs)
 {
-	struct uprobe *p = get_current_probe();
 	unsigned long flags = current_ucb()->flags;
-
-	if (p == NULL) {
-		printk("task[%u %u %s] current uprobe is not found\n",
-		       current->tgid, current->pid, current->comm);
-		return 0;
-	}
 
 	resume_execution(p, regs, flags);
 	restore_current_flags(regs, flags);
 
-	/* clean stack */
-	current_ucb()->p = 0;
-	current_ucb()->flags = 0;
+	/* reset current probe */
+	set_current_probe(NULL);
+	put_up(p);
 
 	return 1;
+}
+
+static int post_uprobe_handler_atomic(struct pt_regs *regs)
+{
+	struct uprobe *p = get_current_probe();
+
+	if (p) {
+		exceptions_handler(regs, post_uprobe_handler);
+	} else {
+		pr_info("task[%u %u %s] current uprobe is not found\n",
+			current->tgid, current->pid, current->comm);
+	}
+
+	return !!p;
 }
 
 static int uprobe_exceptions_notify(struct notifier_block *self,
@@ -549,11 +631,11 @@ static int uprobe_exceptions_notify(struct notifier_block *self,
 #else
 	case DIE_TRAP:
 #endif
-		if (uprobe_handler(args->regs))
+		if (uprobe_handler_atomic(args->regs))
 			ret = NOTIFY_STOP;
 		break;
 	case DIE_DEBUG:
-		if (post_uprobe_handler(args->regs))
+		if (post_uprobe_handler_atomic(args->regs))
 			ret = NOTIFY_STOP;
 		break;
 	default:
@@ -568,6 +650,52 @@ static struct notifier_block uprobe_exceptions_nb = {
 	.priority = INT_MAX
 };
 
+struct up_valid_struct {
+	struct uprobe *p;
+	bool found;
+};
+
+static int __uprobe_is_valid(struct uprobe *p, void *data)
+{
+	struct up_valid_struct *valid = (struct up_valid_struct *)data;
+
+	if (valid->p == p) {
+		valid->found = true;
+		return 1;
+	}
+
+	return 0;
+}
+
+static bool uprobe_is_valid(struct uprobe *p)
+{
+	struct up_valid_struct valid = {
+		.p = p,
+		.found = false,
+	};
+
+	for_each_uprobe(__uprobe_is_valid, (void *)&valid);
+
+	return valid.found;
+}
+
+static int do_exit_handler(struct kprobe *kp, struct pt_regs *regs)
+{
+	struct uprobe *p;
+
+	p = get_current_probe();
+	if (p && uprobe_is_valid(p)) {
+		set_current_probe(NULL);
+		put_up(p);
+	}
+
+	return 0;
+}
+
+static struct kprobe kp_do_exit = {
+	.pre_handler = do_exit_handler
+};
+
 /**
  * @brief Registers notify.
  *
@@ -576,6 +704,17 @@ static struct notifier_block uprobe_exceptions_nb = {
 int swap_arch_init_uprobes(void)
 {
 	int ret;
+	const char *sym;
+
+	sym = "resume_userspace";
+	resume_userspace_addr = swap_ksyms(sym);
+	if (resume_userspace_addr == 0)
+		goto not_found;
+
+	sym = "do_exit";
+	kp_do_exit.addr = (void *)swap_ksyms(sym);
+	if (kp_do_exit.addr == NULL)
+		goto not_found;
 
 	ret = swap_td_raw_reg(&td_raw, sizeof(struct uprobe_ctlblk));
 	if (ret)
@@ -583,9 +722,23 @@ int swap_arch_init_uprobes(void)
 
 	ret = register_die_notifier(&uprobe_exceptions_nb);
 	if (ret)
-		swap_td_raw_unreg(&td_raw);
+		goto unreg_td;
 
+	ret = swap_register_kprobe(&kp_do_exit);
+	if (ret)
+		goto unreg_exeption;
+
+	return 0;
+
+unreg_exeption:
+	unregister_die_notifier(&uprobe_exceptions_nb);
+unreg_td:
+	swap_td_raw_unreg(&td_raw);
 	return ret;
+
+not_found:
+	pr_err("symbol '%s' not found\n", sym);
+	return -ESRCH;
 }
 
 /**
@@ -595,6 +748,7 @@ int swap_arch_init_uprobes(void)
  */
 void swap_arch_exit_uprobes(void)
 {
+	swap_unregister_kprobe(&kp_do_exit);
 	unregister_die_notifier(&uprobe_exceptions_nb);
 	swap_td_raw_unreg(&td_raw);
 }
