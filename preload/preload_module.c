@@ -116,10 +116,8 @@ static inline void __prepare_ujump(struct uretprobe_instance *ri,
 	swap_set_instr_ptr(regs, vaddr);
 
 #ifdef CONFIG_ARM
-	if (thumb_mode(regs)) {
-		regs->ARM_cpsr &= ~PSR_T_BIT;
+	if (thumb_mode(regs))
 		ri->preload_thumb = 1;
-	}
 #endif /* CONFIG_ARM */
 }
 
