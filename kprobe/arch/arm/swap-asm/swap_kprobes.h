@@ -166,7 +166,7 @@ static inline void swap_set_stack_ptr(struct pt_regs *regs, unsigned long sp)
  */
 static inline unsigned long swap_get_instr_ptr(struct pt_regs *regs)
 {
-	return regs->ARM_pc;
+	return regs->ARM_pc | !!thumb_mode(regs);
 }
 
 /**
@@ -178,7 +178,13 @@ static inline unsigned long swap_get_instr_ptr(struct pt_regs *regs)
  */
 static inline void swap_set_instr_ptr(struct pt_regs *regs, unsigned long val)
 {
-	regs->ARM_pc = val;
+	if (val & 1) {
+		regs->ARM_pc = val & ~1;
+		regs->ARM_cpsr |= PSR_T_BIT;
+	} else {
+		regs->ARM_pc = val;
+		regs->ARM_cpsr &= ~PSR_T_BIT;
+	}
 }
 
 /**
