@@ -670,21 +670,22 @@ void arch_opcode_analysis_uretprobe(struct uretprobe *rp)
  */
 int arch_prepare_uretprobe(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
+	unsigned long thumb, bp_offset;
+
+	thumb = ri->preload.use ? ri->preload.thumb : thumb_mode(regs);
+	bp_offset = thumb ? 0x1b : sizeof(long) * UPROBES_TRAMP_RET_BREAK_IDX;
+
+	/* save original return address */
 	ri->ret_addr = (uprobe_opcode_t *)regs->ARM_lr;
+
+	/* replace return address with break point adddress */
+	regs->ARM_lr = (unsigned long)(ri->rp->up.ainsn.insn) + bp_offset;
+
+	/* save stack pointer address */
 	ri->sp = (uprobe_opcode_t *)regs->ARM_sp;
 
 	/* Set flag of current mode */
 	ri->sp = (uprobe_opcode_t *)((long)ri->sp | !!thumb_mode(regs));
-
-	if (ri->preload_thumb) {
-		regs->ARM_lr = (unsigned long)(ri->rp->up.ainsn.insn) + 0x1b;
-	} else {
-		if (thumb_mode(regs))
-			regs->ARM_lr = (unsigned long)(ri->rp->up.ainsn.insn) + 0x1b;
-		else
-			regs->ARM_lr = (unsigned long)(ri->rp->up.ainsn.insn +
-						       UPROBES_TRAMP_RET_BREAK_IDX);
-	}
 
 	return 0;
 }

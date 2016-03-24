@@ -113,12 +113,12 @@ static inline void __prepare_ujump(struct uretprobe_instance *ri,
 				   struct pt_regs *regs,
 				   unsigned long vaddr)
 {
-	swap_set_instr_ptr(regs, vaddr);
-
 #ifdef CONFIG_ARM
-	if (thumb_mode(regs))
-		ri->preload_thumb = 1;
+	ri->preload.use = true;
+	ri->preload.thumb = !!thumb_mode(regs);
 #endif /* CONFIG_ARM */
+
+	swap_set_instr_ptr(regs, vaddr);
 }
 
 static inline int __push(struct pt_regs *regs, void *buf, size_t len)
