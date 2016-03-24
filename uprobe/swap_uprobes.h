@@ -195,7 +195,10 @@ struct uretprobe_instance {
 	 * moment we have to explicitly force arm mode when jumping to preload
 	 * handlers but we need the correct (i.e. original) retprobe tramp set
 	 * anyway. */
-	int preload_thumb;
+	struct {
+		unsigned use:1;
+		unsigned thumb:1;
+	} preload;
 #endif
 	char data[0];                       /**< Custom data */
 };

@@ -812,7 +812,7 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 		ri->rp = rp;
 		ri->task = current;
 #ifdef CONFIG_ARM
-		ri->preload_thumb = 0;
+		ri->preload.use = false;
 #endif
 
 		if (rp->entry_handler)
