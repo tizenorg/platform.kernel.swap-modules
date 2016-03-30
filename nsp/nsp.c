@@ -22,13 +22,13 @@
 
 #include <linux/module.h>
 #include <writer/swap_msg.h>
+#include <kprobe/swap_ktd.h>
 #include <uprobe/swap_uaccess.h>
 #include <us_manager/pf/pf_group.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include <us_manager/probes/probe_info_new.h>
 #include "nsp.h"
 #include "nsp_msg.h"
-#include "nsp_tdata.h"
 #include "nsp_print.h"
 #include "nsp_debugfs.h"
 
@@ -478,7 +478,6 @@ static int set_stat_off(void)
 		return -EINVAL;
 
 	__nsp_disabel();
-	tdata_disable();
 
 	stat = NS_OFF;
 
@@ -487,17 +486,11 @@ static int set_stat_off(void)
 
 static int set_stat_on(void)
 {
-	int ret;
-
 	if (is_init() == false)
 		return -EPERM;
 
 	if (stat == NS_ON)
 		return -EINVAL;
-
-	ret = tdata_enable();
-	if (ret)
-		return ret;
 
 	__nsp_enable();
 
@@ -534,6 +527,53 @@ enum nsp_stat nsp_get_stat(void)
 
 
 /* ============================================================================
+ * =                                 tdata                                    =
+ * ============================================================================
+ */
+enum nsp_proc_stat {
+	NPS_OPEN_E,		/* mapping begin */
+	NPS_OPEN_R,
+	NPS_SYM_E,
+	NPS_SYM_R,		/* mapping end   */
+	NPS_MAIN_E,		/* main begin    */
+	NPS_AC_EFL_MAIN_E,	/* main end      */
+	NPS_AC_INIT_R,		/* create begin  */
+	NPS_ELM_RUN_E,		/* create end    */
+	NPS_DO_APP_E,		/* reset begin   */
+	NPS_DO_APP_R		/* reset end     */
+};
+
+struct tdata {
+	enum nsp_proc_stat stat;
+	struct nsp_data *nsp_data;
+	u64 time;
+	void __user *handle;
+	struct probe_new p_main;
+};
+
+
+static void ktd_init(struct task_struct *task, void *data)
+{
+	struct tdata *tdata = (struct tdata *)data;
+
+	tdata->nsp_data = NULL;
+}
+
+struct ktask_data ktd = {
+	.init = ktd_init,
+	.size = sizeof(struct tdata),
+};
+
+static struct tdata *tdata_get(struct task_struct *task)
+{
+	return (struct tdata *)swap_ktd(&ktd, task);
+}
+
+
+
+
+
+/* ============================================================================
  * =                                handlers                                  =
  * ============================================================================
  */
@@ -549,48 +589,30 @@ static int dlopen_eh(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 	nsp_data = nsp_data_find_by_path(path);
 	if (nsp_data) {
-		struct task_struct *task = current;
-		struct tdata *tdata;
+		struct tdata *tdata = tdata_get(current);
 
-		tdata = tdata_get(task);
-		if (tdata) {
-			nsp_print("ERROR: dlopen already cal for '%s'\n", path);
-			tdata_put(tdata);
-			goto free_path;
-		}
-
-		tdata = tdata_create(task);
-		if (tdata) {
+		/* init tdata */
+		if (tdata->nsp_data == NULL) {
 			tdata->stat = NPS_OPEN_E;
 			tdata->time = swap_msg_current_time();
 			tdata->nsp_data = nsp_data;
-			tdata_put(tdata);
-		} else {
-			nsp_print("ERROR: out of memory\n");
 		}
 	}
 
-free_path:
 	kfree(path);
 	return 0;
 }
 
 static int dlopen_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct tdata *tdata;
+	struct tdata *tdata = tdata_get(current);
+	void *handle = (void *)regs_return_value(regs);
 
-	tdata = tdata_get(current);
-	if (tdata) {
-		void *handle;
-
-		handle = (void *)regs_return_value(regs);
-		if ((tdata->stat == NPS_OPEN_E) && handle) {
-			tdata->stat = NPS_OPEN_R;
-			tdata->handle = handle;
-			tdata_put(tdata);
-		} else {
-			tdata_destroy(tdata);
-		}
+	if ((tdata->stat == NPS_OPEN_E) && handle) {
+		tdata->stat = NPS_OPEN_R;
+		tdata->handle = handle;
+	} else {
+		tdata->handle = NULL;
 	}
 
 	return 0;
@@ -598,24 +620,18 @@ static int dlopen_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 static int dlsym_eh(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct tdata *tdata;
+	struct tdata *tdata = tdata_get(current);
+	void __user *handle = (void __user *)swap_get_uarg(regs, 0);
+	const char __user *str = (const char __user *)swap_get_uarg(regs, 1);
 
-	tdata = tdata_get(current);
-	if (tdata) {
-		const char __user *str = (char __user *)swap_get_uarg(regs, 1);
+	if (handle == tdata->handle && tdata->stat == NPS_OPEN_R) {
 		const char *name;
-		void *handle;
 
-		handle = (void *)swap_get_uarg(regs, 0);
-		if (handle == tdata->handle && tdata->stat == NPS_OPEN_R) {
-			name = strdup_from_user(str, GFP_ATOMIC);
-			if (name && (strcmp(name, "main") == 0))
-				tdata->stat = NPS_SYM_E;
+		name = strdup_from_user(str, GFP_ATOMIC);
+		if (name && (strcmp(name, "main") == 0))
+			tdata->stat = NPS_SYM_E;
 
-			kfree(name);
-		}
-
-		tdata_put(tdata);
+		kfree(name);
 	}
 
 	return 0;
@@ -623,50 +639,34 @@ static int dlsym_eh(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 static int dlsym_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
-	struct tdata *tdata;
+	struct tdata *tdata = tdata_get(current);
 
-	tdata = tdata_get(current);
-	if (tdata) {
-		if (tdata->stat == NPS_SYM_E)
-			tdata->stat = NPS_SYM_R;
-		tdata_put(tdata);
-	}
+	if (tdata->handle && tdata->stat == NPS_SYM_E)
+		tdata->stat = NPS_SYM_R;
 
 	return 0;
 }
 
 static void stage_begin(enum nsp_proc_stat priv, enum nsp_proc_stat cur)
 {
-	struct tdata *tdata;
+	struct tdata *tdata = tdata_get(current);
 
-	tdata = tdata_get(current);
-	if (tdata) {
-		if (tdata->stat == priv) {
-			tdata->stat = cur;
-			tdata->time = swap_msg_current_time();
-		}
-
-		tdata_put(tdata);
+	if (tdata->handle && tdata->stat == priv) {
+		tdata->stat = cur;
+		tdata->time = swap_msg_current_time();
 	}
 }
 
 static void stage_end(enum nsp_proc_stat priv, enum nsp_proc_stat cur,
 		      enum nsp_msg_stage st)
 {
-	struct tdata *tdata;
+	struct tdata *tdata = tdata_get(current);
 	u64 time_start;
 	u64 time_end;
 
-	tdata = tdata_get(current);
-	if (tdata) {
-		if (tdata->stat != priv) {
-			tdata_put(tdata);
-			return;
-		}
-
+	if (tdata->handle && tdata->stat == priv) {
 		tdata->stat = cur;
 		time_start = tdata->time;
-		tdata_put(tdata);
 
 		time_end = swap_msg_current_time();
 		nsp_msg(st, time_start, time_end);
@@ -675,23 +675,15 @@ static void stage_end(enum nsp_proc_stat priv, enum nsp_proc_stat cur,
 
 static int main_h(struct uprobe *p, struct pt_regs *regs)
 {
-	struct tdata *tdata;
+	struct tdata *tdata = tdata_get(current);
 	u64 time_start;
 	u64 time_end;
 
-	tdata = tdata_get(current);
-	if (tdata) {
-		if (tdata->stat != NPS_SYM_R) {
-			tdata_put(tdata);
-			return 0;
-		}
-
+	if (tdata->handle && tdata->stat == NPS_SYM_R) {
 		tdata->stat = NPS_MAIN_E;
 		time_start = tdata->time;
 		time_end = swap_msg_current_time();
 		tdata->time = time_end;
-
-		tdata_put(tdata);
 
 		nsp_msg(NMS_MAPPING, time_start, time_end);
 	}
@@ -729,14 +721,12 @@ static int main_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 	if (rp && get_quiet() == QT_OFF) {
 		struct us_ip *ip;
-		char ret_type;
 		unsigned long func_addr;
 		unsigned long ret_addr;
 
 		ip = container_of(rp, struct us_ip, retprobe);
 		func_addr = (unsigned long)ip->orig_addr;
 		ret_addr = (unsigned long)ri->ret_addr;
-		ret_type = ip->desc->info.rp_i.ret_type;
 		rp_msg_exit(regs, func_addr, 'n', ret_addr);
 	}
 
@@ -784,7 +774,7 @@ static int do_app_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 int nsp_init(void)
 {
-	return 0;
+	return swap_ktd_reg(&ktd);
 }
 
 void nsp_exit(void)
@@ -793,4 +783,5 @@ void nsp_exit(void)
 		set_stat_off();
 
 	uninit_variables();
+	swap_ktd_unreg(&ktd);
 }

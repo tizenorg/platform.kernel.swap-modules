@@ -23,11 +23,10 @@
 #include <linux/module.h>
 #include <master/swap_initializer.h>
 #include "nsp.h"
-#include "nsp_tdata.h"
 #include "nsp_debugfs.h"
 
 
-SWAP_LIGHT_INIT_MODULE(tdata_once, nsp_init, nsp_exit,
+SWAP_LIGHT_INIT_MODULE(NULL, nsp_init, nsp_exit,
 		       nsp_debugfs_init, nsp_debugfs_exit);
 
 MODULE_LICENSE("GPL");
