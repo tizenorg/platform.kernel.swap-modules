@@ -106,8 +106,8 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
 		proc->task = task->group_leader;
 		proc->sm = create_sm_us(task);
 		INIT_LIST_HEAD(&proc->file_head);
-		rwlock_init(&proc->filter_lock);
-		INIT_LIST_HEAD(&proc->filter_list);
+		mutex_init(&proc->filters.mtx);
+		INIT_LIST_HEAD(&proc->filters.head);
 		atomic_set(&proc->usage, 1);
 
 		get_task_struct(proc->task);
@@ -454,7 +454,7 @@ void sspt_proc_add_filter(struct sspt_proc *proc, struct pf_group *pfg)
 
 	f = sspt_filter_create(proc, pfg);
 	if (f)
-		list_add(&f->list, &proc->filter_list);
+		list_add(&f->list, &proc->filters.head);
 }
 
 /**
@@ -468,14 +468,14 @@ void sspt_proc_del_filter(struct sspt_proc *proc, struct pf_group *pfg)
 {
 	struct sspt_filter *fl, *tmp;
 
-	write_lock(&proc->filter_lock);
-	list_for_each_entry_safe(fl, tmp, &proc->filter_list, list) {
+	mutex_lock(&proc->filters.mtx);
+	list_for_each_entry_safe(fl, tmp, &proc->filters.head, list) {
 		if (fl->pfg == pfg) {
 			list_del(&fl->list);
 			sspt_filter_free(fl);
 		}
 	}
-	write_unlock(&proc->filter_lock);
+	mutex_unlock(&proc->filters.mtx);
 }
 
 /**
@@ -488,12 +488,12 @@ void sspt_proc_del_all_filters(struct sspt_proc *proc)
 {
 	struct sspt_filter *fl, *tmp;
 
-	write_lock(&proc->filter_lock);
-	list_for_each_entry_safe(fl, tmp, &proc->filter_list, list) {
+	mutex_lock(&proc->filters.mtx);
+	list_for_each_entry_safe(fl, tmp, &proc->filters.head, list) {
 		list_del(&fl->list);
 		sspt_filter_free(fl);
 	}
-	write_unlock(&proc->filter_lock);
+	mutex_unlock(&proc->filters.mtx);
 }
 
 /**
@@ -507,7 +507,7 @@ bool sspt_proc_is_filter_new(struct sspt_proc *proc, struct pf_group *pfg)
 {
 	struct sspt_filter *fl;
 
-	list_for_each_entry(fl, &proc->filter_list, list)
+	list_for_each_entry(fl, &proc->filters.head, list)
 		if (fl->pfg == pfg)
 			return false;
 
@@ -520,7 +520,7 @@ void sspt_proc_on_each_filter(struct sspt_proc *proc,
 {
 	struct sspt_filter *fl;
 
-	list_for_each_entry(fl, &proc->filter_list, list)
+	list_for_each_entry(fl, &proc->filters.head, list)
 		func(fl, data);
 }
 

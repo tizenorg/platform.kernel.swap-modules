@@ -25,6 +25,7 @@
  */
 
 #include <linux/types.h>
+#include <linux/mutex.h>
 #include "sspt_file.h"
 
 struct slot_manager;
@@ -56,8 +57,10 @@ struct sspt_proc {
 	struct task_struct *__task;
 	struct slot_manager *sm;	/**< Ptr to the manager slot */
 
-	rwlock_t filter_lock;
-	struct list_head filter_list;	/**< Filter list */
+	struct {
+		struct mutex mtx;	/**< Mutex for filter list */
+		struct list_head head;	/**< Filter head */
+	} filters;
 
 	unsigned first_install:1;	/**< Install flag */
 	struct sspt_feature *feature;	/**< Ptr to the feature */
