@@ -57,8 +57,30 @@ struct pl_struct {
 	struct sspt_proc *proc;
 };
 
+
 static LIST_HEAD(pfg_list);
-static DEFINE_RWLOCK(pfg_list_lock);
+static DECLARE_RWSEM(pfg_list_sem);
+
+static void pfg_list_rlock(void)
+{
+	down_read(&pfg_list_sem);
+}
+
+static void pfg_list_runlock(void)
+{
+	up_read(&pfg_list_sem);
+}
+
+static void pfg_list_wlock(void)
+{
+	down_write(&pfg_list_sem);
+}
+
+static void pfg_list_wunlock(void)
+{
+	up_write(&pfg_list_sem);
+}
+
 
 /* struct pl_struct */
 static struct pl_struct *create_pl_struct(struct sspt_proc *proc)
@@ -258,7 +280,7 @@ struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv)
 {
 	struct pf_group *pfg;
 
-	write_lock(&pfg_list_lock);
+	pfg_list_wlock();
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_pf_by_dentry(&pfg->filter, dentry)) {
 			atomic_inc(&pfg->usage);
@@ -275,7 +297,7 @@ struct pf_group *get_pf_group_by_dentry(struct dentry *dentry, void *priv)
 	pfg_add_to_list(pfg);
 
 unlock:
-	write_unlock(&pfg_list_lock);
+	pfg_list_wunlock();
 	return pfg;
 }
 EXPORT_SYMBOL_GPL(get_pf_group_by_dentry);
@@ -291,7 +313,7 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv)
 {
 	struct pf_group *pfg;
 
-	write_lock(&pfg_list_lock);
+	pfg_list_wlock();
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_pf_by_tgid(&pfg->filter, tgid)) {
 			atomic_inc(&pfg->usage);
@@ -308,7 +330,7 @@ struct pf_group *get_pf_group_by_tgid(pid_t tgid, void *priv)
 	pfg_add_to_list(pfg);
 
 unlock:
-	write_unlock(&pfg_list_lock);
+	pfg_list_wunlock();
 	return pfg;
 }
 EXPORT_SYMBOL_GPL(get_pf_group_by_tgid);
@@ -325,7 +347,7 @@ struct pf_group *get_pf_group_by_comm(char *comm, void *priv)
 	int ret;
 	struct pf_group *pfg;
 
-	write_lock(&pfg_list_lock);
+	pfg_list_wlock();
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_pf_by_comm(&pfg->filter, comm)) {
 			atomic_inc(&pfg->usage);
@@ -347,7 +369,7 @@ struct pf_group *get_pf_group_by_comm(char *comm, void *priv)
 
 	pfg_add_to_list(pfg);
 unlock:
-	write_unlock(&pfg_list_lock);
+	pfg_list_wunlock();
 	return pfg;
 }
 EXPORT_SYMBOL_GPL(get_pf_group_by_comm);
@@ -362,7 +384,7 @@ struct pf_group *get_pf_group_dumb(void *priv)
 {
 	struct pf_group *pfg;
 
-	write_lock(&pfg_list_lock);
+	pfg_list_wlock();
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_pf_dumb(&pfg->filter)) {
 			atomic_inc(&pfg->usage);
@@ -379,7 +401,7 @@ struct pf_group *get_pf_group_dumb(void *priv)
 	pfg_add_to_list(pfg);
 
 unlock:
-	write_unlock(&pfg_list_lock);
+	pfg_list_wunlock();
 	return pfg;
 }
 EXPORT_SYMBOL_GPL(get_pf_group_dumb);
@@ -393,9 +415,9 @@ EXPORT_SYMBOL_GPL(get_pf_group_dumb);
 void put_pf_group(struct pf_group *pfg)
 {
 	if (atomic_dec_and_test(&pfg->usage)) {
-		write_lock(&pfg_list_lock);
+		pfg_list_wlock();
 		pfg_del_from_list(pfg);
-		write_unlock(&pfg_list_lock);
+		pfg_list_wunlock();
 
 		pfg_free(pfg);
 	}
@@ -438,7 +460,7 @@ static int check_task_on_filters(struct task_struct *task)
 	int ret = 0;
 	struct pf_group *pfg;
 
-	read_lock(&pfg_list_lock);
+	pfg_list_rlock();
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_task_f(&pfg->filter, task)) {
 			ret = 1;
@@ -447,7 +469,7 @@ static int check_task_on_filters(struct task_struct *task)
 	}
 
 unlock:
-	read_unlock(&pfg_list_lock);
+	pfg_list_runlock();
 	return ret;
 }
 
@@ -464,7 +486,7 @@ static enum pf_inst_flag pfg_check_task(struct task_struct *task)
 	struct sspt_proc *proc = NULL;
 	enum pf_inst_flag flag = PIF_NONE;
 
-	read_lock(&pfg_list_lock);
+	pfg_list_rlock();
 	list_for_each_entry(pfg, &pfg_list, list) {
 		if (check_task_f(&pfg->filter, task) == NULL)
 			continue;
@@ -494,7 +516,7 @@ static enum pf_inst_flag pfg_check_task(struct task_struct *task)
 			write_unlock(&proc->filter_lock);
 		}
 	}
-	read_unlock(&pfg_list_lock);
+	pfg_list_runlock();
 
 	return flag;
 }
@@ -605,8 +627,22 @@ void uninstall_page(unsigned long addr)
 }
 
 
-static struct task_struct *get_untracked_task(void)
+static void install_cb(void *unused)
 {
+	check_task_and_install(current);
+}
+
+
+
+
+struct task_item {
+	struct list_head list;
+	struct task_struct *task;
+};
+
+static void tasks_get(struct list_head *head)
+{
+	struct task_item *item;
 	struct task_struct *task;
 
 	rcu_read_lock();
@@ -617,22 +653,53 @@ static struct task_struct *get_untracked_task(void)
 		if (sspt_proc_get_by_task(task))
 			continue;
 
-		if (check_task_on_filters(task)) {
-			get_task_struct(task);
+		/* TODO: get rid of GFP_ATOMIC */
+		item = kmalloc(sizeof(*item), GFP_ATOMIC);
+		if (item == NULL) {
+			WARN(1, "out of memory\n");
 			goto unlock;
 		}
-	}
 
-	task = NULL;
+		get_task_struct(task);
+		item->task = task;
+		list_add(&item->list, head);
+	}
 
 unlock:
 	rcu_read_unlock();
-	return task;
 }
 
-static void install_cb(void *unused)
+static void tasks_install_and_put(struct list_head *head)
 {
-	check_task_and_install(current);
+	struct task_item *item, *n;
+
+	list_for_each_entry_safe(item, n, head, list) {
+		int ret;
+		struct task_struct *task;
+
+		task = item->task;
+		if (!check_task_on_filters(task))
+			goto put_task;
+
+		ret = taskctx_run(task, install_cb, NULL);
+		if (ret) {
+			pr_err("cannot tracking task[%u %u %s] ret=%d\n",
+			       task->tgid, task->pid, task->comm, ret);
+		}
+
+put_task:
+		put_task_struct(task);
+		list_del(&item->list);
+		kfree(item);
+	}
+}
+
+static void do_install_all(void)
+{
+	LIST_HEAD(head);
+
+	tasks_get(&head);
+	tasks_install_and_put(&head);
 }
 
 /**
@@ -643,32 +710,14 @@ static void install_cb(void *unused)
 void install_all(void)
 {
 	int ret;
-	struct task_struct *task, *first;
-
-	first = get_untracked_task();
-	if (first == NULL)
-		return;
-
 
 	ret = taskctx_get();
-	if (ret) {
-		put_task_struct(first);
-
-		pr_err("taskctx_get ret=%d\n", ret);;
-		return;
+	if (!ret) {
+		do_install_all();
+		taskctx_put();
+	} else {
+		pr_err("taskctx_get ret=%d\n", ret);
 	}
-
-	for (task = first; task; task = get_untracked_task()) {
-		ret = taskctx_run(task, install_cb, NULL);
-		if (ret) {
-			pr_err("cannot tracking task[%u %u %s] ret=%d\n",
-			       task->tgid, task->pid, task->comm, ret);
-		}
-
-		put_task_struct(task);
-	}
-
-	taskctx_put();
 }
 
 /**
