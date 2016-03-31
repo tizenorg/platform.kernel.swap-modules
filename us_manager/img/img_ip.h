@@ -34,14 +34,18 @@
  * @breaf Image of instrumentation pointer
  */
 struct img_ip {
-	struct list_head list;		/**< For img_file */
+	/* img_file */
+	struct list_head list;		/**< List for img_file */
+
+	/* sspt_ip */
+	struct list_head sspt_head;	/**< Head for sspt_ip */
+
 	unsigned long addr;		/**< Function address */
-	struct list_head ihead;		/**< List head for sspt ip */
 	struct probe_desc *desc;	/**< Probe info */
 };
 
-struct img_ip *create_img_ip(unsigned long addr, struct probe_desc *info);
-void free_img_ip(struct img_ip *ip);
+struct img_ip *img_ip_create(unsigned long addr, struct probe_desc *info);
+void img_ip_free(struct img_ip *ip);
 
 /* debug */
 void img_ip_print(struct img_ip *ip);

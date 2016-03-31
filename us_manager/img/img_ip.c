@@ -35,7 +35,7 @@
  * @param probe_i Pointer to the probe info data.
  * @return Pointer to the created img_ip struct
  */
-struct img_ip *create_img_ip(unsigned long addr, struct probe_desc *pd)
+struct img_ip *img_ip_create(unsigned long addr, struct probe_desc *pd)
 {
 	struct img_ip *ip;
 
@@ -44,7 +44,7 @@ struct img_ip *create_img_ip(unsigned long addr, struct probe_desc *pd)
 		return NULL;
 
 	INIT_LIST_HEAD(&ip->list);
-	INIT_LIST_HEAD(&ip->ihead);
+	INIT_LIST_HEAD(&ip->sspt_head);
 	ip->addr = addr;
 	ip->desc = pd;
 
@@ -57,11 +57,11 @@ struct img_ip *create_img_ip(unsigned long addr, struct probe_desc *pd)
  * @param ip remove object
  * @return Void
  */
-void free_img_ip(struct img_ip *ip)
+void img_ip_free(struct img_ip *ip)
 {
 	struct sspt_ip *p, *n;
 
-	list_for_each_entry_safe(p, n, &ip->ihead, img_list) {
+	list_for_each_entry_safe(p, n, &ip->sspt_head, img_list) {
 		list_del_init(&p->img_list);
 		p->img_ip = NULL;
 		list_del(&p->list);

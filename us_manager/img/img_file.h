@@ -35,9 +35,13 @@ struct probe_desc;
  * @breaf Image of file
  */
 struct img_file {
-	struct list_head list;		/**< For img_proc */
+	/* img_proc */
+	struct list_head list;		/**< List for img_proc */
+
+	/* img_ip */
+	struct list_head ip_list;	/**< Head for img_ip */
+
 	struct dentry *dentry;		/**< Dentry of file */
-	struct list_head ip_list;	/**< For img_ip */
 	atomic_t use;
 };
 

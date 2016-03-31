@@ -53,7 +53,7 @@ struct sspt_ip *sspt_ip_create(struct img_ip *img_ip)
 	ip->offset = img_ip->addr;
 	ip->desc = img_ip->desc;
 	ip->img_ip = img_ip;
-	list_add(&ip->img_list, &img_ip->ihead);
+	list_add(&ip->img_list, &img_ip->sspt_head);
 
 	return ip;
 }

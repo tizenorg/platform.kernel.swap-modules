@@ -87,7 +87,7 @@ static struct pf_group *pfg_create(void)
 	if (pfg == NULL)
 		return NULL;
 
-	pfg->i_proc = create_img_proc();
+	pfg->i_proc = img_proc_create();
 	if (pfg->i_proc == NULL)
 		goto create_pfg_fail;
 
@@ -111,7 +111,7 @@ static void pfg_free(struct pf_group *pfg)
 {
 	struct pl_struct *pl, *n;
 
-	free_img_proc(pfg->i_proc);
+	img_proc_free(pfg->i_proc);
 	free_pf(&pfg->filter);
 	list_for_each_entry_safe(pl, n, &pfg->proc_list, list) {
 		sspt_proc_del_filter(pl->proc, pfg);

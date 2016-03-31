@@ -67,7 +67,7 @@ static void img_file_free(struct img_file *file)
 
 	list_for_each_entry_safe(ip, tmp, &file->ip_list, list) {
 		img_del_ip_by_list(ip);
-		free_img_ip(ip);
+		img_ip_free(ip);
 	}
 
 	kfree(file);
@@ -131,7 +131,7 @@ int img_file_add_ip(struct img_file *file, unsigned long addr,
 		return 0;
 	}
 
-	ip = create_img_ip(addr, pd);
+	ip = img_ip_create(addr, pd);
 	if (ip == NULL)
 		return -ENOMEM;
 	img_add_ip_by_list(file, ip);
@@ -159,7 +159,7 @@ int img_file_del_ip(struct img_file *file, unsigned long addr,
 	}
 
 	img_del_ip_by_list(ip);
-	free_img_ip(ip);
+	img_ip_free(ip);
 
 	return 0;
 }
