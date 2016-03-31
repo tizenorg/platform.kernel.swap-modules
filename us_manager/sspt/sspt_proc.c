@@ -105,7 +105,7 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
 		proc->tgid = task->tgid;
 		proc->task = task->group_leader;
 		proc->sm = create_sm_us(task);
-		INIT_LIST_HEAD(&proc->file_list);
+		INIT_LIST_HEAD(&proc->file_head);
 		rwlock_init(&proc->filter_lock);
 		INIT_LIST_HEAD(&proc->filter_list);
 		atomic_set(&proc->usage, 1);
@@ -133,7 +133,7 @@ void sspt_proc_cleanup(struct sspt_proc *proc)
 
 	sspt_proc_del_all_filters(proc);
 
-	list_for_each_entry_safe(file, n, &proc->file_list, list) {
+	list_for_each_entry_safe(file, n, &proc->file_head, list) {
 		list_del(&file->list);
 		sspt_file_free(file);
 	}
@@ -267,7 +267,7 @@ void sspt_proc_free_all(void)
 
 static void sspt_proc_add_file(struct sspt_proc *proc, struct sspt_file *file)
 {
-	list_add(&file->list, &proc->file_list);
+	list_add(&file->list, &proc->file_head);
 	file->proc = proc;
 }
 
@@ -305,7 +305,7 @@ struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc,
 {
 	struct sspt_file *file;
 
-	list_for_each_entry(file, &proc->file_list, list) {
+	list_for_each_entry(file, &proc->file_head, list) {
 		if (dentry == file->dentry)
 			return file;
 	}
@@ -382,7 +382,7 @@ int sspt_proc_uninstall(struct sspt_proc *proc,
 	int err = 0;
 	struct sspt_file *file;
 
-	list_for_each_entry_rcu(file, &proc->file_list, list) {
+	list_for_each_entry_rcu(file, &proc->file_head, list) {
 		err = sspt_file_uninstall(file, task, flag);
 		if (err != 0) {
 			printk(KERN_INFO "ERROR sspt_proc_uninstall: err=%d\n",
@@ -419,7 +419,7 @@ int sspt_proc_get_files_by_region(struct sspt_proc *proc,
 	struct sspt_file *file, *n;
 	unsigned long end = start + len;
 
-	list_for_each_entry_safe(file, n, &proc->file_list, list) {
+	list_for_each_entry_safe(file, n, &proc->file_head, list) {
 		if (intersection(file->vm_start, file->vm_end, start, end)) {
 			ret = 1;
 			list_move(&file->list, head);
@@ -438,7 +438,7 @@ int sspt_proc_get_files_by_region(struct sspt_proc *proc,
  */
 void sspt_proc_insert_files(struct sspt_proc *proc, struct list_head *head)
 {
-	list_splice(head, &proc->file_list);
+	list_splice(head, &proc->file_head);
 }
 
 /**
@@ -525,11 +525,11 @@ void sspt_proc_on_each_filter(struct sspt_proc *proc,
 }
 
 void sspt_proc_on_each_ip(struct sspt_proc *proc,
-			  void (*func)(struct us_ip *, void *), void *data)
+			  void (*func)(struct sspt_ip *, void *), void *data)
 {
 	struct sspt_file *file;
 
-	list_for_each_entry(file, &proc->file_list, list)
+	list_for_each_entry(file, &proc->file_head, list)
 		sspt_file_on_each_ip(file, func, data);
 }
 

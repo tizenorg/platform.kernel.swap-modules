@@ -27,7 +27,7 @@
 #include <linux/types.h>
 #include <linux/spinlock.h>
 
-struct us_ip;
+struct sspt_ip;
 struct sspt_file;
 struct task_struct;
 enum US_FLAGS;
@@ -37,20 +37,25 @@ enum US_FLAGS;
  * @breaf Image of page for specified process
  */
 struct sspt_page {
-	struct list_head ip_list_inst;		/**< For installed ip */
-	struct list_head ip_list_no_inst;	/**< For don'tinstalled ip */
-	unsigned long offset;			/**< File offset */
-	spinlock_t lock;			/**< Lock page */
-
-	struct sspt_file *file;			/**< Ptr to the file(parent)=*/
+	/* sspt_file */
 	struct hlist_node hlist;		/**< For sspt_file */
+	struct sspt_file *file;			/**< Ptr to the file (parent) */
+
+	/* sspt_ip */
+	struct {
+		spinlock_t lock;		/**< Lock page */
+		struct list_head inst;		/**< For installed ip */
+		struct list_head not_inst;	/**< For don'tinstalled ip */
+	} ip_list;
+
+	unsigned long offset;			/**< File offset */
 };
 
 struct sspt_page *sspt_page_create(unsigned long offset);
 void sspt_page_free(struct sspt_page *page);
 
-void sspt_add_ip(struct sspt_page *page, struct us_ip *ip);
-void sspt_del_ip(struct us_ip *ip);
+void sspt_add_ip(struct sspt_page *page, struct sspt_ip *ip);
+void sspt_del_ip(struct sspt_ip *ip);
 
 int sspt_page_is_installed(struct sspt_page *page);
 
@@ -61,6 +66,6 @@ int sspt_unregister_page(struct sspt_page *page,
 			 struct task_struct *task);
 
 void sspt_page_on_each_ip(struct sspt_page *page,
-			  void (*func)(struct us_ip *, void *), void *data);
+			  void (*func)(struct sspt_ip *, void *), void *data);
 
 #endif /* __SSPT_PAGE__ */

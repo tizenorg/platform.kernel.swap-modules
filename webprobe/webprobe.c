@@ -29,7 +29,7 @@
 
 
 #include <us_manager/us_manager.h>
-#include <us_manager/sspt/ip.h>
+#include <us_manager/sspt/sspt_ip.h>
 #include <us_manager/probes/register_probes.h>
 #include <us_manager/sspt/sspt.h>
 #include <uprobe/swap_uprobes.h>
@@ -59,17 +59,17 @@ static void webprobe_cleanup(struct probe_info *probe_i)
 {
 }
 
-static struct uprobe *webprobe_get_uprobe(struct us_ip *ip)
+static struct uprobe *webprobe_get_uprobe(struct sspt_ip *ip)
 {
 	return &ip->retprobe.up;
 }
 
-static int webprobe_register_probe(struct us_ip *ip)
+static int webprobe_register_probe(struct sspt_ip *ip)
 {
 	return swap_register_uretprobe(&ip->retprobe);
 }
 
-static void webprobe_unregister_probe(struct us_ip *ip, int disarm)
+static void webprobe_unregister_probe(struct sspt_ip *ip, int disarm)
 {
 	if (ip->orig_addr == inspserver_addr_local)
 		web_func_inst_remove(INSPSERVER_START);
@@ -85,14 +85,14 @@ static int web_entry_handler(struct uretprobe_instance *ri,
 			     struct pt_regs *regs)
 {
 	struct uretprobe *rp = ri->rp;
-	struct us_ip *ip;
+	struct sspt_ip *ip;
 	unsigned long vaddr, page_vaddr;
 	struct vm_area_struct *vma;
 
 	if (rp == NULL)
 		return 0;
 
-	ip = container_of(rp, struct us_ip, retprobe);
+	ip = container_of(rp, struct sspt_ip, retprobe);
 	vaddr = (unsigned long)ip->orig_addr;
 	page_vaddr = vaddr & PAGE_MASK;
 
@@ -119,14 +119,14 @@ static int web_entry_handler(struct uretprobe_instance *ri,
 static int web_ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 {
 	struct uretprobe *rp = ri->rp;
-	struct us_ip *ip;
+	struct sspt_ip *ip;
 	unsigned long vaddr, page_vaddr;
 	struct vm_area_struct *vma;
 
 	if (rp == NULL)
 		return 0;
 
-	ip = container_of(rp, struct us_ip, retprobe);
+	ip = container_of(rp, struct sspt_ip, retprobe);
 	vaddr = (unsigned long)ip->orig_addr;
 	page_vaddr = vaddr & PAGE_MASK;
 
@@ -145,14 +145,14 @@ static int web_ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
-static void webprobe_init(struct us_ip *ip)
+static void webprobe_init(struct sspt_ip *ip)
 {
 	ip->retprobe.entry_handler = web_entry_handler;
 	ip->retprobe.handler = web_ret_handler;
 	ip->retprobe.maxactive = 0;
 }
 
-static void webprobe_uninit(struct us_ip *ip)
+static void webprobe_uninit(struct sspt_ip *ip)
 {
 	webprobe_cleanup(&ip->desc->info);
 }

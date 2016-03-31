@@ -43,7 +43,7 @@
 #include <us_manager/probes/register_probes.h>
 
 #include <uprobe/swap_uprobes.h>
-#include <us_manager/sspt/ip.h>
+#include <us_manager/sspt/sspt_ip.h>
 
 #include <kprobe/swap_kprobes_deps.h>
 #include <linux/module.h>
@@ -216,7 +216,7 @@ exit:
 }
 
 static int fbi_probe_get_data_from_direct_addr(const struct fbi_var_data *fbi_i,
-					       struct us_ip *ip,
+					       struct sspt_ip *ip,
 					       struct pt_regs *regs)
 {
 	struct vm_area_struct *vma;
@@ -257,7 +257,7 @@ exit:
 
 static int fbi_probe_handler(struct uprobe *p, struct pt_regs *regs)
 {
-	struct us_ip *ip = container_of(p, struct us_ip, uprobe);
+	struct sspt_ip *ip = container_of(p, struct sspt_ip, uprobe);
 	struct fbi_info *fbi_i = &ip->desc->info.fbi_i;
 	struct fbi_var_data *fbi_d = NULL;
 	uint8_t i;
@@ -305,28 +305,28 @@ void fbi_probe_cleanup(struct probe_info *probe_i)
 	fbi_i->vars = NULL;
 }
 
-void fbi_probe_init(struct us_ip *ip)
+void fbi_probe_init(struct sspt_ip *ip)
 {
 	ip->uprobe.pre_handler = (uprobe_pre_handler_t)fbi_probe_handler;
 }
 
-void fbi_probe_uninit(struct us_ip *ip)
+void fbi_probe_uninit(struct sspt_ip *ip)
 {
 	if (ip != NULL)
 		fbi_probe_cleanup(&ip->desc->info);
 }
 
-static int fbi_probe_register_probe(struct us_ip *ip)
+static int fbi_probe_register_probe(struct sspt_ip *ip)
 {
 	return swap_register_uprobe(&ip->uprobe);
 }
 
-static void fbi_probe_unregister_probe(struct us_ip *ip, int disarm)
+static void fbi_probe_unregister_probe(struct sspt_ip *ip, int disarm)
 {
 	__swap_unregister_uprobe(&ip->uprobe, disarm);
 }
 
-static struct uprobe *fbi_probe_get_uprobe(struct us_ip *ip)
+static struct uprobe *fbi_probe_get_uprobe(struct sspt_ip *ip)
 {
 	return &ip->uprobe;
 }

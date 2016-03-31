@@ -7,7 +7,7 @@
 #include <kprobe/swap_kprobes.h>
 #include <kprobe/swap_kprobes_deps.h>
 #include <us_manager/sspt/sspt_proc.h>
-#include <us_manager/sspt/ip.h>
+#include <us_manager/sspt/sspt_ip.h>
 #include <us_manager/callbacks.h>
 #include <writer/kernel_operations.h>
 #include <master/swap_initializer.h>

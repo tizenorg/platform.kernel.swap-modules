@@ -3,7 +3,7 @@
 #include <linux/limits.h>
 #include <linux/list.h>
 
-#include <us_manager/sspt/ip.h>
+#include <us_manager/sspt/sspt_ip.h>
 
 #include "preload.h"
 #include "preload_control.h"
@@ -211,7 +211,7 @@ enum preload_call_type preload_control_call_type_always_inst(void *caller)
 
 }
 
-enum preload_call_type preload_control_call_type(struct us_ip *ip, void *caller)
+enum preload_call_type preload_control_call_type(struct sspt_ip *ip, void *caller)
 {
 	if (__is_instrumented(caller))
 		return INTERNAL_CALL;

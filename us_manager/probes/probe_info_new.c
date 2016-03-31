@@ -21,7 +21,7 @@
 
 
 #include <linux/module.h>
-#include <us_manager/sspt/ip.h>
+#include <us_manager/sspt/sspt_ip.h>
 #include <us_manager/pf/pf_group.h>
 #include <us_manager/sspt/sspt_proc.h>
 #include "probes.h"
@@ -37,7 +37,7 @@ static int urp_entry_handler(struct uretprobe_instance *ri, struct pt_regs *regs
 	struct uretprobe *rp = ri->rp;
 
 	if (rp) {
-		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
+		struct sspt_ip *ip = container_of(rp, struct sspt_ip, retprobe);
 		struct probe_desc *pd = NULL;
 
 		pd = ip->desc;
@@ -54,7 +54,7 @@ static int urp_ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 	struct uretprobe *rp = ri->rp;
 
 	if (rp) {
-		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
+		struct sspt_ip *ip = container_of(rp, struct sspt_ip, retprobe);
 		struct probe_desc *pd = NULL;
 
 		pd = ip->desc;
@@ -67,7 +67,7 @@ static int urp_ret_handler(struct uretprobe_instance *ri, struct pt_regs *regs)
 
 static int uprobe_handler(struct uprobe *p, struct pt_regs *regs)
 {
-	struct us_ip *ip = container_of(p, struct us_ip, uprobe);
+	struct sspt_ip *ip = container_of(p, struct sspt_ip, uprobe);
 	struct probe_desc *pd = NULL;
 
 	pd = ip->desc;
@@ -127,27 +127,27 @@ static void up_cleanup(struct probe_info *probe_i)
 {
 }
 
-static struct uprobe *up_get_uprobe(struct us_ip *ip)
+static struct uprobe *up_get_uprobe(struct sspt_ip *ip)
 {
 	return &ip->uprobe;
 }
 
-static int up_register_probe(struct us_ip *ip)
+static int up_register_probe(struct sspt_ip *ip)
 {
 	return swap_register_uprobe(&ip->uprobe);
 }
 
-static void up_unregister_probe(struct us_ip *ip, int disarm)
+static void up_unregister_probe(struct sspt_ip *ip, int disarm)
 {
 	__swap_unregister_uprobe(&ip->uprobe, disarm);
 }
 
-static void up_init(struct us_ip *ip)
+static void up_init(struct sspt_ip *ip)
 {
 	ip->uprobe.pre_handler = uprobe_handler;
 }
 
-static void up_uninit(struct us_ip *ip)
+static void up_uninit(struct sspt_ip *ip)
 {
 }
 
@@ -177,22 +177,22 @@ static void urp_cleanup(struct probe_info *probe_i)
 {
 }
 
-static struct uprobe *urp_get_uprobe(struct us_ip *ip)
+static struct uprobe *urp_get_uprobe(struct sspt_ip *ip)
 {
 	return &ip->retprobe.up;
 }
 
-static int urp_register_probe(struct us_ip *ip)
+static int urp_register_probe(struct sspt_ip *ip)
 {
 	return swap_register_uretprobe(&ip->retprobe);
 }
 
-static void urp_unregister_probe(struct us_ip *ip, int disarm)
+static void urp_unregister_probe(struct sspt_ip *ip, int disarm)
 {
 	__swap_unregister_uretprobe(&ip->retprobe, disarm);
 }
 
-static void urp_init(struct us_ip *ip)
+static void urp_init(struct sspt_ip *ip)
 {
 	ip->retprobe.entry_handler = urp_entry_handler;
 	ip->retprobe.handler = urp_ret_handler;
@@ -201,7 +201,7 @@ static void urp_init(struct us_ip *ip)
 	ip->retprobe.data_size = sizeof(void *);
 }
 
-static void urp_uninit(struct us_ip *ip)
+static void urp_uninit(struct sspt_ip *ip)
 {
 }
 

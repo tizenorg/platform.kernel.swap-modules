@@ -27,7 +27,7 @@
 #include <us_manager/probes/register_probes.h>
 #include <us_manager/sspt/sspt_page.h>
 #include <uprobe/swap_uprobes.h>
-#include <us_manager/sspt/ip.h>
+#include <us_manager/sspt/sspt_ip.h>
 #include "preload_probe.h"
 #include "preload.h"
 #include "preload_module.h"
@@ -48,7 +48,7 @@ static void preload_info_cleanup(struct probe_info *probe_i)
 {
 }
 
-static struct uprobe *preload_get_uprobe(struct us_ip *ip)
+static struct uprobe *preload_get_uprobe(struct sspt_ip *ip)
 {
 	return &ip->retprobe.up;
 }
@@ -96,7 +96,7 @@ static inline bool can_be_ready(void)
 
 /* Registers probe if preload is 'running' or 'ready'.
  */
-static int preload_register_probe(struct us_ip *ip)
+static int preload_register_probe(struct sspt_ip *ip)
 {
 	if (preload_module_is_not_ready()) {
 		if (can_be_ready()) {
@@ -112,19 +112,19 @@ static int preload_register_probe(struct us_ip *ip)
 	return swap_register_uretprobe(&ip->retprobe);
 }
 
-static void preload_unregister_probe(struct us_ip *ip, int disarm)
+static void preload_unregister_probe(struct sspt_ip *ip, int disarm)
 {
 	__swap_unregister_uretprobe(&ip->retprobe, disarm);
 
 	dec_probes();
 }
 
-static void preload_init(struct us_ip *ip)
+static void preload_init(struct sspt_ip *ip)
 {
 	ph_uprobe_init(ip);
 }
 
-static void preload_uninit(struct us_ip *ip)
+static void preload_uninit(struct sspt_ip *ip)
 {
 	ph_uprobe_exit(ip);
 
@@ -153,27 +153,27 @@ static void get_caller_info_cleanup(struct probe_info *probe_i)
 {
 }
 
-static struct uprobe *get_caller_get_uprobe(struct us_ip *ip)
+static struct uprobe *get_caller_get_uprobe(struct sspt_ip *ip)
 {
 	return &ip->uprobe;
 }
 
-static int get_caller_register_probe(struct us_ip *ip)
+static int get_caller_register_probe(struct sspt_ip *ip)
 {
 	return swap_register_uprobe(&ip->uprobe);
 }
 
-static void get_caller_unregister_probe(struct us_ip *ip, int disarm)
+static void get_caller_unregister_probe(struct sspt_ip *ip, int disarm)
 {
 	__swap_unregister_uprobe(&ip->uprobe, disarm);
 }
 
-static void get_caller_init(struct us_ip *ip)
+static void get_caller_init(struct sspt_ip *ip)
 {
 	ph_get_caller_init(ip);
 }
 
-static void get_caller_uninit(struct us_ip *ip)
+static void get_caller_uninit(struct sspt_ip *ip)
 {
 	ph_get_caller_exit(ip);
 
@@ -190,12 +190,12 @@ static struct probe_iface get_caller_iface = {
 	.cleanup = get_caller_info_cleanup
 };
 
-static void get_call_type_init(struct us_ip *ip)
+static void get_call_type_init(struct sspt_ip *ip)
 {
 	ph_get_call_type_init(ip);
 }
 
-static void get_call_type_uninit(struct us_ip *ip)
+static void get_call_type_uninit(struct sspt_ip *ip)
 {
 	ph_get_call_type_exit(ip);
 
@@ -212,17 +212,17 @@ static struct probe_iface get_call_type_iface = {
 	.cleanup = get_caller_info_cleanup
 };
 
-static void write_msg_init(struct us_ip *ip)
+static void write_msg_init(struct sspt_ip *ip)
 {
 	ph_write_msg_init(ip);
 }
 
-static int write_msg_reg(struct us_ip *ip)
+static int write_msg_reg(struct sspt_ip *ip)
 {
 	return get_caller_register_probe(ip);
 }
 
-static void write_msg_uninit(struct us_ip *ip)
+static void write_msg_uninit(struct sspt_ip *ip)
 {
 	ph_write_msg_exit(ip);
 

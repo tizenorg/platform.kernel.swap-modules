@@ -31,7 +31,7 @@ struct slot_manager;
 struct task_struct;
 struct pf_group;
 struct sspt_filter;
-struct us_ip;
+struct sspt_ip;
 
 /** Flags for sspt_*_uninstall() */
 enum US_FLAGS {
@@ -46,20 +46,25 @@ enum US_FLAGS {
  */
 struct sspt_proc {
 	struct list_head list;		/**< For global process list */
+
+	/* sspt_file */
+	struct list_head file_head;	/**< For sspt_file */
+
 	pid_t tgid;			/**< Thread group ID */
 	struct task_struct *task;	/**< Ptr to the task */
 	struct mm_struct *__mm;
 	struct task_struct *__task;
-	unsigned long r_state_addr;	/**< address of r_state */
 	struct slot_manager *sm;	/**< Ptr to the manager slot */
-	struct list_head file_list;	/**< For sspt_file */
+
 	rwlock_t filter_lock;
 	struct list_head filter_list;	/**< Filter list */
+
 	unsigned first_install:1;	/**< Install flag */
 	struct sspt_feature *feature;	/**< Ptr to the feature */
 	atomic_t usage;
 
 	/* FIXME: for preload (remove those fields) */
+	unsigned long r_state_addr;	/**< address of r_state */
 	void *private_data;		/**< Process private data */
 };
 
@@ -115,7 +120,7 @@ void sspt_proc_on_each_filter(struct sspt_proc *proc,
 			      void *data);
 
 void sspt_proc_on_each_ip(struct sspt_proc *proc,
-			  void (*func)(struct us_ip *, void *), void *data);
+			  void (*func)(struct sspt_ip *, void *), void *data);
 
 bool sspt_proc_is_send_event(struct sspt_proc *proc);
 

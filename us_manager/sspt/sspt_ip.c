@@ -24,7 +24,7 @@
 
 #include <linux/slab.h>
 #include <linux/module.h>
-#include "ip.h"
+#include "sspt_ip.h"
 #include "sspt_page.h"
 #include "sspt_file.h"
 #include <us_manager/probes/use_probes.h>
@@ -39,9 +39,9 @@
  * @param page Pointer to the parent sspt_page struct
  * @return Pointer to the created us_ip struct
  */
-struct us_ip *create_ip(struct img_ip *img_ip)
+struct sspt_ip *sspt_ip_create(struct img_ip *img_ip)
 {
-	struct us_ip *ip;
+	struct sspt_ip *ip;
 
 	ip = kmalloc(sizeof(*ip), GFP_ATOMIC);
 	if (!ip)
@@ -52,7 +52,7 @@ struct us_ip *create_ip(struct img_ip *img_ip)
 	INIT_LIST_HEAD(&ip->img_list);
 	ip->offset = img_ip->addr;
 	ip->desc = img_ip->desc;
-	ip->iip = img_ip;
+	ip->img_ip = img_ip;
 	list_add(&ip->img_list, &img_ip->ihead);
 
 	return ip;
@@ -64,7 +64,7 @@ struct us_ip *create_ip(struct img_ip *img_ip)
  * @param ip remove object
  * @return Void
  */
-void free_ip(struct us_ip *ip)
+void sspt_ip_free(struct sspt_ip *ip)
 {
 	if (!list_empty(&ip->img_list))
 		list_del(&ip->img_list);

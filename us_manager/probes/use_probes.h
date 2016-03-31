@@ -3,13 +3,13 @@
 
 #include "probes.h"
 
-struct us_ip;
+struct sspt_ip;
 
-void probe_info_init(enum probe_t type, struct us_ip *ip);
-void probe_info_uninit(enum probe_t type, struct us_ip *ip);
-int probe_info_register(enum probe_t type, struct us_ip *ip);
-void probe_info_unregister(enum probe_t type, struct us_ip *ip, int disarm);
-struct uprobe *probe_info_get_uprobe(enum probe_t type, struct us_ip *ip);
+void probe_info_init(enum probe_t type, struct sspt_ip *ip);
+void probe_info_uninit(enum probe_t type, struct sspt_ip *ip);
+int probe_info_register(enum probe_t type, struct sspt_ip *ip);
+void probe_info_unregister(enum probe_t type, struct sspt_ip *ip, int disarm);
+struct uprobe *probe_info_get_uprobe(enum probe_t type, struct sspt_ip *ip);
 int probe_info_copy(const struct probe_info *pi, struct probe_info *dest);
 void probe_info_cleanup(struct probe_info *pi);
 

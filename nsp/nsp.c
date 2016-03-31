@@ -703,10 +703,10 @@ static int main_eh(struct uretprobe_instance *ri, struct pt_regs *regs)
 		main_h(&rp->up, regs);
 
 		if (get_quiet() == QT_OFF) {
-			struct us_ip *ip;
+			struct sspt_ip *ip;
 			unsigned long func_addr;
 
-			ip = container_of(rp, struct us_ip, retprobe);
+			ip = container_of(rp, struct sspt_ip, retprobe);
 			func_addr = (unsigned long)ip->orig_addr;
 			rp_msg_entry(regs, func_addr, "p");
 		}
@@ -720,11 +720,11 @@ static int main_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 	struct uretprobe *rp = ri->rp;
 
 	if (rp && get_quiet() == QT_OFF) {
-		struct us_ip *ip;
+		struct sspt_ip *ip;
 		unsigned long func_addr;
 		unsigned long ret_addr;
 
-		ip = container_of(rp, struct us_ip, retprobe);
+		ip = container_of(rp, struct sspt_ip, retprobe);
 		func_addr = (unsigned long)ip->orig_addr;
 		ret_addr = (unsigned long)ri->ret_addr;
 		rp_msg_exit(regs, func_addr, 'n', ret_addr);

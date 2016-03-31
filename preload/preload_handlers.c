@@ -2,7 +2,7 @@
 #include <kprobe/swap_kprobes_deps.h>
 #include <writer/kernel_operations.h>
 #include <writer/swap_msg.h>
-#include <us_manager/sspt/ip.h>
+#include <us_manager/sspt/sspt_ip.h>
 #include <us_manager/sspt/sspt_page.h>
 #include <us_manager/sspt/sspt_file.h>
 #include "preload.h"
@@ -13,6 +13,7 @@
 
 #define page_to_proc(page) ((page)->file->proc)
 #define ip_to_proc(ip) page_to_proc((ip)->page)
+#define urp_to_ip(rp) container_of(rp, struct sspt_ip, retprobe)
 
 enum {
 	/* task preload flags */
@@ -24,7 +25,7 @@ static struct dentry *handler_dentry = NULL;
 
 static inline struct pd_t *__get_process_data(struct uretprobe *rp)
 {
-	struct us_ip *ip = to_us_ip(rp);
+	struct sspt_ip *ip = urp_to_ip(rp);
 	struct sspt_proc *proc = ip_to_proc(ip);
 
 	return preload_pd_get(proc);
@@ -42,7 +43,7 @@ static inline struct vm_area_struct *__get_vma_by_addr(struct task_struct *task,
 	return vma;
 }
 
-static inline bool __is_probe_non_block(struct us_ip *ip)
+static inline bool __is_probe_non_block(struct sspt_ip *ip)
 {
 	if (ip->desc->info.pl_i.flags & SWAP_PRELOAD_NON_BLOCK_PROBE)
 		return true;
@@ -50,7 +51,7 @@ static inline bool __is_probe_non_block(struct us_ip *ip)
 	return false;
 }
 
-static inline bool __inverted(struct us_ip *ip)
+static inline bool __inverted(struct sspt_ip *ip)
 {
 	unsigned long flags = ip->desc->info.pl_i.flags;
 
@@ -60,7 +61,7 @@ static inline bool __inverted(struct us_ip *ip)
 	return false;
 }
 
-static inline bool __check_flag_and_call_type(struct us_ip *ip,
+static inline bool __check_flag_and_call_type(struct sspt_ip *ip,
 					      enum preload_call_type ct)
 {
 	bool inverted = __inverted(ip);
@@ -88,7 +89,7 @@ static inline bool __is_handlers_call(struct vm_area_struct *caller,
 	return false;
 }
 
-static inline bool __should_drop(struct us_ip *ip, enum preload_call_type ct)
+static inline bool __should_drop(struct sspt_ip *ip, enum preload_call_type ct)
 {
 	if (ct == NOT_INSTRUMENTED)
 		return true;
@@ -113,7 +114,7 @@ static unsigned long __do_preload_entry(struct uretprobe_instance *ri,
 					struct pt_regs *regs,
 					struct hd_t *hd)
 {
-	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
+	struct sspt_ip *ip = container_of(ri->rp, struct sspt_ip, retprobe);
 	unsigned long offset = ip->desc->info.pl_i.handler;
 	unsigned long vaddr = 0;
 	unsigned long base;
@@ -173,7 +174,7 @@ static int preload_us_entry(struct uretprobe_instance *ri, struct pt_regs *regs)
 	struct hd_t *hd;
 	unsigned long old_pc = swap_get_instr_ptr(regs);
 	unsigned long flags = get_preload_flags(current);
-	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
+	struct sspt_ip *ip = container_of(ri->rp, struct sspt_ip, retprobe);
 	unsigned long vaddr = 0;
 
 	if (handler_dentry == NULL)
@@ -206,7 +207,7 @@ out_set_orig:
 
 static void __do_preload_ret(struct uretprobe_instance *ri, struct hd_t *hd)
 {
-	struct us_ip *ip = container_of(ri->rp, struct us_ip, retprobe);
+	struct sspt_ip *ip = container_of(ri->rp, struct sspt_ip, retprobe);
 	unsigned long flags = get_preload_flags(current);
 	unsigned long offset = ip->desc->info.pl_i.handler;
 	unsigned long vaddr = 0;
@@ -410,7 +411,7 @@ static int get_call_type_handler(struct uprobe *p, struct pt_regs *regs)
 
 
 
-int ph_get_caller_init(struct us_ip *ip)
+int ph_get_caller_init(struct sspt_ip *ip)
 {
 	struct uprobe *up = &ip->uprobe;
 
@@ -419,11 +420,11 @@ int ph_get_caller_init(struct us_ip *ip)
 	return 0;
 }
 
-void ph_get_caller_exit(struct us_ip *ip)
+void ph_get_caller_exit(struct sspt_ip *ip)
 {
 }
 
-int ph_get_call_type_init(struct us_ip *ip)
+int ph_get_call_type_init(struct sspt_ip *ip)
 {
 	struct uprobe *up = &ip->uprobe;
 
@@ -432,11 +433,11 @@ int ph_get_call_type_init(struct us_ip *ip)
 	return 0;
 }
 
-void ph_get_call_type_exit(struct us_ip *ip)
+void ph_get_call_type_exit(struct sspt_ip *ip)
 {
 }
 
-int ph_write_msg_init(struct us_ip *ip)
+int ph_write_msg_init(struct sspt_ip *ip)
 {
 	struct uprobe *up = &ip->uprobe;
 
@@ -445,7 +446,7 @@ int ph_write_msg_init(struct us_ip *ip)
 	return 0;
 }
 
-void ph_write_msg_exit(struct us_ip *ip)
+void ph_write_msg_exit(struct sspt_ip *ip)
 {
 }
 
@@ -455,7 +456,7 @@ void ph_set_handler_dentry(struct dentry *dentry)
 }
 
 
-int ph_uprobe_init(struct us_ip *ip)
+int ph_uprobe_init(struct sspt_ip *ip)
 {
 	struct uretprobe *rp = &ip->retprobe;
 
@@ -468,6 +469,6 @@ int ph_uprobe_init(struct us_ip *ip)
 	return 0;
 }
 
-void ph_uprobe_exit(struct us_ip *ip)
+void ph_uprobe_exit(struct sspt_ip *ip)
 {
 }

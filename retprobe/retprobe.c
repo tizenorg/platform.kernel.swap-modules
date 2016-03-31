@@ -24,7 +24,7 @@
 
 #include "retprobe.h"
 #include <us_manager/us_manager.h>
-#include <us_manager/sspt/ip.h>
+#include <us_manager/sspt/sspt_ip.h>
 #include <us_manager/probes/register_probes.h>
 #include <uprobe/swap_uprobes.h>
 #include <linux/module.h>
@@ -56,17 +56,17 @@ static void retprobe_cleanup(struct probe_info *probe_i)
 
 
 
-static struct uprobe *retprobe_get_uprobe(struct us_ip *ip)
+static struct uprobe *retprobe_get_uprobe(struct sspt_ip *ip)
 {
 	return &ip->retprobe.up;
 }
 
-static int retprobe_register_probe(struct us_ip *ip)
+static int retprobe_register_probe(struct sspt_ip *ip)
 {
 	return swap_register_uretprobe(&ip->retprobe);
 }
 
-static void retprobe_unregister_probe(struct us_ip *ip, int disarm)
+static void retprobe_unregister_probe(struct sspt_ip *ip, int disarm)
 {
 	__swap_unregister_uretprobe(&ip->retprobe, disarm);
 }
@@ -77,7 +77,7 @@ static int retprobe_entry_handler(struct uretprobe_instance *ri, struct pt_regs 
 	struct uretprobe *rp = ri->rp;
 
 	if (rp && get_quiet() == QT_OFF) {
-		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
+		struct sspt_ip *ip = container_of(rp, struct sspt_ip, retprobe);
 		const char *fmt = ip->desc->info.rp_i.args;
 		const unsigned long func_addr = (unsigned long)ip->orig_addr;
 
@@ -92,7 +92,7 @@ static int retprobe_ret_handler(struct uretprobe_instance *ri, struct pt_regs *r
 	struct uretprobe *rp = ri->rp;
 
 	if (rp && get_quiet() == QT_OFF) {
-		struct us_ip *ip = container_of(rp, struct us_ip, retprobe);
+		struct sspt_ip *ip = container_of(rp, struct sspt_ip, retprobe);
 		const unsigned long func_addr = (unsigned long)ip->orig_addr;
 		const unsigned long ret_addr = (unsigned long)ri->ret_addr;
 		const char ret_type = ip->desc->info.rp_i.ret_type;
@@ -103,14 +103,14 @@ static int retprobe_ret_handler(struct uretprobe_instance *ri, struct pt_regs *r
 	return 0;
 }
 
-static void retprobe_init(struct us_ip *ip)
+static void retprobe_init(struct sspt_ip *ip)
 {
 	ip->retprobe.entry_handler = retprobe_entry_handler;
 	ip->retprobe.handler = retprobe_ret_handler;
 	ip->retprobe.maxactive = 0;
 }
 
-static void retprobe_uninit(struct us_ip *ip)
+static void retprobe_uninit(struct sspt_ip *ip)
 {
 	retprobe_cleanup(&ip->desc->info);
 }

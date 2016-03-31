@@ -148,7 +148,7 @@ static void unregister_mf(void)
  *                              copy_process()                                *
  ******************************************************************************
  */
-static void func_uinst_creare(struct us_ip *ip, void *data)
+static void func_uinst_creare(struct sspt_ip *ip, void *data)
 {
 	struct hlist_head *head = (struct hlist_head *)data;
 	struct uprobe *up;

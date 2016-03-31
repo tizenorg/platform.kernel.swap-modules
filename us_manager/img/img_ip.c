@@ -25,7 +25,7 @@
 
 #include "img_ip.h"
 #include <us_manager/probes/use_probes.h>
-#include <us_manager/sspt/ip.h>
+#include <us_manager/sspt/sspt_ip.h>
 #include <linux/slab.h>
 
 /**
@@ -59,14 +59,14 @@ struct img_ip *create_img_ip(unsigned long addr, struct probe_desc *pd)
  */
 void free_img_ip(struct img_ip *ip)
 {
-	struct us_ip *p, *n;
+	struct sspt_ip *p, *n;
 
 	list_for_each_entry_safe(p, n, &ip->ihead, img_list) {
 		list_del_init(&p->img_list);
-		p->iip = NULL;
+		p->img_ip = NULL;
 		list_del(&p->list);
 		probe_info_unregister(p->desc->type, p, 1);
-		free_ip(p);
+		sspt_ip_free(p);
 	}
 
 	kfree(ip);
