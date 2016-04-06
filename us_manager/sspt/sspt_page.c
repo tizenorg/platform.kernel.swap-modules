@@ -144,7 +144,7 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 
 	spin_lock(&page->ip_list.lock);
 	if (list_empty(&page->ip_list.not_inst)) {
-		struct task_struct *task = page->file->proc->task;
+		struct task_struct *task = page->file->proc->leader;
 
 		printk(KERN_INFO "page %lx in %s task[tgid=%u, pid=%u] "
 		       "already installed\n",

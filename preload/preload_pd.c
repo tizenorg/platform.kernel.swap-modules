@@ -407,7 +407,7 @@ static void *pd_create(struct sspt_proc *proc)
 {
 	struct pd_t *pd;
 
-	pd = do_create_pd(proc->task);
+	pd = do_create_pd(proc->leader);
 
 	return (void *)pd;
 }

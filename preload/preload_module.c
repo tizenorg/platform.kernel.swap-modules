@@ -266,7 +266,7 @@ static bool __is_proc_mmap_mappable(struct task_struct *task)
 		return false;
 
 	r_debug_addr += r_state_offset;
-	proc = sspt_proc_get_by_task(task);
+	proc = sspt_proc_by_task(task);
 	if (proc)
 		proc->r_state_addr = r_debug_addr;
 
@@ -333,7 +333,7 @@ static int mmap_entry_handler(struct kretprobe_instance *ri,
 		return 0;
 	}
 
-	proc = sspt_proc_get_by_task(task);
+	proc = sspt_proc_by_task(task);
 	if (!proc)
 		return 0;
 
@@ -372,7 +372,7 @@ static int mmap_ret_handler(struct kretprobe_instance *ri,
 	if (IS_ERR_VALUE(vaddr))
 		return 0;
 
-	proc = sspt_proc_get_by_task(task);
+	proc = sspt_proc_by_task(task);
 	if (!proc)
 		return 0;
 

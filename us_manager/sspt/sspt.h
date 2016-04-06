@@ -59,7 +59,7 @@ static inline int sspt_register_usprobe(struct sspt_ip *ip)
 	}
 
 	up->addr = (kprobe_opcode_t *)ip->orig_addr;
-	up->task = ip->page->file->proc->task;
+	up->task = ip->page->file->proc->leader;
 	up->sm = ip->page->file->proc->sm;
 
 	ret = probe_info_register(ip->desc->type, ip);

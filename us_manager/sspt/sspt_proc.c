@@ -31,6 +31,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/list.h>
+#include <kprobe/swap_ktd.h>
 #include <us_manager/us_slot_manager.h>
 
 static LIST_HEAD(proc_probes_list);
@@ -83,16 +84,79 @@ void sspt_proc_write_unlock(void)
 }
 
 
-/**
- * @brief Create sspt_proc struct
- *
- * @param task Pointer to the task_struct struct
- * @param priv Private data
- * @return Pointer to the created sspt_proc struct
- */
-struct sspt_proc *sspt_proc_create(struct task_struct *task)
+static void ktd_init(struct task_struct *task, void *data)
 {
-	struct sspt_proc *proc = kzalloc(sizeof(*proc), GFP_ATOMIC);
+	struct sspt_proc **pproc = (struct sspt_proc **)data;
+
+	*pproc = NULL;
+}
+
+static void ktd_exit(struct task_struct *task, void *data)
+{
+	struct sspt_proc **pproc = (struct sspt_proc **)data;
+
+	WARN_ON(*pproc);
+}
+
+struct ktask_data ktd = {
+	.init = ktd_init,
+	.exit = ktd_exit,
+	.size = sizeof(struct sspt_proc *),
+};
+
+static struct sspt_proc **pproc_by_task(struct task_struct *task)
+{
+	return (struct sspt_proc **)swap_ktd(&ktd, task);
+}
+
+int sspt_proc_init(void)
+{
+	return swap_ktd_reg(&ktd);
+}
+
+void sspt_proc_uninit(void)
+{
+	swap_ktd_unreg(&ktd);
+}
+
+void sspt_change_leader(struct task_struct *prev, struct task_struct *next)
+{
+	struct sspt_proc **prev_pproc;
+
+	prev_pproc = pproc_by_task(prev);
+	if (*prev_pproc) {
+		struct sspt_proc **next_pproc;
+
+		next_pproc = pproc_by_task(next);
+		get_task_struct(next);
+
+		/* Change the keeper sspt_proc */
+		BUG_ON(*next_pproc);
+		*next_pproc = *prev_pproc;
+		*prev_pproc = NULL;
+
+		/* Set new the task leader to sspt_proc */
+		(*next_pproc)->leader = next;
+
+		put_task_struct(prev);
+	}
+}
+
+void sspt_reset_proc(struct task_struct *task)
+{
+	struct sspt_proc **pproc;
+
+	pproc = pproc_by_task(task->group_leader);
+	*pproc = NULL;
+}
+
+
+
+
+
+static struct sspt_proc *sspt_proc_create(struct task_struct *leader)
+{
+	struct sspt_proc *proc = kzalloc(sizeof(*proc), GFP_KERNEL);
 
 	if (proc) {
 		proc->feature = sspt_create_feature();
@@ -102,18 +166,19 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
 		}
 
 		INIT_LIST_HEAD(&proc->list);
-		proc->tgid = task->tgid;
-		proc->task = task->group_leader;
-		proc->sm = create_sm_us(task);
+		proc->tgid = leader->tgid;
+		proc->leader = leader;
+		/* FIXME: change the task leader */
+		proc->sm = create_sm_us(leader);
 		INIT_LIST_HEAD(&proc->file_head);
 		mutex_init(&proc->filters.mtx);
 		INIT_LIST_HEAD(&proc->filters.head);
 		atomic_set(&proc->usage, 1);
 
-		get_task_struct(proc->task);
+		get_task_struct(proc->leader);
 
-		/* add to list */
-		list_add(&proc->list, &proc_probes_list);
+		proc->suspect.after_exec = 1;
+		proc->suspect.after_fork = 0;
 	}
 
 	return proc;
@@ -163,41 +228,16 @@ void sspt_proc_put(struct sspt_proc *proc)
 			proc->__task = NULL;
 		}
 
-		put_task_struct(proc->task);
+		put_task_struct(proc->leader);
 		kfree(proc);
 	}
 }
 
-struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
+struct sspt_proc *sspt_proc_by_task(struct task_struct *task)
 {
-	struct sspt_proc *proc;
-
-	sspt_proc_read_lock();
-	proc = sspt_proc_get_by_task_no_lock(task);
-	sspt_proc_read_unlock();
-
-	return proc;
+	return *pproc_by_task(task->group_leader);
 }
-EXPORT_SYMBOL_GPL(sspt_proc_get_by_task);
-
-/**
- * @brief Get sspt_proc by task
- *
- * @param task Pointer on the task_struct struct
- * @return Pointer on the sspt_proc struct
- */
-struct sspt_proc *sspt_proc_get_by_task_no_lock(struct task_struct *task)
-{
-	struct sspt_proc *proc, *tmp;
-
-	list_for_each_entry_safe(proc, tmp, &proc_probes_list, list) {
-		if (proc->tgid == task->tgid)
-			return proc;
-	}
-
-	return NULL;
-}
-EXPORT_SYMBOL_GPL(sspt_proc_get_by_task_no_lock);
+EXPORT_SYMBOL_GPL(sspt_proc_by_task);
 
 /**
  * @brief Call func() on each proc (no lock)
@@ -239,15 +279,29 @@ EXPORT_SYMBOL_GPL(on_each_proc);
  */
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 {
-	struct sspt_proc *proc;
+	static DEFINE_MUTEX(local_mutex);
+	struct sspt_proc **pproc;
+	struct task_struct *leader = task->group_leader;
 
-	sspt_proc_write_lock();
-	proc = sspt_proc_get_by_task_no_lock(task);
-	if (proc == NULL)
-		proc = sspt_proc_create(task);
-	sspt_proc_write_unlock();
+	pproc = pproc_by_task(leader);
+	if (*pproc)
+		goto out;
 
-	return proc;
+	/* This lock for synchronizing to create sspt_proc */
+	mutex_lock(&local_mutex);
+	pproc = pproc_by_task(leader);
+	if (*pproc == NULL) {
+		*pproc = sspt_proc_create(leader);
+		if (*pproc) {
+			sspt_proc_write_lock();
+			list_add(&(*pproc)->list, &proc_probes_list);
+			sspt_proc_write_unlock();
+		}
+	}
+	mutex_unlock(&local_mutex);
+
+out:
+	return *pproc;
 }
 
 /**
@@ -322,7 +376,7 @@ struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc,
  */
 void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 {
-	struct mm_struct *mm = proc->task->mm;
+	struct mm_struct *mm = proc->leader->mm;
 	struct vm_area_struct *vma;
 
 	vma = find_vma_intersection(mm, page_addr, page_addr + 1);
@@ -350,7 +404,7 @@ void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 void sspt_proc_install(struct sspt_proc *proc)
 {
 	struct vm_area_struct *vma;
-	struct mm_struct *mm = proc->task->mm;
+	struct mm_struct *mm = proc->leader->mm;
 
 	proc->first_install = 1;
 

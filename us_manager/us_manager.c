@@ -200,7 +200,7 @@ static int us_filter(struct task_struct *task)
 	struct sspt_proc *proc;
 
 	/* FIXME: add read lock (deadlock in sampler) */
-	proc = sspt_proc_get_by_task_no_lock(task);
+	proc = sspt_proc_by_task(task);
 	if (proc)
 		return sspt_proc_is_send_event(proc);
 
@@ -245,13 +245,24 @@ static int init_us_manager(void)
 {
 	int ret;
 
-	ret = pin_init();
+	ret = sspt_proc_init();
 	if (ret)
 		return ret;
 
+	ret = pin_init();
+	if (ret)
+		goto uninit_proc;
+
 	ret = init_us_filter();
 	if (ret)
-		pin_exit();
+		goto uninit_pin;
+
+	return 0;
+
+uninit_pin:
+	pin_exit();
+uninit_proc:
+	sspt_proc_uninit();
 
 	return ret;
 }
@@ -265,6 +276,7 @@ static void exit_us_manager(void)
 
 	exit_us_filter();
 	pin_exit();
+	sspt_proc_uninit();
 }
 
 SWAP_LIGHT_INIT_MODULE(usm_once, init_us_manager, exit_us_manager,

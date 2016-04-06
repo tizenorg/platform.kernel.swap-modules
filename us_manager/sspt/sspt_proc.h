@@ -52,10 +52,15 @@ struct sspt_proc {
 	struct list_head file_head;	/**< For sspt_file */
 
 	pid_t tgid;			/**< Thread group ID */
-	struct task_struct *task;	/**< Ptr to the task */
+	struct task_struct *leader;	/**< Ptr to the task leader */
 	struct mm_struct *__mm;
 	struct task_struct *__task;
 	struct slot_manager *sm;	/**< Ptr to the manager slot */
+
+	struct {
+		unsigned after_exec:1;
+		unsigned after_fork:1;
+	} suspect;
 
 	struct {
 		struct mutex mtx;	/**< Mutex for filter list */
@@ -79,7 +84,6 @@ struct sspt_proc_cb {
 
 struct list_head *sspt_proc_list(void);
 
-struct sspt_proc *sspt_proc_create(struct task_struct *task);
 void sspt_proc_cleanup(struct sspt_proc *proc);
 struct sspt_proc *sspt_proc_get(struct sspt_proc *proc);
 void sspt_proc_put(struct sspt_proc *proc);
@@ -88,8 +92,7 @@ void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *),
 			  void *data);
 void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data);
 
-struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task);
-struct sspt_proc *sspt_proc_get_by_task_no_lock(struct task_struct *task);
+struct sspt_proc *sspt_proc_by_task(struct task_struct *task);
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task);
 void sspt_proc_free_all(void);
 
@@ -130,5 +133,11 @@ bool sspt_proc_is_send_event(struct sspt_proc *proc);
 int sspt_proc_cb_set(struct sspt_proc_cb *cb);
 void sspt_proc_priv_create(struct sspt_proc *proc);
 void sspt_proc_priv_destroy(struct sspt_proc *proc);
+
+void sspt_reset_proc(struct task_struct *task);
+void sspt_change_leader(struct task_struct *prev, struct task_struct *next);
+int sspt_proc_init(void);
+void sspt_proc_uninit(void);
+
 
 #endif /* __SSPT_PROC__ */

@@ -284,7 +284,7 @@ void sspt_file_install(struct sspt_file *file)
 			    page_addr >= file->vm_end)
 				continue;
 
-			mm = page->file->proc->task->mm;
+			mm = page->file->proc->leader->mm;
 			if (page_present(mm, page_addr))
 				sspt_register_page(page, file);
 		}

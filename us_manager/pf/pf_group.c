@@ -158,6 +158,26 @@ static int pfg_add_proc(struct pf_group *pfg, struct sspt_proc *proc)
 	return 0;
 }
 
+static int pfg_del_proc(struct pf_group *pfg, struct sspt_proc *proc)
+{
+	struct pl_struct *pls, *pls_free = NULL;
+
+	spin_lock(&pfg->pl_lock);
+	list_for_each_entry(pls, &pfg->proc_list, list) {
+		if (pls->proc == proc) {
+			list_del(&pls->list);
+			pls_free = pls;
+			break;
+		}
+	}
+	spin_unlock(&pfg->pl_lock);
+
+	if (pls_free)
+		free_pl_struct(pls_free);
+
+	return !!pls_free;
+}
+
 
 /* called with pfg_list_lock held */
 static void pfg_add_to_list(struct pf_group *pfg)
@@ -186,10 +206,10 @@ static void msg_info(struct sspt_filter *f, void *data)
 			dentry = (struct dentry *)f->pfg->filter.priv;
 
 			if (cb->msg_info)
-				cb->msg_info(f->proc->task, dentry);
+				cb->msg_info(f->proc->leader, dentry);
 
 			if (cb->msg_status_info)
-				cb->msg_status_info(f->proc->task);
+				cb->msg_status_info(f->proc->leader);
 		}
 	}
 }
@@ -492,7 +512,7 @@ static enum pf_inst_flag pfg_check_task(struct task_struct *task)
 			continue;
 
 		if (proc == NULL)
-			proc = sspt_proc_get_by_task(task);
+			proc = sspt_proc_by_task(task);
 
 		if (proc) {
 			flag = flag == PIF_NONE ? PIF_SECOND : flag;
@@ -521,6 +541,16 @@ static enum pf_inst_flag pfg_check_task(struct task_struct *task)
 	return flag;
 }
 
+static void pfg_all_del_proc(struct sspt_proc *proc)
+{
+	struct pf_group *pfg;
+
+	pfg_list_rlock();
+	list_for_each_entry(pfg, &pfg_list, list)
+		pfg_del_proc(pfg, proc);
+	pfg_list_runlock();
+}
+
 /**
  * @brief Check task and install probes on demand
  *
@@ -536,7 +566,7 @@ void check_task_and_install(struct task_struct *task)
 	switch (flag) {
 	case PIF_FIRST:
 	case PIF_ADD_PFG:
-		proc = sspt_proc_get_by_task(task);
+		proc = sspt_proc_by_task(task);
 		if (proc)
 			first_install(task, proc);
 		break;
@@ -563,13 +593,13 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	switch (flag) {
 	case PIF_FIRST:
 	case PIF_ADD_PFG:
-		proc = sspt_proc_get_by_task(task);
+		proc = sspt_proc_by_task(task);
 		if (proc)
 			first_install(task, proc);
 		break;
 
 	case PIF_SECOND:
-		proc = sspt_proc_get_by_task(task);
+		proc = sspt_proc_by_task(task);
 		if (proc)
 			subsequent_install(task, proc, page_addr);
 		break;
@@ -589,10 +619,36 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 /* called with sspt_proc_write_lock() */
 void uninstall_proc(struct sspt_proc *proc)
 {
-	struct task_struct *task = proc->task;
+	struct task_struct *task = proc->leader;
 
 	sspt_proc_uninstall(proc, task, US_UNREGS_PROBE);
 	sspt_proc_cleanup(proc);
+}
+
+
+static void mmr_from_exit(struct sspt_proc *proc)
+{
+	BUG_ON(proc->leader != current);
+
+	sspt_proc_write_lock();
+	list_del(&proc->list);
+	sspt_proc_write_unlock();
+
+	uninstall_proc(proc);
+
+	pfg_all_del_proc(proc);
+	sspt_reset_proc(proc->leader);
+}
+
+static void mmr_from_exec(struct sspt_proc *proc)
+{
+	BUG_ON(proc->leader != current);
+
+	if (proc->suspect.after_exec) {
+		sspt_proc_uninstall(proc, proc->leader, US_UNREGS_PROBE);
+	} else {
+		mmr_from_exit(proc);
+	}
 }
 
 /**
@@ -605,14 +661,13 @@ void call_mm_release(struct task_struct *task)
 {
 	struct sspt_proc *proc;
 
-	sspt_proc_write_lock();
-	proc = sspt_proc_get_by_task_no_lock(task);
-	if (proc)
-		list_del(&proc->list);
-	sspt_proc_write_unlock();
-
-	if (proc)
-		uninstall_proc(proc);
+	proc = sspt_proc_by_task(task);
+	if (proc) {
+		if (task->flags & PF_EXITING)
+			mmr_from_exit(proc);
+		else
+			mmr_from_exec(proc);
+	}
 }
 
 /**
@@ -650,7 +705,7 @@ static void tasks_get(struct list_head *head)
 		if (task->flags & PF_KTHREAD)
 			continue;
 
-		if (sspt_proc_get_by_task(task))
+		if (sspt_proc_by_task(task))
 			continue;
 
 		/* TODO: get rid of GFP_ATOMIC */
@@ -745,9 +800,11 @@ void uninstall_all(void)
 
 static void __do_get_proc(struct sspt_proc *proc, void *data)
 {
-	get_task_struct(proc->task);
-	proc->__task = proc->task;
-	proc->__mm = get_task_mm(proc->task);
+	struct task_struct *task = proc->leader;
+
+	get_task_struct(task);
+	proc->__task = task;
+	proc->__mm = get_task_mm(task);
 }
 
 static void __do_put_proc(struct sspt_proc *proc, void *data)

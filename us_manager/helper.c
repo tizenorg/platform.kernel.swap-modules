@@ -69,7 +69,7 @@ static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 #endif /* CONFIG_arch */
 
 	if (data->addr) {
-		struct sspt_proc * proc = sspt_proc_get_by_task(current);
+		struct sspt_proc *proc = sspt_proc_by_task(current);
 
 		if (proc && (proc->r_state_addr == data->addr))
 			/* skip ret_handler_pf() for current task */
@@ -212,7 +212,7 @@ static void rm_uprobes_child(struct kretprobe_instance *ri,
 	};
 
 	sspt_proc_write_lock();
-	proc = sspt_proc_get_by_task_no_lock(current);
+	proc = sspt_proc_by_task(current);
 	if (proc) {
 		sspt_proc_on_each_ip(proc, func_uinst_creare, (void *)&cdata.head);
 		urinst_info_get_current_hlist(&cdata.rhead, false);
@@ -359,7 +359,7 @@ static unsigned long mr_cb(void *data)
 
 	/* TODO: this lock for synchronizing to disarm urp */
 	down_write(&mm->mmap_sem);
-	if (task->tgid != task->pid) {
+	if (task != task->group_leader) {
 		struct sspt_proc *proc;
 		struct hlist_head head = HLIST_HEAD_INIT;
 
@@ -371,7 +371,7 @@ static unsigned long mr_cb(void *data)
 		/* if the thread is killed we need to discard pending
 		 * uretprobe instances which have not triggered yet */
 		sspt_proc_write_lock();
-		proc = sspt_proc_get_by_task_no_lock(task);
+		proc = sspt_proc_by_task(task);
 		if (proc) {
 			urinst_info_get_current_hlist(&head, true);
 		}
@@ -481,7 +481,7 @@ static void __remove_unmap_probes(struct sspt_proc *proc,
 	if (sspt_proc_get_files_by_region(proc, &head, start, len)) {
 		struct sspt_file *file, *n;
 		unsigned long end = start + len;
-		struct task_struct *task = proc->task;
+		struct task_struct *task = proc->leader;
 
 		list_for_each_entry_safe(file, n, &head, list) {
 			if (file->vm_start >= end)
@@ -503,7 +503,7 @@ static void remove_unmap_probes(struct task_struct *task,
 
 	sspt_proc_write_lock();
 
-	proc = sspt_proc_get_by_task_no_lock(task);
+	proc = sspt_proc_by_task(task);
 	if (proc) {
 		struct msg_unmap_data msg_data = {
 			.start = umd->start,
@@ -615,7 +615,7 @@ static int ret_handler_mmap(struct kretprobe_instance *ri,
 	if (IS_ERR_VALUE(start_addr))
 		return 0;
 
-	proc = sspt_proc_get_by_task(task);
+	proc = sspt_proc_by_task(task);
 	if (proc == NULL)
 		return 0;
 
@@ -723,6 +723,43 @@ static void unregister_comm(void)
 
 
 
+/*
+ ******************************************************************************
+ *                               release_task()                               *
+ ******************************************************************************
+ */
+static int release_task_h(struct kprobe *p, struct pt_regs *regs)
+{
+	struct task_struct *task = (struct task_struct *)swap_get_karg(regs, 0);
+	struct task_struct *cur = current;
+
+	if (cur->flags & PF_KTHREAD)
+		return 0;
+
+	/* EXEC: change group leader */
+	if (cur != task && task->pid == cur->pid)
+		sspt_change_leader(task, cur);
+
+	return 0;
+}
+
+struct kprobe release_task_kp = {
+	.pre_handler = release_task_h,
+};
+
+static int reg_release_task(void)
+{
+	return swap_register_kprobe(&release_task_kp);
+}
+
+static void unreg_release_task(void)
+{
+	swap_unregister_kprobe(&release_task_kp);
+}
+
+
+
+
 
 /**
  * @brief Registration of helper
@@ -735,13 +772,18 @@ int register_helper(void)
 
 	atomic_set(&stop_flag, 0);
 
+	/* tracking group leader changing */
+	ret = reg_release_task();
+	if (ret)
+		return ret;
+
 	/*
 	 * install probe on 'set_task_comm' to detect when field comm struct
 	 * task_struct changes
 	 */
 	ret = register_comm();
 	if (ret)
-		return ret;
+		goto unreg_rel_task;
 
 	/* install probe on 'do_munmap' to detect when for remove US probes */
 	ret = register_unmap();
@@ -788,6 +830,9 @@ unreg_unmap:
 unreg_comm:
 	unregister_comm();
 
+unreg_rel_task:
+	unreg_release_task();
+
 	return ret;
 }
 
@@ -814,6 +859,7 @@ void unregister_helper_bottom(void)
 	unregister_mr();
 	unregister_unmap();
 	unregister_comm();
+	unreg_release_task();
 }
 
 /**
@@ -854,6 +900,11 @@ int once_helper(void)
 	sym = "set_task_comm";
 	comm_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
 	if (comm_kretprobe.kp.addr == NULL)
+		goto not_found;
+
+	sym = "release_task";
+	release_task_kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (release_task_kp.addr == NULL)
 		goto not_found;
 
 	return 0;
