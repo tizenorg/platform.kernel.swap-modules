@@ -25,7 +25,7 @@
  */
 
 #include <linux/types.h>
-#include <linux/spinlock.h>
+#include <linux/mutex.h>
 
 struct sspt_ip;
 struct sspt_file;
@@ -43,7 +43,7 @@ struct sspt_page {
 
 	/* sspt_ip */
 	struct {
-		spinlock_t lock;		/**< Lock page */
+		struct mutex mtx;		/**< Lock page */
 		struct list_head inst;		/**< For installed ip */
 		struct list_head not_inst;	/**< For don'tinstalled ip */
 	} ip_list;
@@ -57,7 +57,7 @@ void sspt_page_free(struct sspt_page *page);
 void sspt_add_ip(struct sspt_page *page, struct sspt_ip *ip);
 void sspt_del_ip(struct sspt_ip *ip);
 
-int sspt_page_is_installed(struct sspt_page *page);
+bool sspt_page_is_installed(struct sspt_page *page);
 
 int sspt_register_page(struct sspt_page *page, struct sspt_file *file);
 

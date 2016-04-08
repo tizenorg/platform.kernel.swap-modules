@@ -38,14 +38,14 @@
  */
 struct sspt_page *sspt_page_create(unsigned long offset)
 {
-	struct sspt_page *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
+	struct sspt_page *obj = kmalloc(sizeof(*obj), GFP_KERNEL);
 	if (obj) {
+		INIT_HLIST_NODE(&obj->hlist);
+		mutex_init(&obj->ip_list.mtx);
 		INIT_LIST_HEAD(&obj->ip_list.inst);
 		INIT_LIST_HEAD(&obj->ip_list.not_inst);
 		obj->offset = offset;
-		spin_lock_init(&obj->ip_list.lock);
 		obj->file = NULL;
-		INIT_HLIST_NODE(&obj->hlist);
 	}
 
 	return obj;
@@ -114,19 +114,11 @@ void sspt_del_ip(struct sspt_ip *ip)
  * @brief Check if probes are set on the page
  *
  * @param page Pointer to the sspt_page struct
- * @return
- *       - 0 - false
- *       - 1 - true
+ * @return Boolean
  */
-int sspt_page_is_installed(struct sspt_page *page)
+bool sspt_page_is_installed(struct sspt_page *page)
 {
-	int empty;
-
-	spin_lock(&page->ip_list.lock);
-	empty = list_empty(&page->ip_list.inst);
-	spin_unlock(&page->ip_list.lock);
-
-	return !empty;
+	return !list_empty(&page->ip_list.inst);
 }
 
 /**
@@ -140,9 +132,8 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 {
 	int err = 0;
 	struct sspt_ip *ip, *n;
-	struct list_head ip_list_tmp;
 
-	spin_lock(&page->ip_list.lock);
+	mutex_lock(&page->ip_list.mtx);
 	if (list_empty(&page->ip_list.not_inst)) {
 		struct task_struct *task = page->file->proc->leader;
 
@@ -153,11 +144,7 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 		goto unlock;
 	}
 
-	INIT_LIST_HEAD(&ip_list_tmp);
-	list_replace_init(&page->ip_list.not_inst, &ip_list_tmp);
-	spin_unlock(&page->ip_list.lock);
-
-	list_for_each_entry_safe(ip, n, &ip_list_tmp, list) {
+	list_for_each_entry_safe(ip, n, &page->ip_list.not_inst, list) {
 		/* set virtual address */
 		ip->orig_addr = file->vm_start + page->offset + ip->offset;
 
@@ -169,11 +156,10 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 		}
 	}
 
-	spin_lock(&page->ip_list.lock);
-	list_splice(&ip_list_tmp, &page->ip_list.inst);
+	list_splice_init(&page->ip_list.not_inst, &page->ip_list.inst);
 
 unlock:
-	spin_unlock(&page->ip_list.lock);
+	mutex_unlock(&page->ip_list.mtx);
 
 	return 0;
 }
@@ -192,35 +178,24 @@ int sspt_unregister_page(struct sspt_page *page,
 {
 	int err = 0;
 	struct sspt_ip *ip;
-	struct list_head ip_list_tmp, *head;
 
-	spin_lock(&page->ip_list.lock);
-	if (list_empty(&page->ip_list.inst)) {
-		spin_unlock(&page->ip_list.lock);
-		return 0;
-	}
+	mutex_lock(&page->ip_list.mtx);
+	if (list_empty(&page->ip_list.inst))
+		goto unlock;
 
-	INIT_LIST_HEAD(&ip_list_tmp);
-	list_replace_init(&page->ip_list.inst, &ip_list_tmp);
-
-	spin_unlock(&page->ip_list.lock);
-
-	list_for_each_entry(ip, &ip_list_tmp, list) {
+	list_for_each_entry(ip, &page->ip_list.inst, list) {
 		err = sspt_unregister_usprobe(task, ip, flag);
 		if (err != 0) {
-			/* TODO: ERROR */
+			WARN_ON(1);
 			break;
 		}
 	}
 
-	head = (flag == US_DISARM) ?
-		&page->ip_list.inst : &page->ip_list.not_inst;
+	if (flag != US_DISARM)
+		list_splice_init(&page->ip_list.inst, &page->ip_list.not_inst);
 
-	spin_lock(&page->ip_list.lock);
-
-	list_splice(&ip_list_tmp, head);
-	spin_unlock(&page->ip_list.lock);
-
+unlock:
+	mutex_unlock(&page->ip_list.mtx);
 	return err;
 }
 
@@ -229,9 +204,8 @@ void sspt_page_on_each_ip(struct sspt_page *page,
 {
 	struct sspt_ip *ip;
 
-	spin_lock(&page->ip_list.lock);
+	mutex_lock(&page->ip_list.mtx);
 	list_for_each_entry(ip, &page->ip_list.inst, list)
 		func(ip, data);
-
-	spin_unlock(&page->ip_list.lock);
+	mutex_unlock(&page->ip_list.mtx);
 }
