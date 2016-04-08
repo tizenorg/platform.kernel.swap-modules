@@ -148,87 +148,53 @@ static void unregister_mf(void)
  *                              copy_process()                                *
  ******************************************************************************
  */
-static void func_uinst_creare(struct sspt_ip *ip, void *data)
+static void disarm_ip(struct sspt_ip *ip, void *data)
 {
-	struct hlist_head *head = (struct hlist_head *)data;
+	struct task_struct *child = (struct task_struct *)data;
 	struct uprobe *up;
 
 	up = probe_info_get_uprobe(ip->desc->type, ip);
-	if (up) {
-		struct uinst_info *uinst;
-		unsigned long vaddr = (unsigned long)up->addr;
-
-		uinst = uinst_info_create(vaddr, up->opcode);
-		if (uinst)
-			hlist_add_head(&uinst->hlist, head);
-	}
+	if (up)
+		disarm_uprobe(up, child);
 }
-
-static void disarm_for_task(struct task_struct *child, struct hlist_head *head)
-{
-	struct uinst_info *uinst;
-	struct hlist_node *tmp;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	swap_hlist_for_each_entry_safe(uinst, node, tmp, head, hlist) {
-		uinst_info_disarm(uinst, child);
-		hlist_del(&uinst->hlist);
-		uinst_info_destroy(uinst);
-	}
-}
-
-struct clean_data {
-	struct task_struct *task;
-
-	struct hlist_head head;
-	struct hlist_head rhead;
-};
 
 static atomic_t rm_uprobes_child_cnt = ATOMIC_INIT(0);
 
 static unsigned long cb_clean_child(void *data)
 {
-	struct clean_data *cdata = (struct clean_data *)data;
-	struct task_struct *child = cdata->task;
+	struct task_struct *parent = current;
+	struct sspt_proc *proc;
 
-	/* disarm up for child */
-	disarm_for_task(child, &cdata->head);
+	proc = sspt_proc_by_task(parent);
+	if (proc) {
+		struct task_struct *child = *(struct task_struct **)data;
 
-	/* disarm urp for child */
-	urinst_info_put_current_hlist(&cdata->rhead, child);
+		/* disarm up for child */
+		sspt_proc_on_each_ip(proc, disarm_ip, (void *)child);
+
+		/* disarm urp for child */
+		swap_uretprobe_free_task(parent, child, false);
+	}
 
 	atomic_dec(&rm_uprobes_child_cnt);
 	return 0;
 }
-
 static void rm_uprobes_child(struct kretprobe_instance *ri,
 			     struct pt_regs *regs, struct task_struct *child)
 {
-	struct sspt_proc *proc;
-	struct clean_data cdata = {
-		.task = child,
-		.head = HLIST_HEAD_INIT,
-		.rhead = HLIST_HEAD_INIT
-	};
+	int ret;
 
-	sspt_proc_write_lock();
-	proc = sspt_proc_by_task(current);
-	if (proc) {
-		sspt_proc_on_each_ip(proc, func_uinst_creare, (void *)&cdata.head);
-		urinst_info_get_current_hlist(&cdata.rhead, false);
-	}
-	sspt_proc_write_unlock();
+	if (!sspt_proc_by_task(current))
+		return;
 
-	if (proc) {
-		int ret;
-
-		/* set jumper */
-		ret = set_jump_cb((unsigned long)ri->ret_addr, regs,
-				  cb_clean_child, &cdata, sizeof(cdata));
-		if (ret == 0) {
-			atomic_inc(&rm_uprobes_child_cnt);
-			ri->ret_addr = (unsigned long *)get_jump_addr();
-		}
+	/* set jumper */
+	ret = set_jump_cb((unsigned long)ri->ret_addr, regs,
+			  cb_clean_child, &child, sizeof(child));
+	if (ret == 0) {
+		atomic_inc(&rm_uprobes_child_cnt);
+		ri->ret_addr = (unsigned long *)get_jump_addr();
+	} else {
+		WARN_ON(1);
 	}
 }
 
@@ -361,7 +327,6 @@ static unsigned long mr_cb(void *data)
 	down_write(&mm->mmap_sem);
 	if (task != task->group_leader) {
 		struct sspt_proc *proc;
-		struct hlist_head head = HLIST_HEAD_INIT;
 
 		if (task != current) {
 			pr_err("call mm_release in isn't current context\n");
@@ -370,17 +335,9 @@ static unsigned long mr_cb(void *data)
 
 		/* if the thread is killed we need to discard pending
 		 * uretprobe instances which have not triggered yet */
-		sspt_proc_write_lock();
 		proc = sspt_proc_by_task(task);
-		if (proc) {
-			urinst_info_get_current_hlist(&head, true);
-		}
-		sspt_proc_write_unlock();
-
-		if (proc) {
-			/* disarm urp for task */
-			urinst_info_put_current_hlist(&head, task);
-		}
+		if (proc)
+			swap_uretprobe_free_task(task, task, true);
 	} else {
 		call_mm_release(task);
 	}

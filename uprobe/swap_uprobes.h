@@ -122,6 +122,9 @@ void urinst_info_get_current_hlist(struct hlist_head *head, bool recycle);
 void urinst_info_put_current_hlist(struct hlist_head *head,
 				  struct task_struct *task);
 
+void swap_uretprobe_free_task(struct task_struct *task,
+			      struct task_struct *dtask, bool recycle);
+
 
 /**
  * @brief Uprobe pre-entry handler.
