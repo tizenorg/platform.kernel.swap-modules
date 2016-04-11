@@ -512,7 +512,7 @@ static enum pf_inst_flag pfg_check_task(struct task_struct *task)
 			continue;
 
 		if (proc == NULL)
-			proc = sspt_proc_by_task(task);
+			proc = sspt_proc_get_by_task(task);
 
 		if (proc) {
 			flag = flag == PIF_NONE ? PIF_SECOND : flag;
@@ -534,6 +534,7 @@ static enum pf_inst_flag pfg_check_task(struct task_struct *task)
 					flag = flag == PIF_FIRST ? flag : PIF_ADD_PFG;
 			}
 			mutex_unlock(&proc->filters.mtx);
+			sspt_proc_put(proc);
 		}
 	}
 	pfg_list_runlock();
@@ -566,9 +567,11 @@ void check_task_and_install(struct task_struct *task)
 	switch (flag) {
 	case PIF_FIRST:
 	case PIF_ADD_PFG:
-		proc = sspt_proc_by_task(task);
-		if (proc)
+		proc = sspt_proc_get_by_task(task);
+		if (proc) {
 			first_install(task, proc);
+			sspt_proc_put(proc);
+		}
 		break;
 
 	case PIF_NONE:
@@ -593,15 +596,19 @@ void call_page_fault(struct task_struct *task, unsigned long page_addr)
 	switch (flag) {
 	case PIF_FIRST:
 	case PIF_ADD_PFG:
-		proc = sspt_proc_by_task(task);
-		if (proc)
+		proc = sspt_proc_get_by_task(task);
+		if (proc) {
 			first_install(task, proc);
+			sspt_proc_put(proc);
+		}
 		break;
 
 	case PIF_SECOND:
-		proc = sspt_proc_by_task(task);
-		if (proc)
+		proc = sspt_proc_get_by_task(task);
+		if (proc) {
 			subsequent_install(task, proc, page_addr);
+			sspt_proc_put(proc);
+		}
 		break;
 
 	case PIF_NONE:
@@ -661,12 +668,13 @@ void call_mm_release(struct task_struct *task)
 {
 	struct sspt_proc *proc;
 
-	proc = sspt_proc_by_task(task);
+	proc = sspt_proc_get_by_task(task);
 	if (proc) {
 		if (task->flags & PF_EXITING)
 			mmr_from_exit(proc);
 		else
 			mmr_from_exec(proc);
+		sspt_proc_put(proc);
 	}
 }
 

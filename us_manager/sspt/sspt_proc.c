@@ -83,30 +83,35 @@ void sspt_proc_write_unlock(void)
 	write_unlock(&sspt_proc_rwlock);
 }
 
+struct ktd_proc {
+	struct sspt_proc *proc;
+	spinlock_t lock;
+};
 
 static void ktd_init(struct task_struct *task, void *data)
 {
-	struct sspt_proc **pproc = (struct sspt_proc **)data;
+	struct ktd_proc *kproc = (struct ktd_proc *)data;
 
-	*pproc = NULL;
+	kproc->proc = NULL;
+	spin_lock_init(&kproc->lock);
 }
 
 static void ktd_exit(struct task_struct *task, void *data)
 {
-	struct sspt_proc **pproc = (struct sspt_proc **)data;
+	struct ktd_proc *kproc = (struct ktd_proc *)data;
 
-	WARN_ON(*pproc);
+	WARN_ON(kproc->proc);
 }
 
 struct ktask_data ktd = {
 	.init = ktd_init,
 	.exit = ktd_exit,
-	.size = sizeof(struct sspt_proc *),
+	.size = sizeof(struct ktd_proc),
 };
 
-static struct sspt_proc **pproc_by_task(struct task_struct *task)
+static struct ktd_proc *kproc_by_task(struct task_struct *task)
 {
-	return (struct sspt_proc **)swap_ktd(&ktd, task);
+	return (struct ktd_proc *)swap_ktd(&ktd, task);
 }
 
 int sspt_proc_init(void)
@@ -121,33 +126,40 @@ void sspt_proc_uninit(void)
 
 void sspt_change_leader(struct task_struct *prev, struct task_struct *next)
 {
-	struct sspt_proc **prev_pproc;
+	struct ktd_proc *prev_kproc;
 
-	prev_pproc = pproc_by_task(prev);
-	if (*prev_pproc) {
-		struct sspt_proc **next_pproc;
+	prev_kproc = kproc_by_task(prev);
+	spin_lock(&prev_kproc->lock);
+	if (prev_kproc->proc) {
+		struct ktd_proc *next_kproc;
 
-		next_pproc = pproc_by_task(next);
+		next_kproc = kproc_by_task(next);
 		get_task_struct(next);
 
 		/* Change the keeper sspt_proc */
-		BUG_ON(*next_pproc);
-		*next_pproc = *prev_pproc;
-		*prev_pproc = NULL;
+		BUG_ON(next_kproc->proc);
+
+		spin_lock(&next_kproc->lock);
+		next_kproc->proc = prev_kproc->proc;
+		prev_kproc->proc = NULL;
+		spin_unlock(&next_kproc->lock);
 
 		/* Set new the task leader to sspt_proc */
-		(*next_pproc)->leader = next;
+		next_kproc->proc->leader = next;
 
 		put_task_struct(prev);
 	}
+	spin_unlock(&prev_kproc->lock);
 }
 
 void sspt_reset_proc(struct task_struct *task)
 {
-	struct sspt_proc **pproc;
+	struct ktd_proc *kproc;
 
-	pproc = pproc_by_task(task->group_leader);
-	*pproc = NULL;
+	kproc = kproc_by_task(task->group_leader);
+	spin_lock(&kproc->lock);
+	kproc->proc = NULL;
+	spin_unlock(&kproc->lock);
 }
 
 
@@ -232,12 +244,28 @@ void sspt_proc_put(struct sspt_proc *proc)
 		kfree(proc);
 	}
 }
+EXPORT_SYMBOL_GPL(sspt_proc_put);
 
 struct sspt_proc *sspt_proc_by_task(struct task_struct *task)
 {
-	return *pproc_by_task(task->group_leader);
+	return kproc_by_task(task->group_leader)->proc;
 }
 EXPORT_SYMBOL_GPL(sspt_proc_by_task);
+
+struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
+{
+	struct ktd_proc *kproc = kproc_by_task(task->group_leader);
+	struct sspt_proc *proc;
+
+	spin_lock(&kproc->lock);
+	proc = kproc->proc;
+	if (proc)
+		sspt_proc_get(proc);
+	spin_unlock(&kproc->lock);
+
+	return proc;
+}
+EXPORT_SYMBOL_GPL(sspt_proc_get_by_task);
 
 /**
  * @brief Call func() on each proc (no lock)
@@ -280,43 +308,43 @@ EXPORT_SYMBOL_GPL(on_each_proc);
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 {
 	static DEFINE_MUTEX(local_mutex);
-	struct sspt_proc **pproc;
+	struct ktd_proc *kproc;
+	struct sspt_proc *proc;
 	struct task_struct *leader = task->group_leader;
 
-	pproc = pproc_by_task(leader);
-	if (*pproc)
+	kproc = kproc_by_task(leader);
+	if (kproc->proc)
 		goto out;
 
-	/* This lock for synchronizing to create sspt_proc */
-	mutex_lock(&local_mutex);
-	pproc = pproc_by_task(leader);
-	if (*pproc == NULL) {
-		*pproc = sspt_proc_create(leader);
-		if (*pproc) {
-			sspt_proc_write_lock();
-			list_add(&(*pproc)->list, &proc_probes_list);
-			sspt_proc_write_unlock();
-		}
+	proc = sspt_proc_create(leader);
+
+	spin_lock(&kproc->lock);
+	if (kproc->proc == NULL) {
+		sspt_proc_get(proc);
+		kproc->proc = proc;
+		proc = NULL;
+
+		sspt_proc_write_lock();
+		list_add(&kproc->proc->list, &proc_probes_list);
+		sspt_proc_write_unlock();
 	}
-	mutex_unlock(&local_mutex);
+	spin_unlock(&kproc->lock);
+
+	if (proc)
+		sspt_proc_cleanup(proc);
 
 out:
-	return *pproc;
+	return kproc->proc;
 }
 
 /**
- * @brief Free all sspt_proc
+ * @brief Check sspt_proc on empty
  *
  * @return Pointer on the sspt_proc struct
  */
-void sspt_proc_free_all(void)
+void sspt_proc_check_empty(void)
 {
-	struct sspt_proc *proc, *n;
-
-	list_for_each_entry_safe(proc, n, &proc_probes_list, list) {
-		list_del(&proc->list);
-		sspt_proc_cleanup(proc);
-	}
+	WARN_ON(!list_empty(&proc_probes_list));
 }
 
 static void sspt_proc_add_file(struct sspt_proc *proc, struct sspt_file *file)

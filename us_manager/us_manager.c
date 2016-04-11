@@ -60,7 +60,7 @@ static void do_usm_stop(void)
 
 	uninstall_all();
 	unregister_helper_bottom();
-	sspt_proc_free_all();
+	sspt_proc_check_empty();
 }
 
 static int do_usm_start(void)

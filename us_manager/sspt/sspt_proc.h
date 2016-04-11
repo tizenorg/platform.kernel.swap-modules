@@ -84,17 +84,18 @@ struct sspt_proc_cb {
 
 struct list_head *sspt_proc_list(void);
 
-void sspt_proc_cleanup(struct sspt_proc *proc);
+struct sspt_proc *sspt_proc_by_task(struct task_struct *task);
+struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task);
+struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task);
 struct sspt_proc *sspt_proc_get(struct sspt_proc *proc);
 void sspt_proc_put(struct sspt_proc *proc);
+void sspt_proc_cleanup(struct sspt_proc *proc);
 
 void on_each_proc_no_lock(void (*func)(struct sspt_proc *, void *),
 			  void *data);
 void on_each_proc(void (*func)(struct sspt_proc *, void *), void *data);
 
-struct sspt_proc *sspt_proc_by_task(struct task_struct *task);
-struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task);
-void sspt_proc_free_all(void);
+void sspt_proc_check_empty(void);
 
 struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc,
 				      struct dentry *dentry);

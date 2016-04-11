@@ -266,9 +266,11 @@ static bool __is_proc_mmap_mappable(struct task_struct *task)
 		return false;
 
 	r_debug_addr += r_state_offset;
-	proc = sspt_proc_by_task(task);
-	if (proc)
+	proc = sspt_proc_get_by_task(task);
+	if (proc) {
 		proc->r_state_addr = r_debug_addr;
+		sspt_proc_put(proc);
+	}
 
 	if (get_user(state, (unsigned long *)r_debug_addr))
 		return false;

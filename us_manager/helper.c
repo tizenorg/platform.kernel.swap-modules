@@ -69,11 +69,20 @@ static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 #endif /* CONFIG_arch */
 
 	if (data->addr) {
-		struct sspt_proc *proc = sspt_proc_by_task(current);
+		int ret = 0;
+		struct sspt_proc *proc;
 
-		if (proc && (proc->r_state_addr == data->addr))
-			/* skip ret_handler_pf() for current task */
-			return 1;
+		proc = sspt_proc_get_by_task(current);
+		if (proc) {
+			if (proc->r_state_addr == data->addr) {
+				/* skip ret_handler_pf() for current task */
+				ret = 1;
+			}
+
+			sspt_proc_put(proc);
+		}
+
+		return ret;
 	}
 
 	return 0;
@@ -165,7 +174,7 @@ static unsigned long cb_clean_child(void *data)
 	struct task_struct *parent = current;
 	struct sspt_proc *proc;
 
-	proc = sspt_proc_by_task(parent);
+	proc = sspt_proc_get_by_task(parent);
 	if (proc) {
 		struct task_struct *child = *(struct task_struct **)data;
 
@@ -174,6 +183,8 @@ static unsigned long cb_clean_child(void *data)
 
 		/* disarm urp for child */
 		swap_uretprobe_free_task(parent, child, false);
+
+		sspt_proc_put(proc);
 	}
 
 	atomic_dec(&rm_uprobes_child_cnt);
@@ -460,7 +471,7 @@ static void remove_unmap_probes(struct task_struct *task,
 
 	sspt_proc_write_lock();
 
-	proc = sspt_proc_by_task(task);
+	proc = sspt_proc_get_by_task(task);
 	if (proc) {
 		struct msg_unmap_data msg_data = {
 			.start = umd->start,
@@ -471,6 +482,8 @@ static void remove_unmap_probes(struct task_struct *task,
 
 		/* send unmap region */
 		sspt_proc_on_each_filter(proc, msg_unmap, (void *)&msg_data);
+
+		sspt_proc_put(proc);
 	}
 
 	sspt_proc_write_unlock();
@@ -572,7 +585,7 @@ static int ret_handler_mmap(struct kretprobe_instance *ri,
 	if (IS_ERR_VALUE(start_addr))
 		return 0;
 
-	proc = sspt_proc_by_task(task);
+	proc = sspt_proc_get_by_task(task);
 	if (proc == NULL)
 		return 0;
 
@@ -580,6 +593,7 @@ static int ret_handler_mmap(struct kretprobe_instance *ri,
 	if (vma && check_vma(vma))
 		sspt_proc_on_each_filter(proc, msg_map, (void *)vma);
 
+	sspt_proc_put(proc);
 	return 0;
 }
 
