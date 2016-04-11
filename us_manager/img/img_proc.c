@@ -185,8 +185,10 @@ void img_proc_copy_to_sspt(struct img_proc *i_proc, struct sspt_proc *proc)
 		if (file) {
 			struct img_ip *i_ip;
 
-			list_for_each_entry(i_ip, &i_file->ip_list, list)
+			mutex_lock(&i_file->ips.mtx);
+			list_for_each_entry(i_ip, &i_file->ips.head, list)
 				sspt_file_add_ip(file, i_ip);
+			mutex_unlock(&i_file->ips.mtx);
 		}
 	}
 	mutex_unlock(&i_proc->files.mtx);

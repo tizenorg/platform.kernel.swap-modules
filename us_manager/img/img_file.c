@@ -48,8 +48,9 @@ struct img_file *img_file_create(struct dentry *dentry)
 	}
 
 	file->dentry = dentry;
-	INIT_LIST_HEAD(&file->ip_list);
 	INIT_LIST_HEAD(&file->list);
+	INIT_LIST_HEAD(&file->ips.head);
+	mutex_init(&file->ips.mtx);
 	atomic_set(&file->use, 1);
 
 	return file;
@@ -65,7 +66,7 @@ static void img_file_free(struct img_file *file)
 {
 	struct img_ip *ip, *tmp;
 
-	list_for_each_entry_safe(ip, tmp, &file->ip_list, list) {
+	list_for_each_entry_safe(ip, tmp, &file->ips.head, list) {
 		img_del_ip_by_list(ip);
 		img_ip_free(ip);
 	}
@@ -73,11 +74,13 @@ static void img_file_free(struct img_file *file)
 	kfree(file);
 }
 
+/* called with mutex_[lock/unlock](&file->ips.mtx) */
 static void img_add_ip_by_list(struct img_file *file, struct img_ip *ip)
 {
-	list_add(&ip->list, &file->ip_list);
+	list_add(&ip->list, &file->ips.head);
 }
 
+/* called with mutex_[lock/unlock](&file->ips.mtx) */
 static void img_del_ip_by_list(struct img_ip *ip)
 {
 	list_del(&ip->list);
@@ -97,12 +100,13 @@ void img_file_put(struct img_file *file)
 	return;
 }
 
+/* called with mutex_[lock/unlock](&file->ips.mtx) */
 static struct img_ip *find_img_ip(struct img_file *file, unsigned long addr,
 				  struct probe_desc *pd)
 {
 	struct img_ip *ip;
 
-	list_for_each_entry(ip, &file->ip_list, list) {
+	list_for_each_entry(ip, &file->ips.head, list) {
 		if ((ip->addr == addr) &&
 		    (ip->desc == pd))
 			return ip;
@@ -123,20 +127,27 @@ static struct img_ip *find_img_ip(struct img_file *file, unsigned long addr,
 int img_file_add_ip(struct img_file *file, unsigned long addr,
 		    struct probe_desc *pd)
 {
+	int ret = 0;
 	struct img_ip *ip;
 
+	mutex_lock(&file->ips.mtx);
 	ip = find_img_ip(file, addr, pd);
 	if (ip) {
 		/* ip already exists in img */
-		return 0;
+		goto unlock;
 	}
 
 	ip = img_ip_create(addr, pd);
-	if (ip == NULL)
-		return -ENOMEM;
+	if (ip == NULL) {
+		ret = -ENOMEM;
+		goto unlock;
+	}
+
 	img_add_ip_by_list(file, ip);
 
-	return 0;
+unlock:
+	mutex_unlock(&file->ips.mtx);
+	return ret;
 }
 
 /**
@@ -151,14 +162,18 @@ int img_file_del_ip(struct img_file *file, unsigned long addr,
 {
 	struct img_ip *ip;
 
+	mutex_lock(&file->ips.mtx);
 	ip = find_img_ip(file, addr, pd);
 	if (ip == NULL) {
 		printk(KERN_INFO "Warning: no ip found in img, addr = %lx\n",
 		       addr);
+		mutex_unlock(&file->ips.mtx);
 		return -EINVAL;
 	}
 
 	img_del_ip_by_list(ip);
+	mutex_unlock(&file->ips.mtx);
+
 	img_ip_free(ip);
 
 	return 0;
@@ -174,7 +189,7 @@ int img_file_del_ip(struct img_file *file, unsigned long addr,
  */
 int img_file_empty(struct img_file *file)
 {
-	return list_empty(&file->ip_list);
+	return list_empty(&file->ips.head);
 }
 
 /**
@@ -191,8 +206,10 @@ void img_file_print(struct img_file *file)
 
 	printk(KERN_INFO "###      d_iname=%s\n", file->dentry->d_iname);
 
-	list_for_each_entry(ip, &file->ip_list, list) {
+	mutex_lock(&file->ips.mtx);
+	list_for_each_entry(ip, &file->ips.head, list) {
 		img_ip_print(ip);
 	}
+	mutex_unlock(&file->ips.mtx);
 }
 /* debug */
