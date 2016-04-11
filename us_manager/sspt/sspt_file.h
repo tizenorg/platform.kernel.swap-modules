@@ -26,6 +26,7 @@
 
 #include "sspt_ip.h"
 #include <linux/types.h>
+#include <linux/rwsem.h>
 
 enum US_FLAGS;
 struct vm_area_struct;
@@ -41,6 +42,7 @@ struct sspt_file {
 
 	/* sspt_page */
 	struct {
+		struct rw_semaphore sem;	/**< Semaphore for hash-table */
 		unsigned long bits;		/**< Hash-table size */
 		struct hlist_head *heads;	/**< Heads for pages */
 	} htable;

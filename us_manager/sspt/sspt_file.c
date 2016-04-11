@@ -48,17 +48,20 @@ static unsigned long htable_size(const struct sspt_file *file)
 	return 1 << file->htable.bits;
 }
 
-static struct hlist_head *htable_head_by_key(const struct sspt_file *file,
-					     unsigned long offset)
-{
-	return &file->htable.heads[hash_ptr((void *)offset, file->htable.bits)];
-}
-
 static struct hlist_head *htable_head_by_idx(const struct sspt_file *file,
 					     unsigned long idx)
 {
 	return &file->htable.heads[idx];
 }
+
+static struct hlist_head *htable_head_by_key(const struct sspt_file *file,
+					     unsigned long offset)
+{
+	unsigned long idx = hash_ptr((void *)offset, file->htable.bits);
+
+	return htable_head_by_idx(file, idx);
+}
+
 /**
  * @brief Create sspt_file struct
  *
@@ -93,6 +96,8 @@ struct sspt_file *sspt_file_create(struct dentry *dentry, int page_cnt)
 		INIT_HLIST_HEAD(&heads[i]);
 
 	obj->htable.heads = heads;
+	init_rwsem(&obj->htable.sem);
+
 	return obj;
 
 err:
@@ -114,6 +119,7 @@ void sspt_file_free(struct sspt_file *file)
 	struct hlist_node *n;
 	DECLARE_NODE_PTR_FOR_HLIST(p);
 
+	down_write(&file->htable.sem);
 	for (i = 0; i < table_size; ++i) {
 		head = htable_head_by_idx(file, i);
 		swap_hlist_for_each_entry_safe(page, p, n, head, hlist) {
@@ -121,6 +127,7 @@ void sspt_file_free(struct sspt_file *file)
 			sspt_page_free(page);
 		}
 	}
+	up_write(&file->htable.sem);
 
 	kfree(file->htable.heads);
 	kfree(file);
@@ -150,13 +157,16 @@ static struct sspt_page *sspt_find_page(struct sspt_file *file,
 static struct sspt_page *sspt_find_page_or_new(struct sspt_file *file,
 					       unsigned long offset)
 {
-	struct sspt_page *page = sspt_find_page(file, offset);
+	struct sspt_page *page;
 
+	down_write(&file->htable.sem);
+	page = sspt_find_page(file, offset);
 	if (page == NULL) {
 		page = sspt_page_create(offset);
 		if (page)
 			sspt_add_page(file, page);
 	}
+	up_write(&file->htable.sem);
 
 	return page;
 }
@@ -172,6 +182,7 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
 					unsigned long page)
 {
 	unsigned long offset;
+	struct sspt_page *p;
 
 	if (file->vm_start > page || file->vm_end < page) {
 		/* TODO: or panic?! */
@@ -185,7 +196,11 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
 
 	offset = page - file->vm_start;
 
-	return sspt_find_page(file, offset);
+	down_read(&file->htable.sem);
+	p = sspt_find_page(file, offset);
+	up_read(&file->htable.sem);
+
+	return p;
 }
 
 /**
@@ -226,11 +241,13 @@ void sspt_file_on_each_ip(struct sspt_file *file,
 	struct hlist_head *head;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
+	down_read(&file->htable.sem);
 	for (i = 0; i < table_size; ++i) {
 		head = htable_head_by_idx(file, i);
 		swap_hlist_for_each_entry(page, node, head, hlist)
 			sspt_page_on_each_ip(page, func, data);
 	}
+	up_read(&file->htable.sem);
 }
 
 /**
@@ -243,22 +260,28 @@ void sspt_file_on_each_ip(struct sspt_file *file,
  */
 int sspt_file_check_install_pages(struct sspt_file *file)
 {
+	int ret = 0;
 	int i, table_size;
 	struct sspt_page *page;
 	struct hlist_head *head;
-	struct hlist_node *tmp;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	table_size = htable_size(file);
+
+	down_read(&file->htable.sem);
 	for (i = 0; i < table_size; ++i) {
 		head = htable_head_by_idx(file, i);
-		swap_hlist_for_each_entry_safe(page, node, tmp, head, hlist) {
-			if (sspt_page_is_installed(page))
-				return 1;
+		swap_hlist_for_each_entry(page, node, head, hlist) {
+			if (sspt_page_is_installed(page)) {
+				ret = 1;
+				goto unlock;
+			}
 		}
 	}
 
-	return 0;
+unlock:
+	up_read(&file->htable.sem);
+	return ret;
 }
 
 /**
@@ -276,9 +299,10 @@ void sspt_file_install(struct sspt_file *file)
 	struct mm_struct *mm;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
+	down_read(&file->htable.sem);
 	for (i = 0; i < table_size; ++i) {
 		head = htable_head_by_idx(file, i);
-		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
+		swap_hlist_for_each_entry(page, node, head, hlist) {
 			page_addr = file->vm_start + page->offset;
 			if (page_addr < file->vm_start ||
 			    page_addr >= file->vm_end)
@@ -289,6 +313,7 @@ void sspt_file_install(struct sspt_file *file)
 				sspt_register_page(page, file);
 		}
 	}
+	up_read(&file->htable.sem);
 }
 
 /**
@@ -307,20 +332,22 @@ int sspt_file_uninstall(struct sspt_file *file,
 	int table_size = htable_size(file);
 	struct sspt_page *page;
 	struct hlist_head *head;
-	struct hlist_node *tmp;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
+	down_read(&file->htable.sem);
 	for (i = 0; i < table_size; ++i) {
 		head = htable_head_by_idx(file, i);
-		swap_hlist_for_each_entry_safe(page, node, tmp, head, hlist) {
+		swap_hlist_for_each_entry(page, node, head, hlist) {
 			err = sspt_unregister_page(page, flag, task);
 			if (err != 0) {
 				printk(KERN_INFO "ERROR sspt_file_uninstall: "
 				       "err=%d\n", err);
+				up_read(&file->htable.sem);
 				return err;
 			}
 		}
 	}
+	up_read(&file->htable.sem);
 
 	if (flag != US_DISARM) {
 		file->loaded = 0;

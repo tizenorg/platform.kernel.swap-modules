@@ -71,7 +71,7 @@ static inline void print_page_probes(const struct sspt_page *page)
 	}
 }
 
-static inline void print_file_probes(const struct sspt_file *file)
+static inline void print_file_probes(struct sspt_file *file)
 {
 	int i;
 	unsigned long table_size;
@@ -93,12 +93,14 @@ static inline void print_file_probes(const struct sspt_file *file)
 	       "table_size=%lu, vm_start=%lx\n",
 	       file->dentry->d_iname, name, table_size, file->vm_start);
 
+	down_read(&file->htable.sem);
 	for (i = 0; i < table_size; ++i) {
 		head = &file->htable.heads[i];
 		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
 			print_page_probes(page);
 		}
 	}
+	up_read(&file->htable.sem);
 }
 
 static inline void print_proc_probes(struct sspt_proc *proc)
