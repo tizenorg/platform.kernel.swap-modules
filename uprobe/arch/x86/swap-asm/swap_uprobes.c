@@ -239,16 +239,11 @@ static bool put_long(struct task_struct *task,
  * negative error code on error.
  */
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
-			 struct task_struct *task, unsigned long tr)
+			 struct task_struct *task)
 {
 	unsigned long ret_addr;
 	unsigned long sp = (unsigned long)ri->sp;
-	unsigned long tramp_addr;
-
-	if (tr == 0)
-		tramp_addr = arch_tramp_by_ri(ri);
-	else
-		tramp_addr = tr; /* ri - invalid */
+	unsigned long tramp_addr = trampoline_addr(&ri->rp->up);
 
 	if (get_long(task, sp, &ret_addr)) {
 		printk(KERN_INFO "---> %s (%d/%d): failed to read stack from %08lx\n",

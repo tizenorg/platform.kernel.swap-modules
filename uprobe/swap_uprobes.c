@@ -78,41 +78,6 @@ void print_uprobe_hash_table(void)
 }
 #endif
 
-
-struct uinst_info *uinst_info_create(unsigned long vaddr,
-				     kprobe_opcode_t opcode)
-{
-	struct uinst_info *uinst;
-
-	uinst = kmalloc(sizeof(*uinst), GFP_ATOMIC);
-	if (uinst) {
-		INIT_HLIST_NODE(&uinst->hlist);
-		uinst->vaddr = vaddr;
-		uinst->opcode = opcode;
-	} else {
-		pr_err("Cannot allocate memory for uinst\n");
-	}
-
-	return uinst;
-}
-EXPORT_SYMBOL_GPL(uinst_info_create);
-
-void uinst_info_destroy(struct uinst_info *uinst)
-{
-	kfree(uinst);
-}
-EXPORT_SYMBOL_GPL(uinst_info_destroy);
-
-void uinst_info_disarm(struct uinst_info *uinst, struct task_struct *task)
-{
-	struct uprobe p;
-
-	p.addr = (uprobe_opcode_t *)uinst->vaddr;
-	p.opcode = uinst->opcode;
-	arch_disarm_uprobe(&p, task);
-}
-EXPORT_SYMBOL_GPL(uinst_info_disarm);
-
 /*
  * Keep all fields in the uprobe consistent
  */
@@ -899,7 +864,7 @@ void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 	mutex_lock(&urp_mtx);
 	while ((ri = get_used_urp_inst(rp)) != NULL) {
 		/* FIXME: arch_disarm_urp_inst() for no current context */
-		if (arch_disarm_urp_inst(ri, ri->task, 0) != 0)
+		if (arch_disarm_urp_inst(ri, ri->task) != 0)
 			printk(KERN_INFO "%s (%d/%d): "
 			       "cannot disarm urp instance (%08lx)\n",
 			       ri->task->comm, ri->task->tgid, ri->task->pid,
@@ -971,43 +936,6 @@ void swap_ujprobe_return(void)
 }
 EXPORT_SYMBOL_GPL(swap_ujprobe_return);
 
-
-static struct urinst_info *urinst_info_create(struct uretprobe_instance *ri)
-{
-	struct urinst_info *urinst;
-
-	urinst = kmalloc(sizeof(*urinst), GFP_ATOMIC);
-	if (urinst) {
-		INIT_HLIST_NODE(&urinst->hlist);
-		urinst->task = ri->task;
-		urinst->sp = (unsigned long)ri->sp;
-		urinst->tramp = arch_tramp_by_ri(ri);
-		urinst->ret_addr = (unsigned long)ri->ret_addr;
-	} else {
-		pr_err("Cannot allocate memory for urinst\n");
-	}
-
-	return urinst;
-}
-
-static void urinst_info_destroy(struct urinst_info *urinst)
-{
-	kfree(urinst);
-}
-
-static void urinst_info_disarm(struct urinst_info *urinst, struct task_struct *task)
-{
-	struct uretprobe_instance ri;
-	unsigned long tramp = urinst->tramp;
-
-	/* set necessary data*/
-	ri.task = urinst->task;
-	ri.sp = (kprobe_opcode_t *)urinst->sp;
-	ri.ret_addr = (kprobe_opcode_t *)urinst->ret_addr;
-
-	arch_disarm_urp_inst(&ri, task, tramp);
-}
-
 void swap_uretprobe_free_task(struct task_struct *armed,
 			      struct task_struct *will_disarm, bool recycle)
 {
@@ -1022,7 +950,7 @@ void swap_uretprobe_free_task(struct task_struct *armed,
 			continue;
 
 		if (will_disarm)
-			arch_disarm_urp_inst(ri, will_disarm, 0);
+			arch_disarm_urp_inst(ri, will_disarm);
 
 		if (recycle)
 			recycle_urp_inst(ri);
@@ -1030,57 +958,6 @@ void swap_uretprobe_free_task(struct task_struct *armed,
 	mutex_unlock(&urp_mtx);
 }
 EXPORT_SYMBOL_GPL(swap_uretprobe_free_task);
-
-void urinst_info_get_current_hlist(struct hlist_head *head, bool recycle)
-{
-	struct task_struct *task = current;
-	struct uretprobe_instance *ri;
-	struct hlist_head *hhead;
-	struct hlist_node *n;
-	struct hlist_node *last = NULL;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	mutex_lock(&urp_mtx);
-	hhead = uretprobe_inst_table_head(task->mm);
-	swap_hlist_for_each_entry_safe(ri, node, n, hhead, hlist) {
-		if (task == ri->task) {
-			struct urinst_info *urinst;
-
-			urinst = urinst_info_create(ri);
-			if (urinst) {
-				if (last)
-					hlist_add_after(last, &urinst->hlist);
-				else
-					hlist_add_head(&urinst->hlist, head);
-
-				last = &urinst->hlist;
-			}
-
-			if (recycle)
-				recycle_urp_inst(ri);
-		}
-	}
-	mutex_unlock(&urp_mtx);
-}
-EXPORT_SYMBOL_GPL(urinst_info_get_current_hlist);
-
-void urinst_info_put_current_hlist(struct hlist_head *head,
-				  struct task_struct *task)
-{
-	struct urinst_info *urinst;
-	struct hlist_node *tmp;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	swap_hlist_for_each_entry_safe(urinst, node, tmp, head, hlist) {
-		/* check on disarm */
-		if (task)
-			urinst_info_disarm(urinst, task);
-
-		hlist_del(&urinst->hlist);
-		urinst_info_destroy(urinst);
-	}
-}
-EXPORT_SYMBOL_GPL(urinst_info_put_current_hlist);
 
 
 static int once(void)

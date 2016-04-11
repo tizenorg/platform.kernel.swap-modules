@@ -708,26 +708,17 @@ unsigned long arch_tramp_by_ri(struct uretprobe_instance *ri)
  * negative error code on error.
  */
 int arch_disarm_urp_inst(struct uretprobe_instance *ri,
-			 struct task_struct *task, unsigned long tr)
+			 struct task_struct *task)
 {
 	struct pt_regs *uregs = task_pt_regs(ri->task);
 	unsigned long ra = swap_get_ret_addr(uregs);
-	unsigned long *tramp;
+	unsigned long *tramp = (unsigned long *)arch_tramp_by_ri(ri);
 	unsigned long *sp = (unsigned long *)((long)ri->sp & ~1);
 	unsigned long *stack = sp - RETPROBE_STACK_DEPTH + 1;
 	unsigned long *found = NULL;
 	unsigned long *buf[RETPROBE_STACK_DEPTH];
-	unsigned long vaddr;
+	unsigned long vaddr = (unsigned long)ri->rp->up.addr;
 	int i, retval;
-
-	if (tr == 0) {
-		vaddr = (unsigned long)ri->rp->up.addr;
-		tramp = (unsigned long *)arch_tramp_by_ri(ri);
-	} else {
-		/* ri - invalid */
-		vaddr = 0;
-		tramp = (unsigned long *)tr;
-	}
 
 	/* check stack */
 	retval = read_proc_vm_atomic(task, (unsigned long)stack,
