@@ -26,6 +26,7 @@
 
 #include <linux/types.h>
 #include <linux/mutex.h>
+#include <linux/rwsem.h>
 #include "sspt_file.h"
 
 struct slot_manager;
@@ -49,7 +50,10 @@ struct sspt_proc {
 	struct list_head list;		/**< For global process list */
 
 	/* sspt_file */
-	struct list_head file_head;	/**< For sspt_file */
+	struct {
+		struct rw_semaphore sem;/**< Semaphore for files list */
+		struct list_head head;	/**< For sspt_file */
+	} files;
 
 	pid_t tgid;			/**< Thread group ID */
 	struct task_struct *leader;	/**< Ptr to the task leader */

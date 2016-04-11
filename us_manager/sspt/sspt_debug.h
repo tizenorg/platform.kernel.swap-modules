@@ -101,14 +101,16 @@ static inline void print_file_probes(const struct sspt_file *file)
 	}
 }
 
-static inline void print_proc_probes(const struct sspt_proc *proc)
+static inline void print_proc_probes(struct sspt_proc *proc)
 {
 	struct sspt_file *file;
 
 	printk(KERN_INFO "### print_proc_probes\n");
-	list_for_each_entry(file, &proc->file_head, list) {
+	down_read(&proc->files.sem);
+	list_for_each_entry(file, &proc->files.head, list) {
 		print_file_probes(file);
 	}
+	up_read(&proc->files.sem);
 	printk(KERN_INFO "### print_proc_probes\n");
 }
 

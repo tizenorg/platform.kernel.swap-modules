@@ -464,14 +464,12 @@ static void __remove_unmap_probes(struct sspt_proc *proc,
 	}
 }
 
-static void remove_unmap_probes(struct task_struct *task,
-				struct unmap_data *umd)
+static unsigned long cb_munmap(void *data)
 {
 	struct sspt_proc *proc;
+	struct unmap_data *umd = (struct unmap_data *)data;
 
-	sspt_proc_write_lock();
-
-	proc = sspt_proc_get_by_task(task);
+	proc = sspt_proc_get_by_task(current);
 	if (proc) {
 		struct msg_unmap_data msg_data = {
 			.start = umd->start,
@@ -486,39 +484,41 @@ static void remove_unmap_probes(struct task_struct *task,
 		sspt_proc_put(proc);
 	}
 
-	sspt_proc_write_unlock();
+	atomic_dec(&unmap_cnt);
+	return 0;
 }
 
 static int entry_handler_unmap(struct kretprobe_instance *ri,
 			       struct pt_regs *regs)
 {
 	struct unmap_data *data = (struct unmap_data *)ri->data;
-	struct task_struct *task = current->group_leader;
-
-	atomic_inc(&unmap_cnt);
 
 	data->start = swap_get_karg(regs, 1);
 	data->len = (size_t)PAGE_ALIGN(swap_get_karg(regs, 2));
 
-	if (!is_kthread(task) && atomic_read(&stop_flag))
-		remove_unmap_probes(task, data);
-
+	atomic_inc(&unmap_cnt);
 	return 0;
 }
 
 static int ret_handler_unmap(struct kretprobe_instance *ri,
 			     struct pt_regs *regs)
 {
-	struct task_struct *task;
+	int ret;
 
-	task = current->group_leader;
-	if (is_kthread(task) || regs_return_value(regs))
-		goto out;
+	if (regs_return_value(regs)) {
+		atomic_dec(&unmap_cnt);
+		return 0;
+	}
 
-	remove_unmap_probes(task, (struct unmap_data *)ri->data);
-
-out:
-	atomic_dec(&unmap_cnt);
+	ret = set_jump_cb((unsigned long)ri->ret_addr, regs, cb_munmap,
+			  (struct unmap_data *)ri->data,
+			  sizeof(struct unmap_data));
+	if (ret == 0) {
+		ri->ret_addr = (unsigned long *)get_jump_addr();
+	} else {
+		WARN_ON(1);
+		atomic_dec(&unmap_cnt);
+	}
 
 	return 0;
 }

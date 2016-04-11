@@ -178,11 +178,12 @@ static struct sspt_proc *sspt_proc_create(struct task_struct *leader)
 		}
 
 		INIT_LIST_HEAD(&proc->list);
+		INIT_LIST_HEAD(&proc->files.head);
+		init_rwsem(&proc->files.sem);
 		proc->tgid = leader->tgid;
 		proc->leader = leader;
 		/* FIXME: change the task leader */
 		proc->sm = create_sm_us(leader);
-		INIT_LIST_HEAD(&proc->file_head);
 		mutex_init(&proc->filters.mtx);
 		INIT_LIST_HEAD(&proc->filters.head);
 		atomic_set(&proc->usage, 1);
@@ -210,10 +211,12 @@ void sspt_proc_cleanup(struct sspt_proc *proc)
 
 	sspt_proc_del_all_filters(proc);
 
-	list_for_each_entry_safe(file, n, &proc->file_head, list) {
+	down_write(&proc->files.sem);
+	list_for_each_entry_safe(file, n, &proc->files.head, list) {
 		list_del(&file->list);
 		sspt_file_free(file);
 	}
+	up_write(&proc->files.sem);
 
 	sspt_destroy_feature(proc->feature);
 
@@ -349,8 +352,10 @@ void sspt_proc_check_empty(void)
 
 static void sspt_proc_add_file(struct sspt_proc *proc, struct sspt_file *file)
 {
-	list_add(&file->list, &proc->file_head);
+	down_write(&proc->files.sem);
+	list_add(&file->list, &proc->files.head);
 	file->proc = proc;
+	up_write(&proc->files.sem);
 }
 
 /**
@@ -387,12 +392,17 @@ struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc,
 {
 	struct sspt_file *file;
 
-	list_for_each_entry(file, &proc->file_head, list) {
+	down_read(&proc->files.sem);
+	list_for_each_entry(file, &proc->files.head, list) {
 		if (dentry == file->dentry)
-			return file;
+			goto unlock;
 	}
+	file = NULL;
 
-	return NULL;
+unlock:
+	up_read(&proc->files.sem);
+
+	return file;
 }
 
 /**
@@ -464,14 +474,16 @@ int sspt_proc_uninstall(struct sspt_proc *proc,
 	int err = 0;
 	struct sspt_file *file;
 
-	list_for_each_entry_rcu(file, &proc->file_head, list) {
+	down_read(&proc->files.sem);
+	list_for_each_entry(file, &proc->files.head, list) {
 		err = sspt_file_uninstall(file, task, flag);
 		if (err != 0) {
 			printk(KERN_INFO "ERROR sspt_proc_uninstall: err=%d\n",
 			       err);
-			return err;
+			break;
 		}
 	}
+	up_read(&proc->files.sem);
 
 	return err;
 }
@@ -501,12 +513,14 @@ int sspt_proc_get_files_by_region(struct sspt_proc *proc,
 	struct sspt_file *file, *n;
 	unsigned long end = start + len;
 
-	list_for_each_entry_safe(file, n, &proc->file_head, list) {
+	down_write(&proc->files.sem);
+	list_for_each_entry_safe(file, n, &proc->files.head, list) {
 		if (intersection(file->vm_start, file->vm_end, start, end)) {
 			ret = 1;
 			list_move(&file->list, head);
 		}
 	}
+	up_write(&proc->files.sem);
 
 	return ret;
 }
@@ -520,7 +534,9 @@ int sspt_proc_get_files_by_region(struct sspt_proc *proc,
  */
 void sspt_proc_insert_files(struct sspt_proc *proc, struct list_head *head)
 {
-	list_splice(head, &proc->file_head);
+	down_write(&proc->files.sem);
+	list_splice(head, &proc->files.head);
+	up_write(&proc->files.sem);
 }
 
 /**
@@ -611,8 +627,10 @@ void sspt_proc_on_each_ip(struct sspt_proc *proc,
 {
 	struct sspt_file *file;
 
-	list_for_each_entry(file, &proc->file_head, list)
+	down_read(&proc->files.sem);
+	list_for_each_entry(file, &proc->files.head, list)
 		sspt_file_on_each_ip(file, func, data);
+	up_read(&proc->files.sem);
 }
 
 static void is_send_event(struct sspt_filter *f, void *data)
