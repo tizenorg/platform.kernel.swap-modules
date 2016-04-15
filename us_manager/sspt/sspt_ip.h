@@ -25,6 +25,7 @@
  */
 
 #include <linux/list.h>
+#include <linux/atomic.h>
 #include <uprobe/swap_uprobes.h>
 #include <us_manager/probes/probes.h>
 
@@ -43,6 +44,8 @@ struct sspt_ip {
 	struct img_ip *img_ip;      /**< Pointer on the img_ip (parent) */
 	struct list_head img_list;  /**< For img_ip */
 
+	atomic_t usage;
+
 	unsigned long orig_addr;    /**< Function address */
 	unsigned long offset;       /**< Page offset */
 
@@ -55,8 +58,10 @@ struct sspt_ip {
 };
 
 
-struct sspt_ip *sspt_ip_create(struct img_ip *img_ip);
-void sspt_ip_free(struct sspt_ip *ip);
+struct sspt_ip *sspt_ip_create(struct img_ip *img_ip, struct sspt_page *page);
+void sspt_ip_clean(struct sspt_ip *ip);
+void sspt_ip_get(struct sspt_ip *ip);
+void sspt_ip_put(struct sspt_ip *ip);
 
 
 #endif /* _SSPT_IP */

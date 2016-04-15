@@ -124,7 +124,8 @@ void sspt_file_free(struct sspt_file *file)
 		head = htable_head_by_idx(file, i);
 		swap_hlist_for_each_entry_safe(page, p, n, head, hlist) {
 			hlist_del(&page->hlist);
-			sspt_page_free(page);
+			sspt_page_clean(page);
+			sspt_page_put(page);
 		}
 	}
 	up_write(&file->htable.sem);
@@ -223,12 +224,10 @@ void sspt_file_add_ip(struct sspt_file *file, struct img_ip *img_ip)
 	if (!page)
 		return;
 
-	/* FIXME: delete ip */
-	ip = sspt_ip_create(img_ip);
+	ip = sspt_ip_create(img_ip, page);
 	if (!ip)
 		return;
 
-	sspt_add_ip(page, ip);
 	probe_info_init(ip->desc->type, ip);
 }
 

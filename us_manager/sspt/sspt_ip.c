@@ -23,6 +23,7 @@
  */
 
 #include <linux/slab.h>
+#include <linux/list.h>
 #include <linux/module.h>
 #include "sspt_ip.h"
 #include "sspt_page.h"
@@ -39,7 +40,7 @@
  * @param page Pointer to the parent sspt_page struct
  * @return Pointer to the created us_ip struct
  */
-struct sspt_ip *sspt_ip_create(struct img_ip *img_ip)
+struct sspt_ip *sspt_ip_create(struct img_ip *img_ip, struct sspt_page *page)
 {
 	struct sspt_ip *ip;
 
@@ -50,24 +51,69 @@ struct sspt_ip *sspt_ip_create(struct img_ip *img_ip)
 	memset(ip, 0, sizeof(*ip));
 	INIT_LIST_HEAD(&ip->list);
 	INIT_LIST_HEAD(&ip->img_list);
-	ip->offset = img_ip->addr;
+	ip->offset = img_ip->addr & ~PAGE_MASK;
 	ip->desc = img_ip->desc;
-	ip->img_ip = img_ip;
-	list_add(&ip->img_list, &img_ip->sspt_head);
+	atomic_set(&ip->usage, 2);	/* for 'img_ip' and 'page' */
+
+	/* add to img_ip list */
+	img_ip_get(img_ip);
+	img_ip_lock(img_ip);
+	img_ip_add_ip(img_ip, ip);
+	img_ip_unlock(img_ip);
+
+	/* add to page list */
+	sspt_page_get(page);
+	sspt_page_lock(page);
+	sspt_page_add_ip(page, ip);
+	sspt_page_unlock(page);
 
 	return ip;
 }
 
-/**
- * @brief Remove us_ip struct
- *
- * @param ip remove object
- * @return Void
- */
-void sspt_ip_free(struct sspt_ip *ip)
+static void sspt_ip_free(struct sspt_ip *ip)
 {
-	if (!list_empty(&ip->img_list))
-		list_del(&ip->img_list);
+	WARN_ON(!list_empty(&ip->list) || !list_empty(&ip->img_list));
 
 	kfree(ip);
+}
+
+void sspt_ip_get(struct sspt_ip *ip)
+{
+	atomic_inc(&ip->usage);
+}
+
+void sspt_ip_put(struct sspt_ip *ip)
+{
+	if (atomic_dec_and_test(&ip->usage))
+		sspt_ip_free(ip);
+}
+
+void sspt_ip_clean(struct sspt_ip *ip)
+{
+	bool put_page = false;
+	bool put_ip = false;
+
+	/* remove from page */
+	sspt_page_lock(ip->page);
+	if (!list_empty(&ip->list)) {
+		list_del_init(&ip->list);
+		put_page = true;
+	}
+	sspt_page_unlock(ip->page);
+	if (put_page) {
+		sspt_page_put(ip->page);
+		sspt_ip_put(ip);
+	}
+
+	/* remove from img_ip */
+	img_ip_lock(ip->img_ip);
+	if (!list_empty(&ip->img_list)) {
+		list_del_init(&ip->img_list);
+		put_ip = true;
+	}
+	img_ip_unlock(ip->img_ip);
+	if (put_ip) {
+		img_ip_put(ip->img_ip);
+		sspt_ip_put(ip);
+	}
 }

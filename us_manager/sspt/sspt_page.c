@@ -46,42 +46,54 @@ struct sspt_page *sspt_page_create(unsigned long offset)
 		INIT_LIST_HEAD(&obj->ip_list.not_inst);
 		obj->offset = offset;
 		obj->file = NULL;
+		kref_init(&obj->ref);
 	}
 
 	return obj;
 }
 
-/**
- * @brief Remove sspt_page struct
- *
- * @param page remove object
- * @return Void
- */
-void sspt_page_free(struct sspt_page *page)
+void sspt_page_clean(struct sspt_page *page)
 {
 	struct sspt_ip *ip, *n;
+	LIST_HEAD(head);
 
+	mutex_lock(&page->ip_list.mtx);
+	WARN_ON(!list_empty(&page->ip_list.inst));
 	list_for_each_entry_safe(ip, n, &page->ip_list.inst, list) {
-		list_del(&ip->list);
-		sspt_ip_free(ip);
+		sspt_ip_get(ip);
+		list_move(&ip->list, &head);
 	}
 
 	list_for_each_entry_safe(ip, n, &page->ip_list.not_inst, list) {
-		list_del(&ip->list);
-		sspt_ip_free(ip);
+		sspt_ip_get(ip);
+		list_move(&ip->list, &head);
 	}
+	mutex_unlock(&page->ip_list.mtx);
+
+	list_for_each_entry_safe(ip, n, &head, list) {
+		sspt_ip_clean(ip);
+		sspt_ip_put(ip);
+	}
+}
+
+static void sspt_page_release(struct kref *ref)
+{
+	struct sspt_page *page = container_of(ref, struct sspt_page, ref);
+
+	WARN_ON(!list_empty(&page->ip_list.inst) ||
+		!list_empty(&page->ip_list.not_inst));
 
 	kfree(page);
 }
 
-static void sspt_list_add_ip(struct sspt_page *page, struct sspt_ip *ip)
+void sspt_page_get(struct sspt_page *page)
 {
-	list_add(&ip->list, &page->ip_list.not_inst);
+	kref_get(&page->ref);
 }
 
-static void sspt_list_del_ip(struct sspt_ip *ip)
+void sspt_page_put(struct sspt_page *page)
 {
-	list_del(&ip->list);
+	kref_put(&page->ref, sspt_page_release);
 }
 
 /**
@@ -91,23 +103,20 @@ static void sspt_list_del_ip(struct sspt_ip *ip)
  * @param ip Pointer to the us_ip struct
  * @return Void
  */
-void sspt_add_ip(struct sspt_page *page, struct sspt_ip *ip)
+void sspt_page_add_ip(struct sspt_page *page, struct sspt_ip *ip)
 {
-	ip->offset &= ~PAGE_MASK;
 	ip->page = page;
-	sspt_list_add_ip(page, ip);
+	list_add(&ip->list, &page->ip_list.not_inst);
 }
 
-/**
- * @brief Del instruction pointer from sspt_page
- *
- * @param ip Pointer to the us_ip struct
- * @return Void
- */
-void sspt_del_ip(struct sspt_ip *ip)
+void sspt_page_lock(struct sspt_page *page)
 {
-	sspt_list_del_ip(ip);
-	sspt_ip_free(ip);
+	mutex_lock(&page->ip_list.mtx);
+}
+
+void sspt_page_unlock(struct sspt_page *page)
+{
+	mutex_unlock(&page->ip_list.mtx);
 }
 
 /**
@@ -121,6 +130,18 @@ bool sspt_page_is_installed(struct sspt_page *page)
 	return !list_empty(&page->ip_list.inst);
 }
 
+bool sspt_page_is_installed_ip(struct sspt_page *page, struct sspt_ip *ip)
+{
+	struct sspt_ip *p;
+
+	list_for_each_entry(p, &page->ip_list.inst, list) {
+		if (p == ip)
+			return true;
+	}
+
+	return false;
+}
+
 /**
  * @brief Install probes on the page
  *
@@ -132,6 +153,7 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 {
 	int err = 0;
 	struct sspt_ip *ip, *n;
+	LIST_HEAD(not_inst_head);
 
 	mutex_lock(&page->ip_list.mtx);
 	if (list_empty(&page->ip_list.not_inst)) {
@@ -150,8 +172,8 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 
 		err = sspt_register_usprobe(ip);
 		if (err) {
-			list_del(&ip->list);
-			sspt_ip_free(ip);
+			sspt_ip_get(ip);
+			list_move(&ip->list, &not_inst_head);
 			continue;
 		}
 	}
@@ -160,6 +182,11 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 
 unlock:
 	mutex_unlock(&page->ip_list.mtx);
+
+	list_for_each_entry_safe(ip, n, &not_inst_head, list) {
+		sspt_ip_clean(ip);
+		sspt_ip_put(ip);
+	}
 
 	return 0;
 }

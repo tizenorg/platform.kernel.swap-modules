@@ -68,7 +68,8 @@ static void img_file_free(struct img_file *file)
 
 	list_for_each_entry_safe(ip, tmp, &file->ips.head, list) {
 		img_del_ip_by_list(ip);
-		img_ip_free(ip);
+		img_ip_clean(ip);
+		img_ip_put(ip);
 	}
 
 	kfree(file);
@@ -174,7 +175,8 @@ int img_file_del_ip(struct img_file *file, unsigned long addr,
 	img_del_ip_by_list(ip);
 	mutex_unlock(&file->ips.mtx);
 
-	img_ip_free(ip);
+	img_ip_clean(ip);
+	img_ip_put(ip);
 
 	return 0;
 }

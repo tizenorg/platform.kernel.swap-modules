@@ -26,6 +26,7 @@
 
 #include <linux/types.h>
 #include <linux/mutex.h>
+#include <linux/kref.h>
 
 struct sspt_ip;
 struct sspt_file;
@@ -49,13 +50,19 @@ struct sspt_page {
 	} ip_list;
 
 	unsigned long offset;			/**< File offset */
+
+	struct kref ref;
 };
 
 struct sspt_page *sspt_page_create(unsigned long offset);
-void sspt_page_free(struct sspt_page *page);
+void sspt_page_clean(struct sspt_page *page);
+void sspt_page_get(struct sspt_page *page);
+void sspt_page_put(struct sspt_page *page);
 
-void sspt_add_ip(struct sspt_page *page, struct sspt_ip *ip);
-void sspt_del_ip(struct sspt_ip *ip);
+bool sspt_page_is_installed_ip(struct sspt_page *page, struct sspt_ip *ip);
+void sspt_page_add_ip(struct sspt_page *page, struct sspt_ip *ip);
+void sspt_page_lock(struct sspt_page *page);
+void sspt_page_unlock(struct sspt_page *page);
 
 bool sspt_page_is_installed(struct sspt_page *page);
 
