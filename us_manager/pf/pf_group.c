@@ -650,7 +650,6 @@ static void mmr_from_exit(struct sspt_proc *proc)
 	uninstall_proc(proc);
 
 	pfg_all_del_proc(proc);
-	sspt_reset_proc(proc->leader);
 }
 
 static void mmr_from_exec(struct sspt_proc *proc)

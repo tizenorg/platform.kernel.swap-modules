@@ -139,7 +139,6 @@ int sspt_proc_cb_set(struct sspt_proc_cb *cb);
 void sspt_proc_priv_create(struct sspt_proc *proc);
 void sspt_proc_priv_destroy(struct sspt_proc *proc);
 
-void sspt_reset_proc(struct task_struct *task);
 void sspt_change_leader(struct task_struct *prev, struct task_struct *next);
 int sspt_proc_init(void);
 void sspt_proc_uninit(void);

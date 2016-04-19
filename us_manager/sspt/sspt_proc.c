@@ -152,7 +152,7 @@ void sspt_change_leader(struct task_struct *prev, struct task_struct *next)
 	spin_unlock(&prev_kproc->lock);
 }
 
-void sspt_reset_proc(struct task_struct *task)
+static void sspt_reset_proc(struct task_struct *task)
 {
 	struct ktd_proc *kproc;
 
@@ -197,6 +197,14 @@ static struct sspt_proc *sspt_proc_create(struct task_struct *leader)
 	return proc;
 }
 
+static void sspt_proc_free(struct sspt_proc *proc)
+{
+	put_task_struct(proc->leader);
+	free_sm_us(proc->sm);
+	sspt_destroy_feature(proc->feature);
+	kfree(proc);
+}
+
 /**
  * @brief Remove sspt_proc struct
  *
@@ -221,6 +229,7 @@ void sspt_proc_cleanup(struct sspt_proc *proc)
 	sspt_destroy_feature(proc->feature);
 
 	free_sm_us(proc->sm);
+	sspt_reset_proc(proc->leader);
 	sspt_proc_put(proc);
 }
 
@@ -242,6 +251,8 @@ void sspt_proc_put(struct sspt_proc *proc)
 			put_task_struct(proc->__task);
 			proc->__task = NULL;
 		}
+
+		WARN_ON(kproc_by_task(proc->leader)->proc);
 
 		put_task_struct(proc->leader);
 		kfree(proc);
@@ -334,7 +345,7 @@ struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 	spin_unlock(&kproc->lock);
 
 	if (proc)
-		sspt_proc_cleanup(proc);
+		sspt_proc_free(proc);
 
 out:
 	return kproc->proc;
