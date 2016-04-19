@@ -508,11 +508,15 @@ static enum pf_inst_flag pfg_check_task(struct task_struct *task)
 
 	pfg_list_rlock();
 	list_for_each_entry(pfg, &pfg_list, list) {
+		bool put_flag = false;
+
 		if (check_task_f(&pfg->filter, task) == NULL)
 			continue;
 
-		if (proc == NULL)
+		if (proc == NULL) {
 			proc = sspt_proc_get_by_task(task);
+			put_flag = !!proc;
+		}
 
 		if (proc) {
 			flag = flag == PIF_NONE ? PIF_SECOND : flag;
@@ -522,6 +526,7 @@ static enum pf_inst_flag pfg_check_task(struct task_struct *task)
 				printk(KERN_ERR "cannot create sspt_proc\n");
 				break;
 			}
+			put_flag = true;
 			flag = PIF_FIRST;
 		}
 
@@ -534,7 +539,8 @@ static enum pf_inst_flag pfg_check_task(struct task_struct *task)
 					flag = flag == PIF_FIRST ? flag : PIF_ADD_PFG;
 			}
 			mutex_unlock(&proc->filters.mtx);
-			sspt_proc_put(proc);
+			if (put_flag)
+				sspt_proc_put(proc);
 		}
 	}
 	pfg_list_runlock();
