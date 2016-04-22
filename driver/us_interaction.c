@@ -70,7 +70,7 @@ int us_interaction_send_msg(const void *data, size_t size)
 	msg->len = size;
 	memcpy(msg->data, data, msg->len);
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(3, 14, 0)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(3, 14, 25)
 	ret = cn_netlink_send(msg, CN_DAEMON_GROUP, GFP_ATOMIC);
 #else /* LINUX_VERSION_CODE <= KERNEL_VERSION(3, 14, 0) */
 	ret = cn_netlink_send(msg, 0, CN_DAEMON_GROUP, GFP_ATOMIC);

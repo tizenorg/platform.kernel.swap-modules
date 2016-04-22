@@ -11,15 +11,23 @@ BuildRequires: perl
 BuildRequires: python
 Provides: swap-modules
 
-
-# setup kernel_path and build_arch
-%if "%tizen_target_name" == "TM1"
+%if "%{_repository}" == "emulator32"
+BuildRequires: emulator-kernel-devel
+    %define build_arch i386
+    %define kernel_path /usr/src/linux-kernel-build-3.14.25
+%else
+    %if "%{_repository}" == "arm"
 BuildRequires: kernel-devel-3.10-sc7730
-    %define build_arch arm
-    %define kernel_path /boot/kernel/devel/kernel-devel-tizen_tm1
-%else # TM1
-ExcludeArch: %{arm} %{ix86} aarch64 x86_64
-%endif # TM1
+        %define build_arch arm
+        %define kernel_path /boot/kernel/devel/kernel-devel-tizen_tm1
+    %else
+        %if "%{_repository}" == "arm-wayland"
+BuildRequires: arm-trats2-linux-kernel-devel
+            %define build_arch arm
+            %define kernel_path /usr/src/linux-kernel-build-3.10.60-arm-trats2
+        %endif
+    %endif
+%endif
 
 
 %description
