@@ -26,7 +26,7 @@ BuildRequires: arm-trats2-linux-kernel-devel
             %define build_arch arm
             %define kernel_path /usr/src/linux-kernel-build-3.10.60-arm-trats2
 	%else
-BuildRequires: REPOSITORY_%{_repository}_IS_NOT_SUPPORTED
+ExclusiveArch:
         %endif
     %endif
 %endif
