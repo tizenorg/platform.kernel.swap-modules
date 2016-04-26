@@ -289,7 +289,7 @@ void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
  */
 void restore_previous_kprobe(struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var(swap_current_kprobe) = kcb->prev_kprobe.kp;
+	swap_kprobe_running_set(kcb->prev_kprobe.kp);
 	kcb->kprobe_status = kcb->prev_kprobe.status;
 	kcb->prev_kprobe.kp = NULL;
 	kcb->prev_kprobe.status = 0;
@@ -307,8 +307,7 @@ void set_current_kprobe(struct kprobe *p,
 			struct pt_regs *regs,
 			struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var(swap_current_kprobe) = p;
-	DBPRINTF("set_current_kprobe[]: p=%p addr=%p\n", p, p->addr);
+	swap_kprobe_running_set(p);
 	kcb->kprobe_saved_eflags = kcb->kprobe_old_eflags =
 		(regs->EREG(flags) & (TF_MASK | IF_MASK));
 	if (is_IF_modifier(p->opcode))
@@ -321,7 +320,7 @@ static int setup_singlestep(struct kprobe *p, struct pt_regs *regs,
 #if !defined(CONFIG_PREEMPT) || defined(CONFIG_PM)
 	if (p->ainsn.boostable == 1 && !p->post_handler) {
 		/* Boost up -- we can execute copied instructions directly */
-		swap_reset_current_kprobe();
+		swap_kprobe_running_set(NULL);
 		regs->ip = (unsigned long)p->ainsn.insn;
 		swap_preempt_enable_no_resched();
 
@@ -384,7 +383,7 @@ static int __kprobe_handler(struct pt_regs *regs)
 				goto no_kprobe;
 			}
 
-			p = __get_cpu_var(swap_current_kprobe);
+			p = swap_kprobe_running();
 			if (p->break_handler && p->break_handler(p, regs))
 				goto ss_probe;
 
@@ -645,7 +644,7 @@ static int post_kprobe_handler(struct pt_regs *regs)
 		restore_previous_kprobe(kcb);
 		goto out;
 	}
-	swap_reset_current_kprobe();
+	swap_kprobe_running_set(NULL);
 out:
 	swap_preempt_enable_no_resched();
 
@@ -680,7 +679,7 @@ static int kprobe_fault_handler(struct pt_regs *regs, int trapnr)
 		if (kcb->kprobe_status == KPROBE_REENTER)
 			restore_previous_kprobe(kcb);
 		else
-			swap_reset_current_kprobe();
+			swap_kprobe_running_set(NULL);
 		swap_preempt_enable_no_resched();
 		break;
 	case KPROBE_HIT_ACTIVE:
@@ -925,7 +924,7 @@ int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb, void *data, size_t size)
 	/* jump to kjump_trampoline */
 	regs->ip = (unsigned long)&kjump_trampoline;
 
-	swap_reset_current_kprobe();
+	swap_kprobe_running_set(NULL);
 	swap_preempt_enable_no_resched();
 
 	return 1;

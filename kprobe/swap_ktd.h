@@ -45,9 +45,10 @@ void swap_ktd_unreg(struct ktask_data *ktd);
 
 void *swap_ktd(struct ktask_data *ktd, struct task_struct *task);
 
-int swap_ktd_once(void);
 int swap_ktd_init(void);
-void swap_ktd_uninit(void);
+void swap_ktd_uninit_top(void);
+void swap_ktd_uninit_bottom(void);
+void swap_ktd_put_task(struct task_struct *task);
 
 
 #endif /* _SWAP_TD_H */

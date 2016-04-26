@@ -377,7 +377,7 @@ void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *p_run)
  */
 void restore_previous_kprobe(struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var(swap_current_kprobe) = kcb->prev_kprobe.kp;
+	swap_kprobe_running_set(kcb->prev_kprobe.kp);
 	kcb->kprobe_status = kcb->prev_kprobe.status;
 }
 
@@ -393,8 +393,7 @@ void set_current_kprobe(struct kprobe *p,
 			struct pt_regs *regs,
 			struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var(swap_current_kprobe) = p;
-	DBPRINTF("set_current_kprobe: p=%p addr=%p\n", p, p->addr);
+	swap_kprobe_running_set(p);
 }
 
 static int kprobe_handler(struct pt_regs *regs)
@@ -431,7 +430,7 @@ static int kprobe_handler(struct pt_regs *regs)
 			if (!p->pre_handler || !p->pre_handler(p, regs)) {
 				kcb->kprobe_status = KPROBE_HIT_SS;
 				prepare_singlestep(p, regs);
-				swap_reset_current_kprobe();
+				swap_kprobe_running_set(NULL);
 			}
 		}
 	} else {
