@@ -343,7 +343,7 @@ int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
  * @param regs Pointer to CPU registers data.
  * @return Void.
  */
-void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
+static void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
 
@@ -354,7 +354,6 @@ void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
 		regs->ARM_pc = (unsigned long)p->ainsn.insn;
 	}
 }
-EXPORT_SYMBOL_GPL(prepare_singlestep);
 
 /**
  * @brief Saves previous kprobe.
@@ -458,7 +457,6 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	preempt_disable();
 
 	if (likely(instr == BREAKPOINT_INSTRUCTION)) {
 		ret = kprobe_handler(regs);
@@ -469,7 +467,6 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 		ret = p && (p->opcode == instr) ? 0 : 1;
 	}
 
-	swap_preempt_enable_no_resched();
 	local_irq_restore(flags);
 
 	return ret;

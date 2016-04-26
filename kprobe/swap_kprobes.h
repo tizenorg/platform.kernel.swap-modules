@@ -297,7 +297,6 @@ void swap_kprobe_running_set(struct kprobe *p);
 void swap_reset_current_kprobe(void);
 struct kprobe_ctlblk *swap_get_kprobe_ctlblk(void);
 
-void prepare_singlestep(struct kprobe *p, struct pt_regs *regs);
 
 #endif /* _SWAP_KPROBES_H */
 

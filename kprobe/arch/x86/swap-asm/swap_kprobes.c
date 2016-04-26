@@ -239,25 +239,17 @@ int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
  * @param regs Pointer to CPU registers data.
  * @return Void.
  */
-void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
+static void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
 {
-	int cpu = smp_processor_id();
+	regs->flags |= TF_MASK;
+	regs->flags &= ~IF_MASK;
 
-	if (p->ss_addr[cpu]) {
-		regs->EREG(ip) = (unsigned long)p->ss_addr[cpu];
-		p->ss_addr[cpu] = NULL;
-	} else {
-		regs->EREG(flags) |= TF_MASK;
-		regs->EREG(flags) &= ~IF_MASK;
-		/* single step inline if the instruction is an int3 */
-		if (p->opcode == BREAKPOINT_INSTRUCTION) {
-			regs->EREG(ip) = (unsigned long) p->addr;
-			/* printk(KERN_INFO "break_insn!!!\n"); */
-		} else
-			regs->EREG(ip) = (unsigned long) p->ainsn.insn;
-	}
+	/* single step inline if the instruction is an int3 */
+	if (p->opcode == BREAKPOINT_INSTRUCTION)
+		regs->ip = (unsigned long)p->addr;
+	else
+		regs->ip = (unsigned long)p->ainsn.insn;
 }
-EXPORT_SYMBOL_GPL(prepare_singlestep);
 
 /**
  * @brief Saves previous kprobe.
@@ -322,7 +314,6 @@ static int setup_singlestep(struct kprobe *p, struct pt_regs *regs,
 		/* Boost up -- we can execute copied instructions directly */
 		swap_kprobe_running_set(NULL);
 		regs->ip = (unsigned long)p->ainsn.insn;
-		swap_preempt_enable_no_resched();
 
 		return 1;
 	}
@@ -342,8 +333,6 @@ static int __kprobe_handler(struct pt_regs *regs)
 	struct kprobe_ctlblk *kcb;
 
 	addr = (kprobe_opcode_t *) (regs->EREG(ip) - sizeof(kprobe_opcode_t));
-
-	preempt_disable();
 
 	kcb = swap_get_kprobe_ctlblk();
 	p = swap_get_kprobe(addr);
@@ -430,8 +419,6 @@ ss_probe:
 	return 1;
 
 no_kprobe:
-	swap_preempt_enable_no_resched();
-
 	return ret;
 }
 
@@ -646,8 +633,6 @@ static int post_kprobe_handler(struct pt_regs *regs)
 	}
 	swap_kprobe_running_set(NULL);
 out:
-	swap_preempt_enable_no_resched();
-
 	/*
 	 * if somebody else is singlestepping across a probe point, eflags
 	 * will have TF set, in which case, continue the remaining processing
@@ -680,7 +665,6 @@ static int kprobe_fault_handler(struct pt_regs *regs, int trapnr)
 			restore_previous_kprobe(kcb);
 		else
 			swap_kprobe_running_set(NULL);
-		swap_preempt_enable_no_resched();
 		break;
 	case KPROBE_HIT_ACTIVE:
 	case KPROBE_HIT_SSDONE:
@@ -749,12 +733,9 @@ static int kprobe_exceptions_notify(struct notifier_block *self,
 			ret = NOTIFY_STOP;
 		break;
 	case DIE_GPF:
-		/* swap_kprobe_running() needs smp_processor_id() */
-		preempt_disable();
 		if (swap_kprobe_running() &&
 		    kprobe_fault_handler(args->regs, args->trapnr))
 			ret = NOTIFY_STOP;
-		preempt_enable();
 		break;
 	default:
 		break;
@@ -803,7 +784,6 @@ int swap_longjmp_break_handler(struct kprobe *p, struct pt_regs *regs)
 		*regs = kcb->jprobe_saved_regs;
 		memcpy((kprobe_opcode_t *) stack_addr, kcb->jprobes_stack,
 		       MIN_STACK_SIZE(stack_addr));
-		swap_preempt_enable_no_resched();
 		return 1;
 	}
 
@@ -925,7 +905,6 @@ int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb, void *data, size_t size)
 	regs->ip = (unsigned long)&kjump_trampoline;
 
 	swap_kprobe_running_set(NULL);
-	swap_preempt_enable_no_resched();
 
 	return 1;
 }

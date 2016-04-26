@@ -768,7 +768,6 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 
 	trampoline_address = (unsigned long)&swap_kretprobe_trampoline;
 
-	preempt_disable();
 	kcb = swap_get_kprobe_ctlblk();
 
 	spin_lock_irqsave(&kretprobe_lock, flags);
@@ -830,7 +829,6 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 		swap_kprobe_running_set(NULL);
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
-	swap_preempt_enable_no_resched();
 
 	/*
 	 * By returning a non-zero value, we are telling
