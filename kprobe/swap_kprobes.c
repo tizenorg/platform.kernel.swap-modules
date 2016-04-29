@@ -544,6 +544,8 @@ static int register_aggr_kprobe(struct kprobe *old_p, struct kprobe *p)
 #endif
 		if (!ap)
 			return -ENOMEM;
+
+		atomic_set(&ap->usage, 0);
 		add_aggr_kprobe(ap, old_p);
 		copy_kprobe(ap, p);
 		DBPRINTF("ap = %p p = %p old_p = %p\n", ap, p, old_p);
@@ -557,6 +559,12 @@ static void remove_kprobe(struct kprobe *p)
 {
 	/* TODO: check boostable for x86 and MIPS */
 	swap_slot_free(&sm, p->ainsn.insn);
+}
+
+static void wait_kp(struct kprobe *p)
+{
+	while (atomic_read(&p->usage))
+		schedule();
 }
 
 /**
@@ -588,6 +596,7 @@ int swap_register_kprobe(struct kprobe *p)
 
 	p->nmissed = 0;
 	INIT_LIST_HEAD(&p->list);
+	atomic_set(&p->usage, 0);
 
 	old_p = swap_get_kprobe(p->addr);
 	if (old_p) {
@@ -616,14 +625,15 @@ static void swap_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
 {
 	struct kprobe *list_p;
 
+	BUG_ON(in_atomic());
+
 	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_handler) &&
 	    (p->list.next == &old_p->list) && (p->list.prev == &old_p->list))) {
 		/* Only probe on the hash list */
 		swap_arch_disarm_kprobe(p);
 
-		/* FIXME: move sync out from atomic context */
-		if (!in_atomic())
-			synchronize_sched();
+		synchronize_sched();
+		wait_kp(old_p);
 
 		hlist_del_rcu(&old_p->hlist);
 		remove_kprobe(old_p);
@@ -641,11 +651,13 @@ static void swap_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
 		if (p->post_handler) {
 			list_for_each_entry_rcu(list_p, &old_p->list, list)
 				if (list_p->post_handler)
-					return;
+					goto out;
 
 			old_p->post_handler = NULL;
 		}
 	}
+
+out:
 	/* Set NULL addr for reusability if symbol_name is used */
 	if (p->symbol_name)
 		p->addr = NULL;

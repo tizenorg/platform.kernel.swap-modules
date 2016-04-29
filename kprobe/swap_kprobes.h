@@ -151,6 +151,7 @@ struct kprobe {
 	 * NULL if original function should be called.
 	 * Not supported for X86, not tested for MIPS. */
 	kprobe_opcode_t					*ss_addr[NR_CPUS];
+	atomic_t usage;
 };
 
 /**
@@ -250,6 +251,17 @@ extern void swap_kprobes_inc_nmissed_count(struct kprobe *p);
 /* #define KPROBE_HASH_BITS 6 */
 #define KPROBE_HASH_BITS 16
 #define KPROBE_TABLE_SIZE (1 << KPROBE_HASH_BITS)
+
+
+static void inline get_kp(struct kprobe *p)
+{
+	atomic_inc(&p->usage);
+}
+
+static void inline put_kp(struct kprobe *p)
+{
+	atomic_dec(&p->usage);
+}
 
 
 /* Get the kprobe at this addr (if any) - called with preemption disabled */

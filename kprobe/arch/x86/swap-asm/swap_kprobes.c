@@ -35,7 +35,7 @@
 
 #include "swap_kprobes.h"
 #include <kprobe/swap_kprobes.h>
-
+#include <kprobe/swap_td_raw.h>
 #include <kprobe/swap_kdebug.h>
 #include <kprobe/swap_slots.h>
 #include <kprobe/swap_kprobes_deps.h>
@@ -325,10 +325,25 @@ static int setup_singlestep(struct kprobe *p, struct pt_regs *regs,
 	return 1;
 }
 
+
+static struct td_raw kp_tdraw;
+
+static struct pt_regs *current_regs(void)
+{
+	return (struct pt_regs *)swap_td_raw(&kp_tdraw, current);
+}
+
+
+void restore_int3(void);
+__asm(
+	"restore_int3:\n"
+	"int3\n"
+);
+
 static int __kprobe_handler(struct pt_regs *regs)
 {
 	struct kprobe *p = 0;
-	int ret = 0, reenter = 0;
+	int ret = 0;
 	kprobe_opcode_t *addr = NULL;
 	struct kprobe_ctlblk *kcb;
 
@@ -360,7 +375,7 @@ static int __kprobe_handler(struct pt_regs *regs)
 			prepare_singlestep(p, regs);
 			kcb->kprobe_status = KPROBE_REENTER;
 
-			return 1;
+			goto out_get_kp_if_TF;
 		} else {
 			if (*addr != BREAKPOINT_INSTRUCTION) {
 				/* The breakpoint instruction was removed by
@@ -403,18 +418,22 @@ static int __kprobe_handler(struct pt_regs *regs)
 	}
 
 	set_current_kprobe(p, regs, kcb);
+	kcb->kprobe_status = KPROBE_HIT_ACTIVE;
 
-	if (!reenter)
-		kcb->kprobe_status = KPROBE_HIT_ACTIVE;
+	/* save regs to stack */
+	*current_regs() = *regs;
 
-	if (p->pre_handler) {
-		ret = p->pre_handler(p, regs);
-		if (ret)
-			return ret;
-	}
+	regs->ip = (unsigned long)restore_int3;
+	get_kp(p);
+
+	return 1;
 
 ss_probe:
 	setup_singlestep(p, regs, kcb);
+
+out_get_kp_if_TF:
+	if ((regs->flags & TF_MASK))
+		get_kp(p);
 
 	return 1;
 
@@ -422,11 +441,39 @@ no_kprobe:
 	return ret;
 }
 
+static int restore_handler(struct pt_regs *regs)
+{
+	struct kprobe *p = swap_kprobe_running();
+	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
+
+	/* restore regs from stack */
+	*regs = *current_regs();
+
+	if (p->pre_handler) {
+		int ret;
+
+		ret = p->pre_handler(p, regs);
+		if (ret) {
+			put_kp(p);
+			return ret;
+		}
+	}
+
+	setup_singlestep(p, regs, kcb);
+	if (!(regs->flags & TF_MASK))
+		put_kp(p);
+
+	return 1;
+}
+
 static int kprobe_handler(struct pt_regs *regs)
 {
 	int ret;
 
-	ret = __kprobe_handler(regs);
+	if (regs->ip == (unsigned long)restore_int3 + 1)
+		ret = restore_handler(regs);
+	else
+		ret = __kprobe_handler(regs);
 
 	return ret;
 }
@@ -616,6 +663,9 @@ static int post_kprobe_handler(struct pt_regs *regs)
 
 	if (!cur)
 		return 0;
+
+	put_kp(cur);
+
 	if ((kcb->kprobe_status != KPROBE_REENTER) && cur->post_handler) {
 		kcb->kprobe_status = KPROBE_HIT_SSDONE;
 		cur->post_handler(cur, regs, 0);
@@ -1085,14 +1135,24 @@ int swap_arch_init_kprobes(void)
 {
 	int ret;
 
-	ret = register_die_notifier(&kprobe_exceptions_nb);
+	ret = swap_td_raw_reg(&kp_tdraw, sizeof(struct pt_regs));
 	if (ret)
 		return ret;
 
+	ret = register_die_notifier(&kprobe_exceptions_nb);
+	if (ret)
+		goto unreg_tdraw;
+
 	ret = kjump_init();
 	if (ret)
-		unregister_die_notifier(&kprobe_exceptions_nb);
+		goto unreg_die;
 
+	return 0;
+
+unreg_die:
+	unregister_die_notifier(&kprobe_exceptions_nb);
+unreg_tdraw:
+	swap_td_raw_unreg(&kp_tdraw);
 	return ret;
 }
 
@@ -1105,4 +1165,5 @@ void swap_arch_exit_kprobes(void)
 {
 	kjump_exit();
 	unregister_die_notifier(&kprobe_exceptions_nb);
+	swap_td_raw_unreg(&kp_tdraw);
 }
