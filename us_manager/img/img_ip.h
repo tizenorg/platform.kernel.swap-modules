@@ -28,6 +28,7 @@
 
 #include <linux/types.h>
 #include <linux/kref.h>
+#include <linux/mutex.h>
 
 
 struct sspt_ip;
