@@ -707,8 +707,8 @@ int swap_arch_init_uprobes(void)
 		goto not_found;
 
 	sym = "do_exit";
-	kp_do_exit.addr = (void *)swap_ksyms(sym);
-	if (kp_do_exit.addr == NULL)
+	kp_do_exit.addr = swap_ksyms(sym);
+	if (kp_do_exit.addr == 0)
 		goto not_found;
 
 	ret = swap_td_raw_reg(&td_raw, sizeof(struct uprobe_ctlblk));

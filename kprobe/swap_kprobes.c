@@ -41,7 +41,7 @@
 #include <linux/mm.h>
 #include <linux/pagemap.h>
 #include <linux/stop_machine.h>
-
+#include <linux/delay.h>
 #include <ksyms/ksyms.h>
 #include <master/swap_initializer.h>
 #include <swap-asm/swap_kprobes.h>
@@ -72,7 +72,7 @@ struct slot_manager sm;
 
 static DEFINE_SPINLOCK(kretprobe_lock);	/* Protects kretprobe_inst_table */
 
-struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
+static struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 static struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
 
 /**
@@ -119,6 +119,11 @@ static void exit_sm(void)
 	/* FIXME: free */
 }
 
+static struct hlist_head *kpt_head_by_addr(unsigned long addr)
+{
+	return &kprobe_table[hash_ptr((void *)addr, KPROBE_HASH_BITS)];
+}
+
 static void kretprobe_assert(struct kretprobe_instance *ri,
 			     unsigned long orig_ret_address,
 			     unsigned long trampoline_address)
@@ -137,42 +142,46 @@ static void kretprobe_assert(struct kretprobe_instance *ri,
 			panic("kretprobe BUG!: ri->rp = NULL\n");
 
 		panic("kretprobe BUG!: "
-		      "Processing kretprobe %p @ %p (%d/%d - %s)\n",
+		      "Processing kretprobe %p @ %08lx (%d/%d - %s)\n",
 		      ri->rp, ri->rp->kp.addr, ri->task->tgid,
 		      ri->task->pid, ri->task->comm);
 	}
 }
 
-struct kp_data {
-	struct kprobe *running;
-	struct kprobe *instance;
-	struct kprobe_ctlblk ctlblk;
+struct kpc_data {
+	struct kp_core *running;
+	struct kp_core_ctlblk ctlblk;
 };
 
 static void ktd_cur_init(struct task_struct *task, void *data)
 {
-	struct kp_data *d = (struct kp_data *)data;
+	struct kpc_data *d = (struct kpc_data *)data;
 
 	memset(d, 0, sizeof(*d));
 }
 
 static void ktd_cur_exit(struct task_struct *task, void *data)
 {
-	struct kp_data *d = (struct kp_data *)data;
+	struct kpc_data *d = (struct kpc_data *)data;
 
 	WARN(d->running, "running probe is not NULL");
-	WARN(d->instance, "instance probe is not NULL");
 }
 
 struct ktask_data ktd_cur = {
 	.init = ktd_cur_init,
 	.exit = ktd_cur_exit,
-	.size = sizeof(struct kp_data),
+	.size = sizeof(struct kpc_data),
 };
 
-static struct kp_data *kprobe_data(void)
+static DEFINE_PER_CPU(struct kpc_data, per_cpu_kpc_data);
+
+static struct kpc_data *kp_core_data(void)
 {
-	return (struct kp_data *)swap_ktd(&ktd_cur, current);
+	if (in_interrupt()) {
+		return &__get_cpu_var(per_cpu_kpc_data);
+	} else {
+		return (struct kpc_data *)swap_ktd(&ktd_cur, current);
+	}
 }
 
 static int kprobe_cur_reg(void)
@@ -185,46 +194,24 @@ static void kprobe_cur_unreg(void)
 	swap_ktd_unreg(&ktd_cur);
 }
 
-
-static struct kprobe *kprobe_instance(void)
+struct kp_core *kp_core_running(void)
 {
-	return kprobe_data()->instance;
+	return kp_core_data()->running;
 }
 
-static void kprobe_instance_set(struct kprobe *p)
+void kp_core_running_set(struct kp_core *p)
 {
-	kprobe_data()->instance = p;
-}
-
-
-struct kprobe *swap_kprobe_running(void)
-{
-	return kprobe_data()->running;
-}
-
-void swap_kprobe_running_set(struct kprobe *p)
-{
-	kprobe_data()->running = p;
+	kp_core_data()->running = p;
 }
 
 /**
- * @brief Sets the current kprobe to NULL.
+ * @brief Gets kp_core_ctlblk for the current CPU.
  *
- * @return Void.
+ * @return Current CPU struct kp_core_ctlblk.
  */
-void swap_reset_current_kprobe(void)
+struct kp_core_ctlblk *kp_core_ctlblk(void)
 {
-	swap_kprobe_running_set(NULL);
-}
-
-/**
- * @brief Gets kprobe_ctlblk for the current CPU.
- *
- * @return Current CPU struct kprobe_ctlblk.
- */
-struct kprobe_ctlblk *swap_get_kprobe_ctlblk(void)
-{
-	return &kprobe_data()->ctlblk;
+	return &kp_core_data()->ctlblk;
 }
 
 /*
@@ -235,116 +222,26 @@ struct kprobe_ctlblk *swap_get_kprobe_ctlblk(void)
  */
 
 /**
- * @brief Gets kprobe.
+ * @brief Gets kp_core.
  *
  * @param addr Probe address.
- * @return Kprobe for addr.
+ * @return kprobe_core for addr.
  */
-struct kprobe *swap_get_kprobe(void *addr)
+struct kp_core *kp_core_by_addr(unsigned long addr)
 {
 	struct hlist_head *head;
-	struct kprobe *p;
+	struct kp_core *core;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
-	head = &kprobe_table[hash_ptr(addr, KPROBE_HASH_BITS)];
-	swap_hlist_for_each_entry_rcu(p, node, head, hlist) {
-		if (p->addr == addr)
-			return p;
+	head = kpt_head_by_addr(addr);
+	swap_hlist_for_each_entry_rcu(core, node, head, hlist) {
+		if (core->addr == addr)
+			return core;
 	}
 
 	return NULL;
 }
 
-/*
- * Aggregate handlers for multiple kprobes support - these handlers
- * take care of invoking the individual kprobe handlers on p->list
- */
-static int aggr_pre_handler(struct kprobe *p, struct pt_regs *regs)
-{
-	struct kprobe *kp;
-	int ret;
-
-	list_for_each_entry_rcu(kp, &p->list, list) {
-		if (kp->pre_handler) {
-			kprobe_instance_set(kp);
-			ret = kp->pre_handler(kp, regs);
-			if (ret)
-				return ret;
-		}
-		kprobe_instance_set(NULL);
-	}
-
-	return 0;
-}
-
-static void aggr_post_handler(struct kprobe *p,
-			      struct pt_regs *regs,
-			      unsigned long flags)
-{
-	struct kprobe *kp;
-
-	list_for_each_entry_rcu(kp, &p->list, list) {
-		if (kp->post_handler) {
-			kprobe_instance_set(kp);
-			kp->post_handler(kp, regs, flags);
-			kprobe_instance_set(NULL);
-		}
-	}
-}
-
-static int aggr_fault_handler(struct kprobe *p,
-			      struct pt_regs *regs,
-			      int trapnr)
-{
-	struct kprobe *cur = kprobe_instance();
-
-	/*
-	 * if we faulted "during" the execution of a user specified
-	 * probe handler, invoke just that probe's fault handler
-	 */
-	if (cur && cur->fault_handler) {
-		if (cur->fault_handler(cur, regs, trapnr))
-			return 1;
-	}
-
-	return 0;
-}
-
-static int aggr_break_handler(struct kprobe *p, struct pt_regs *regs)
-{
-	struct kprobe *cur = kprobe_instance();
-	int ret = 0;
-	DBPRINTF("cur = 0x%p\n", cur);
-	if (cur)
-		DBPRINTF("cur = 0x%p cur->break_handler = 0x%p\n",
-			 cur, cur->break_handler);
-
-	if (cur && cur->break_handler) {
-		if (cur->break_handler(cur, regs))
-			ret = 1;
-	}
-	kprobe_instance_set(NULL);
-
-	return ret;
-}
-
-/**
- * @brief Walks the list and increments nmissed count for multiprobe case.
- *
- * @param p Pointer to the missed kprobe.
- * @return Void.
- */
-void swap_kprobes_inc_nmissed_count(struct kprobe *p)
-{
-	struct kprobe *kp;
-	if (p->pre_handler != aggr_pre_handler) {
-		p->nmissed++;
-	} else {
-		list_for_each_entry_rcu(kp, &p->list, list) {
-			++kp->nmissed;
-		}
-	}
-}
 
 static int alloc_nodes_kretprobe(struct kretprobe *rp);
 
@@ -443,130 +340,130 @@ static void free_rp_inst(struct kretprobe *rp)
 	}
 }
 
-/*
- * Keep all fields in the kprobe consistent
- */
-static inline void copy_kprobe(struct kprobe *old_p, struct kprobe *p)
+static void kp_core_remove(struct kp_core *core)
 {
-	memcpy(&p->opcode, &old_p->opcode, sizeof(kprobe_opcode_t));
-	memcpy(&p->ainsn, &old_p->ainsn, sizeof(struct arch_specific_insn));
+	/* TODO: check boostable for x86 and MIPS */
+	swap_slot_free(&sm, core->ainsn.insn);
 }
 
-/*
- * Add the new probe to old_p->list. Fail if this is the
- * second jprobe at the address - two jprobes can't coexist
- */
-static int add_new_kprobe(struct kprobe *old_p, struct kprobe *p)
+static void kp_core_wait(struct kp_core *p)
 {
-	if (p->break_handler) {
-		if (old_p->break_handler)
-			return -EEXIST;
+	int ms = 1;
 
-		list_add_tail_rcu(&p->list, &old_p->list);
-		old_p->break_handler = aggr_break_handler;
-	} else {
-		list_add_rcu(&p->list, &old_p->list);
+	while (atomic_read(&p->usage)) {
+		msleep(ms);
+		ms += ms < 7 ? 1 : 0;
+	}
+}
+
+static struct kp_core *kp_core_create(unsigned long addr)
+{
+	struct kp_core *core;
+
+	core = kzalloc(sizeof(*core), GFP_KERNEL);
+	if (core) {
+		INIT_HLIST_NODE(&core->hlist);
+		core->addr = addr;
+		atomic_set(&core->usage, 0);
+		rwlock_init(&core->handlers.lock);
 	}
 
-	if (p->post_handler && !old_p->post_handler)
-		old_p->post_handler = aggr_post_handler;
-
-	return 0;
+	return core;
 }
 
-/**
- * hlist_replace_rcu - replace old entry by new one
- * @old : the element to be replaced
- * @new : the new element to insert
- *
- * The @old entry will be replaced with the @new entry atomically.
- */
-inline void swap_hlist_replace_rcu(struct hlist_node *old,
-				   struct hlist_node *new)
+static void kp_core_free(struct kp_core *core)
 {
-	struct hlist_node *next = old->next;
-
-	new->next = next;
-	new->pprev = old->pprev;
-	smp_wmb();
-	if (next)
-		new->next->pprev = &new->next;
-	if (new->pprev)
-		*new->pprev = new;
-	old->pprev = LIST_POISON2;
+	WARN_ON(atomic_read(&core->usage));
+	kfree(core);
 }
 
-/*
- * Fill in the required fields of the "manager kprobe". Replace the
- * earlier kprobe in the hlist with the manager kprobe
- */
-static inline void add_aggr_kprobe(struct kprobe *ap, struct kprobe *p)
-{
-	copy_kprobe(p, ap);
-	ap->addr = p->addr;
-	ap->pre_handler = aggr_pre_handler;
-	ap->fault_handler = aggr_fault_handler;
-	if (p->post_handler)
-		ap->post_handler = aggr_post_handler;
-	if (p->break_handler)
-		ap->break_handler = aggr_break_handler;
-
-	INIT_LIST_HEAD(&ap->list);
-	list_add_rcu(&p->list, &ap->list);
-
-	swap_hlist_replace_rcu(&p->hlist, &ap->hlist);
-}
-
-/*
- * This is the second or subsequent kprobe at the address - handle
- * the intricacies
- */
-static int register_aggr_kprobe(struct kprobe *old_p, struct kprobe *p)
+static int pre_handler_one(struct kp_core *core, struct pt_regs *regs)
 {
 	int ret = 0;
-	struct kprobe *ap;
-	DBPRINTF("start\n");
+	struct kprobe *p = core->handlers.kps[0];
 
-	DBPRINTF("p = %p old_p = %p\n", p, old_p);
-	if (old_p->pre_handler == aggr_pre_handler) {
-		DBPRINTF("aggr_pre_handler\n");
+	if (p->pre_handler)
+		ret = p->pre_handler(p, regs);
 
-		copy_kprobe(old_p, p);
-		ret = add_new_kprobe(old_p, p);
-	} else {
-		DBPRINTF("kzalloc\n");
-#ifdef kzalloc
-		ap = kzalloc(sizeof(struct kprobe), GFP_KERNEL);
-#else
-		ap = kmalloc(sizeof(struct kprobe), GFP_KERNEL);
-		if (ap)
-			memset(ap, 0, sizeof(struct kprobe));
-#endif
-		if (!ap)
-			return -ENOMEM;
+	return ret;
+}
 
-		atomic_set(&ap->usage, 0);
-		add_aggr_kprobe(ap, old_p);
-		copy_kprobe(ap, p);
-		DBPRINTF("ap = %p p = %p old_p = %p\n", ap, p, old_p);
-		ret = add_new_kprobe(ap, p);
+static int pre_handler_multi(struct kp_core *core, struct pt_regs *regs)
+{
+	int i, ret = 0;
+
+	/* TODO: add sync use kprobe */
+	for (i = 0; i < ARRAY_SIZE(core->handlers.kps); ++i) {
+		struct kprobe *p = core->handlers.kps[i];
+
+		if (p && p->pre_handler) {
+			ret = p->pre_handler(p, regs);
+			if (ret)
+				break;
+		}
 	}
 
 	return ret;
 }
 
-static void remove_kprobe(struct kprobe *p)
+static int kp_core_add_kprobe(struct kp_core *core, struct kprobe *p)
 {
-	/* TODO: check boostable for x86 and MIPS */
-	swap_slot_free(&sm, p->ainsn.insn);
+	int i, ret = 0;
+	unsigned long flags;
+	struct kp_handlers *h = &core->handlers;
+
+	write_lock_irqsave(&h->lock, flags);
+	if (h->pre == NULL) {
+		h->pre = pre_handler_one;
+	} else if (h->pre == pre_handler_one) {
+		h->pre = pre_handler_multi;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(core->handlers.kps); ++i) {
+		if (core->handlers.kps[i])
+			continue;
+
+		core->handlers.kps[i] = p;
+		goto unlock;
+	}
+
+	pr_err("all kps slots is busy\n");
+	ret = -EBUSY;
+unlock:
+	write_unlock_irqrestore(&h->lock, flags);
+	return ret;
 }
 
-static void wait_kp(struct kprobe *p)
+static void kp_core_del_kprobe(struct kp_core *core, struct kprobe *p)
 {
-	while (atomic_read(&p->usage))
-		schedule();
+	int i, cnt = 0;
+	unsigned long flags;
+	struct kp_handlers *h = &core->handlers;
+
+	write_lock_irqsave(&h->lock, flags);
+	for (i = 0; i < ARRAY_SIZE(h->kps); ++i) {
+		if (h->kps[i] == p)
+			h->kps[i] = NULL;
+
+		if (h->kps[i] == NULL)
+			++cnt;
+	}
+	write_unlock_irqrestore(&h->lock, flags);
+
+	if (cnt == ARRAY_SIZE(h->kps)) {
+		arch_kp_core_disarm(core);
+		synchronize_sched();
+
+		hlist_del_rcu(&core->hlist);
+		synchronize_rcu();
+
+		kp_core_wait(core);
+		kp_core_remove(core);
+		kp_core_free(core);
+	}
 }
 
+static DEFINE_MUTEX(kp_mtx);
 /**
  * @brief Registers kprobe.
  *
@@ -575,7 +472,8 @@ static void wait_kp(struct kprobe *p)
  */
 int swap_register_kprobe(struct kprobe *p)
 {
-	struct kprobe *old_p;
+	struct kp_core *core;
+	unsigned long addr;
 	int ret = 0;
 	/*
 	 * If we have a symbol_name argument look it up,
@@ -585,83 +483,45 @@ int swap_register_kprobe(struct kprobe *p)
 	if (p->symbol_name) {
 		if (p->addr)
 			return -EINVAL;
-		p->addr = (kprobe_opcode_t *)swap_ksyms(p->symbol_name);
+		p->addr = swap_ksyms(p->symbol_name);
 	}
 
 	if (!p->addr)
 		return -EINVAL;
-	DBPRINTF("p->addr = 0x%p\n", p->addr);
-	p->addr = (kprobe_opcode_t *)(((char *)p->addr) + p->offset);
-	DBPRINTF("p->addr = 0x%p p = 0x%p\n", p->addr, p);
 
-	p->nmissed = 0;
-	INIT_LIST_HEAD(&p->list);
-	atomic_set(&p->usage, 0);
+	addr = p->addr + p->offset;
 
-	old_p = swap_get_kprobe(p->addr);
-	if (old_p) {
-		ret = register_aggr_kprobe(old_p, p);
-		if (!ret)
-			atomic_inc(&kprobe_count);
-		goto out;
+	mutex_lock(&kp_mtx);
+	core = kp_core_by_addr(addr);
+	if (core == NULL) {
+		core = kp_core_create(addr);
+		if (core == NULL) {
+			pr_err("Out of memory\n");
+			ret = -ENOMEM;
+			goto unlock;
+		}
+
+		ret = arch_kp_core_prepare(core, &sm);
+		if (ret)
+			goto unlock;
+
+		ret = kp_core_add_kprobe(core, p);
+		if (ret) {
+			kp_core_free(core);
+			goto unlock;
+		}
+
+		hlist_add_head_rcu(&core->hlist, kpt_head_by_addr(core->addr));
+		arch_kp_core_arm(core);
+	} else {
+		ret = kp_core_add_kprobe(core, p);
 	}
-	ret = swap_arch_prepare_kprobe(p, &sm);
-	if (ret != 0)
-		goto out;
 
-	DBPRINTF("before out ret = 0x%x\n", ret);
-	INIT_HLIST_NODE(&p->hlist);
-	hlist_add_head_rcu(&p->hlist,
-			   &kprobe_table[hash_ptr(p->addr, KPROBE_HASH_BITS)]);
-	swap_arch_arm_kprobe(p);
-
-out:
-	DBPRINTF("out ret = 0x%x\n", ret);
+unlock:
+	mutex_unlock(&kp_mtx);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(swap_register_kprobe);
-
-static void swap_unregister_valid_kprobe(struct kprobe *p, struct kprobe *old_p)
-{
-	struct kprobe *list_p;
-
-	BUG_ON(in_atomic());
-
-	if ((old_p == p) || ((old_p->pre_handler == aggr_pre_handler) &&
-	    (p->list.next == &old_p->list) && (p->list.prev == &old_p->list))) {
-		/* Only probe on the hash list */
-		swap_arch_disarm_kprobe(p);
-
-		synchronize_sched();
-		wait_kp(old_p);
-
-		hlist_del_rcu(&old_p->hlist);
-		remove_kprobe(old_p);
-
-		if (p != old_p) {
-			list_del_rcu(&old_p->list);
-			kfree(old_p);
-		}
-		/* Synchronize and remove probe in bottom */
-	} else {
-		list_del_rcu(&p->list);
-
-		if (p->break_handler)
-			old_p->break_handler = NULL;
-		if (p->post_handler) {
-			list_for_each_entry_rcu(list_p, &old_p->list, list)
-				if (list_p->post_handler)
-					goto out;
-
-			old_p->post_handler = NULL;
-		}
-	}
-
-out:
-	/* Set NULL addr for reusability if symbol_name is used */
-	if (p->symbol_name)
-		p->addr = NULL;
-}
 
 /**
  * @brief Unregistes kprobe.
@@ -669,24 +529,21 @@ out:
  * @param kp Pointer to the target kprobe.
  * @return Void.
  */
-void swap_unregister_kprobe(struct kprobe *kp)
+void swap_unregister_kprobe(struct kprobe *p)
 {
-	struct kprobe *old_p, *list_p;
+	unsigned long addr = p->addr + p->offset;
+	struct kp_core *core;
 
-	old_p = swap_get_kprobe(kp->addr);
-	if (unlikely(!old_p))
-		return;
+	mutex_lock(&kp_mtx);
+	core = kp_core_by_addr(addr);
+	BUG_ON(core == NULL);
 
-	if (kp != old_p) {
-		list_for_each_entry_rcu(list_p, &old_p->list, list)
-			if (list_p == kp)
-				goto unreg_valid_kprobe;
-		/* kprobe invalid */
-		return;
-	}
+	kp_core_del_kprobe(core, p);
+	mutex_unlock(&kp_mtx);
 
-unreg_valid_kprobe:
-	swap_unregister_valid_kprobe(kp, old_p);
+	/* Set 0 addr for reusability if symbol_name is used */
+	if (p->symbol_name)
+		p->addr = 0;
 }
 EXPORT_SYMBOL_GPL(swap_unregister_kprobe);
 
@@ -700,7 +557,6 @@ int swap_register_jprobe(struct jprobe *jp)
 {
 	/* Todo: Verify probepoint is a function entry point */
 	jp->kp.pre_handler = swap_setjmp_pre_handler;
-	jp->kp.break_handler = swap_longjmp_break_handler;
 
 	return swap_register_kprobe(&jp->kp);
 }
@@ -773,14 +629,14 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	unsigned long flags, orig_ret_address = 0;
 	unsigned long trampoline_address;
 
-	struct kprobe_ctlblk *kcb;
+	struct kp_core_ctlblk *kcb;
 
 	struct hlist_node *tmp;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
 	trampoline_address = (unsigned long)&swap_kretprobe_trampoline;
 
-	kcb = swap_get_kprobe_ctlblk();
+	kcb = kp_core_ctlblk();
 
 	spin_lock_irqsave(&kretprobe_lock, flags);
 
@@ -816,11 +672,14 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 			/* another task is sharing our hash bucket */
 			continue;
 		if (ri->rp && ri->rp->handler) {
-			swap_kprobe_running_set(&ri->rp->kp);
-			swap_get_kprobe_ctlblk()->kprobe_status =
-				KPROBE_HIT_ACTIVE;
+			/*
+			 * Set fake current probe, we don't
+			 * want to go into recursion
+			 */
+			kp_core_running_set((struct kp_core *)0xfffff);
+			kcb->kp_core_status = KPROBE_HIT_ACTIVE;
 			ri->rp->handler(ri, regs);
-			swap_kprobe_running_set(NULL);
+			kp_core_running_set(NULL);
 		}
 
 		orig_ret_address = (unsigned long)ri->ret_addr;
@@ -835,10 +694,10 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	}
 	kretprobe_assert(ri, orig_ret_address, trampoline_address);
 
-	if (kcb->kprobe_status == KPROBE_REENTER)
-		restore_previous_kprobe(kcb);
+	if (kcb->kp_core_status == KPROBE_REENTER)
+		restore_previous_kp_core(kcb);
 	else
-		swap_kprobe_running_set(NULL);
+		kp_core_running_set(NULL);
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 
@@ -862,7 +721,7 @@ static int alloc_nodes_kretprobe(struct kretprobe *rp)
 
 	DBPRINTF("Alloc aditional mem for retprobes");
 
-	if ((unsigned long)rp->kp.addr == sched_addr) {
+	if (rp->kp.addr == sched_addr) {
 		rp->maxactive += SCHED_RP_NR; /* max (100, 2 * NR_CPUS); */
 		alloc_nodes = SCHED_RP_NR;
 	} else {
@@ -905,21 +764,18 @@ int swap_register_kretprobe(struct kretprobe *rp)
 	DBPRINTF("START");
 
 	rp->kp.pre_handler = pre_handler_kretprobe;
-	rp->kp.post_handler = NULL;
-	rp->kp.fault_handler = NULL;
-	rp->kp.break_handler = NULL;
 
 	/* Pre-allocate memory for max kretprobe instances */
-	if ((unsigned long)rp->kp.addr == exit_addr) {
+	if (rp->kp.addr == exit_addr) {
 		rp->kp.pre_handler = NULL; /* not needed for do_exit */
 		rp->maxactive = 0;
-	} else if ((unsigned long)rp->kp.addr == do_group_exit_addr) {
+	} else if (rp->kp.addr == do_group_exit_addr) {
 		rp->kp.pre_handler = NULL;
 		rp->maxactive = 0;
-	} else if ((unsigned long)rp->kp.addr == sys_exit_group_addr) {
+	} else if (rp->kp.addr == sys_exit_group_addr) {
 		rp->kp.pre_handler = NULL;
 		rp->maxactive = 0;
-	} else if ((unsigned long)rp->kp.addr == sys_exit_addr) {
+	} else if (rp->kp.addr == sys_exit_addr) {
 		rp->kp.pre_handler = NULL;
 		rp->maxactive = 0;
 	} else if (rp->maxactive <= 0) {
@@ -972,7 +828,7 @@ static void swap_disarm_krp(struct kretprobe *rp)
 			printk(KERN_INFO "%s (%d/%d): cannot disarm "
 			       "krp instance (%08lx)\n",
 			       ri->task->comm, ri->task->tgid, ri->task->pid,
-			       (unsigned long)rp->kp.addr);
+			       rp->kp.addr);
 		}
 	}
 }
@@ -1139,7 +995,7 @@ static int swap_disarm_krp_inst(struct kretprobe_instance *ri)
 		       ri->task->comm, ri->task->tgid, ri->task->pid,
 		       pc, (long unsigned int)ri->ret_addr,
 		       (long unsigned int)tramp,
-		       (long unsigned int)(ri->rp ? ri->rp->kp.addr : NULL));
+		       (ri->rp ? ri->rp->kp.addr : 0));
 
 		/* __switch_to retprobe handling */
 		if (pc == (unsigned long)tramp) {
@@ -1160,22 +1016,22 @@ static int swap_disarm_krp_inst(struct kretprobe_instance *ri)
 
 	if (found) {
 		printk(KERN_INFO "---> [%d] %s (%d/%d): tramp (%08lx) "
-		       "found at %08lx (%08lx /%+d) - %p\n",
+		       "found at %08lx (%08lx /%+d) - %08lx\n",
 		       task_cpu(ri->task),
 		       ri->task->comm, ri->task->tgid, ri->task->pid,
 		       (long unsigned int)tramp,
 		       (long unsigned int)found, (long unsigned int)ri->sp,
-		       found - ri->sp, ri->rp ? ri->rp->kp.addr : NULL);
+		       found - ri->sp, ri->rp ? ri->rp->kp.addr : 0);
 		*found = (unsigned long)ri->ret_addr;
 		retval = 0;
 	} else {
 		printk(KERN_INFO "---> [%d] %s (%d/%d): tramp (%08lx) "
-		       "NOT found at sp = %08lx - %p\n",
+		       "NOT found at sp = %08lx - %08lx\n",
 		       task_cpu(ri->task),
 		       ri->task->comm, ri->task->tgid, ri->task->pid,
 		       (long unsigned int)tramp,
 		       (long unsigned int)ri->sp,
-		       ri->rp ? ri->rp->kp.addr : NULL);
+		       ri->rp ? ri->rp->kp.addr : 0);
 	}
 
 	return retval;
@@ -1259,8 +1115,8 @@ static int once(void)
 		goto not_found;
 
 	sym = "__put_task_struct";
-	put_task_kp.addr = (void *)swap_ksyms(sym);
-	if (put_task_kp.addr == NULL)
+	put_task_kp.addr = swap_ksyms(sym);
+	if (put_task_kp.addr == 0)
 		goto not_found;
 
 	ret = init_module_deps();

@@ -89,15 +89,15 @@ typedef unsigned long kprobe_opcode_t;
 #define UREGS_OFFSET 8
 
 /**
- * @struct prev_kprobe
- * @brief Stores previous kprobe.
- * @var prev_kprobe::kp
- * Pointer to kprobe struct.
- * @var prev_kprobe::status
+ * @struct prev_kp_core
+ * @brief Stores previous kp_core.
+ * @var prev_kp_core::p
+ * Pointer to kp_core struct.
+ * @var prev_kp_core::status
  * Kprobe status.
  */
-struct prev_kprobe {
-	struct kprobe *kp;
+struct prev_kp_core {
+	struct kp_core *p;
 	unsigned long status;
 };
 
@@ -609,16 +609,16 @@ static inline void swap_set_arg(struct pt_regs *regs, int num,
 
 
 /**
- * @struct kprobe_ctlblk
- * @brief Per-cpu kprobe control block.
- * @var kprobe_ctlblk::kprobe_status
+ * @struct kp_core_ctlblk
+ * @brief Per-cpu kp_core control block.
+ * @var kp_core_ctlblk::kp_core_status
  * Kprobe status.
- * @var kprobe_ctlblk::prev_kprobe
- * Previous kprobe.
+ * @var kp_core_ctlblk::prev_kp_core
+ * Previous kp_core.
  */
-struct kprobe_ctlblk {
-	unsigned long kprobe_status;
-	struct prev_kprobe prev_kprobe;
+struct kp_core_ctlblk {
+	unsigned long kp_core_status;
+	struct prev_kp_core prev_kp_core;
 };
 
 /**
@@ -648,21 +648,20 @@ int arch_make_trampoline_arm(unsigned long addr, unsigned long insn,
 struct slot_manager;
 struct kretprobe;
 struct kretprobe_instance;
-int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm);
+struct kp_core;
+struct kprobe;
+
+int arch_kp_core_prepare(struct kp_core *p, struct slot_manager *sm);
 void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
 				 struct pt_regs *regs);
 
-void swap_arch_arm_kprobe(struct kprobe *p);
-void swap_arch_disarm_kprobe(struct kprobe *p);
+void arch_kp_core_arm(struct kp_core *p);
+void arch_kp_core_disarm(struct kp_core *p);
 
 int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs);
 int swap_longjmp_break_handler(struct kprobe *p, struct pt_regs *regs);
 
-void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *cur_p);
-void restore_previous_kprobe(struct kprobe_ctlblk *kcb);
-void set_current_kprobe(struct kprobe *p,
-			struct pt_regs *regs,
-			struct kprobe_ctlblk *kcb);
+void restore_previous_kp_core(struct kp_core_ctlblk *kcb);
 
 void __naked swap_kretprobe_trampoline(void);
 

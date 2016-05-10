@@ -171,32 +171,32 @@ static inline int swap_fp_backtrace(struct task_struct *task,
 }
 
 /**
- * @struct prev_kprobe
- * @brief Stores previous kprobe.
- * @var prev_kprobe::kp
- * Pointer to kprobe struct.
- * @var prev_kprobe::status
- * Kprobe status.
+ * @struct prev_kp_core
+ * @brief Stores previous kp_core.
+ * @var prev_kp_core::kp
+ * Pointer to kp_core struct.
+ * @var prev_kp_core::status
+ * kp_core status.
  */
-struct prev_kprobe {
-	struct kprobe *kp;
+struct prev_kp_core {
+	struct kp_core *p;
 	unsigned long status;
 };
 
 /**
- * @struct kprobe_ctlblk
- * @brief Per-cpu kprobe control block.
- * @var kprobe_ctlblk::kprobe_status
- * Kprobe status.
- * @var kprobe_ctlblk::prev_kprobe
- * Previous kprobe.
+ * @struct kp_core_ctlblk
+ * @brief Per-cpu kp_core control block.
+ * @var kp_core_ctlblk::kp_core_status
+ * kp_core status.
+ * @var kp_core_ctlblk::prev_kp_core
+ * Previous kp_core.
  */
-struct kprobe_ctlblk {
-	unsigned long kprobe_status;
-	struct prev_kprobe prev_kprobe;
+struct kp_core_ctlblk {
+	unsigned long kp_core_status;
+	struct prev_kp_core prev_kp_core;
 	struct pt_regs jprobe_saved_regs;
-	unsigned long kprobe_old_eflags;
-	unsigned long kprobe_saved_eflags;
+	unsigned long kp_core_old_eflags;
+	unsigned long kp_core_saved_eflags;
 	unsigned long *jprobe_saved_esp;
 	kprobe_opcode_t jprobes_stack[MAX_STACK_SIZE];
 };
@@ -208,7 +208,7 @@ struct kprobe_ctlblk {
  * @var arch_specific_insn::insn
  * Copy of the original instruction.
  * @var arch_specific_insn::boostable
- * If this flag is not 0, this kprobe can be boost when its
+ * If this flag is not 0, this kp_core can be boost when its
  * post_handler and break_handler is not set.
  */
 struct arch_specific_insn {
@@ -225,17 +225,20 @@ typedef kprobe_opcode_t (*entry_point_t) (unsigned long, unsigned long,
 
 int arch_init_module_deps(void);
 
+struct kprobe;
+struct kp_core;
 struct slot_manager;
 struct kretprobe_instance;
 
-int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm);
-void swap_arch_arm_kprobe(struct kprobe *p);
-void swap_arch_disarm_kprobe(struct kprobe *p);
+int arch_kp_core_prepare(struct kp_core *p, struct slot_manager *sm);
+void arch_kp_core_arm(struct kp_core *core);
+void arch_kp_core_disarm(struct kp_core *core);
+int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs);
 void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
 				 struct pt_regs *regs);
 void swap_kretprobe_trampoline(void);
 
-void restore_previous_kprobe(struct kprobe_ctlblk *kcb);
+void restore_previous_kp_core(struct kp_core_ctlblk *kcb);
 int swap_can_boost(kprobe_opcode_t *opcodes);
 static inline int arch_check_insn(struct arch_specific_insn *ainsn)
 {

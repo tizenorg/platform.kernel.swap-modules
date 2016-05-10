@@ -210,36 +210,16 @@ static void rm_uprobes_child(struct kretprobe_instance *ri,
 }
 
 
-static atomic_t pre_handler_cp_cnt = ATOMIC_INIT(0);
-
-static unsigned long cp_cb(void *data)
-{
-	if (atomic_read(&stop_flag))
-		call_mm_release(current);
-
-	atomic_dec(&pre_handler_cp_cnt);
-	return 0;
-}
-
 static int pre_handler_cp(struct kprobe *p, struct pt_regs *regs)
 {
-	int ret = 0;
-
 	if (is_kthread(current))
 		goto out;
 
-	if (!atomic_read(&stop_flag))
-		goto out;
+	if (atomic_read(&stop_flag))
+		call_mm_release(current);
 
-	ret = set_kjump_cb(regs, cp_cb, NULL, 0);
-	if (ret < 0) {
-		pr_err("set_kjump_cp, ret=%d\n", ret);
-		ret = 0;
-	} else {
-		atomic_inc(&pre_handler_cp_cnt);
-	}
 out:
-	return ret;
+	return 0;
 }
 
 
@@ -308,8 +288,7 @@ static void unregister_cp(void)
 
 	do {
 		synchronize_sched();
-	} while (atomic_read(&rm_uprobes_child_cnt)
-	      || atomic_read(&pre_handler_cp_cnt));
+	} while (atomic_read(&rm_uprobes_child_cnt));
 }
 
 
@@ -321,17 +300,13 @@ static void unregister_cp(void)
  *                                mm_release()                                *
  ******************************************************************************
  */
-
-static atomic_t mm_release_cnt = ATOMIC_INIT(0);
-
-static unsigned long mr_cb(void *data)
+static void mr_handler(struct task_struct *task)
 {
-	struct task_struct *task = *(struct task_struct **)data;
 	struct mm_struct *mm = task->mm;
 
 	if (mm == NULL) {
 		pr_err("mm is NULL\n");
-		return 0;
+		return;
 	}
 
 	/* TODO: this lock for synchronizing to disarm urp */
@@ -341,7 +316,7 @@ static unsigned long mr_cb(void *data)
 
 		if (task != current) {
 			pr_err("call mm_release in isn't current context\n");
-			return 0;
+			return;
 		}
 
 		/* if the thread is killed we need to discard pending
@@ -353,31 +328,20 @@ static unsigned long mr_cb(void *data)
 		call_mm_release(task);
 	}
 	up_write(&mm->mmap_sem);
-
-	atomic_dec(&mm_release_cnt);
-
-	return 0;
 }
 
 /* Detects when target process removes IPs. */
 static int mr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
-	int ret = 0;
 	struct task_struct *task = (struct task_struct *)swap_get_karg(regs, 0);
 
 	if (is_kthread(task))
 		goto out;
 
-	ret = set_kjump_cb(regs, mr_cb, (void *)&task, sizeof(task));
-	if (ret < 0) {
-		printk("##### ERROR: mr_pre_handler, ret=%d\n", ret);
-		ret = 0;
-	} else {
-		atomic_inc(&mm_release_cnt);
-	}
+	mr_handler(task);
 
 out:
-	return ret;
+	return 0;
 }
 
 static struct kprobe mr_kprobe = {
@@ -399,9 +363,6 @@ static int register_mr(void)
 static void unregister_mr(void)
 {
 	swap_unregister_kprobe(&mr_kprobe);
-	do {
-		synchronize_sched();
-	} while (atomic_read(&mm_release_cnt));
 }
 
 
@@ -843,39 +804,39 @@ int once_helper(void)
 	const char *sym;
 
 	sym = "do_page_fault";
-	mf_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (mf_kretprobe.kp.addr == NULL)
+	mf_kretprobe.kp.addr = swap_ksyms(sym);
+	if (mf_kretprobe.kp.addr == 0)
 		goto not_found;
 
 	sym = "copy_process";
-	cp_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms_substr(sym);
-	if (cp_kretprobe.kp.addr == NULL)
+	cp_kretprobe.kp.addr = swap_ksyms_substr(sym);
+	if (cp_kretprobe.kp.addr == 0)
 		goto not_found;
 	cp_kprobe.addr = cp_kretprobe.kp.addr;
 
 	sym = "mm_release";
-	mr_kprobe.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (mr_kprobe.addr == NULL)
+	mr_kprobe.addr = swap_ksyms(sym);
+	if (mr_kprobe.addr == 0)
 		goto not_found;
 
 	sym = "do_munmap";
-	unmap_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (unmap_kretprobe.kp.addr == NULL)
+	unmap_kretprobe.kp.addr = swap_ksyms(sym);
+	if (unmap_kretprobe.kp.addr == 0)
 		goto not_found;
 
 	sym = "do_mmap_pgoff";
-	mmap_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (mmap_kretprobe.kp.addr == NULL)
+	mmap_kretprobe.kp.addr = swap_ksyms(sym);
+	if (mmap_kretprobe.kp.addr == 0)
 		goto not_found;
 
 	sym = "set_task_comm";
-	comm_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (comm_kretprobe.kp.addr == NULL)
+	comm_kretprobe.kp.addr = swap_ksyms(sym);
+	if (comm_kretprobe.kp.addr == 0)
 		goto not_found;
 
 	sym = "release_task";
-	release_task_kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (release_task_kp.addr == NULL)
+	release_task_kp.addr = swap_ksyms(sym);
+	if (release_task_kp.addr == 0)
 		goto not_found;
 
 	return 0;

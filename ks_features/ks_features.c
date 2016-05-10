@@ -123,7 +123,7 @@ static int entry_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 	if (rp && check_event(current)) {
 		struct ks_probe *ksp = container_of(rp, struct ks_probe, rp);
 		const char *fmt = ksp->args;
-		const unsigned long addr = (unsigned long)ksp->rp.kp.addr;
+		const unsigned long addr = ksp->rp.kp.addr;
 		enum probe_t type = ksp->type;
 
 		ksf_msg_entry(regs, addr, type, fmt);
@@ -138,7 +138,7 @@ static int ret_handler(struct kretprobe_instance *ri, struct pt_regs *regs)
 
 	if (rp && check_event(current)) {
 		struct ks_probe *ksp = container_of(rp, struct ks_probe, rp);
-		const unsigned long func_addr = (unsigned long)rp->kp.addr;
+		const unsigned long func_addr = rp->kp.addr;
 		const unsigned long ret_addr = (unsigned long)ri->ret_addr;
 		enum probe_t type = ksp->type;
 
@@ -190,15 +190,11 @@ static int sc_enable;
  */
 int init_switch_context(void)
 {
-	unsigned long addr;
-
-	addr = swap_ksyms("__switch_to");
-	if (addr == 0) {
+	switch_rp.kp.addr = swap_ksyms("__switch_to");
+	if (switch_rp.kp.addr == 0) {
 		printk(KERN_INFO "ERROR: not found '__switch_to'\n");
 		return -EINVAL;
 	}
-
-	switch_rp.kp.addr = (kprobe_opcode_t *)addr;
 
 	return 0;
 }
@@ -264,7 +260,7 @@ static int register_syscall(size_t id)
 	int ret;
 	printk(KERN_INFO "register_syscall: %s\n", get_sys_name(id));
 
-	if (ksp[id].rp.kp.addr == NULL)
+	if (ksp[id].rp.kp.addr == 0)
 		return 0;
 
 	ksp[id].rp.entry_handler = entry_handler;
@@ -280,7 +276,7 @@ static int unregister_syscall(size_t id)
 {
 	printk(KERN_INFO "unregister_syscall: %s\n", get_sys_name(id));
 
-	if (ksp[id].rp.kp.addr == NULL)
+	if (ksp[id].rp.kp.addr == 0)
 		return 0;
 
 	swap_unregister_kretprobe(&ksp[id].rp);
@@ -312,7 +308,7 @@ static int unregister_multiple_syscalls(size_t *id_p, size_t cnt)
 
 	for (; cnt != end; --cnt) {
 		id = id_p[cnt];
-		if (ksp[id].rp.kp.addr != NULL) {
+		if (ksp[id].rp.kp.addr) {
 				rpp[i] = &ksp[id].rp;
 				++i;
 		}
@@ -526,7 +522,7 @@ static int init_syscall_features(void)
 			addr = 0;
 		}
 
-		ksp[i].rp.kp.addr = (kprobe_opcode_t *)addr;
+		ksp[i].rp.kp.addr = addr;
 	}
 
 	return 0;

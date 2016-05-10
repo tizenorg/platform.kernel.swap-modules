@@ -177,17 +177,6 @@ int taskctx_run(struct task_struct *task, taskctx_t func, void *data)
 EXPORT_SYMBOL_GPL(taskctx_run);
 
 
-static unsigned long cb_sig(void *data)
-{
-	struct call_task *call = *(struct call_task **)data;
-
-	complete(&call->comp0);
-	call->func(call->data);
-	complete(&call->comp1);
-
-	return 0;
-}
-
 static int sig_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct call_task *call = call_get(current);
@@ -196,7 +185,9 @@ static int sig_pre_handler(struct kprobe *p, struct pt_regs *regs)
 		call_set(current, NULL);
 		call->is_running = true;
 
-		return set_kjump_cb(regs, cb_sig, &call, sizeof(call));
+		complete(&call->comp0);
+		call->func(call->data);
+		complete(&call->comp1);
 	}
 
 	return 0;
@@ -274,8 +265,8 @@ static int taskctx_once(void)
 		goto not_found;
 
 	sym = "get_signal_to_deliver";
-	sig_kprobe.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (sig_kprobe.addr == NULL)
+	sig_kprobe.addr = swap_ksyms(sym);
+	if (sig_kprobe.addr == 0)
 		goto not_found;
 
 	return 0;

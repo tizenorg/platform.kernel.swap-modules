@@ -307,14 +307,12 @@ EXPORT_SYMBOL_GPL(arch_make_trampoline_arm);
 /**
  * @brief Creates trampoline for kprobe.
  *
- * @param p Pointer to kprobe.
+ * @param p Pointer to kp_core.
  * @param sm Pointer to slot manager
  * @return 0 on success, error code on error.
  */
-int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
+int arch_kp_core_prepare(struct kp_core *p, struct slot_manager *sm)
 {
-	unsigned long addr = (unsigned long)p->addr;
-	unsigned long insn = p->opcode = *p->addr;
 	unsigned long *tramp;
 	int ret;
 
@@ -322,7 +320,8 @@ int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
 	if (tramp == NULL)
 		return -ENOMEM;
 
-	ret = arch_make_trampoline_arm(addr, insn, tramp);
+	p->opcode = *(unsigned long *)p->addr;
+	ret = arch_make_trampoline_arm(p->addr, p->opcode, tramp);
 	if (ret) {
 		swap_slot_free(sm, tramp);
 		return ret;
@@ -343,95 +342,81 @@ int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
  * @param regs Pointer to CPU registers data.
  * @return Void.
  */
-static void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
+static void prepare_singlestep(struct kp_core *p, struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
 
 	if (p->ss_addr[cpu]) {
-		regs->ARM_pc = (unsigned long)p->ss_addr[cpu];
-		p->ss_addr[cpu] = NULL;
+		regs->ARM_pc = p->ss_addr[cpu];
+		p->ss_addr[cpu] = 0;
 	} else {
 		regs->ARM_pc = (unsigned long)p->ainsn.insn;
 	}
 }
 
-/**
- * @brief Saves previous kprobe.
- *
- * @param kcb Pointer to kprobe_ctlblk struct whereto save current kprobe.
- * @param p_run Pointer to kprobe.
- * @return Void.
- */
-void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *p_run)
+static void save_previous_kp_core(struct kp_core_ctlblk *kcb)
 {
-	kcb->prev_kprobe.kp = swap_kprobe_running();
-	kcb->prev_kprobe.status = kcb->kprobe_status;
+	kcb->prev_kp_core.p = kp_core_running();
+	kcb->prev_kp_core.status = kcb->kp_core_status;
 }
 
 /**
- * @brief Restores previous kprobe.
+ * @brief Restores previous kp_core.
  *
- * @param kcb Pointer to kprobe_ctlblk which contains previous kprobe.
+ * @param kcb Pointer to kp_core_ctlblk which contains previous kp_core.
  * @return Void.
  */
-void restore_previous_kprobe(struct kprobe_ctlblk *kcb)
+void restore_previous_kp_core(struct kp_core_ctlblk *kcb)
 {
-	swap_kprobe_running_set(kcb->prev_kprobe.kp);
-	kcb->kprobe_status = kcb->prev_kprobe.status;
-}
-
-/**
- * @brief Sets currently running kprobe.
- *
- * @param p Pointer to currently running kprobe.
- * @param regs Pointer to CPU registers data.
- * @param kcb Pointer to kprobe_ctlblk.
- * @return Void.
- */
-void set_current_kprobe(struct kprobe *p,
-			struct pt_regs *regs,
-			struct kprobe_ctlblk *kcb)
-{
-	swap_kprobe_running_set(p);
+	kp_core_running_set(kcb->prev_kp_core.p);
+	kcb->kp_core_status = kcb->prev_kp_core.status;
 }
 
 static int kprobe_handler(struct pt_regs *regs)
 {
-	struct kprobe *p, *cur;
-	struct kprobe_ctlblk *kcb;
+	struct kp_core *p, *cur;
+	struct kp_core_ctlblk *kcb;
 
-	kcb = swap_get_kprobe_ctlblk();
-	cur = swap_kprobe_running();
-	p = swap_get_kprobe((void *)regs->ARM_pc);
+	kcb = kp_core_ctlblk();
+	cur = kp_core_running();
+
+	rcu_read_lock();
+	p = kp_core_by_addr(regs->ARM_pc);
+	if (p)
+		kp_core_get(p);
+	rcu_read_unlock();
 
 	if (p) {
 		if (cur) {
 			/* Kprobe is pending, so we're recursing. */
-			switch (kcb->kprobe_status) {
+			switch (kcb->kp_core_status) {
 			case KPROBE_HIT_ACTIVE:
 			case KPROBE_HIT_SSDONE:
 				/* A pre- or post-handler probe got us here. */
-				swap_kprobes_inc_nmissed_count(p);
-				save_previous_kprobe(kcb, NULL);
-				set_current_kprobe(p, 0, 0);
-				kcb->kprobe_status = KPROBE_REENTER;
+				save_previous_kp_core(kcb);
+				kp_core_running_set(p);
+				kcb->kp_core_status = KPROBE_REENTER;
 				prepare_singlestep(p, regs);
-				restore_previous_kprobe(kcb);
+				restore_previous_kp_core(kcb);
 				break;
 			default:
 				/* impossible cases */
 				BUG();
 			}
 		} else {
-			set_current_kprobe(p, 0, 0);
-			kcb->kprobe_status = KPROBE_HIT_ACTIVE;
+			kp_core_running_set(p);
+			kcb->kp_core_status = KPROBE_HIT_ACTIVE;
 
-			if (!p->pre_handler || !p->pre_handler(p, regs)) {
-				kcb->kprobe_status = KPROBE_HIT_SS;
+			if (!(regs->ARM_cpsr & PSR_I_BIT))
+				local_irq_enable();
+
+			if (!p->handlers.pre(p, regs)) {
+				kcb->kp_core_status = KPROBE_HIT_SS;
 				prepare_singlestep(p, regs);
-				swap_kprobe_running_set(NULL);
+				kp_core_running_set(NULL);
 			}
 		}
+		kp_core_put(p);
 	} else {
 		goto no_kprobe;
 	}
@@ -454,20 +439,19 @@ no_kprobe:
 int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 {
 	int ret;
-	unsigned long flags;
-
-	local_irq_save(flags);
 
 	if (likely(instr == BREAKPOINT_INSTRUCTION)) {
 		ret = kprobe_handler(regs);
 	} else {
-		struct kprobe *p = swap_get_kprobe((void *)regs->ARM_pc);
+		struct kp_core *p;
+
+		rcu_read_lock();
+		p = kp_core_by_addr(regs->ARM_pc);
 
 		/* skip false exeption */
 		ret = p && (p->opcode == instr) ? 0 : 1;
+		rcu_read_unlock();
 	}
-
-	local_irq_restore(flags);
 
 	return ret;
 }
@@ -482,15 +466,7 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct jprobe *jp = container_of(p, struct jprobe, kp);
-	kprobe_pre_entry_handler_t pre_entry =
-		(kprobe_pre_entry_handler_t)jp->pre_entry;
 	entry_point_t entry = (entry_point_t)jp->entry;
-	pre_entry = (kprobe_pre_entry_handler_t)jp->pre_entry;
-
-	if (pre_entry) {
-		p->ss_addr[smp_processor_id()] = (void *)
-						 pre_entry(jp->priv_arg, regs);
-	}
 
 	if (entry) {
 		entry(regs->ARM_r0, regs->ARM_r1, regs->ARM_r2,
@@ -546,9 +522,9 @@ static void write_u32(unsigned long addr, unsigned long val)
  * @param p Pointer to target kprobe.
  * @return Void.
  */
-void swap_arch_arm_kprobe(struct kprobe *p)
+void arch_kp_core_arm(struct kp_core *core)
 {
-	write_u32((long)p->addr, BREAKPOINT_INSTRUCTION);
+	write_u32(core->addr, BREAKPOINT_INSTRUCTION);
 }
 
 /**
@@ -557,9 +533,9 @@ void swap_arch_arm_kprobe(struct kprobe *p)
  * @param p Pointer to target kprobe.
  * @return Void.
  */
-void swap_arch_disarm_kprobe(struct kprobe *p)
+void arch_kp_core_disarm(struct kp_core *core)
 {
-	write_u32((long)p->addr, p->opcode);
+	write_u32(core->addr, core->opcode);
 }
 
 /**
@@ -663,7 +639,7 @@ __asm(
  */
 int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb, void *data, size_t size)
 {
-	struct kprobe *p;
+	struct kp_core *p;
 	struct kj_cb_data *cb_data;
 
 	cb_data = kmalloc(sizeof(*cb_data) + size, GFP_ATOMIC);
@@ -674,8 +650,8 @@ int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb, void *data, size_t size)
 	if (size)
 		memcpy(cb_data->data, data, size);
 
-	p = swap_kprobe_running();
-	p->ss_addr[smp_processor_id()] = (kprobe_opcode_t *)&kjump_trampoline;
+	p = kp_core_running();
+	p->ss_addr[smp_processor_id()] = (unsigned long)&kjump_trampoline;
 
 	cb_data->ret_addr = (unsigned long)p->ainsn.insn;
 	cb_data->cb = cb;
@@ -696,7 +672,7 @@ static int kjump_pre_handler(struct kprobe *p, struct pt_regs *regs)
 
 	/* restore regs */
 	memcpy(regs, &data->regs, sizeof(*regs));
-	p->ss_addr[smp_processor_id()] = (void *)data->ret_addr;
+	/* p->ss_addr[smp_processor_id()] = (unsigned long)data->ret_addr; */
 
 	/* FIXME: potential memory leak, when process kill */
 	kfree(data);
@@ -706,7 +682,7 @@ static int kjump_pre_handler(struct kprobe *p, struct pt_regs *regs)
 
 static struct kprobe kjump_kprobe = {
 	.pre_handler = kjump_pre_handler,
-	.addr = (unsigned long *)&kjump_trampoline + 2,	/* nop */
+	.addr = (unsigned long)&kjump_trampoline + 2 * 4,	/* nop */
 };
 
 static int kjump_init(void)

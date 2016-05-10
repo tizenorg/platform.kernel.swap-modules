@@ -65,8 +65,8 @@ static int energy_xxx_once(struct kern_probe p[], int size)
 		struct kretprobe *rp = p[i].rp;
 
 		sym = p[i].name;
-		rp->kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-		if (rp->kp.addr == NULL)
+		rp->kp.addr = swap_ksyms(sym);
+		if (rp->kp.addr == 0)
 			goto not_found;
 	}
 
@@ -1135,18 +1135,18 @@ int energy_once(void)
 	const char *sym;
 
 	sym = "__switch_to";
-	switch_to_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (switch_to_krp.kp.addr == NULL)
+	switch_to_krp.kp.addr = swap_ksyms(sym);
+	if (switch_to_krp.kp.addr == 0)
 		goto not_found;
 
 	sym = "sys_read";
-	sys_read_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (sys_read_krp.kp.addr == NULL)
+	sys_read_krp.kp.addr = swap_ksyms(sym);
+	if (sys_read_krp.kp.addr == 0)
 		goto not_found;
 
 	sym = "sys_write";
-	sys_write_krp.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
-	if (sys_write_krp.kp.addr == NULL)
+	sys_write_krp.kp.addr = swap_ksyms(sym);
+	if (sys_write_krp.kp.addr == 0)
 		goto not_found;
 
 	energy_xxx_once(bt_probes, bt_probes_cnt);
