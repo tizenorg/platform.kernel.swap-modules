@@ -403,18 +403,30 @@ static struct kretprobe mmap_rp = {
 	.handler = mmap_ret_handler
 };
 
+static bool mmap_rp_inst = false;
+static DEFINE_MUTEX(mmap_rp_mtx);
+
 static void loader_start_cb(void)
 {
 	int res;
 
+	mutex_lock(&mmap_rp_mtx);
 	res = swap_register_kretprobe(&mmap_rp);
 	if (res != 0)
 		printk(KERN_ERR LOADER_PREFIX "Registering do_mmap_pgoff probe failed\n");
+	else
+		mmap_rp_inst = true;
+	mutex_unlock(&mmap_rp_mtx);
 }
 
 static void loader_stop_cb(void)
 {
-	swap_unregister_kretprobe(&mmap_rp);
+	mutex_lock(&mmap_rp_mtx);
+	if (mmap_rp_inst) {
+		swap_unregister_kretprobe(&mmap_rp);
+		mmap_rp_inst = false;
+	}
+	mutex_unlock(&mmap_rp_mtx);
 }
 
 static unsigned long __not_loaded_entry(struct uretprobe_instance *ri,
@@ -553,7 +565,13 @@ int loader_set(void)
 
 void loader_unset(void)
 {
-	swap_unregister_kretprobe(&mmap_rp);
+	mutex_lock(&mmap_rp_mtx);
+	if (mmap_rp_inst) {
+		swap_unregister_kretprobe(&mmap_rp);
+		mmap_rp_inst = false;
+	}
+	mutex_unlock(&mmap_rp_mtx);
+
 	/*module_put(THIS_MODULE);*/
 	loader_module_set_not_ready();
 }
