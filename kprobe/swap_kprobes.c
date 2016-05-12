@@ -994,7 +994,6 @@ static int __swap_unregister_kretprobes_top(void *data)
 	const size_t end = ((size_t) 0) - 1;
 
 	for (--size; size != end; --size) {
-		swap_unregister_kprobe(&rps[size]->kp);
 		if (rp_disarm) {
 			spin_lock_irqsave(&kretprobe_lock, flags);
 			swap_disarm_krp(rps[size]);
@@ -1021,6 +1020,10 @@ void swap_unregister_kretprobes_top(struct kretprobe **rps, size_t size,
 		.size = size,
 		.rp_disarm = rp_disarm,
 	};
+	const size_t end = ((size_t)0) - 1;
+
+	for (--size; size != end; --size)
+		swap_unregister_kprobe(&rps[size]->kp);
 
 	if (rp_disarm) {
 		int ret;
