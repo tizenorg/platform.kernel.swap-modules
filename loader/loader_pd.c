@@ -4,6 +4,7 @@
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include <linux/mman.h>
+#include <linux/module.h>
 #include <linux/hardirq.h>
 #include <linux/list.h>
 #include <us_manager/us_manager_common.h>

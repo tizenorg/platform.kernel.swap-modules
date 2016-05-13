@@ -1,6 +1,7 @@
 #include <linux/fs.h>
 #include <linux/slab.h>
 #include <linux/debugfs.h>
+#include <linux/module.h>
 #include <asm/uaccess.h>
 #include <master/swap_debugfs.h>
 #include "uihv.h"
@@ -104,7 +105,7 @@ static ssize_t write_uihv_app_info(struct file *file,
 					const char __user *user_buf,
 					size_t len, loff_t *ppos)
 {
-	ssize_t ret;
+	ssize_t ret = len;
 	char *buf;
 
 	buf = kmalloc(len, GFP_KERNEL);
