@@ -134,8 +134,6 @@ struct kp_core {
 	kprobe_opcode_t opcode;
 
 	struct arch_specific_insn ainsn;
-
-	unsigned long ss_addr[NR_CPUS];
 };
 
 /**

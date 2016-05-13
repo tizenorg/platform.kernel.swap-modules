@@ -822,111 +822,6 @@ void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
 
 /*
  ******************************************************************************
- *                                   kjumper                                  *
- ******************************************************************************
- */
-struct kj_cb_data {
-	struct pt_regs regs;
-	struct kp_core *p;
-
-	jumper_cb_t cb;
-	char data[0];
-};
-
-static struct kj_cb_data * __used kjump_handler(struct kj_cb_data *data)
-{
-	/* call callback */
-	data->cb(data->data);
-
-	return data;
-}
-
-void kjump_trampoline(void);
-void kjump_trampoline_int3(void);
-__asm(
-	"kjump_trampoline:\n"
-	"call	kjump_handler\n"
-	"kjump_trampoline_int3:\n"
-	"nop\n"	/* for restore_regs_kp */
-);
-
-int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb, void *data, size_t size)
-{
-	struct kj_cb_data *cb_data;
-
-	cb_data = kmalloc(sizeof(*cb_data) + size, GFP_ATOMIC);
-	if (cb_data == NULL)
-		return -ENOMEM;
-
-	/* save regs */
-	cb_data->regs = *regs;
-
-	cb_data->p = kp_core_running();
-	cb_data->cb = cb;
-
-	/* save data */
-	if (size)
-		memcpy(cb_data->data, data, size);
-
-	/* save pointer cb_data at ax */
-	regs->ax = (long)cb_data;
-
-	/* jump to kjump_trampoline */
-	regs->ip = (unsigned long)&kjump_trampoline;
-
-	kp_core_running_set(NULL);
-
-	return 1;
-}
-EXPORT_SYMBOL_GPL(set_kjump_cb);
-
-static int restore_regs_pre_handler(struct kprobe *kp, struct pt_regs *regs)
-{
-	struct kj_cb_data *data = (struct kj_cb_data *)regs->ax;
-	struct kp_core *p = data->p;
-	struct kp_core_ctlblk *kcb = kp_core_ctlblk();
-
-	/* restore regs */
-	*regs = data->regs;
-
-	/* FIXME: potential memory leak, when process kill */
-	kfree(data);
-
-	kcb = kp_core_ctlblk();
-
-	set_current_kp_core(p, regs, kcb);
-	setup_singlestep(p, regs, kcb);
-
-	return 1;
-}
-
-static struct kprobe restore_regs_kp = {
-	.pre_handler = restore_regs_pre_handler,
-	.addr = (unsigned long)&kjump_trampoline_int3,	/* nop */
-};
-
-static int kjump_init(void)
-{
-	int ret;
-
-	ret = swap_register_kprobe(&restore_regs_kp);
-	if (ret)
-		printk(KERN_INFO "ERROR: kjump_init(), ret=%d\n", ret);
-
-	return ret;
-}
-
-static void kjump_exit(void)
-{
-	swap_unregister_kprobe(&restore_regs_kp);
-}
-
-
-
-
-
-/*
- ******************************************************************************
  *                                   jumper                                   *
  ******************************************************************************
  */
@@ -1061,18 +956,8 @@ int swap_arch_init_kprobes(void)
 
 	ret = register_die_notifier(&kprobe_exceptions_nb);
 	if (ret)
-		goto unreg_tdraw;
+		swap_td_raw_unreg(&kp_tdraw);
 
-	ret = kjump_init();
-	if (ret)
-		goto unreg_die;
-
-	return 0;
-
-unreg_die:
-	unregister_die_notifier(&kprobe_exceptions_nb);
-unreg_tdraw:
-	swap_td_raw_unreg(&kp_tdraw);
 	return ret;
 }
 
@@ -1083,7 +968,6 @@ unreg_tdraw:
  */
 void swap_arch_exit_kprobes(void)
 {
-	kjump_exit();
 	unregister_die_notifier(&kprobe_exceptions_nb);
 	swap_td_raw_unreg(&kp_tdraw);
 }
