@@ -13,28 +13,32 @@ Provides: swap-modules
 
 %if "%{_repository}" == "emulator32" || "%{_repository}" == "emulator32-wayland"
 BuildRequires: emulator-kernel-devel
-    %define build_arch i386
-    %define kernel_path /usr/src/linux-kernel-build-3.14.25
+  %define build_arch i386
+  %define kernel_path /usr/src/linux-kernel-build-3.14.25
 %else
-    %if "%{_repository}" == "arm" || "%{_repository}" == "target-TM1"
+
+  %if "%{_repository}" == "arm" || "%{_repository}" == "target-TM1"
 BuildRequires: kernel-devel-3.10-sc7730
-        %define build_arch arm
-        %define kernel_path /boot/kernel/devel/kernel-devel-tizen_tm1
-    %else
-        %if "%{_repository}" == "arm-wayland"
+    %define build_arch arm
+    %define kernel_path /boot/kernel/devel/kernel-devel-tizen_tm1
+  %else
+
+    %if "%{_repository}" == "arm-wayland"
 BuildRequires: arm-trats2-linux-kernel-devel
-            %define build_arch arm
-            %define kernel_path /usr/src/linux-kernel-build-3.10.60-arm-trats2
-	%else
-            %if "%{TIZEN_PRODUCT_TV}" == "1"
+      %define build_arch arm
+      %define kernel_path /usr/src/linux-kernel-build-3.10.60-arm-trats2
+    %else
+
+      %if "%{TIZEN_PRODUCT_TV}" == "1"
 BuildRequires: tztv-hawk-kmodules-devel
-                %define build_arch arm
-                %define kernel_path /usr/include/kernel_header/debug
-	    %else
+        %define build_arch arm
+        %define kernel_path /usr/include/kernel_header/debug
+      %else
+
 ExclusiveArch:
-            %endif
-        %endif
+      %endif
     %endif
+  %endif
 %endif
 
 
