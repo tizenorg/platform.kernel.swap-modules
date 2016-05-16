@@ -48,10 +48,8 @@ static atomic_t stop_flag = ATOMIC_INIT(0);
 struct pf_data {
 	unsigned long addr;
 
-#if defined(CONFIG_ARM)
 	struct pt_regs *pf_regs;
 	unsigned long save_pc;
-#endif /* CONFIG_ARM */
 };
 
 static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
@@ -64,6 +62,8 @@ static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 	data->save_pc = data->pf_regs->ARM_pc;
 #elif defined(CONFIG_X86_32)
 	data->addr = read_cr2();
+	data->pf_regs = (struct pt_regs *)swap_get_karg(regs, 0);
+	data->save_pc = data->pf_regs->ip;
 #else
 	#error "this architecture is not supported"
 #endif /* CONFIG_arch */
@@ -108,11 +108,14 @@ static int ret_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 	if (is_kthread(task))
 		return 0;
 
-#if defined(CONFIG_ARM)
 	/* skip fixup page_fault */
+#if defined(CONFIG_ARM)
 	if (data->save_pc != data->pf_regs->ARM_pc)
 		return 0;
-#endif /* CONFIG_ARM */
+#elif defined(CONFIG_X86_32)
+	if (data->save_pc != data->pf_regs->ip)
+		return 0;
+#endif /* CONFIG_arch */
 
 	/* TODO: check return value */
 	page_addr = data->addr & PAGE_MASK;
