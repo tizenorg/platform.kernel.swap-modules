@@ -23,13 +23,20 @@ BuildRequires: kernel-devel-3.10-sc7730
     %define kernel_path /boot/kernel/devel/kernel-devel-tizen_tm1
   %else
 
-    %if "%{TIZEN_PRODUCT_TV}" == "1"
-BuildRequires: tztv-hawk-kmodules-devel
+    %if "%{_repository}" == "target-circle"
+BuildRequires: kernel-devel-3.4-exynos3250
       %define build_arch arm
-      %define kernel_path /usr/include/kernel_header/debug
+      %define kernel_path /boot/kernel/devel/kernel-devel-tizen_wc1
     %else
 
+      %if "%{TIZEN_PRODUCT_TV}" == "1"
+BuildRequires: tztv-hawk-kmodules-devel
+        %define build_arch arm
+        %define kernel_path /usr/include/kernel_header/debug
+      %else
+
 ExclusiveArch:
+      %endif
     %endif
   %endif
 %endif
