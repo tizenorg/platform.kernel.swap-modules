@@ -25,7 +25,7 @@
  *
  */
 
-#include "ip.h"
+#include "sspt_ip.h"
 #include "sspt_page.h"
 #include "sspt_file.h"
 #include "sspt_proc.h"
@@ -46,7 +46,7 @@ static inline int check_vma(struct vm_area_struct *vma)
 		 !(vma->vm_flags & (VM_READ | VM_MAYREAD)));
 }
 
-static inline int sspt_register_usprobe(struct us_ip *ip)
+static inline int sspt_register_usprobe(struct sspt_ip *ip)
 {
 	int ret;
 	struct uprobe *up = NULL;
@@ -59,7 +59,7 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 	}
 
 	up->addr = (kprobe_opcode_t *)ip->orig_addr;
-	up->task = ip->page->file->proc->task;
+	up->task = ip->page->file->proc->leader;
 	up->sm = ip->page->file->proc->sm;
 
 	ret = probe_info_register(ip->desc->type, ip);
@@ -78,7 +78,7 @@ static inline int sspt_register_usprobe(struct us_ip *ip)
 }
 
 static inline int sspt_unregister_usprobe(struct task_struct *task,
-					  struct us_ip *ip,
+					  struct sspt_ip *ip,
 					  enum US_FLAGS flag)
 {
 	struct uprobe *up = NULL;

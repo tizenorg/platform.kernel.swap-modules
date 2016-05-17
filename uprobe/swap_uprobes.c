@@ -54,7 +54,7 @@ static DEFINE_RWLOCK(st_lock);
 static struct hlist_head slot_table[UPROBE_TABLE_SIZE];
 struct hlist_head uprobe_table[UPROBE_TABLE_SIZE];
 
-DEFINE_SPINLOCK(uretprobe_lock);	/* Protects uretprobe_inst_table */
+static DEFINE_MUTEX(urp_mtx);	/* Protects uretprobe_inst_table */
 static struct hlist_head uretprobe_inst_table[UPROBE_TABLE_SIZE];
 
 #define DEBUG_PRINT_HASH_TABLE 0
@@ -77,41 +77,6 @@ void print_uprobe_hash_table(void)
 	}
 }
 #endif
-
-
-struct uinst_info *uinst_info_create(unsigned long vaddr,
-				     kprobe_opcode_t opcode)
-{
-	struct uinst_info *uinst;
-
-	uinst = kmalloc(sizeof(*uinst), GFP_ATOMIC);
-	if (uinst) {
-		INIT_HLIST_NODE(&uinst->hlist);
-		uinst->vaddr = vaddr;
-		uinst->opcode = opcode;
-	} else {
-		pr_err("Cannot allocate memory for uinst\n");
-	}
-
-	return uinst;
-}
-EXPORT_SYMBOL_GPL(uinst_info_create);
-
-void uinst_info_destroy(struct uinst_info *uinst)
-{
-	kfree(uinst);
-}
-EXPORT_SYMBOL_GPL(uinst_info_destroy);
-
-void uinst_info_disarm(struct uinst_info *uinst, struct task_struct *task)
-{
-	struct uprobe p;
-
-	p.addr = (uprobe_opcode_t *)uinst->vaddr;
-	p.opcode = uinst->opcode;
-	arch_disarm_uprobe(&p, task);
-}
-EXPORT_SYMBOL_GPL(uinst_info_disarm);
 
 /*
  * Keep all fields in the uprobe consistent
@@ -362,7 +327,7 @@ static struct hlist_head *uretprobe_inst_table_head(void *hash_key)
 	return &uretprobe_inst_table[hash_ptr(hash_key, UPROBE_HASH_BITS)];
 }
 
-/* Called with uretprobe_lock held */
+/* Called with urp_mtx held */
 static void add_urp_inst(struct uretprobe_instance *ri)
 {
 	/*
@@ -380,7 +345,7 @@ static void add_urp_inst(struct uretprobe_instance *ri)
 	hlist_add_head(&ri->uflist, &ri->rp->used_instances);
 }
 
-/* Called with uretprobe_lock held */
+/* Called with urp_mtx held */
 static void recycle_urp_inst(struct uretprobe_instance *ri)
 {
 	if (ri->rp) {
@@ -393,7 +358,7 @@ static void recycle_urp_inst(struct uretprobe_instance *ri)
 	}
 }
 
-/* Called with uretprobe_lock held */
+/* Called with urp_mtx held */
 static struct uretprobe_instance *get_used_urp_inst(struct uretprobe *rp)
 {
 	struct uretprobe_instance *ri;
@@ -408,7 +373,7 @@ static struct uretprobe_instance *get_used_urp_inst(struct uretprobe *rp)
 
 /**
  * @brief Gets free uretprobe instanse for the specified uretprobe without
- * allocation. Called with uretprobe_lock held.
+ * allocation. Called with urp_mtx held.
  *
  * @param rp Pointer to the uretprobe.
  * @return Pointer to the uretprobe_instance on success,\n
@@ -426,7 +391,7 @@ struct uretprobe_instance *get_free_urp_inst_no_alloc(struct uretprobe *rp)
 	return NULL;
 }
 
-/* Called with uretprobe_lock held */
+/* Called with urp_mtx held */
 static void free_urp_inst(struct uretprobe *rp)
 {
 	struct uretprobe_instance *ri;
@@ -464,7 +429,7 @@ static int alloc_nodes_uretprobe(struct uretprobe *rp)
 	return 0;
 }
 
-/* Called with uretprobe_lock held */
+/* Called with urp_mtx held */
 static struct uretprobe_instance *get_free_urp_inst(struct uretprobe *rp)
 {
 	struct uretprobe_instance *ri;
@@ -726,15 +691,11 @@ int trampoline_uprobe_handler(struct uprobe *p, struct pt_regs *regs)
 {
 	struct uretprobe_instance *ri = NULL;
 	struct uprobe *up;
-	struct hlist_head *head;
-	unsigned long flags, tramp_addr, orig_ret_addr = 0;
+	struct hlist_head *head = uretprobe_inst_table_head(current->mm);
+	unsigned long tramp_addr = arch_get_trampoline_addr(p, regs);
+	unsigned long orig_ret_addr = 0;
 	struct hlist_node *tmp;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	tramp_addr = arch_get_trampoline_addr(p, regs);
-	spin_lock_irqsave(&uretprobe_lock, flags);
-
-	head = uretprobe_inst_table_head(current->mm);
 
 	/*
 	 * It is possible to have multiple instances associated with a given
@@ -749,6 +710,7 @@ int trampoline_uprobe_handler(struct uprobe *p, struct pt_regs *regs)
 	 *       real return address, and all the rest will point to
 	 *       uretprobe_trampoline
 	 */
+	mutex_lock(&urp_mtx);
 	swap_hlist_for_each_entry_safe(ri, node, tmp, head, hlist) {
 		if (ri->task != current) {
 			/* another task is sharing our hash bucket */
@@ -775,8 +737,8 @@ int trampoline_uprobe_handler(struct uprobe *p, struct pt_regs *regs)
 			break;
 		}
 	}
+	mutex_unlock(&urp_mtx);
 
-	spin_unlock_irqrestore(&uretprobe_lock, flags);
 	/* orig_ret_addr is NULL when there is no need to restore anything
 	 * (all the magic is performed inside handler) */
 	if (likely(orig_ret_addr))
@@ -792,7 +754,6 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 	int noret = thumb_mode(regs) ? rp->thumb_noret : rp->arm_noret;
 #endif
 	struct uretprobe_instance *ri;
-	unsigned long flags;
 	int ret = 0;
 
 #ifdef CONFIG_ARM
@@ -802,9 +763,9 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 
 	/* TODO: consider to only swap the
 	 * RA after the last pre_handler fired */
-	spin_lock_irqsave(&uretprobe_lock, flags);
 
 	/* TODO: test - remove retprobe after func entry but before its exit */
+	mutex_lock(&urp_mtx);
 	ri = get_free_urp_inst(rp);
 	if (ri != NULL) {
 		int err;
@@ -814,12 +775,12 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 #ifdef CONFIG_ARM
 		ri->preload.use = false;
 #endif
-
 		if (rp->entry_handler)
 			ret = rp->entry_handler(ri, regs);
 
-		err = arch_prepare_uretprobe(ri, regs);
 		add_urp_inst(ri);
+
+		err = arch_prepare_uretprobe(ri, regs);
 		if (err) {
 			recycle_urp_inst(ri);
 			++rp->nmissed;
@@ -827,8 +788,7 @@ static int pre_handler_uretprobe(struct uprobe *p, struct pt_regs *regs)
 	} else {
 		++rp->nmissed;
 	}
-
-	spin_unlock_irqrestore(&uretprobe_lock, flags);
+	mutex_unlock(&urp_mtx);
 
 	return ret;
 }
@@ -897,27 +857,18 @@ EXPORT_SYMBOL_GPL(swap_register_uretprobe);
  */
 void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 {
-	unsigned long flags;
 	struct uretprobe_instance *ri;
 
 	__swap_unregister_uprobe(&rp->up, disarm);
 
-	spin_lock_irqsave(&uretprobe_lock, flags);
+	mutex_lock(&urp_mtx);
 	while ((ri = get_used_urp_inst(rp)) != NULL) {
-		bool is_current = ri->task == current;
-
-		if (is_current)
-			spin_unlock_irqrestore(&uretprobe_lock, flags);
-
 		/* FIXME: arch_disarm_urp_inst() for no current context */
-		if (arch_disarm_urp_inst(ri, ri->task, 0) != 0)
+		if (arch_disarm_urp_inst(ri, ri->task) != 0)
 			printk(KERN_INFO "%s (%d/%d): "
 			       "cannot disarm urp instance (%08lx)\n",
 			       ri->task->comm, ri->task->tgid, ri->task->pid,
 			       (unsigned long)rp->up.addr);
-
-		if (is_current)
-			spin_lock_irqsave(&uretprobe_lock, flags);
 
 		recycle_urp_inst(ri);
 	}
@@ -926,7 +877,7 @@ void __swap_unregister_uretprobe(struct uretprobe *rp, int disarm)
 		ri->rp = NULL;
 		hlist_del(&ri->uflist);
 	}
-	spin_unlock_irqrestore(&uretprobe_lock, flags);
+	mutex_unlock(&urp_mtx);
 
 	free_urp_inst(rp);
 }
@@ -985,94 +936,28 @@ void swap_ujprobe_return(void)
 }
 EXPORT_SYMBOL_GPL(swap_ujprobe_return);
 
-
-static struct urinst_info *urinst_info_create(struct uretprobe_instance *ri)
+void swap_uretprobe_free_task(struct task_struct *armed,
+			      struct task_struct *will_disarm, bool recycle)
 {
-	struct urinst_info *urinst;
-
-	urinst = kmalloc(sizeof(*urinst), GFP_ATOMIC);
-	if (urinst) {
-		INIT_HLIST_NODE(&urinst->hlist);
-		urinst->task = ri->task;
-		urinst->sp = (unsigned long)ri->sp;
-		urinst->tramp = arch_tramp_by_ri(ri);
-		urinst->ret_addr = (unsigned long)ri->ret_addr;
-	} else {
-		pr_err("Cannot allocate memory for urinst\n");
-	}
-
-	return urinst;
-}
-
-static void urinst_info_destroy(struct urinst_info *urinst)
-{
-	kfree(urinst);
-}
-
-static void urinst_info_disarm(struct urinst_info *urinst, struct task_struct *task)
-{
-	struct uretprobe_instance ri;
-	unsigned long tramp = urinst->tramp;
-
-	/* set necessary data*/
-	ri.task = urinst->task;
-	ri.sp = (kprobe_opcode_t *)urinst->sp;
-	ri.ret_addr = (kprobe_opcode_t *)urinst->ret_addr;
-
-	arch_disarm_urp_inst(&ri, task, tramp);
-}
-
-void urinst_info_get_current_hlist(struct hlist_head *head, bool recycle)
-{
-	unsigned long flags;
-	struct task_struct *task = current;
 	struct uretprobe_instance *ri;
-	struct hlist_head *hhead;
+	struct hlist_head *hhead = uretprobe_inst_table_head(armed->mm);
 	struct hlist_node *n;
-	struct hlist_node *last = NULL;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
-	spin_lock_irqsave(&uretprobe_lock, flags);
-	hhead = uretprobe_inst_table_head(task->mm);
+	mutex_lock(&urp_mtx);
 	swap_hlist_for_each_entry_safe(ri, node, n, hhead, hlist) {
-		if (task == ri->task) {
-			struct urinst_info *urinst;
+		if (armed != ri->task)
+			continue;
 
-			urinst = urinst_info_create(ri);
-			if (urinst) {
-				if (last)
-					swap_hlist_add_after(last, &urinst->hlist);
-				else
-					hlist_add_head(&urinst->hlist, head);
+		if (will_disarm)
+			arch_disarm_urp_inst(ri, will_disarm);
 
-				last = &urinst->hlist;
-			}
-
-			if (recycle)
-				recycle_urp_inst(ri);
-		}
+		if (recycle)
+			recycle_urp_inst(ri);
 	}
-	spin_unlock_irqrestore(&uretprobe_lock, flags);
+	mutex_unlock(&urp_mtx);
 }
-EXPORT_SYMBOL_GPL(urinst_info_get_current_hlist);
-
-void urinst_info_put_current_hlist(struct hlist_head *head,
-				  struct task_struct *task)
-{
-	struct urinst_info *urinst;
-	struct hlist_node *tmp;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	swap_hlist_for_each_entry_safe(urinst, node, tmp, head, hlist) {
-		/* check on disarm */
-		if (task)
-			urinst_info_disarm(urinst, task);
-
-		hlist_del(&urinst->hlist);
-		urinst_info_destroy(urinst);
-	}
-}
-EXPORT_SYMBOL_GPL(urinst_info_put_current_hlist);
+EXPORT_SYMBOL_GPL(swap_uretprobe_free_task);
 
 
 static int once(void)

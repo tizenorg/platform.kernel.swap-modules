@@ -8,7 +8,6 @@
 #include <kprobe/swap_ktd.h>
 #include "preload.h"
 #include "preload_threads.h"
-#include "preload_debugfs.h"
 
 struct preload_td {
 	struct list_head slots;
@@ -55,13 +54,12 @@ static inline struct preload_td *get_preload_td(struct task_struct *task)
 	return (struct preload_td *)swap_ktd(&preload_ktd, task);
 }
 
-unsigned long get_preload_flags(struct task_struct *task)
+unsigned long pt_get_flags(struct task_struct *task)
 {
 	return get_preload_td(task)->flags;
 }
 
-void set_preload_flags(struct task_struct *task,
-		       unsigned long flags)
+void pt_set_flags(struct task_struct *task, unsigned long flags)
 {
 	get_preload_td(task)->flags = flags;
 }
@@ -178,9 +176,8 @@ static inline struct thread_slot *__get_task_slot(struct task_struct *task)
 
 
 
-int preload_threads_set_data(struct task_struct *task, unsigned long caller,
-			     unsigned char call_type,
-			     unsigned long disable_addr, bool drop)
+int pt_set_data(struct task_struct *task, unsigned long caller,
+		 unsigned char call_type, unsigned long disable_addr, bool drop)
 {
 	struct preload_td *td = get_preload_td(task);
 	struct thread_slot *slot;
@@ -206,7 +203,7 @@ set_data_done:
 	return ret;
 }
 
-int preload_threads_get_caller(struct task_struct *task, unsigned long *caller)
+int pt_get_caller(struct task_struct *task, unsigned long *caller)
 {
 	struct thread_slot *slot;
 	int ret = 0;
@@ -224,7 +221,7 @@ get_caller_done:
 	return ret;
 }
 
-int preload_threads_get_call_type(struct task_struct *task,
+int pt_get_call_type(struct task_struct *task,
 				  unsigned char *call_type)
 {
 	struct thread_slot *slot;
@@ -243,7 +240,7 @@ get_call_type_done:
 	return ret;
 }
 
-int preload_threads_get_drop(struct task_struct *task)
+int pt_get_drop(struct task_struct *task)
 {
 	struct thread_slot *slot;
 	int ret = 0;
@@ -261,8 +258,7 @@ get_drop_done:
 	return ret;
 }
 
-bool preload_threads_check_disabled_probe(struct task_struct *task,
-					  unsigned long addr)
+bool pt_check_disabled_probe(struct task_struct *task, unsigned long addr)
 {
 	struct thread_slot *slot;
 	bool ret = false;
@@ -274,7 +270,7 @@ bool preload_threads_check_disabled_probe(struct task_struct *task,
 	return ret;
 }
 
-void preload_threads_enable_probe(struct task_struct *task, unsigned long addr)
+void pt_enable_probe(struct task_struct *task, unsigned long addr)
 {
 	struct thread_slot *slot;
 	struct disabled_addr *da;
@@ -293,7 +289,7 @@ enable_probe_failed:
 	return; /* make gcc happy: cannot place label right before '}' */
 }
 
-int preload_threads_put_data(struct task_struct *task)
+int pt_put_data(struct task_struct *task)
 {
 	struct thread_slot *slot;
 	int ret = 0;
@@ -309,12 +305,12 @@ put_data_done:
 	return ret;
 }
 
-int preload_threads_init(void)
+int pt_init(void)
 {
 	return swap_ktd_reg(&preload_ktd);
 }
 
-void preload_threads_exit(void)
+void pt_exit(void)
 {
 	swap_ktd_unreg(&preload_ktd);
 }

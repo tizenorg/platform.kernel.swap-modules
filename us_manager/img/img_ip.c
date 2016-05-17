@@ -25,7 +25,8 @@
 
 #include "img_ip.h"
 #include <us_manager/probes/use_probes.h>
-#include <us_manager/sspt/ip.h>
+#include <us_manager/sspt/sspt.h>
+#include <us_manager/sspt/sspt_ip.h>
 #include <linux/slab.h>
 
 /**
@@ -35,7 +36,7 @@
  * @param probe_i Pointer to the probe info data.
  * @return Pointer to the created img_ip struct
  */
-struct img_ip *create_img_ip(unsigned long addr, struct probe_desc *pd)
+struct img_ip *img_ip_create(unsigned long addr, struct probe_desc *pd)
 {
 	struct img_ip *ip;
 
@@ -44,32 +45,68 @@ struct img_ip *create_img_ip(unsigned long addr, struct probe_desc *pd)
 		return NULL;
 
 	INIT_LIST_HEAD(&ip->list);
-	INIT_LIST_HEAD(&ip->ihead);
+	kref_init(&ip->ref);
+	mutex_init(&ip->sspt.mtx);
+	INIT_LIST_HEAD(&ip->sspt.head);
 	ip->addr = addr;
 	ip->desc = pd;
 
 	return ip;
 }
 
-/**
- * @brief Remove img_ip struct
- *
- * @param ip remove object
- * @return Void
- */
-void free_img_ip(struct img_ip *ip)
+static void img_ip_release(struct kref *ref)
 {
-	struct us_ip *p, *n;
+	struct img_ip *ip = container_of(ref, struct img_ip, ref);
 
-	list_for_each_entry_safe(p, n, &ip->ihead, img_list) {
-		list_del_init(&p->img_list);
-		p->iip = NULL;
-		list_del(&p->list);
-		probe_info_unregister(p->desc->type, p, 1);
-		free_ip(p);
-	}
-
+	WARN_ON(!list_empty(&ip->sspt.head));
 	kfree(ip);
+}
+
+void img_ip_clean(struct img_ip *ip)
+{
+	struct sspt_ip *p, *n;
+	LIST_HEAD(head);
+
+	mutex_lock(&ip->sspt.mtx);
+	list_for_each_entry_safe(p, n, &ip->sspt.head, img_list) {
+		if (sspt_page_is_installed_ip(p->page, p))
+			sspt_unregister_usprobe(NULL, p, US_UNREGS_PROBE);
+
+		sspt_ip_get(p);
+		list_move(&p->img_list, &head);
+	}
+	mutex_unlock(&ip->sspt.mtx);
+
+	list_for_each_entry_safe(p, n, &head, img_list) {
+		sspt_ip_clean(p);
+		sspt_ip_put(p);
+	}
+}
+
+void img_ip_get(struct img_ip *ip)
+{
+	kref_get(&ip->ref);
+}
+
+void img_ip_put(struct img_ip *ip)
+{
+	kref_put(&ip->ref, img_ip_release);
+}
+
+void img_ip_add_ip(struct img_ip *ip, struct sspt_ip *sspt_ip)
+{
+	sspt_ip->img_ip = ip;
+	list_add(&sspt_ip->img_list, &ip->sspt.head);
+}
+
+void img_ip_lock(struct img_ip *ip)
+{
+	mutex_lock(&ip->sspt.mtx);
+}
+
+void img_ip_unlock(struct img_ip *ip)
+{
+	mutex_unlock(&ip->sspt.mtx);
 }
 
 /**

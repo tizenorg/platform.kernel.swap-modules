@@ -1,5 +1,5 @@
-#ifndef __IP__
-#define __IP__
+#ifndef _SSPT_IP
+#define _SSPT_IP
 
 /**
  * @file us_manager/sspt/ip.h
@@ -25,24 +25,31 @@
  */
 
 #include <linux/list.h>
+#include <linux/atomic.h>
 #include <uprobe/swap_uprobes.h>
 #include <us_manager/probes/probes.h>
 
 struct sspt_page;
 
 /**
- * @struct us_ip
+ * @struct sspt_ip
  * @breaf Image of instrumentation pointer for specified process
  */
-struct us_ip {
+struct sspt_ip {
+	/* sspt_page */
 	struct list_head list;      /**< For sspt_page */
 	struct sspt_page *page;     /**< Pointer on the page (parent) */
-	struct probe_desc *desc;    /**< Probe's data */
-	struct img_ip *iip;
-	struct list_head img_list;
+
+	/* img_ip */
+	struct img_ip *img_ip;      /**< Pointer on the img_ip (parent) */
+	struct list_head img_list;  /**< For img_ip */
+
+	atomic_t usage;
 
 	unsigned long orig_addr;    /**< Function address */
 	unsigned long offset;       /**< Page offset */
+
+	struct probe_desc *desc;    /**< Probe's data */
 
 	union {
 		struct uretprobe retprobe;
@@ -50,9 +57,11 @@ struct us_ip {
 	};
 };
 
-#define to_us_ip(rp) container_of(rp, struct us_ip, retprobe)
 
-struct us_ip *create_ip(struct img_ip *img_ip);
-void free_ip(struct us_ip *ip);
+struct sspt_ip *sspt_ip_create(struct img_ip *img_ip, struct sspt_page *page);
+void sspt_ip_clean(struct sspt_ip *ip);
+void sspt_ip_get(struct sspt_ip *ip);
+void sspt_ip_put(struct sspt_ip *ip);
 
-#endif /* __IP__ */
+
+#endif /* _SSPT_IP */

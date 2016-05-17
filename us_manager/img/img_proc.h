@@ -32,8 +32,8 @@ struct sspt_proc;
 struct probe_desc;
 
 
-struct img_proc *create_img_proc(void);
-void free_img_proc(struct img_proc *proc);
+struct img_proc *img_proc_create(void);
+void img_proc_free(struct img_proc *proc);
 
 int img_proc_add_ip(struct img_proc *proc, struct dentry *dentry,
 		    unsigned long addr, struct probe_desc *pd);

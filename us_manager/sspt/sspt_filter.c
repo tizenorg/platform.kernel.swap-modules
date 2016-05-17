@@ -29,7 +29,7 @@ void sspt_filter_free(struct sspt_filter *fl)
 		struct pfg_msg_cb *cb = pfg_msg_cb_get(fl->pfg);
 
 		if (cb && cb->msg_term)
-			cb->msg_term(fl->proc->task);
+			cb->msg_term(fl->proc->leader);
 	}
 
 	kfree(fl);

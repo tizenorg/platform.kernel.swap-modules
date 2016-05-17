@@ -67,29 +67,6 @@
 #endif
 
 
-/*
- * TODO: possibly unnided
- *       check and remove swap_preempt_enable_no_resched() call
- */
-#if (defined(MODULE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)))
-
-#ifdef CONFIG_PREEMPT_COUNT
-#define swap_preempt_enable_no_resched() \
-do { \
-	barrier(); \
-	preempt_count_dec(); \
-} while (0)
-#else /* !CONFIG_PREEMPT_COUNT */
-#define swap_preempt_enable_no_resched() barrier()
-#endif /* CONFIG_PREEMPT_COUNT */
-
-#else /* !(defined(MODULE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)) */
-
-#define swap_preempt_enable_no_resched() preempt_enable_no_resched()
-
-#endif /* !(defined(MODULE) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)) */
-
-
 #if LINUX_VERSION_CODE > KERNEL_VERSION(3, 1, 0)
     #define task_job(task) (task->jobctl)
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(3, 1, 0) */

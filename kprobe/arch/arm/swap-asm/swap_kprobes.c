@@ -343,7 +343,7 @@ int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
  * @param regs Pointer to CPU registers data.
  * @return Void.
  */
-void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
+static void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
 {
 	int cpu = smp_processor_id();
 
@@ -354,7 +354,6 @@ void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
 		regs->ARM_pc = (unsigned long)p->ainsn.insn;
 	}
 }
-EXPORT_SYMBOL_GPL(prepare_singlestep);
 
 /**
  * @brief Saves previous kprobe.
@@ -377,7 +376,7 @@ void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *p_run)
  */
 void restore_previous_kprobe(struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var(swap_current_kprobe) = kcb->prev_kprobe.kp;
+	swap_kprobe_running_set(kcb->prev_kprobe.kp);
 	kcb->kprobe_status = kcb->prev_kprobe.status;
 }
 
@@ -393,8 +392,7 @@ void set_current_kprobe(struct kprobe *p,
 			struct pt_regs *regs,
 			struct kprobe_ctlblk *kcb)
 {
-	__get_cpu_var(swap_current_kprobe) = p;
-	DBPRINTF("set_current_kprobe: p=%p addr=%p\n", p, p->addr);
+	swap_kprobe_running_set(p);
 }
 
 static int kprobe_handler(struct pt_regs *regs)
@@ -431,7 +429,7 @@ static int kprobe_handler(struct pt_regs *regs)
 			if (!p->pre_handler || !p->pre_handler(p, regs)) {
 				kcb->kprobe_status = KPROBE_HIT_SS;
 				prepare_singlestep(p, regs);
-				swap_reset_current_kprobe();
+				swap_kprobe_running_set(NULL);
 			}
 		}
 	} else {
@@ -459,7 +457,6 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 	unsigned long flags;
 
 	local_irq_save(flags);
-	preempt_disable();
 
 	if (likely(instr == BREAKPOINT_INSTRUCTION)) {
 		ret = kprobe_handler(regs);
@@ -470,7 +467,6 @@ int kprobe_trap_handler(struct pt_regs *regs, unsigned int instr)
 		ret = p && (p->opcode == instr) ? 0 : 1;
 	}
 
-	swap_preempt_enable_no_resched();
 	local_irq_restore(flags);
 
 	return ret;

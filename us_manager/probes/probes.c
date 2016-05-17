@@ -62,7 +62,7 @@ static inline int methods_exist(enum probe_t probe_type)
  * @param ip Pointer to the probe us_ip struct.
  * @return Void.
  */
-void probe_info_init(enum probe_t type, struct us_ip *ip)
+void probe_info_init(enum probe_t type, struct sspt_ip *ip)
 {
 	if (!methods_exist(type)) {
 		return;
@@ -78,7 +78,7 @@ void probe_info_init(enum probe_t type, struct us_ip *ip)
  * @param ip Pointer to the probe us_ip struct.
  * @return Void.
  */
-void probe_info_uninit(enum probe_t type, struct us_ip *ip)
+void probe_info_uninit(enum probe_t type, struct sspt_ip *ip)
 {
 	if (!methods_exist(type)) {
 		return;
@@ -94,7 +94,7 @@ void probe_info_uninit(enum probe_t type, struct us_ip *ip)
  * @param ip Pointer to the probe us_ip struct.
  * @return -EINVAL on wrong probe type, method result otherwise.
  */
-int probe_info_register(enum probe_t type, struct us_ip *ip)
+int probe_info_register(enum probe_t type, struct sspt_ip *ip)
 {
 	if (!methods_exist(type)) {
 		return -EINVAL;
@@ -111,7 +111,7 @@ int probe_info_register(enum probe_t type, struct us_ip *ip)
  * @param disarm Disarm flag.
  * @return Void.
  */
-void probe_info_unregister(enum probe_t type, struct us_ip *ip, int disarm)
+void probe_info_unregister(enum probe_t type, struct sspt_ip *ip, int disarm)
 {
 	if (!methods_exist(type)) {
 		return;
@@ -127,7 +127,7 @@ void probe_info_unregister(enum probe_t type, struct us_ip *ip, int disarm)
  * @param ip Pointer to the probe us_ip struct.
  * @return Pointer to the uprobe struct, NULL on error.
  */
-struct uprobe *probe_info_get_uprobe(enum probe_t type, struct us_ip *ip)
+struct uprobe *probe_info_get_uprobe(enum probe_t type, struct sspt_ip *ip)
 {
 	if (!methods_exist(type)) {
 		return NULL;

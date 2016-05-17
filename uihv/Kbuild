@@ -1,0 +1,5 @@
+EXTRA_CFLAGS := $(extra_cflags)
+
+obj-m := swap_uihv.o
+swap_uihv-y := uihv_module.o \
+               uihv_debugfs.o

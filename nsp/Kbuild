@@ -5,5 +5,4 @@ swap_nsp-y := \
 	nsp_module.o \
 	nsp.o \
 	nsp_msg.o \
-	nsp_tdata.o \
 	nsp_debugfs.o

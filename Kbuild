@@ -13,6 +13,7 @@ obj-m := master/ \
          uprobe/ \
          us_manager/ \
          ks_features/ \
+         loader/ \
          sampler/ \
          energy/ \
          parser/ \
@@ -22,4 +23,5 @@ obj-m := master/ \
          fbiprobe/ \
          wsp/ \
          nsp/ \
-         task_ctx/
+         task_ctx/ \
+         uihv/

@@ -1,0 +1,8 @@
+EXTRA_CFLAGS := $(extra_cflags)
+
+obj-m := swap_loader.o
+swap_loader-y := loader_module.o \
+                 loader_debugfs.o \
+                 loader_storage.o \
+                 loader_control.o \
+                 loader_pd.o

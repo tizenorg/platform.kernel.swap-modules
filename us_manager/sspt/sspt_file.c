@@ -43,6 +43,25 @@ static int calculation_hash_bits(int cnt)
 	return bits;
 }
 
+static unsigned long htable_size(const struct sspt_file *file)
+{
+	return 1 << file->htable.bits;
+}
+
+static struct hlist_head *htable_head_by_idx(const struct sspt_file *file,
+					     unsigned long idx)
+{
+	return &file->htable.heads[idx];
+}
+
+static struct hlist_head *htable_head_by_key(const struct sspt_file *file,
+					     unsigned long offset)
+{
+	unsigned long idx = hash_ptr((void *)offset, file->htable.bits);
+
+	return htable_head_by_idx(file, idx);
+}
+
 /**
  * @brief Create sspt_file struct
  *
@@ -53,6 +72,7 @@ static int calculation_hash_bits(int cnt)
 struct sspt_file *sspt_file_create(struct dentry *dentry, int page_cnt)
 {
 	int i, table_size;
+	struct hlist_head *heads;
 	struct sspt_file *obj = kmalloc(sizeof(*obj), GFP_ATOMIC);
 
 	if (obj == NULL)
@@ -65,18 +85,18 @@ struct sspt_file *sspt_file_create(struct dentry *dentry, int page_cnt)
 	obj->vm_start = 0;
 	obj->vm_end = 0;
 
-	obj->page_probes_hash_bits = calculation_hash_bits(page_cnt);
-	table_size = (1 << obj->page_probes_hash_bits);
+	obj->htable.bits = calculation_hash_bits(page_cnt);
+	table_size = htable_size(obj);
 
-	obj->page_probes_table =
-			kmalloc(sizeof(*obj->page_probes_table)*table_size,
-				GFP_ATOMIC);
-
-	if (obj->page_probes_table == NULL)
+	heads = kmalloc(sizeof(*obj->htable.heads) * table_size, GFP_ATOMIC);
+	if (heads == NULL)
 		goto err;
 
 	for (i = 0; i < table_size; ++i)
-		INIT_HLIST_HEAD(&obj->page_probes_table[i]);
+		INIT_HLIST_HEAD(&heads[i]);
+
+	obj->htable.heads = heads;
+	init_rwsem(&obj->htable.sem);
 
 	return obj;
 
@@ -95,40 +115,38 @@ void sspt_file_free(struct sspt_file *file)
 {
 	struct hlist_head *head;
 	struct sspt_page *page;
-	int i, table_size = (1 << file->page_probes_hash_bits);
+	int i, table_size = htable_size(file);
 	struct hlist_node *n;
 	DECLARE_NODE_PTR_FOR_HLIST(p);
 
+	down_write(&file->htable.sem);
 	for (i = 0; i < table_size; ++i) {
-		head = &file->page_probes_table[i];
+		head = htable_head_by_idx(file, i);
 		swap_hlist_for_each_entry_safe(page, p, n, head, hlist) {
 			hlist_del(&page->hlist);
-			sspt_page_free(page);
+			sspt_page_clean(page);
+			sspt_page_put(page);
 		}
 	}
+	up_write(&file->htable.sem);
 
-	kfree(file->page_probes_table);
+	kfree(file->htable.heads);
 	kfree(file);
 }
 
 static void sspt_add_page(struct sspt_file *file, struct sspt_page *page)
 {
 	page->file = file;
-	hlist_add_head(&page->hlist,
-		       &file->page_probes_table[hash_ptr(
-				       (void *)page->offset,
-				       file->page_probes_hash_bits)]);
+	hlist_add_head(&page->hlist, htable_head_by_key(file, page->offset));
 }
 
 static struct sspt_page *sspt_find_page(struct sspt_file *file,
 					unsigned long offset)
 {
-	struct hlist_head *head;
+	struct hlist_head *head = htable_head_by_key(file, offset);
 	struct sspt_page *page;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
-	head = &file->page_probes_table[hash_ptr((void *)offset,
-						 file->page_probes_hash_bits)];
 	swap_hlist_for_each_entry(page, node, head, hlist) {
 		if (page->offset == offset)
 			return page;
@@ -140,13 +158,16 @@ static struct sspt_page *sspt_find_page(struct sspt_file *file,
 static struct sspt_page *sspt_find_page_or_new(struct sspt_file *file,
 					       unsigned long offset)
 {
-	struct sspt_page *page = sspt_find_page(file, offset);
+	struct sspt_page *page;
 
+	down_write(&file->htable.sem);
+	page = sspt_find_page(file, offset);
 	if (page == NULL) {
 		page = sspt_page_create(offset);
 		if (page)
 			sspt_add_page(file, page);
 	}
+	up_write(&file->htable.sem);
 
 	return page;
 }
@@ -162,6 +183,7 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
 					unsigned long page)
 {
 	unsigned long offset;
+	struct sspt_page *p;
 
 	if (file->vm_start > page || file->vm_end < page) {
 		/* TODO: or panic?! */
@@ -175,7 +197,11 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
 
 	offset = page - file->vm_start;
 
-	return sspt_find_page(file, offset);
+	down_read(&file->htable.sem);
+	p = sspt_find_page(file, offset);
+	up_read(&file->htable.sem);
+
+	return p;
 }
 
 /**
@@ -191,65 +217,36 @@ void sspt_file_add_ip(struct sspt_file *file, struct img_ip *img_ip)
 {
 	unsigned long offset = 0;
 	struct sspt_page *page = NULL;
-	struct us_ip *ip = NULL;
+	struct sspt_ip *ip = NULL;
 
 	offset = img_ip->addr & PAGE_MASK;
 	page = sspt_find_page_or_new(file, offset);
 	if (!page)
 		return;
 
-	/* FIXME: delete ip */
-	ip = create_ip(img_ip);
+	ip = sspt_ip_create(img_ip, page);
 	if (!ip)
 		return;
 
-	sspt_add_ip(page, ip);
 	probe_info_init(ip->desc->type, ip);
 }
 
 void sspt_file_on_each_ip(struct sspt_file *file,
-			  void (*func)(struct us_ip *, void *), void *data)
+			  void (*func)(struct sspt_ip *, void *), void *data)
 {
 	int i;
-	const int table_size = (1 << file->page_probes_hash_bits);
+	const int table_size = htable_size(file);
 	struct sspt_page *page;
 	struct hlist_head *head;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
+	down_read(&file->htable.sem);
 	for (i = 0; i < table_size; ++i) {
-		head = &file->page_probes_table[i];
+		head = htable_head_by_idx(file, i);
 		swap_hlist_for_each_entry(page, node, head, hlist)
 			sspt_page_on_each_ip(page, func, data);
 	}
-}
-
-/**
- * @brief Get sspt_page from sspt_file (look)
- *
- * @param file Pointer to the sspt_file struct
- * @param offset_addr File offset
- * @return Pointer to the sspt_page struct
- */
-struct sspt_page *sspt_get_page(struct sspt_file *file,
-				unsigned long offset_addr)
-{
-	unsigned long offset = offset_addr & PAGE_MASK;
-	struct sspt_page *page = sspt_find_page_or_new(file, offset);
-
-	spin_lock(&page->lock);
-
-	return page;
-}
-
-/**
- * @brief Put sspt_page (unlook)
- *
- * @param file Pointer to the sspt_page struct
- * @return void
- */
-void sspt_put_page(struct sspt_page *page)
-{
-	spin_unlock(&page->lock);
+	up_read(&file->htable.sem);
 }
 
 /**
@@ -262,22 +259,28 @@ void sspt_put_page(struct sspt_page *page)
  */
 int sspt_file_check_install_pages(struct sspt_file *file)
 {
+	int ret = 0;
 	int i, table_size;
 	struct sspt_page *page;
 	struct hlist_head *head;
-	struct hlist_node *tmp;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
-	table_size = (1 << file->page_probes_hash_bits);
+	table_size = htable_size(file);
+
+	down_read(&file->htable.sem);
 	for (i = 0; i < table_size; ++i) {
-		head = &file->page_probes_table[i];
-		swap_hlist_for_each_entry_safe(page, node, tmp, head, hlist) {
-			if (sspt_page_is_installed(page))
-				return 1;
+		head = htable_head_by_idx(file, i);
+		swap_hlist_for_each_entry(page, node, head, hlist) {
+			if (sspt_page_is_installed(page)) {
+				ret = 1;
+				goto unlock;
+			}
 		}
 	}
 
-	return 0;
+unlock:
+	up_read(&file->htable.sem);
+	return ret;
 }
 
 /**
@@ -290,24 +293,26 @@ void sspt_file_install(struct sspt_file *file)
 {
 	struct sspt_page *page = NULL;
 	struct hlist_head *head = NULL;
-	int i, table_size = (1 << file->page_probes_hash_bits);
+	int i, table_size = htable_size(file);
 	unsigned long page_addr;
 	struct mm_struct *mm;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
+	down_read(&file->htable.sem);
 	for (i = 0; i < table_size; ++i) {
-		head = &file->page_probes_table[i];
-		swap_hlist_for_each_entry_rcu(page, node, head, hlist) {
+		head = htable_head_by_idx(file, i);
+		swap_hlist_for_each_entry(page, node, head, hlist) {
 			page_addr = file->vm_start + page->offset;
 			if (page_addr < file->vm_start ||
 			    page_addr >= file->vm_end)
 				continue;
 
-			mm = page->file->proc->task->mm;
+			mm = page->file->proc->leader->mm;
 			if (page_present(mm, page_addr))
 				sspt_register_page(page, file);
 		}
 	}
+	up_read(&file->htable.sem);
 }
 
 /**
@@ -323,23 +328,25 @@ int sspt_file_uninstall(struct sspt_file *file,
 			enum US_FLAGS flag)
 {
 	int i, err = 0;
-	int table_size = (1 << file->page_probes_hash_bits);
+	int table_size = htable_size(file);
 	struct sspt_page *page;
 	struct hlist_head *head;
-	struct hlist_node *tmp;
 	DECLARE_NODE_PTR_FOR_HLIST(node);
 
+	down_read(&file->htable.sem);
 	for (i = 0; i < table_size; ++i) {
-		head = &file->page_probes_table[i];
-		swap_hlist_for_each_entry_safe(page, node, tmp, head, hlist) {
+		head = htable_head_by_idx(file, i);
+		swap_hlist_for_each_entry(page, node, head, hlist) {
 			err = sspt_unregister_page(page, flag, task);
 			if (err != 0) {
 				printk(KERN_INFO "ERROR sspt_file_uninstall: "
 				       "err=%d\n", err);
+				up_read(&file->htable.sem);
 				return err;
 			}
 		}
 	}
+	up_read(&file->htable.sem);
 
 	if (flag != US_DISARM) {
 		file->loaded = 0;

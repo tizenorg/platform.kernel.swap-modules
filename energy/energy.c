@@ -295,7 +295,7 @@ static struct energy_data *get_energy_data(struct task_struct *task)
 	void *data = NULL;
 	struct sspt_proc *proc;
 
-	proc = sspt_proc_get_by_task(task);
+	proc = sspt_proc_by_task(task);
 	if (proc)
 		data = sspt_get_feature_data(proc->feature, feature_id);
 

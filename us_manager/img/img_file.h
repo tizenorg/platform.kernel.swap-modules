@@ -27,6 +27,7 @@
 #define _IMG_FILE_H
 
 #include <linux/types.h>
+#include <linux/mutex.h>
 
 struct probe_desc;
 
@@ -35,9 +36,16 @@ struct probe_desc;
  * @breaf Image of file
  */
 struct img_file {
-	struct list_head list;		/**< For img_proc */
+	/* img_proc */
+	struct list_head list;		/**< List for img_proc */
+
+	/* img_ip */
+	struct {
+		struct mutex mtx;
+		struct list_head head;	/**< Head for img_ip */
+	} ips;
+
 	struct dentry *dentry;		/**< Dentry of file */
-	struct list_head ip_list;	/**< For img_ip */
 	atomic_t use;
 };
 

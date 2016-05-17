@@ -22,8 +22,8 @@
  *
  */
 
-#ifndef __PRELOAD_PROBE_H__
-#define __PRELOAD_PROBE_H__
+#ifndef __PRELOAD_HANDLERS_PROBE_H__
+#define __PRELOAD_HANDLERS_PROBE_H__
 
 /* Probe flags description:
  *
@@ -64,4 +64,4 @@ struct write_msg_info {
 int register_preload_probes(void);
 void unregister_preload_probes(void);
 
-#endif /* __URETPROBE_H__ */
+#endif /* __PRELOAD_HANDLERS_PROBE_H__ */

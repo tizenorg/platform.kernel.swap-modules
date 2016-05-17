@@ -69,11 +69,20 @@ static int entry_handler_pf(struct kretprobe_instance *ri, struct pt_regs *regs)
 #endif /* CONFIG_arch */
 
 	if (data->addr) {
-		struct sspt_proc * proc = sspt_proc_get_by_task(current);
+		int ret = 0;
+		struct sspt_proc *proc;
 
-		if (proc && (proc->r_state_addr == data->addr))
-			/* skip ret_handler_pf() for current task */
-			return 1;
+		proc = sspt_proc_get_by_task(current);
+		if (proc) {
+			if (proc->r_state_addr == data->addr) {
+				/* skip ret_handler_pf() for current task */
+				ret = 1;
+			}
+
+			sspt_proc_put(proc);
+		}
+
+		return ret;
 	}
 
 	return 0;
@@ -148,87 +157,55 @@ static void unregister_mf(void)
  *                              copy_process()                                *
  ******************************************************************************
  */
-static void func_uinst_creare(struct us_ip *ip, void *data)
+static void disarm_ip(struct sspt_ip *ip, void *data)
 {
-	struct hlist_head *head = (struct hlist_head *)data;
+	struct task_struct *child = (struct task_struct *)data;
 	struct uprobe *up;
 
 	up = probe_info_get_uprobe(ip->desc->type, ip);
-	if (up) {
-		struct uinst_info *uinst;
-		unsigned long vaddr = (unsigned long)up->addr;
-
-		uinst = uinst_info_create(vaddr, up->opcode);
-		if (uinst)
-			hlist_add_head(&uinst->hlist, head);
-	}
+	if (up)
+		disarm_uprobe(up, child);
 }
-
-static void disarm_for_task(struct task_struct *child, struct hlist_head *head)
-{
-	struct uinst_info *uinst;
-	struct hlist_node *tmp;
-	DECLARE_NODE_PTR_FOR_HLIST(node);
-
-	swap_hlist_for_each_entry_safe(uinst, node, tmp, head, hlist) {
-		uinst_info_disarm(uinst, child);
-		hlist_del(&uinst->hlist);
-		uinst_info_destroy(uinst);
-	}
-}
-
-struct clean_data {
-	struct task_struct *task;
-
-	struct hlist_head head;
-	struct hlist_head rhead;
-};
 
 static atomic_t rm_uprobes_child_cnt = ATOMIC_INIT(0);
 
 static unsigned long cb_clean_child(void *data)
 {
-	struct clean_data *cdata = (struct clean_data *)data;
-	struct task_struct *child = cdata->task;
+	struct task_struct *parent = current;
+	struct sspt_proc *proc;
 
-	/* disarm up for child */
-	disarm_for_task(child, &cdata->head);
+	proc = sspt_proc_get_by_task(parent);
+	if (proc) {
+		struct task_struct *child = *(struct task_struct **)data;
 
-	/* disarm urp for child */
-	urinst_info_put_current_hlist(&cdata->rhead, child);
+		/* disarm up for child */
+		sspt_proc_on_each_ip(proc, disarm_ip, (void *)child);
+
+		/* disarm urp for child */
+		swap_uretprobe_free_task(parent, child, false);
+
+		sspt_proc_put(proc);
+	}
 
 	atomic_dec(&rm_uprobes_child_cnt);
 	return 0;
 }
-
 static void rm_uprobes_child(struct kretprobe_instance *ri,
 			     struct pt_regs *regs, struct task_struct *child)
 {
-	struct sspt_proc *proc;
-	struct clean_data cdata = {
-		.task = child,
-		.head = HLIST_HEAD_INIT,
-		.rhead = HLIST_HEAD_INIT
-	};
+	int ret;
 
-	sspt_proc_write_lock();
-	proc = sspt_proc_get_by_task_no_lock(current);
-	if (proc) {
-		sspt_proc_on_each_ip(proc, func_uinst_creare, (void *)&cdata.head);
-		urinst_info_get_current_hlist(&cdata.rhead, false);
-	}
-	sspt_proc_write_unlock();
+	if (!sspt_proc_by_task(current))
+		return;
 
-	if (proc) {
-		int ret;
-
-		/* set jumper */
-		ret = set_jump_cb((unsigned long)ri->ret_addr, regs,
-				  cb_clean_child, &cdata, sizeof(cdata));
-		if (ret == 0) {
-			atomic_inc(&rm_uprobes_child_cnt);
-			ri->ret_addr = (unsigned long *)get_jump_addr();
-		}
+	/* set jumper */
+	ret = set_jump_cb((unsigned long)ri->ret_addr, regs,
+			  cb_clean_child, &child, sizeof(child));
+	if (ret == 0) {
+		atomic_inc(&rm_uprobes_child_cnt);
+		ri->ret_addr = (unsigned long *)get_jump_addr();
+	} else {
+		WARN_ON(1);
 	}
 }
 
@@ -359,9 +336,8 @@ static unsigned long mr_cb(void *data)
 
 	/* TODO: this lock for synchronizing to disarm urp */
 	down_write(&mm->mmap_sem);
-	if (task->tgid != task->pid) {
+	if (task != task->group_leader) {
 		struct sspt_proc *proc;
-		struct hlist_head head = HLIST_HEAD_INIT;
 
 		if (task != current) {
 			pr_err("call mm_release in isn't current context\n");
@@ -370,17 +346,9 @@ static unsigned long mr_cb(void *data)
 
 		/* if the thread is killed we need to discard pending
 		 * uretprobe instances which have not triggered yet */
-		sspt_proc_write_lock();
-		proc = sspt_proc_get_by_task_no_lock(task);
-		if (proc) {
-			urinst_info_get_current_hlist(&head, true);
-		}
-		sspt_proc_write_unlock();
-
-		if (proc) {
-			/* disarm urp for task */
-			urinst_info_put_current_hlist(&head, task);
-		}
+		proc = sspt_proc_by_task(task);
+		if (proc)
+			swap_uretprobe_free_task(task, task, true);
 	} else {
 		call_mm_release(task);
 	}
@@ -481,7 +449,7 @@ static void __remove_unmap_probes(struct sspt_proc *proc,
 	if (sspt_proc_get_files_by_region(proc, &head, start, len)) {
 		struct sspt_file *file, *n;
 		unsigned long end = start + len;
-		struct task_struct *task = proc->task;
+		struct task_struct *task = proc->leader;
 
 		list_for_each_entry_safe(file, n, &head, list) {
 			if (file->vm_start >= end)
@@ -496,14 +464,12 @@ static void __remove_unmap_probes(struct sspt_proc *proc,
 	}
 }
 
-static void remove_unmap_probes(struct task_struct *task,
-				struct unmap_data *umd)
+static unsigned long cb_munmap(void *data)
 {
 	struct sspt_proc *proc;
+	struct unmap_data *umd = (struct unmap_data *)data;
 
-	sspt_proc_write_lock();
-
-	proc = sspt_proc_get_by_task_no_lock(task);
+	proc = sspt_proc_get_by_task(current);
 	if (proc) {
 		struct msg_unmap_data msg_data = {
 			.start = umd->start,
@@ -514,41 +480,45 @@ static void remove_unmap_probes(struct task_struct *task,
 
 		/* send unmap region */
 		sspt_proc_on_each_filter(proc, msg_unmap, (void *)&msg_data);
+
+		sspt_proc_put(proc);
 	}
 
-	sspt_proc_write_unlock();
+	atomic_dec(&unmap_cnt);
+	return 0;
 }
 
 static int entry_handler_unmap(struct kretprobe_instance *ri,
 			       struct pt_regs *regs)
 {
 	struct unmap_data *data = (struct unmap_data *)ri->data;
-	struct task_struct *task = current->group_leader;
-
-	atomic_inc(&unmap_cnt);
 
 	data->start = swap_get_karg(regs, 1);
 	data->len = (size_t)PAGE_ALIGN(swap_get_karg(regs, 2));
 
-	if (!is_kthread(task) && atomic_read(&stop_flag))
-		remove_unmap_probes(task, data);
-
+	atomic_inc(&unmap_cnt);
 	return 0;
 }
 
 static int ret_handler_unmap(struct kretprobe_instance *ri,
 			     struct pt_regs *regs)
 {
-	struct task_struct *task;
+	int ret;
 
-	task = current->group_leader;
-	if (is_kthread(task) || regs_return_value(regs))
-		goto out;
+	if (regs_return_value(regs)) {
+		atomic_dec(&unmap_cnt);
+		return 0;
+	}
 
-	remove_unmap_probes(task, (struct unmap_data *)ri->data);
-
-out:
-	atomic_dec(&unmap_cnt);
+	ret = set_jump_cb((unsigned long)ri->ret_addr, regs, cb_munmap,
+			  (struct unmap_data *)ri->data,
+			  sizeof(struct unmap_data));
+	if (ret == 0) {
+		ri->ret_addr = (unsigned long *)get_jump_addr();
+	} else {
+		WARN_ON(1);
+		atomic_dec(&unmap_cnt);
+	}
 
 	return 0;
 }
@@ -623,6 +593,7 @@ static int ret_handler_mmap(struct kretprobe_instance *ri,
 	if (vma && check_vma(vma))
 		sspt_proc_on_each_filter(proc, msg_map, (void *)vma);
 
+	sspt_proc_put(proc);
 	return 0;
 }
 
@@ -723,6 +694,43 @@ static void unregister_comm(void)
 
 
 
+/*
+ ******************************************************************************
+ *                               release_task()                               *
+ ******************************************************************************
+ */
+static int release_task_h(struct kprobe *p, struct pt_regs *regs)
+{
+	struct task_struct *task = (struct task_struct *)swap_get_karg(regs, 0);
+	struct task_struct *cur = current;
+
+	if (cur->flags & PF_KTHREAD)
+		return 0;
+
+	/* EXEC: change group leader */
+	if (cur != task && task->pid == cur->pid)
+		sspt_change_leader(task, cur);
+
+	return 0;
+}
+
+struct kprobe release_task_kp = {
+	.pre_handler = release_task_h,
+};
+
+static int reg_release_task(void)
+{
+	return swap_register_kprobe(&release_task_kp);
+}
+
+static void unreg_release_task(void)
+{
+	swap_unregister_kprobe(&release_task_kp);
+}
+
+
+
+
 
 /**
  * @brief Registration of helper
@@ -735,13 +743,18 @@ int register_helper(void)
 
 	atomic_set(&stop_flag, 0);
 
+	/* tracking group leader changing */
+	ret = reg_release_task();
+	if (ret)
+		return ret;
+
 	/*
 	 * install probe on 'set_task_comm' to detect when field comm struct
 	 * task_struct changes
 	 */
 	ret = register_comm();
 	if (ret)
-		return ret;
+		goto unreg_rel_task;
 
 	/* install probe on 'do_munmap' to detect when for remove US probes */
 	ret = register_unmap();
@@ -788,6 +801,9 @@ unreg_unmap:
 unreg_comm:
 	unregister_comm();
 
+unreg_rel_task:
+	unreg_release_task();
+
 	return ret;
 }
 
@@ -814,6 +830,7 @@ void unregister_helper_bottom(void)
 	unregister_mr();
 	unregister_unmap();
 	unregister_comm();
+	unreg_release_task();
 }
 
 /**
@@ -854,6 +871,11 @@ int once_helper(void)
 	sym = "set_task_comm";
 	comm_kretprobe.kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
 	if (comm_kretprobe.kp.addr == NULL)
+		goto not_found;
+
+	sym = "release_task";
+	release_task_kp.addr = (kprobe_opcode_t *)swap_ksyms(sym);
+	if (release_task_kp.addr == NULL)
 		goto not_found;
 
 	return 0;

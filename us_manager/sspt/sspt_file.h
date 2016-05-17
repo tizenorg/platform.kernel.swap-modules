@@ -24,8 +24,9 @@
  * Copyright (C) Samsung Electronics, 2013
  */
 
-#include "ip.h"
+#include "sspt_ip.h"
 #include <linux/types.h>
+#include <linux/rwsem.h>
 
 enum US_FLAGS;
 struct vm_area_struct;
@@ -35,16 +36,21 @@ struct vm_area_struct;
  * @breaf Image of file for specified process
  */
 struct sspt_file {
+	/* sspt_proc */
 	struct list_head list;		/**< For sspt_proc */
 	struct sspt_proc *proc;		/**< Pointer to the proc (parent) */
+
+	/* sspt_page */
+	struct {
+		struct rw_semaphore sem;	/**< Semaphore for hash-table */
+		unsigned long bits;		/**< Hash-table size */
+		struct hlist_head *heads;	/**< Heads for pages */
+	} htable;
+
 	struct dentry *dentry;		/**< Dentry of file */
 	unsigned long vm_start;		/**< VM start */
 	unsigned long vm_end;		/**< VM end */
-
-	unsigned long page_probes_hash_bits;	/**< Hash-table size */
-	struct hlist_head *page_probes_table;	/**< Hash-table for pages */
-
-	unsigned loaded:1;			/**< Flag of loading */
+	unsigned loaded:1;		/**< Flag of loading */
 };
 
 
@@ -56,11 +62,7 @@ struct sspt_page *sspt_find_page_mapped(struct sspt_file *file,
 void sspt_file_add_ip(struct sspt_file *file, struct img_ip *img_ip);
 
 void sspt_file_on_each_ip(struct sspt_file *file,
-			  void (*func)(struct us_ip *, void *), void *data);
-
-struct sspt_page *sspt_get_page(struct sspt_file *file,
-				unsigned long offset_addr);
-void sspt_put_page(struct sspt_page *page);
+			  void (*func)(struct sspt_ip *, void *), void *data);
 
 int sspt_file_check_install_pages(struct sspt_file *file);
 void sspt_file_install(struct sspt_file *file);

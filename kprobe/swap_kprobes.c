@@ -47,6 +47,7 @@
 #include <swap-asm/swap_kprobes.h>
 #include "swap_ktd.h"
 #include "swap_slots.h"
+#include "swap_ktd.h"
 #include "swap_td_raw.h"
 #include "swap_kdebug.h"
 #include "swap_kprobes.h"
@@ -69,11 +70,7 @@ static unsigned long sys_exit_addr;
  */
 struct slot_manager sm;
 
-DEFINE_PER_CPU(struct kprobe *, swap_current_kprobe);
-static DEFINE_PER_CPU(struct kprobe_ctlblk, kprobe_ctlblk);
-
 static DEFINE_SPINLOCK(kretprobe_lock);	/* Protects kretprobe_inst_table */
-static DEFINE_PER_CPU(struct kprobe *, kprobe_instance);
 
 struct hlist_head kprobe_table[KPROBE_TABLE_SIZE];
 static struct hlist_head kretprobe_inst_table[KPROBE_TABLE_SIZE];
@@ -146,25 +143,68 @@ static void kretprobe_assert(struct kretprobe_instance *ri,
 	}
 }
 
-/* We have preemption disabled.. so it is safe to use __ versions */
-static inline void set_kprobe_instance(struct kprobe *kp)
+struct kp_data {
+	struct kprobe *running;
+	struct kprobe *instance;
+	struct kprobe_ctlblk ctlblk;
+};
+
+static void ktd_cur_init(struct task_struct *task, void *data)
 {
-	__get_cpu_var(kprobe_instance) = kp;
+	struct kp_data *d = (struct kp_data *)data;
+
+	memset(d, 0, sizeof(*d));
 }
 
-static inline void reset_kprobe_instance(void)
+static void ktd_cur_exit(struct task_struct *task, void *data)
 {
-	__get_cpu_var(kprobe_instance) = NULL;
+	struct kp_data *d = (struct kp_data *)data;
+
+	WARN(d->running, "running probe is not NULL");
+	WARN(d->instance, "instance probe is not NULL");
 }
 
-/**
- * @brief Gets the current kprobe on this CPU.
- *
- * @return Pointer to the current kprobe.
- */
+struct ktask_data ktd_cur = {
+	.init = ktd_cur_init,
+	.exit = ktd_cur_exit,
+	.size = sizeof(struct kp_data),
+};
+
+static struct kp_data *kprobe_data(void)
+{
+	return (struct kp_data *)swap_ktd(&ktd_cur, current);
+}
+
+static int kprobe_cur_reg(void)
+{
+	return swap_ktd_reg(&ktd_cur);
+}
+
+static void kprobe_cur_unreg(void)
+{
+	swap_ktd_unreg(&ktd_cur);
+}
+
+
+static struct kprobe *kprobe_instance(void)
+{
+	return kprobe_data()->instance;
+}
+
+static void kprobe_instance_set(struct kprobe *p)
+{
+	kprobe_data()->instance = p;
+}
+
+
 struct kprobe *swap_kprobe_running(void)
 {
-	return __get_cpu_var(swap_current_kprobe);
+	return kprobe_data()->running;
+}
+
+void swap_kprobe_running_set(struct kprobe *p)
+{
+	kprobe_data()->running = p;
 }
 
 /**
@@ -174,7 +214,7 @@ struct kprobe *swap_kprobe_running(void)
  */
 void swap_reset_current_kprobe(void)
 {
-	__get_cpu_var(swap_current_kprobe) = NULL;
+	swap_kprobe_running_set(NULL);
 }
 
 /**
@@ -184,7 +224,7 @@ void swap_reset_current_kprobe(void)
  */
 struct kprobe_ctlblk *swap_get_kprobe_ctlblk(void)
 {
-	return &__get_cpu_var(kprobe_ctlblk);
+	return &kprobe_data()->ctlblk;
 }
 
 /*
@@ -226,12 +266,12 @@ static int aggr_pre_handler(struct kprobe *p, struct pt_regs *regs)
 
 	list_for_each_entry_rcu(kp, &p->list, list) {
 		if (kp->pre_handler) {
-			set_kprobe_instance(kp);
+			kprobe_instance_set(kp);
 			ret = kp->pre_handler(kp, regs);
 			if (ret)
 				return ret;
 		}
-		reset_kprobe_instance();
+		kprobe_instance_set(NULL);
 	}
 
 	return 0;
@@ -245,9 +285,9 @@ static void aggr_post_handler(struct kprobe *p,
 
 	list_for_each_entry_rcu(kp, &p->list, list) {
 		if (kp->post_handler) {
-			set_kprobe_instance(kp);
+			kprobe_instance_set(kp);
 			kp->post_handler(kp, regs, flags);
-			reset_kprobe_instance();
+			kprobe_instance_set(NULL);
 		}
 	}
 }
@@ -256,7 +296,7 @@ static int aggr_fault_handler(struct kprobe *p,
 			      struct pt_regs *regs,
 			      int trapnr)
 {
-	struct kprobe *cur = __get_cpu_var(kprobe_instance);
+	struct kprobe *cur = kprobe_instance();
 
 	/*
 	 * if we faulted "during" the execution of a user specified
@@ -272,7 +312,7 @@ static int aggr_fault_handler(struct kprobe *p,
 
 static int aggr_break_handler(struct kprobe *p, struct pt_regs *regs)
 {
-	struct kprobe *cur = __get_cpu_var(kprobe_instance);
+	struct kprobe *cur = kprobe_instance();
 	int ret = 0;
 	DBPRINTF("cur = 0x%p\n", cur);
 	if (cur)
@@ -283,7 +323,7 @@ static int aggr_break_handler(struct kprobe *p, struct pt_regs *regs)
 		if (cur->break_handler(cur, regs))
 			ret = 1;
 	}
-	reset_kprobe_instance();
+	kprobe_instance_set(NULL);
 
 	return ret;
 }
@@ -728,7 +768,6 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 
 	trampoline_address = (unsigned long)&swap_kretprobe_trampoline;
 
-	preempt_disable();
 	kcb = swap_get_kprobe_ctlblk();
 
 	spin_lock_irqsave(&kretprobe_lock, flags);
@@ -765,11 +804,11 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 			/* another task is sharing our hash bucket */
 			continue;
 		if (ri->rp && ri->rp->handler) {
-			__get_cpu_var(swap_current_kprobe) = &ri->rp->kp;
+			swap_kprobe_running_set(&ri->rp->kp);
 			swap_get_kprobe_ctlblk()->kprobe_status =
 				KPROBE_HIT_ACTIVE;
 			ri->rp->handler(ri, regs);
-			__get_cpu_var(swap_current_kprobe) = NULL;
+			swap_kprobe_running_set(NULL);
 		}
 
 		orig_ret_address = (unsigned long)ri->ret_addr;
@@ -787,10 +826,9 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	if (kcb->kprobe_status == KPROBE_REENTER)
 		restore_previous_kprobe(kcb);
 	else
-		swap_reset_current_kprobe();
+		swap_kprobe_running_set(NULL);
 
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
-	swap_preempt_enable_no_resched();
 
 	/*
 	 * By returning a non-zero value, we are telling
@@ -1149,12 +1187,14 @@ static void krp_inst_flush(struct task_struct *task)
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 }
 
+/* Handler is called the last because it is registered the first */
 static int put_task_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct task_struct *t = (struct task_struct *)swap_get_karg(regs, 0);
 
 	/* task has died */
 	krp_inst_flush(t);
+	swap_ktd_put_task(t);
 
 	return 0;
 }
@@ -1212,10 +1252,6 @@ static int once(void)
 	if (ret)
 		return ret;
 
-	ret = swap_ktd_once();
-	if (ret)
-		return ret;
-
 	/*
 	 * FIXME allocate the probe table, currently defined statically
 	 * initialize all list heads
@@ -1251,14 +1287,21 @@ static int init_kprobes(void)
 	if (ret)
 		goto arch_kp_exit;
 
-	ret = swap_register_kprobe(&put_task_kp);
+	ret = kprobe_cur_reg();
 	if (ret)
 		goto ktd_uninit;
 
+	ret = swap_register_kprobe(&put_task_kp);
+	if (ret)
+		goto cur_uninit;
+
 	return 0;
 
+cur_uninit:
+	kprobe_cur_unreg();
 ktd_uninit:
-	swap_ktd_uninit();
+	swap_ktd_uninit_top();
+	swap_ktd_uninit_bottom();
 arch_kp_exit:
 	swap_arch_exit_kprobes();
 td_raw_uninit:
@@ -1268,8 +1311,10 @@ td_raw_uninit:
 
 static void exit_kprobes(void)
 {
+	swap_ktd_uninit_top();
 	swap_unregister_kprobe(&put_task_kp);
-	swap_ktd_uninit();
+	kprobe_cur_unreg();
+	swap_ktd_uninit_bottom();
 	swap_arch_exit_kprobes();
 	swap_td_raw_uninit();
 	exit_sm();

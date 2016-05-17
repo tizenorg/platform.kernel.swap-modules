@@ -3,14 +3,14 @@
 
 #include "probes.h"
 
-struct us_ip;
+struct sspt_ip;
 
 struct probe_iface {
-	void (*init)(struct us_ip *);
-	void (*uninit)(struct us_ip *);
-	int (*reg)(struct us_ip *);
-	void (*unreg)(struct us_ip *, int);
-	struct uprobe *(*get_uprobe)(struct us_ip *);
+	void (*init)(struct sspt_ip *);
+	void (*uninit)(struct sspt_ip *);
+	int (*reg)(struct sspt_ip *);
+	void (*unreg)(struct sspt_ip *, int);
+	struct uprobe *(*get_uprobe)(struct sspt_ip *);
 	int (*copy)(struct probe_info *, const struct probe_info *);
 	void (*cleanup)(struct probe_info *);
 };

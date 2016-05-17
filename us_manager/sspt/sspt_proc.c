@@ -31,6 +31,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/list.h>
+#include <kprobe/swap_ktd.h>
 #include <us_manager/us_slot_manager.h>
 
 static LIST_HEAD(proc_probes_list);
@@ -82,17 +83,92 @@ void sspt_proc_write_unlock(void)
 	write_unlock(&sspt_proc_rwlock);
 }
 
+struct ktd_proc {
+	struct sspt_proc *proc;
+	spinlock_t lock;
+};
 
-/**
- * @brief Create sspt_proc struct
- *
- * @param task Pointer to the task_struct struct
- * @param priv Private data
- * @return Pointer to the created sspt_proc struct
- */
-struct sspt_proc *sspt_proc_create(struct task_struct *task)
+static void ktd_init(struct task_struct *task, void *data)
 {
-	struct sspt_proc *proc = kzalloc(sizeof(*proc), GFP_ATOMIC);
+	struct ktd_proc *kproc = (struct ktd_proc *)data;
+
+	kproc->proc = NULL;
+	spin_lock_init(&kproc->lock);
+}
+
+static void ktd_exit(struct task_struct *task, void *data)
+{
+	struct ktd_proc *kproc = (struct ktd_proc *)data;
+
+	WARN_ON(kproc->proc);
+}
+
+struct ktask_data ktd = {
+	.init = ktd_init,
+	.exit = ktd_exit,
+	.size = sizeof(struct ktd_proc),
+};
+
+static struct ktd_proc *kproc_by_task(struct task_struct *task)
+{
+	return (struct ktd_proc *)swap_ktd(&ktd, task);
+}
+
+int sspt_proc_init(void)
+{
+	return swap_ktd_reg(&ktd);
+}
+
+void sspt_proc_uninit(void)
+{
+	swap_ktd_unreg(&ktd);
+}
+
+void sspt_change_leader(struct task_struct *prev, struct task_struct *next)
+{
+	struct ktd_proc *prev_kproc;
+
+	prev_kproc = kproc_by_task(prev);
+	spin_lock(&prev_kproc->lock);
+	if (prev_kproc->proc) {
+		struct ktd_proc *next_kproc;
+
+		next_kproc = kproc_by_task(next);
+		get_task_struct(next);
+
+		/* Change the keeper sspt_proc */
+		BUG_ON(next_kproc->proc);
+
+		spin_lock(&next_kproc->lock);
+		next_kproc->proc = prev_kproc->proc;
+		prev_kproc->proc = NULL;
+		spin_unlock(&next_kproc->lock);
+
+		/* Set new the task leader to sspt_proc */
+		next_kproc->proc->leader = next;
+
+		put_task_struct(prev);
+	}
+	spin_unlock(&prev_kproc->lock);
+}
+
+static void sspt_reset_proc(struct task_struct *task)
+{
+	struct ktd_proc *kproc;
+
+	kproc = kproc_by_task(task->group_leader);
+	spin_lock(&kproc->lock);
+	kproc->proc = NULL;
+	spin_unlock(&kproc->lock);
+}
+
+
+
+
+
+static struct sspt_proc *sspt_proc_create(struct task_struct *leader)
+{
+	struct sspt_proc *proc = kzalloc(sizeof(*proc), GFP_KERNEL);
 
 	if (proc) {
 		proc->feature = sspt_create_feature();
@@ -102,21 +178,31 @@ struct sspt_proc *sspt_proc_create(struct task_struct *task)
 		}
 
 		INIT_LIST_HEAD(&proc->list);
-		proc->tgid = task->tgid;
-		proc->task = task->group_leader;
-		proc->sm = create_sm_us(task);
-		INIT_LIST_HEAD(&proc->file_list);
-		rwlock_init(&proc->filter_lock);
-		INIT_LIST_HEAD(&proc->filter_list);
+		INIT_LIST_HEAD(&proc->files.head);
+		init_rwsem(&proc->files.sem);
+		proc->tgid = leader->tgid;
+		proc->leader = leader;
+		/* FIXME: change the task leader */
+		proc->sm = create_sm_us(leader);
+		mutex_init(&proc->filters.mtx);
+		INIT_LIST_HEAD(&proc->filters.head);
 		atomic_set(&proc->usage, 1);
 
-		get_task_struct(proc->task);
+		get_task_struct(proc->leader);
 
-		/* add to list */
-		list_add(&proc->list, &proc_probes_list);
+		proc->suspect.after_exec = 1;
+		proc->suspect.after_fork = 0;
 	}
 
 	return proc;
+}
+
+static void sspt_proc_free(struct sspt_proc *proc)
+{
+	put_task_struct(proc->leader);
+	free_sm_us(proc->sm);
+	sspt_destroy_feature(proc->feature);
+	kfree(proc);
 }
 
 /**
@@ -133,14 +219,17 @@ void sspt_proc_cleanup(struct sspt_proc *proc)
 
 	sspt_proc_del_all_filters(proc);
 
-	list_for_each_entry_safe(file, n, &proc->file_list, list) {
+	down_write(&proc->files.sem);
+	list_for_each_entry_safe(file, n, &proc->files.head, list) {
 		list_del(&file->list);
 		sspt_file_free(file);
 	}
+	up_write(&proc->files.sem);
 
 	sspt_destroy_feature(proc->feature);
 
 	free_sm_us(proc->sm);
+	sspt_reset_proc(proc->leader);
 	sspt_proc_put(proc);
 }
 
@@ -163,41 +252,34 @@ void sspt_proc_put(struct sspt_proc *proc)
 			proc->__task = NULL;
 		}
 
-		put_task_struct(proc->task);
+		WARN_ON(kproc_by_task(proc->leader)->proc);
+
+		put_task_struct(proc->leader);
 		kfree(proc);
 	}
 }
+EXPORT_SYMBOL_GPL(sspt_proc_put);
+
+struct sspt_proc *sspt_proc_by_task(struct task_struct *task)
+{
+	return kproc_by_task(task->group_leader)->proc;
+}
+EXPORT_SYMBOL_GPL(sspt_proc_by_task);
 
 struct sspt_proc *sspt_proc_get_by_task(struct task_struct *task)
 {
+	struct ktd_proc *kproc = kproc_by_task(task->group_leader);
 	struct sspt_proc *proc;
 
-	sspt_proc_read_lock();
-	proc = sspt_proc_get_by_task_no_lock(task);
-	sspt_proc_read_unlock();
+	spin_lock(&kproc->lock);
+	proc = kproc->proc;
+	if (proc)
+		sspt_proc_get(proc);
+	spin_unlock(&kproc->lock);
 
 	return proc;
 }
 EXPORT_SYMBOL_GPL(sspt_proc_get_by_task);
-
-/**
- * @brief Get sspt_proc by task
- *
- * @param task Pointer on the task_struct struct
- * @return Pointer on the sspt_proc struct
- */
-struct sspt_proc *sspt_proc_get_by_task_no_lock(struct task_struct *task)
-{
-	struct sspt_proc *proc, *tmp;
-
-	list_for_each_entry_safe(proc, tmp, &proc_probes_list, list) {
-		if (proc->tgid == task->tgid)
-			return proc;
-	}
-
-	return NULL;
-}
-EXPORT_SYMBOL_GPL(sspt_proc_get_by_task_no_lock);
 
 /**
  * @brief Call func() on each proc (no lock)
@@ -239,36 +321,52 @@ EXPORT_SYMBOL_GPL(on_each_proc);
  */
 struct sspt_proc *sspt_proc_get_by_task_or_new(struct task_struct *task)
 {
+	static DEFINE_MUTEX(local_mutex);
+	struct ktd_proc *kproc;
 	struct sspt_proc *proc;
+	struct task_struct *leader = task->group_leader;
 
-	sspt_proc_write_lock();
-	proc = sspt_proc_get_by_task_no_lock(task);
-	if (proc == NULL)
-		proc = sspt_proc_create(task);
-	sspt_proc_write_unlock();
+	kproc = kproc_by_task(leader);
+	if (kproc->proc)
+		goto out;
 
-	return proc;
+	proc = sspt_proc_create(leader);
+
+	spin_lock(&kproc->lock);
+	if (kproc->proc == NULL) {
+		sspt_proc_get(proc);
+		kproc->proc = proc;
+		proc = NULL;
+
+		sspt_proc_write_lock();
+		list_add(&kproc->proc->list, &proc_probes_list);
+		sspt_proc_write_unlock();
+	}
+	spin_unlock(&kproc->lock);
+
+	if (proc)
+		sspt_proc_free(proc);
+
+out:
+	return kproc->proc;
 }
 
 /**
- * @brief Free all sspt_proc
+ * @brief Check sspt_proc on empty
  *
  * @return Pointer on the sspt_proc struct
  */
-void sspt_proc_free_all(void)
+void sspt_proc_check_empty(void)
 {
-	struct sspt_proc *proc, *n;
-
-	list_for_each_entry_safe(proc, n, &proc_probes_list, list) {
-		list_del(&proc->list);
-		sspt_proc_cleanup(proc);
-	}
+	WARN_ON(!list_empty(&proc_probes_list));
 }
 
 static void sspt_proc_add_file(struct sspt_proc *proc, struct sspt_file *file)
 {
-	list_add(&file->list, &proc->file_list);
+	down_write(&proc->files.sem);
+	list_add(&file->list, &proc->files.head);
 	file->proc = proc;
+	up_write(&proc->files.sem);
 }
 
 /**
@@ -305,12 +403,17 @@ struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc,
 {
 	struct sspt_file *file;
 
-	list_for_each_entry(file, &proc->file_list, list) {
+	down_read(&proc->files.sem);
+	list_for_each_entry(file, &proc->files.head, list) {
 		if (dentry == file->dentry)
-			return file;
+			goto unlock;
 	}
+	file = NULL;
 
-	return NULL;
+unlock:
+	up_read(&proc->files.sem);
+
+	return file;
 }
 
 /**
@@ -322,7 +425,7 @@ struct sspt_file *sspt_proc_find_file(struct sspt_proc *proc,
  */
 void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 {
-	struct mm_struct *mm = proc->task->mm;
+	struct mm_struct *mm = proc->leader->mm;
 	struct vm_area_struct *vma;
 
 	vma = find_vma_intersection(mm, page_addr, page_addr + 1);
@@ -350,7 +453,7 @@ void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 void sspt_proc_install(struct sspt_proc *proc)
 {
 	struct vm_area_struct *vma;
-	struct mm_struct *mm = proc->task->mm;
+	struct mm_struct *mm = proc->leader->mm;
 
 	proc->first_install = 1;
 
@@ -382,14 +485,16 @@ int sspt_proc_uninstall(struct sspt_proc *proc,
 	int err = 0;
 	struct sspt_file *file;
 
-	list_for_each_entry_rcu(file, &proc->file_list, list) {
+	down_read(&proc->files.sem);
+	list_for_each_entry(file, &proc->files.head, list) {
 		err = sspt_file_uninstall(file, task, flag);
 		if (err != 0) {
 			printk(KERN_INFO "ERROR sspt_proc_uninstall: err=%d\n",
 			       err);
-			return err;
+			break;
 		}
 	}
+	up_read(&proc->files.sem);
 
 	return err;
 }
@@ -419,12 +524,14 @@ int sspt_proc_get_files_by_region(struct sspt_proc *proc,
 	struct sspt_file *file, *n;
 	unsigned long end = start + len;
 
-	list_for_each_entry_safe(file, n, &proc->file_list, list) {
+	down_write(&proc->files.sem);
+	list_for_each_entry_safe(file, n, &proc->files.head, list) {
 		if (intersection(file->vm_start, file->vm_end, start, end)) {
 			ret = 1;
 			list_move(&file->list, head);
 		}
 	}
+	up_write(&proc->files.sem);
 
 	return ret;
 }
@@ -438,7 +545,9 @@ int sspt_proc_get_files_by_region(struct sspt_proc *proc,
  */
 void sspt_proc_insert_files(struct sspt_proc *proc, struct list_head *head)
 {
-	list_splice(head, &proc->file_list);
+	down_write(&proc->files.sem);
+	list_splice(head, &proc->files.head);
+	up_write(&proc->files.sem);
 }
 
 /**
@@ -454,7 +563,7 @@ void sspt_proc_add_filter(struct sspt_proc *proc, struct pf_group *pfg)
 
 	f = sspt_filter_create(proc, pfg);
 	if (f)
-		list_add(&f->list, &proc->filter_list);
+		list_add(&f->list, &proc->filters.head);
 }
 
 /**
@@ -468,14 +577,14 @@ void sspt_proc_del_filter(struct sspt_proc *proc, struct pf_group *pfg)
 {
 	struct sspt_filter *fl, *tmp;
 
-	write_lock(&proc->filter_lock);
-	list_for_each_entry_safe(fl, tmp, &proc->filter_list, list) {
+	mutex_lock(&proc->filters.mtx);
+	list_for_each_entry_safe(fl, tmp, &proc->filters.head, list) {
 		if (fl->pfg == pfg) {
 			list_del(&fl->list);
 			sspt_filter_free(fl);
 		}
 	}
-	write_unlock(&proc->filter_lock);
+	mutex_unlock(&proc->filters.mtx);
 }
 
 /**
@@ -488,12 +597,12 @@ void sspt_proc_del_all_filters(struct sspt_proc *proc)
 {
 	struct sspt_filter *fl, *tmp;
 
-	write_lock(&proc->filter_lock);
-	list_for_each_entry_safe(fl, tmp, &proc->filter_list, list) {
+	mutex_lock(&proc->filters.mtx);
+	list_for_each_entry_safe(fl, tmp, &proc->filters.head, list) {
 		list_del(&fl->list);
 		sspt_filter_free(fl);
 	}
-	write_unlock(&proc->filter_lock);
+	mutex_unlock(&proc->filters.mtx);
 }
 
 /**
@@ -507,7 +616,7 @@ bool sspt_proc_is_filter_new(struct sspt_proc *proc, struct pf_group *pfg)
 {
 	struct sspt_filter *fl;
 
-	list_for_each_entry(fl, &proc->filter_list, list)
+	list_for_each_entry(fl, &proc->filters.head, list)
 		if (fl->pfg == pfg)
 			return false;
 
@@ -520,17 +629,19 @@ void sspt_proc_on_each_filter(struct sspt_proc *proc,
 {
 	struct sspt_filter *fl;
 
-	list_for_each_entry(fl, &proc->filter_list, list)
+	list_for_each_entry(fl, &proc->filters.head, list)
 		func(fl, data);
 }
 
 void sspt_proc_on_each_ip(struct sspt_proc *proc,
-			  void (*func)(struct us_ip *, void *), void *data)
+			  void (*func)(struct sspt_ip *, void *), void *data)
 {
 	struct sspt_file *file;
 
-	list_for_each_entry(file, &proc->file_list, list)
+	down_read(&proc->files.sem);
+	list_for_each_entry(file, &proc->files.head, list)
 		sspt_file_on_each_ip(file, func, data);
+	up_read(&proc->files.sem);
 }
 
 static void is_send_event(struct sspt_filter *f, void *data)

@@ -269,40 +269,10 @@ void swap_ktd_unreg(struct ktask_data *ktd)
 EXPORT_SYMBOL_GPL(swap_ktd_unreg);
 
 
-/*
- * void __put_task_struct(struct task_struct *tsk)
- */
-static int put_ts_handler(struct kprobe *p, struct pt_regs *regs)
+void swap_ktd_put_task(struct task_struct *task)
 {
-	struct task_struct *task;
-
-	task = (struct task_struct *)swap_get_karg(regs, 0);
-
 	if (task_prepare_is(task))
 		td_prepare_clear(td_by_task(task), task);
-
-	return 0;
-}
-
-static struct kprobe put_ts_kp = {
-	.pre_handler = put_ts_handler
-};
-
-
-int swap_ktd_once(void)
-{
-	const char *sym;
-
-	sym = "__put_task_struct";
-	put_ts_kp.addr = (void *)swap_ksyms(sym);
-	if (put_ts_kp.addr == NULL)
-		goto not_found;
-
-	return 0;
-
-not_found:
-	pr_err(KTD_PREFIX "ERROR: symbol %s(...) not found\n", sym);
-	return -ESRCH;
 }
 
 int swap_ktd_init(void)
@@ -315,33 +285,39 @@ int swap_ktd_init(void)
 
 	ret = swap_td_raw_reg(&td_raw, sizeof(struct td));
 	if (ret)
-		goto fail;
+		pr_err(KTD_PREFIX "registration failed, ret=%d", ret);
 
-	ret = swap_register_kprobe(&put_ts_kp);
-	if (ret)
-		goto td_raw_unreg;
-
-	return 0;
-
-td_raw_unreg:
-	swap_td_raw_unreg(&td_raw);
-fail:
-	pr_err(KTD_PREFIX "registration failed, ret=%d", ret);
 	return ret;
 }
 
-void swap_ktd_uninit(void)
+void swap_ktd_uninit_top(void)
+{
+	struct td *td;
+	unsigned long flags;
+
+	/* get injected tasks */
+	write_lock_irqsave(&prepare_lock, flags);
+	list_for_each_entry(td, &prepare_list, list) {
+		get_task_struct(task_by_td(td));
+	}
+	write_unlock_irqrestore(&prepare_lock, flags);
+}
+
+void swap_ktd_uninit_bottom(void)
 {
 	struct td *td, *n;
 	unsigned long flags;
 
-	/* remove td injection from tasks */
+	/* remove td injection from tasks and put tasks */
 	write_lock_irqsave(&prepare_lock, flags);
-	list_for_each_entry_safe(td, n, &prepare_list, list)
-		td_prepare_clear_no_lock(td, task_by_td(td));
+	list_for_each_entry_safe(td, n, &prepare_list, list) {
+		struct task_struct *task = task_by_td(td);
+
+		td_prepare_clear_no_lock(td, task);
+		put_task_struct(task);
+	}
 	write_unlock_irqrestore(&prepare_lock, flags);
 
-	swap_unregister_kprobe(&put_ts_kp);
 	swap_td_raw_unreg(&td_raw);
 
 	WARN(preparing_cnt, KTD_PREFIX "preparing_cnt=%d", preparing_cnt);
