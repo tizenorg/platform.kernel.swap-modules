@@ -43,7 +43,7 @@ static struct probe *create_probe(unsigned long addr, void *pre_handler,
 	if (p == NULL)
 		return NULL;
 
-	p->p.jp.kp.addr = p->p.rp.kp.addr = (void *)addr;
+	p->p.jp.kp.addr = p->p.rp.kp.addr = addr;
 	p->p.jp.pre_entry = pre_handler;
 	p->p.jp.entry = jp_handler;
 	p->p.rp.handler = rp_handler;

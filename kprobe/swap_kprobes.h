@@ -46,7 +46,7 @@
 #include <swap-asm/swap_kprobes.h>
 
 
-/* kprobe_status settings */
+/* kp_core_status settings */
 /** Kprobe hit active */
 #define KPROBE_HIT_ACTIVE	0x00000001
 /** Kprobe hit ss */
@@ -107,43 +107,38 @@ typedef int (*kprobe_fault_handler_t) (struct kprobe *,
 typedef int (*kretprobe_handler_t) (struct kretprobe_instance *,
 				    struct pt_regs *);
 
+struct kprobe;
+struct kp_core;
+
+struct kp_handlers {
+	int (*pre)(struct kp_core *, struct pt_regs *);
+
+	rwlock_t lock;
+	struct kprobe *kps[4];
+};
+
+struct kp_core {
+	struct hlist_node hlist;
+	atomic_t usage;
+
+	struct kp_handlers handlers;
+
+	unsigned long addr;
+	kprobe_opcode_t opcode;
+
+	struct arch_specific_insn ainsn;
+};
+
 /**
  * @struct kprobe
  * @brief Main kprobe struct.
  */
 struct kprobe {
-	struct hlist_node				hlist; /**< Hash list.*/
-	/** List of probes to search by instruction slot.*/
-	struct hlist_node				is_hlist;
-	/** List of kprobes for multi-handler support.*/
-	struct list_head				list;
-	/** Count the number of times this probe was temporarily disarmed.*/
-	unsigned long					nmissed;
-	/** Location of the probe point. */
-	kprobe_opcode_t					*addr;
-	/** Allow user to indicate symbol name of the probe point.*/
-	char						*symbol_name;
-	/** Offset into the symbol.*/
-	unsigned int					offset;
-	/** Called before addr is executed.*/
-	kprobe_pre_handler_t				pre_handler;
-	/** Called after addr is executed, unless...*/
-	kprobe_post_handler_t				post_handler;
-	/** ... called if executing addr causes a fault (eg. page fault).*/
-	kprobe_fault_handler_t				fault_handler;
-	/** Return 1 if it handled fault, otherwise kernel will see it.*/
-	kprobe_break_handler_t				break_handler;
-	/** Saved opcode (which has been replaced with breakpoint).*/
-	kprobe_opcode_t					opcode;
-	/** Copy of the original instruction.*/
-	struct arch_specific_insn			ainsn;
-	/** Override single-step target address, may be used to redirect
-	 * control-flow to arbitrary address after probe point without
-	 * invocation of original instruction; useful for functions
-	 * replacement. If jprobe.entry should return address of function or
-	 * NULL if original function should be called.
-	 * Not supported for X86, not tested for MIPS. */
-	kprobe_opcode_t					*ss_addr[NR_CPUS];
+	unsigned long addr;	/**< Location of the probe point. */
+	char *symbol_name;	/**< Symbol name of the probe point. */
+	unsigned long offset;	/**< Offset into the symbol.*/
+	/**< Called before addr is executed. */
+	kprobe_pre_handler_t pre_handler;
 };
 
 /**
@@ -234,8 +229,6 @@ struct kretprobe_instance {
 };
 
 
-extern void swap_kprobes_inc_nmissed_count(struct kprobe *p);
-
 /*
  * Large value for fast but memory consuming implementation
  * it is good when a lot of probes are instrumented
@@ -245,15 +238,22 @@ extern void swap_kprobes_inc_nmissed_count(struct kprobe *p);
 #define KPROBE_TABLE_SIZE (1 << KPROBE_HASH_BITS)
 
 
-/* Get the kprobe at this addr (if any) - called with preemption disabled */
-struct kprobe *swap_get_kprobe(void *addr);
+static void inline kp_core_get(struct kp_core *p)
+{
+	atomic_inc(&p->usage);
+}
 
+static void inline kp_core_put(struct kp_core *p)
+{
+	atomic_dec(&p->usage);
+}
+
+
+/* Get the kp_core at this addr (if any) - called with rcu_read_lock() */
+struct kp_core *kp_core_by_addr(unsigned long addr);
 
 int swap_register_kprobe(struct kprobe *p);
 void swap_unregister_kprobe(struct kprobe *p);
-
-int swap_setjmp_pre_handler(struct kprobe *, struct pt_regs *);
-int swap_longjmp_break_handler(struct kprobe *, struct pt_regs *);
 
 int swap_register_jprobe(struct jprobe *p);
 void swap_unregister_jprobe(struct jprobe *p);
@@ -285,10 +285,9 @@ int trampoline_probe_handler (struct kprobe *p, struct pt_regs *regs);
 extern atomic_t kprobe_count;
 extern unsigned long sched_addr;
 
-struct kprobe *swap_kprobe_running(void);
-void swap_kprobe_running_set(struct kprobe *p);
-void swap_reset_current_kprobe(void);
-struct kprobe_ctlblk *swap_get_kprobe_ctlblk(void);
+struct kp_core *kp_core_running(void);
+void kp_core_running_set(struct kp_core *p);
+struct kp_core_ctlblk *kp_core_ctlblk(void);
 
 
 #endif /* _SWAP_KPROBES_H */

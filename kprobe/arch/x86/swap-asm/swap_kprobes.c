@@ -35,7 +35,7 @@
 
 #include "swap_kprobes.h"
 #include <kprobe/swap_kprobes.h>
-
+#include <kprobe/swap_td_raw.h>
 #include <kprobe/swap_kdebug.h>
 #include <kprobe/swap_slots.h>
 #include <kprobe/swap_kprobes_deps.h>
@@ -217,17 +217,17 @@ static int is_IF_modifier(kprobe_opcode_t opcode)
  * @param sm Pointer to slot manager
  * @return 0 on success, error code on error.
  */
-int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
+int arch_kp_core_prepare(struct kp_core *p, struct slot_manager *sm)
 {
 	/* insn: must be on special executable page on i386. */
 	p->ainsn.insn = swap_slot_alloc(sm);
 	if (p->ainsn.insn == NULL)
 		return -ENOMEM;
 
-	memcpy(p->ainsn.insn, p->addr, MAX_INSN_SIZE);
+	memcpy(p->ainsn.insn, (void *)p->addr, MAX_INSN_SIZE);
 
-	p->opcode = *p->addr;
-	p->ainsn.boostable = swap_can_boost(p->addr) ? 0 : -1;
+	p->opcode = *(char *)p->addr;
+	p->ainsn.boostable = swap_can_boost((void *)p->addr) ? 0 : -1;
 
 	return 0;
 }
@@ -239,7 +239,7 @@ int swap_arch_prepare_kprobe(struct kprobe *p, struct slot_manager *sm)
  * @param regs Pointer to CPU registers data.
  * @return Void.
  */
-static void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
+static void prepare_singlestep(struct kp_core *p, struct pt_regs *regs)
 {
 	regs->flags |= TF_MASK;
 	regs->flags &= ~IF_MASK;
@@ -254,65 +254,55 @@ static void prepare_singlestep(struct kprobe *p, struct pt_regs *regs)
 /**
  * @brief Saves previous kprobe.
  *
- * @param kcb Pointer to kprobe_ctlblk struct whereto save current kprobe.
+ * @param kcb Pointer to kp_core_ctlblk struct whereto save current kprobe.
  * @param p_run Pointer to kprobe.
  * @return Void.
  */
-void save_previous_kprobe(struct kprobe_ctlblk *kcb, struct kprobe *cur_p)
+static void save_previous_kp_core(struct kp_core_ctlblk *kcb, struct kp_core *cur)
 {
-	if (kcb->prev_kprobe.kp != NULL) {
+	if (kcb->prev_kp_core.p != NULL) {
 		panic("no space to save new probe[]: "
-		      "task = %d/%s, prev %p, current %p, new %p,",
-		      current->pid, current->comm, kcb->prev_kprobe.kp->addr,
-		      swap_kprobe_running()->addr, cur_p->addr);
+		      "task = %d/%s, prev %08lx, current %08lx, new %08lx,",
+		      current->pid, current->comm, kcb->prev_kp_core.p->addr,
+		      kp_core_running()->addr, cur->addr);
 	}
 
 
-	kcb->prev_kprobe.kp = swap_kprobe_running();
-	kcb->prev_kprobe.status = kcb->kprobe_status;
-
+	kcb->prev_kp_core.p = kp_core_running();
+	kcb->prev_kp_core.status = kcb->kp_core_status;
 }
 
 /**
- * @brief Restores previous kprobe.
+ * @brief Restores previous kp_core.
  *
- * @param kcb Pointer to kprobe_ctlblk which contains previous kprobe.
+ * @param kcb Pointer to kp_core_ctlblk which contains previous kp_core.
  * @return Void.
  */
-void restore_previous_kprobe(struct kprobe_ctlblk *kcb)
+void restore_previous_kp_core(struct kp_core_ctlblk *kcb)
 {
-	swap_kprobe_running_set(kcb->prev_kprobe.kp);
-	kcb->kprobe_status = kcb->prev_kprobe.status;
-	kcb->prev_kprobe.kp = NULL;
-	kcb->prev_kprobe.status = 0;
+	kp_core_running_set(kcb->prev_kp_core.p);
+	kcb->kp_core_status = kcb->prev_kp_core.status;
+	kcb->prev_kp_core.p = NULL;
+	kcb->prev_kp_core.status = 0;
 }
 
-/**
- * @brief Sets currently running kprobe.
- *
- * @param p Pointer to currently running kprobe.
- * @param regs Pointer to CPU registers data.
- * @param kcb Pointer to kprobe_ctlblk.
- * @return Void.
- */
-void set_current_kprobe(struct kprobe *p,
-			struct pt_regs *regs,
-			struct kprobe_ctlblk *kcb)
+static void set_current_kp_core(struct kp_core *p, struct pt_regs *regs,
+				struct kp_core_ctlblk *kcb)
 {
-	swap_kprobe_running_set(p);
-	kcb->kprobe_saved_eflags = kcb->kprobe_old_eflags =
+	kp_core_running_set(p);
+	kcb->kp_core_saved_eflags = kcb->kp_core_old_eflags =
 		(regs->EREG(flags) & (TF_MASK | IF_MASK));
 	if (is_IF_modifier(p->opcode))
-		kcb->kprobe_saved_eflags &= ~IF_MASK;
+		kcb->kp_core_saved_eflags &= ~IF_MASK;
 }
 
-static int setup_singlestep(struct kprobe *p, struct pt_regs *regs,
-			    struct kprobe_ctlblk *kcb)
+static int setup_singlestep(struct kp_core *p, struct pt_regs *regs,
+			    struct kp_core_ctlblk *kcb)
 {
 #if !defined(CONFIG_PREEMPT) || defined(CONFIG_PM)
-	if (p->ainsn.boostable == 1 && !p->post_handler) {
+	if (p->ainsn.boostable == 1) {
 		/* Boost up -- we can execute copied instructions directly */
-		swap_kprobe_running_set(NULL);
+		kp_core_running_set(NULL);
 		regs->ip = (unsigned long)p->ainsn.insn;
 
 		return 1;
@@ -320,30 +310,79 @@ static int setup_singlestep(struct kprobe *p, struct pt_regs *regs,
 #endif /* !CONFIG_PREEMPT */
 
 	prepare_singlestep(p, regs);
-	kcb->kprobe_status = KPROBE_HIT_SS;
+	kcb->kp_core_status = KPROBE_HIT_SS;
+
+	return 1;
+}
+
+
+static struct td_raw kp_tdraw;
+
+static struct pt_regs *current_regs(void)
+{
+	return (struct pt_regs *)swap_td_raw(&kp_tdraw, current);
+}
+
+
+void exec_trampoline(void);
+void exec_trampoline_int3(void);
+__asm(
+	"exec_trampoline:\n"
+	"call	exec_handler\n"
+	"exec_trampoline_int3:\n"
+	"int3\n"
+);
+
+static int __used exec_handler(void)
+{
+	struct kp_core *p = kp_core_running();
+	struct pt_regs *regs = current_regs();
+
+	return p->handlers.pre(p, regs);
+}
+
+static int befor_exec_trampoline(struct pt_regs *regs)
+{
+	int ret = (int)regs->ax;
+	struct kp_core *p = kp_core_running();
+	struct kp_core_ctlblk *kcb = kp_core_ctlblk();
+
+	/* restore regs from stack */
+	*regs = *current_regs();
+
+	if (ret) {
+		kp_core_put(p);
+		return ret;
+	}
+
+	setup_singlestep(p, regs, kcb);
+	if (!(regs->flags & TF_MASK))
+		kp_core_put(p);
 
 	return 1;
 }
 
 static int __kprobe_handler(struct pt_regs *regs)
 {
-	struct kprobe *p = 0;
-	int ret = 0, reenter = 0;
-	kprobe_opcode_t *addr = NULL;
-	struct kprobe_ctlblk *kcb;
+	struct kp_core *p;
+	int ret = 0;
+	unsigned long addr = regs->ip - 1;
+	struct kp_core_ctlblk *kcb;
 
-	addr = (kprobe_opcode_t *) (regs->EREG(ip) - sizeof(kprobe_opcode_t));
+	kcb = kp_core_ctlblk();
 
-	kcb = swap_get_kprobe_ctlblk();
-	p = swap_get_kprobe(addr);
+	rcu_read_lock();
+	p = kp_core_by_addr(addr);
+	kp_core_get(p);
+	rcu_read_unlock();
 
 	/* Check we're not actually recursing */
-	if (swap_kprobe_running()) {
+	if (kp_core_running()) {
 		if (p) {
-			if (kcb->kprobe_status == KPROBE_HIT_SS &&
+			if (kcb->kp_core_status == KPROBE_HIT_SS &&
 			    *p->ainsn.insn == BREAKPOINT_INSTRUCTION) {
-				regs->EREG(flags) &= ~TF_MASK;
-				regs->EREG(flags) |= kcb->kprobe_saved_eflags;
+				regs->flags &= ~TF_MASK;
+				regs->flags |= kcb->kp_core_saved_eflags;
 				goto no_kprobe;
 			}
 
@@ -354,15 +393,14 @@ static int __kprobe_handler(struct pt_regs *regs)
 			 * just single step on the instruction of the new probe
 			 * without calling any user handlers.
 			 */
-			save_previous_kprobe(kcb, p);
-			set_current_kprobe(p, regs, kcb);
-			swap_kprobes_inc_nmissed_count(p);
+			save_previous_kp_core(kcb, p);
+			set_current_kp_core(p, regs, kcb);
 			prepare_singlestep(p, regs);
-			kcb->kprobe_status = KPROBE_REENTER;
+			kcb->kp_core_status = KPROBE_REENTER;
 
-			return 1;
+			goto out_get_kp_if_TF;
 		} else {
-			if (*addr != BREAKPOINT_INSTRUCTION) {
+			if (*(char *)addr != BREAKPOINT_INSTRUCTION) {
 				/* The breakpoint instruction was removed by
 				 * another cpu right after we hit, no further
 				 * handling of this interrupt is appropriate
@@ -372,16 +410,12 @@ static int __kprobe_handler(struct pt_regs *regs)
 				goto no_kprobe;
 			}
 
-			p = swap_kprobe_running();
-			if (p->break_handler && p->break_handler(p, regs))
-				goto ss_probe;
-
 			goto no_kprobe;
 		}
 	}
 
 	if (!p) {
-		if (*addr != BREAKPOINT_INSTRUCTION) {
+		if (*(char *)addr != BREAKPOINT_INSTRUCTION) {
 			/*
 			 * The breakpoint instruction was removed right
 			 * after we hit it.  Another cpu has removed
@@ -395,26 +429,21 @@ static int __kprobe_handler(struct pt_regs *regs)
 			ret = 1;
 		}
 
-		if (!p) {
-			/* Not one of ours: let kernel handle it */
-			DBPRINTF("no_kprobe");
-			goto no_kprobe;
-		}
+		goto no_kprobe;
 	}
 
-	set_current_kprobe(p, regs, kcb);
+	set_current_kp_core(p, regs, kcb);
+	kcb->kp_core_status = KPROBE_HIT_ACTIVE;
 
-	if (!reenter)
-		kcb->kprobe_status = KPROBE_HIT_ACTIVE;
+	/* save regs to stack */
+	*current_regs() = *regs;
 
-	if (p->pre_handler) {
-		ret = p->pre_handler(p, regs);
-		if (ret)
-			return ret;
-	}
+	regs->ip = (unsigned long)exec_trampoline;
+	return 1;
 
-ss_probe:
-	setup_singlestep(p, regs, kcb);
+out_get_kp_if_TF:
+	if (!(regs->flags & TF_MASK))
+		kp_core_put(p);
 
 	return 1;
 
@@ -426,7 +455,10 @@ static int kprobe_handler(struct pt_regs *regs)
 {
 	int ret;
 
-	ret = __kprobe_handler(regs);
+	if (regs->ip == (unsigned long)exec_trampoline_int3 + 1)
+		ret = befor_exec_trampoline(regs);
+	else
+		ret = __kprobe_handler(regs);
 
 	return ret;
 }
@@ -442,13 +474,11 @@ int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 {
 	struct jprobe *jp = container_of(p, struct jprobe, kp);
 	kprobe_pre_entry_handler_t pre_entry;
-	entry_point_t entry;
 
 	unsigned long addr;
-	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
+	struct kp_core_ctlblk *kcb = kp_core_ctlblk();
 
 	pre_entry = (kprobe_pre_entry_handler_t) jp->pre_entry;
-	entry = (entry_point_t) jp->entry;
 
 	kcb->jprobe_saved_regs = *regs;
 	kcb->jprobe_saved_esp = stack_addr(regs);
@@ -465,9 +495,6 @@ int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
 	trace_hardirqs_off();
 #endif
-	if (pre_entry)
-		p->ss_addr[smp_processor_id()] = (kprobe_opcode_t *)
-						 pre_entry(jp->priv_arg, regs);
 
 	regs->EREG(ip) = (unsigned long)(jp->entry);
 
@@ -488,7 +515,7 @@ void swap_jprobe_return_end(void);
  */
 void swap_jprobe_return(void)
 {
-	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
+	struct kp_core_ctlblk *kcb = kp_core_ctlblk();
 
 	asm volatile("       xchgl   %%ebx,%%esp\n"
 		     "       int3\n"
@@ -527,9 +554,9 @@ void arch_ujprobe_return(void)
  *
  * This function also checks instruction size for preparing direct execution.
  */
-static void resume_execution(struct kprobe *p,
+static void resume_execution(struct kp_core *p,
 			     struct pt_regs *regs,
-			     struct kprobe_ctlblk *kcb)
+			     struct kp_core_ctlblk *kcb)
 {
 	unsigned long *tos;
 	unsigned long copy_eip = (unsigned long) p->ainsn.insn;
@@ -545,7 +572,7 @@ static void resume_execution(struct kprobe *p,
 	switch (insns[0]) {
 	case 0x9c: /* pushfl */
 		*tos &= ~(TF_MASK | IF_MASK);
-		*tos |= kcb->kprobe_old_eflags;
+		*tos |= kcb->kp_core_old_eflags;
 		break;
 	case 0xc2: /* iret/ret/lret */
 	case 0xc3:
@@ -611,27 +638,25 @@ no_change:
  */
 static int post_kprobe_handler(struct pt_regs *regs)
 {
-	struct kprobe *cur = swap_kprobe_running();
-	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
+	struct kp_core *cur = kp_core_running();
+	struct kp_core_ctlblk *kcb = kp_core_ctlblk();
 
 	if (!cur)
 		return 0;
-	if ((kcb->kprobe_status != KPROBE_REENTER) && cur->post_handler) {
-		kcb->kprobe_status = KPROBE_HIT_SSDONE;
-		cur->post_handler(cur, regs, 0);
-	}
+
+	kp_core_put(cur);
 
 	resume_execution(cur, regs, kcb);
-	regs->EREG(flags) |= kcb->kprobe_saved_eflags;
+	regs->flags |= kcb->kp_core_saved_eflags;
 #ifndef CONFIG_X86
 	trace_hardirqs_fixup_flags(regs->EREG(flags));
 #endif /* CONFIG_X86 */
 	/* Restore back the original saved kprobes variables and continue. */
-	if (kcb->kprobe_status == KPROBE_REENTER) {
-		restore_previous_kprobe(kcb);
+	if (kcb->kp_core_status == KPROBE_REENTER) {
+		restore_previous_kp_core(kcb);
 		goto out;
 	}
-	swap_kprobe_running_set(NULL);
+	kp_core_running_set(NULL);
 out:
 	/*
 	 * if somebody else is singlestepping across a probe point, eflags
@@ -646,10 +671,10 @@ out:
 
 static int kprobe_fault_handler(struct pt_regs *regs, int trapnr)
 {
-	struct kprobe *cur = swap_kprobe_running();
-	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
+	struct kp_core *cur = kp_core_running();
+	struct kp_core_ctlblk *kcb = kp_core_ctlblk();
 
-	switch (kcb->kprobe_status) {
+	switch (kcb->kp_core_status) {
 	case KPROBE_HIT_SS:
 	case KPROBE_REENTER:
 		/*
@@ -659,32 +684,15 @@ static int kprobe_fault_handler(struct pt_regs *regs, int trapnr)
 		 * and allow the page fault handler to continue as a
 		 * normal page fault.
 		 */
-		regs->EREG(ip) = (unsigned long) cur->addr;
-		regs->EREG(flags) |= kcb->kprobe_old_eflags;
-		if (kcb->kprobe_status == KPROBE_REENTER)
-			restore_previous_kprobe(kcb);
+		regs->ip = cur->addr;
+		regs->flags |= kcb->kp_core_old_eflags;
+		if (kcb->kp_core_status == KPROBE_REENTER)
+			restore_previous_kp_core(kcb);
 		else
-			swap_kprobe_running_set(NULL);
+			kp_core_running_set(NULL);
 		break;
 	case KPROBE_HIT_ACTIVE:
 	case KPROBE_HIT_SSDONE:
-		/*
-		 * We increment the nmissed count for accounting,
-		 * we can also use npre/npostfault count for accouting
-		 * these specific fault cases.
-		 */
-		swap_kprobes_inc_nmissed_count(cur);
-
-		/*
-		 * We come here because instructions in the pre/post
-		 * handler caused the page_fault, this could happen
-		 * if handler tries to access user space by
-		 * copy_from_user(), get_user() etc. Let the
-		 * user-specified handler try to fix it first.
-		 */
-		if (cur->fault_handler && cur->fault_handler(cur, regs, trapnr))
-			return 1;
-
 		/*
 		 * In case the user-specified fault handler returned
 		 * zero, try to fix up.
@@ -733,7 +741,7 @@ static int kprobe_exceptions_notify(struct notifier_block *self,
 			ret = NOTIFY_STOP;
 		break;
 	case DIE_GPF:
-		if (swap_kprobe_running() &&
+		if (kp_core_running() &&
 		    kprobe_fault_handler(args->regs, args->trapnr))
 			ret = NOTIFY_STOP;
 		break;
@@ -753,64 +761,26 @@ static struct notifier_block kprobe_exceptions_nb = {
 };
 
 /**
- * @brief Longjump break handler.
+ * @brief Arms kp_core.
  *
- * @param p Pointer to fired kprobe.
- * @param regs Pointer to CPU registers data.
- * @return 0 on success.
- */
-int swap_longjmp_break_handler(struct kprobe *p, struct pt_regs *regs)
-{
-	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
-	u8 *addr = (u8 *) (regs->EREG(ip) - 1);
-	unsigned long stack_addr = (unsigned long) (kcb->jprobe_saved_esp);
-	struct jprobe *jp = container_of(p, struct jprobe, kp);
-
-	DBPRINTF("p = %p\n", p);
-
-	if ((addr > (u8 *)swap_jprobe_return) &&
-	    (addr < (u8 *)swap_jprobe_return_end)) {
-		if (stack_addr(regs) != kcb->jprobe_saved_esp) {
-			struct pt_regs *saved_regs = &kcb->jprobe_saved_regs;
-			printk(KERN_INFO "current esp %p does not match saved esp %p\n",
-			       stack_addr(regs), kcb->jprobe_saved_esp);
-			printk(KERN_INFO "Saved registers for jprobe %p\n", jp);
-			swap_show_registers(saved_regs);
-			printk(KERN_INFO "Current registers\n");
-			swap_show_registers(regs);
-			panic("BUG");
-			/* BUG(); */
-		}
-		*regs = kcb->jprobe_saved_regs;
-		memcpy((kprobe_opcode_t *) stack_addr, kcb->jprobes_stack,
-		       MIN_STACK_SIZE(stack_addr));
-		return 1;
-	}
-
-	return 0;
-}
-
-/**
- * @brief Arms kprobe.
- *
- * @param p Pointer to target kprobe.
+ * @param core Pointer to target kp_core.
  * @return Void.
  */
-void swap_arch_arm_kprobe(struct kprobe *p)
+void arch_kp_core_arm(struct kp_core *p)
 {
-	swap_text_poke(p->addr,
+	swap_text_poke((void *)p->addr,
 		       ((unsigned char[]){BREAKPOINT_INSTRUCTION}), 1);
 }
 
 /**
- * @brief Disarms kprobe.
+ * @brief Disarms kp_core.
  *
- * @param p Pointer to target kprobe.
+ * @param core Pointer to target kp_core.
  * @return Void.
  */
-void swap_arch_disarm_kprobe(struct kprobe *p)
+void arch_kp_core_disarm(struct kp_core *p)
 {
-	swap_text_poke(p->addr, &p->opcode, 1);
+	swap_text_poke((void *)p->addr, &p->opcode, 1);
 }
 
 static __used void *trampoline_probe_handler_x86(struct pt_regs *regs)
@@ -844,111 +814,6 @@ void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
 
 	/* Replace the return addr with trampoline addr */
 	*ptr_ret_addr = (unsigned long)&swap_kretprobe_trampoline;
-}
-
-
-
-
-
-/*
- ******************************************************************************
- *                                   kjumper                                  *
- ******************************************************************************
- */
-struct kj_cb_data {
-	struct pt_regs regs;
-	struct kprobe *p;
-
-	jumper_cb_t cb;
-	char data[0];
-};
-
-static struct kj_cb_data * __used kjump_handler(struct kj_cb_data *data)
-{
-	/* call callback */
-	data->cb(data->data);
-
-	return data;
-}
-
-void kjump_trampoline(void);
-void kjump_trampoline_int3(void);
-__asm(
-	"kjump_trampoline:\n"
-	"call	kjump_handler\n"
-	"kjump_trampoline_int3:\n"
-	"nop\n"	/* for restore_regs_kp */
-);
-
-int set_kjump_cb(struct pt_regs *regs, jumper_cb_t cb, void *data, size_t size)
-{
-	struct kj_cb_data *cb_data;
-
-	cb_data = kmalloc(sizeof(*cb_data) + size, GFP_ATOMIC);
-	if (cb_data == NULL)
-		return -ENOMEM;
-
-	/* save regs */
-	cb_data->regs = *regs;
-
-	cb_data->p = swap_kprobe_running();
-	cb_data->cb = cb;
-
-	/* save data */
-	if (size)
-		memcpy(cb_data->data, data, size);
-
-	/* save pointer cb_data at ax */
-	regs->ax = (long)cb_data;
-
-	/* jump to kjump_trampoline */
-	regs->ip = (unsigned long)&kjump_trampoline;
-
-	swap_kprobe_running_set(NULL);
-
-	return 1;
-}
-EXPORT_SYMBOL_GPL(set_kjump_cb);
-
-static int restore_regs_pre_handler(struct kprobe *p, struct pt_regs *regs)
-{
-	struct kj_cb_data *data = (struct kj_cb_data *)regs->ax;
-	struct kprobe *kp = data->p;
-	struct kprobe_ctlblk *kcb = swap_get_kprobe_ctlblk();
-
-	/* restore regs */
-	*regs = data->regs;
-
-	/* FIXME: potential memory leak, when process kill */
-	kfree(data);
-
-	kcb = swap_get_kprobe_ctlblk();
-
-	set_current_kprobe(kp, regs, kcb);
-	setup_singlestep(kp, regs, kcb);
-
-	return 1;
-}
-
-static struct kprobe restore_regs_kp = {
-	.pre_handler = restore_regs_pre_handler,
-	.addr = (kprobe_opcode_t *)&kjump_trampoline_int3,	/* nop */
-};
-
-static int kjump_init(void)
-{
-	int ret;
-
-	ret = swap_register_kprobe(&restore_regs_kp);
-	if (ret)
-		printk(KERN_INFO "ERROR: kjump_init(), ret=%d\n", ret);
-
-	return ret;
-}
-
-static void kjump_exit(void)
-{
-	swap_unregister_kprobe(&restore_regs_kp);
 }
 
 
@@ -1085,13 +950,13 @@ int swap_arch_init_kprobes(void)
 {
 	int ret;
 
-	ret = register_die_notifier(&kprobe_exceptions_nb);
+	ret = swap_td_raw_reg(&kp_tdraw, sizeof(struct pt_regs));
 	if (ret)
 		return ret;
 
-	ret = kjump_init();
+	ret = register_die_notifier(&kprobe_exceptions_nb);
 	if (ret)
-		unregister_die_notifier(&kprobe_exceptions_nb);
+		swap_td_raw_unreg(&kp_tdraw);
 
 	return ret;
 }
@@ -1103,6 +968,6 @@ int swap_arch_init_kprobes(void)
  */
 void swap_arch_exit_kprobes(void)
 {
-	kjump_exit();
 	unregister_die_notifier(&kprobe_exceptions_nb);
+	swap_td_raw_unreg(&kp_tdraw);
 }

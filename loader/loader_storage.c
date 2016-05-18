@@ -44,7 +44,7 @@ static inline int __add_handler(char *path)
 
 	if (__check_dentry_already_exist(dentry)) {
 		ret = 1;
-		goto add_handler_out;
+		goto add_handler_fail_release_dentry;
 	}
 
 	bin = kmalloc(sizeof(*bin), GFP_KERNEL);
