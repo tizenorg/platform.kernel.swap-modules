@@ -37,7 +37,7 @@ static int do_write_cmd(const char *buf, size_t count)
 	if (name == NULL)
 		return -ENOMEM;
 
-	n = sscanf(buf, "%lx %s", &offset, name);
+	n = sscanf(buf, "%lx %1024s", &offset, name);
 	if (n != 2) {
 		ret = -EINVAL;
 		goto free_name;
