@@ -382,7 +382,7 @@ static int pre_handler_one(struct kp_core *core, struct pt_regs *regs)
 	int ret = 0;
 	struct kprobe *p = core->handlers.kps[0];
 
-	if (p->pre_handler)
+	if (p && p->pre_handler)
 		ret = p->pre_handler(p, regs);
 
 	return ret;
