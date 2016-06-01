@@ -80,6 +80,15 @@ typedef u8 kprobe_opcode_t;
 #define KPROBES_TRAMP_LEN		MAX_INSN_SIZE
 #define KPROBES_TRAMP_INSN_IDX          0
 
+static inline int swap_user_mode(struct pt_regs *regs)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+	return user_mode(regs);
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0) */
+	return user_mode_vm(regs);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0) */
+}
+
 static inline unsigned long arch_get_task_pc(struct task_struct *p)
 {
 	/* FIXME: Not implemented yet */

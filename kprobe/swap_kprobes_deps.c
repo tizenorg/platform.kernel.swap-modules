@@ -294,7 +294,17 @@ static inline int swap_in_gate_area(struct task_struct *task,
 	IMP_MOD_DEP_WRAPPER(in_gate_area, task, addr)
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 #else /*__HAVE_ARCH_GATE_AREA */
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	struct mm_struct *mm;
+
+	if (task == NULL)
+		return 0;
+
+	mm = task->mm;
+	return in_gate_area(mm, addr);
+#else
 	return in_gate_area(task, addr);
+#endif
 #endif/*__HAVE_ARCH_GATE_AREA */
 }
 

@@ -141,9 +141,9 @@ static unsigned long __do_preload_entry(struct uretprobe_instance *ri,
 		/* jump only if caller is instumented and it is not a system lib -
 		 * this leads to some errors */
 		if (cvma != NULL && cvma->vm_file != NULL &&
-			cvma->vm_file->f_dentry != NULL) {
+			cvma->vm_file->f_path.dentry != NULL) {
 
-			struct dentry *dentry = cvma->vm_file->f_dentry;
+			struct dentry *dentry = cvma->vm_file->f_path.dentry;
 			struct pd_t *pd = lpd_get_parent_pd(hd);
 
 			if (!pc_check_dentry_is_ignored(dentry) &&

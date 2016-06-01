@@ -74,7 +74,7 @@ static void swap_timer_stop(void)
 	put_online_cpus();
 }
 
-static int __cpuinit swap_cpu_notify(struct notifier_block *self,
+static int swap_cpu_notify(struct notifier_block *self,
 				    unsigned long action, void *hcpu)
 {
 	long cpu = (long) hcpu;

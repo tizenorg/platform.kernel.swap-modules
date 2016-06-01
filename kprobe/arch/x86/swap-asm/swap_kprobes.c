@@ -719,7 +719,7 @@ static int kprobe_exceptions_notify(struct notifier_block *self,
 
 	DBPRINTF("val = %ld, data = 0x%X", val, (unsigned int) data);
 
-	if (args->regs == NULL || user_mode_vm(args->regs))
+	if (args->regs == NULL || swap_user_mode(args->regs))
 		return ret;
 
 	DBPRINTF("switch (val) %lu %d %d", val, DIE_INT3, DIE_TRAP);

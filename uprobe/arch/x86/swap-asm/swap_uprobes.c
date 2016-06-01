@@ -617,7 +617,7 @@ static int uprobe_exceptions_notify(struct notifier_block *self,
 	struct die_args *args = (struct die_args *)data;
 	int ret = NOTIFY_DONE;
 
-	if (args->regs == NULL || !user_mode_vm(args->regs))
+	if (args->regs == NULL || !swap_user_mode(args->regs))
 		return ret;
 
 	switch (val) {
