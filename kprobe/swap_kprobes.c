@@ -177,11 +177,10 @@ static DEFINE_PER_CPU(struct kpc_data, per_cpu_kpc_data);
 
 static struct kpc_data *kp_core_data(void)
 {
-	if (in_interrupt()) {
-		return &__get_cpu_var(per_cpu_kpc_data);
-	} else {
+	if (able2resched())
 		return (struct kpc_data *)swap_ktd(&ktd_cur, current);
-	}
+
+	return &__get_cpu_var(per_cpu_kpc_data);
 }
 
 static int kprobe_cur_reg(void)

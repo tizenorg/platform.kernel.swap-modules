@@ -290,5 +290,14 @@ void kp_core_running_set(struct kp_core *p);
 struct kp_core_ctlblk *kp_core_ctlblk(void);
 
 
+static inline int able2resched(void)
+{
+	if (in_interrupt())
+		return 0;
+
+	return 1;
+}
+
+
 #endif /* _SWAP_KPROBES_H */
 

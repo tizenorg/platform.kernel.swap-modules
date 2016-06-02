@@ -317,10 +317,14 @@ static int setup_singlestep(struct kp_core *p, struct pt_regs *regs,
 
 
 static struct td_raw kp_tdraw;
+static DEFINE_PER_CPU(struct pt_regs, per_cpu_regs);
 
 static struct pt_regs *current_regs(void)
 {
-	return (struct pt_regs *)swap_td_raw(&kp_tdraw, current);
+	if (able2resched())
+		return (struct pt_regs *)swap_td_raw(&kp_tdraw, current);
+
+	return &__get_cpu_var(per_cpu_regs);
 }
 
 
@@ -341,7 +345,7 @@ static int __used exec_handler(void)
 	return p->handlers.pre(p, regs);
 }
 
-static int befor_exec_trampoline(struct pt_regs *regs)
+static int after_exec_trampoline(struct pt_regs *regs)
 {
 	int ret = (int)regs->ax;
 	struct kp_core *p = kp_core_running();
@@ -352,7 +356,7 @@ static int befor_exec_trampoline(struct pt_regs *regs)
 
 	if (ret) {
 		kp_core_put(p);
-		return ret;
+		return 1;
 	}
 
 	setup_singlestep(p, regs, kcb);
@@ -362,19 +366,16 @@ static int befor_exec_trampoline(struct pt_regs *regs)
 	return 1;
 }
 
-static int __kprobe_handler(struct pt_regs *regs)
+#define KSTAT_NOT_FOUND		0x00
+#define KSTAT_FOUND		0x01
+#define KSTAT_PREPARE_KCB	0x02
+
+static unsigned long kprobe_pre_handler(struct kp_core *p,
+					struct pt_regs *regs,
+					struct kp_core_ctlblk *kcb)
 {
-	struct kp_core *p;
-	int ret = 0;
+	int ret = KSTAT_NOT_FOUND;
 	unsigned long addr = regs->ip - 1;
-	struct kp_core_ctlblk *kcb;
-
-	kcb = kp_core_ctlblk();
-
-	rcu_read_lock();
-	p = kp_core_by_addr(addr);
-	kp_core_get(p);
-	rcu_read_unlock();
 
 	/* Check we're not actually recursing */
 	if (kp_core_running()) {
@@ -383,9 +384,8 @@ static int __kprobe_handler(struct pt_regs *regs)
 			    *p->ainsn.insn == BREAKPOINT_INSTRUCTION) {
 				regs->flags &= ~TF_MASK;
 				regs->flags |= kcb->kp_core_saved_eflags;
-				goto no_kprobe;
+				goto out;
 			}
-
 
 			/* We have reentered the kprobe_handler(), since
 			 * another probe was hit while within the handler.
@@ -398,7 +398,8 @@ static int __kprobe_handler(struct pt_regs *regs)
 			prepare_singlestep(p, regs);
 			kcb->kp_core_status = KPROBE_REENTER;
 
-			goto out_get_kp_if_TF;
+			ret = KSTAT_FOUND;
+			goto out;
 		} else {
 			if (*(char *)addr != BREAKPOINT_INSTRUCTION) {
 				/* The breakpoint instruction was removed by
@@ -406,11 +407,12 @@ static int __kprobe_handler(struct pt_regs *regs)
 				 * handling of this interrupt is appropriate
 				 */
 				regs->EREG(ip) -= sizeof(kprobe_opcode_t);
-				ret = 1;
-				goto no_kprobe;
+
+				ret = KSTAT_FOUND;
+				goto out;
 			}
 
-			goto no_kprobe;
+			goto out;
 		}
 	}
 
@@ -426,29 +428,70 @@ static int __kprobe_handler(struct pt_regs *regs)
 			 * the original instruction.
 			 */
 			regs->EREG(ip) -= sizeof(kprobe_opcode_t);
-			ret = 1;
+
+			ret = KSTAT_FOUND;
 		}
 
-		goto no_kprobe;
+		goto out;
 	}
 
 	set_current_kp_core(p, regs, kcb);
 	kcb->kp_core_status = KPROBE_HIT_ACTIVE;
 
-	/* save regs to stack */
-	*current_regs() = *regs;
-
-	regs->ip = (unsigned long)exec_trampoline;
-	return 1;
-
-out_get_kp_if_TF:
-	if (!(regs->flags & TF_MASK))
-		kp_core_put(p);
-
-	return 1;
-
-no_kprobe:
+	ret = KSTAT_PREPARE_KCB;
+out:
 	return ret;
+}
+
+static int __kprobe_handler(struct pt_regs *regs)
+{
+	int ret;
+	struct kp_core *p;
+	struct kp_core_ctlblk *kcb;
+	unsigned long addr = regs->ip - 1;
+
+	kcb = kp_core_ctlblk();
+
+	rcu_read_lock();
+	p = kp_core_by_addr(addr);
+	kp_core_get(p);
+	rcu_read_unlock();
+
+	if (able2resched()) {
+		ret = kprobe_pre_handler(p, regs, kcb);
+		if (ret == KSTAT_PREPARE_KCB) {
+			/* save regs to stack */
+			*current_regs() = *regs;
+
+			regs->ip = (unsigned long)exec_trampoline;
+			return 1;
+		}
+
+		if (!(regs->flags & TF_MASK))
+			kp_core_put(p);
+	} else {
+		ret = kprobe_pre_handler(p, regs, kcb);
+		if (ret == KSTAT_PREPARE_KCB) {
+			int rr = p->handlers.pre(p, regs);
+			if (rr) {
+				kp_core_put(p);
+				return 1;
+			}
+
+			setup_singlestep(p, regs, kcb);
+		}
+
+		/*
+		 * If TF is enabled then processing instruction
+		 * takes place in two stages.
+		 */
+		if (regs->flags & TF_MASK)
+			preempt_disable();
+		else
+			kp_core_put(p);
+	}
+
+	return !!ret;
 }
 
 static int kprobe_handler(struct pt_regs *regs)
@@ -456,7 +499,7 @@ static int kprobe_handler(struct pt_regs *regs)
 	int ret;
 
 	if (regs->ip == (unsigned long)exec_trampoline_int3 + 1)
-		ret = befor_exec_trampoline(regs);
+		ret = after_exec_trampoline(regs);
 	else
 		ret = __kprobe_handler(regs);
 
@@ -644,8 +687,6 @@ static int post_kprobe_handler(struct pt_regs *regs)
 	if (!cur)
 		return 0;
 
-	kp_core_put(cur);
-
 	resume_execution(cur, regs, kcb);
 	regs->flags |= kcb->kp_core_saved_eflags;
 #ifndef CONFIG_X86
@@ -657,7 +698,12 @@ static int post_kprobe_handler(struct pt_regs *regs)
 		goto out;
 	}
 	kp_core_running_set(NULL);
+
 out:
+	kp_core_put(cur);
+	if (!able2resched())
+		swap_preempt_enable_no_resched();
+
 	/*
 	 * if somebody else is singlestepping across a probe point, eflags
 	 * will have TF set, in which case, continue the remaining processing
