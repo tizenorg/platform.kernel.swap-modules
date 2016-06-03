@@ -290,9 +290,23 @@ void kp_core_running_set(struct kp_core *p);
 struct kp_core_ctlblk *kp_core_ctlblk(void);
 
 
-static inline int able2resched(void)
+struct kctx;
+
+/* for __switch_to support */
+#define SWITCH_TO_KP	0b0001
+#define SWITCH_TO_RP	0b0010
+#define SWITCH_TO_ALL	(SWITCH_TO_KP | SWITCH_TO_RP)
+
+#define current_kctx	kctx_by_task(current)
+struct kctx *kctx_by_task(struct task_struct *task);
+
+void switch_to_bits_set(struct kctx *ctx, unsigned long mask);
+void switch_to_bits_reset(struct kctx *ctx, unsigned long mask);
+unsigned long switch_to_bits_get(struct kctx *ctx, unsigned long mask);
+
+static inline int able2resched(struct kctx *ctx)
 {
-	if (in_interrupt())
+	if (in_interrupt() || switch_to_bits_get(ctx, SWITCH_TO_ALL))
 		return 0;
 
 	return 1;

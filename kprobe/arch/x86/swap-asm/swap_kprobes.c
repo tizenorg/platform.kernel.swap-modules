@@ -317,14 +317,17 @@ static int setup_singlestep(struct kp_core *p, struct pt_regs *regs,
 
 
 static struct td_raw kp_tdraw;
-static DEFINE_PER_CPU(struct pt_regs, per_cpu_regs);
+static DEFINE_PER_CPU(struct pt_regs, per_cpu_regs_i);
+static DEFINE_PER_CPU(struct pt_regs, per_cpu_regs_st);
 
 static struct pt_regs *current_regs(void)
 {
-	if (able2resched())
-		return (struct pt_regs *)swap_td_raw(&kp_tdraw, current);
+	if (in_interrupt())
+		return &__get_cpu_var(per_cpu_regs_i);
+	else if (switch_to_bits_get(current_kctx, SWITCH_TO_ALL))
+		return &__get_cpu_var(per_cpu_regs_st);
 
-	return &__get_cpu_var(per_cpu_regs);
+	return (struct pt_regs *)swap_td_raw(&kp_tdraw, current);
 }
 
 
@@ -449,6 +452,10 @@ static int __kprobe_handler(struct pt_regs *regs)
 	struct kp_core *p;
 	struct kp_core_ctlblk *kcb;
 	unsigned long addr = regs->ip - 1;
+	struct kctx *ctx = current_kctx;
+
+	if (addr == sched_addr)
+		switch_to_bits_set(ctx, SWITCH_TO_KP);
 
 	kcb = kp_core_ctlblk();
 
@@ -457,7 +464,7 @@ static int __kprobe_handler(struct pt_regs *regs)
 	kp_core_get(p);
 	rcu_read_unlock();
 
-	if (able2resched()) {
+	if (able2resched(ctx)) {
 		ret = kprobe_pre_handler(p, regs, kcb);
 		if (ret == KSTAT_PREPARE_KCB) {
 			/* save regs to stack */
@@ -474,6 +481,7 @@ static int __kprobe_handler(struct pt_regs *regs)
 		if (ret == KSTAT_PREPARE_KCB) {
 			int rr = p->handlers.pre(p, regs);
 			if (rr) {
+				switch_to_bits_reset(ctx, SWITCH_TO_KP);
 				kp_core_put(p);
 				return 1;
 			}
@@ -485,10 +493,12 @@ static int __kprobe_handler(struct pt_regs *regs)
 		 * If TF is enabled then processing instruction
 		 * takes place in two stages.
 		 */
-		if (regs->flags & TF_MASK)
+		if (regs->flags & TF_MASK) {
 			preempt_disable();
-		else
+		} else {
+			switch_to_bits_reset(ctx, SWITCH_TO_KP);
 			kp_core_put(p);
+		}
 	}
 
 	return !!ret;
@@ -681,6 +691,7 @@ no_change:
  */
 static int post_kprobe_handler(struct pt_regs *regs)
 {
+	struct kctx *ctx = current_kctx;
 	struct kp_core *cur = kp_core_running();
 	struct kp_core_ctlblk *kcb = kp_core_ctlblk();
 
@@ -700,9 +711,11 @@ static int post_kprobe_handler(struct pt_regs *regs)
 	kp_core_running_set(NULL);
 
 out:
-	kp_core_put(cur);
-	if (!able2resched())
+	if (!able2resched(ctx))
 		swap_preempt_enable_no_resched();
+
+	switch_to_bits_reset(ctx, SWITCH_TO_KP);
+	kp_core_put(cur);
 
 	/*
 	 * if somebody else is singlestepping across a probe point, eflags
@@ -849,8 +862,10 @@ void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
 
 	/* for __switch_to probe */
 	if ((unsigned long)ri->rp->kp.addr == sched_addr) {
+		struct task_struct *next = (struct task_struct *)swap_get_karg(regs, 1);
 		ri->sp = NULL;
-		ri->task = (struct task_struct *)regs->dx;
+		ri->task = next;
+		switch_to_bits_set(kctx_by_task(next), SWITCH_TO_RP);
 	} else {
 		ri->sp = ptr_ret_addr;
 	}

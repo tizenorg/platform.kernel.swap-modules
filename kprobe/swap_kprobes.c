@@ -153,34 +153,64 @@ struct kpc_data {
 	struct kp_core_ctlblk ctlblk;
 };
 
+struct kctx {
+	struct kpc_data kpc;
+	unsigned long st_flags;
+};
+
 static void ktd_cur_init(struct task_struct *task, void *data)
 {
-	struct kpc_data *d = (struct kpc_data *)data;
+	struct kctx *ctx = (struct kctx *)data;
 
-	memset(d, 0, sizeof(*d));
+	memset(ctx, 0, sizeof(*ctx));
 }
 
 static void ktd_cur_exit(struct task_struct *task, void *data)
 {
-	struct kpc_data *d = (struct kpc_data *)data;
+	struct kctx *ctx = (struct kctx *)data;
 
-	WARN(d->running, "running probe is not NULL");
+	WARN(ctx->kpc.running, "running=%p\n", ctx->kpc.running);
 }
 
 struct ktask_data ktd_cur = {
 	.init = ktd_cur_init,
 	.exit = ktd_cur_exit,
-	.size = sizeof(struct kpc_data),
+	.size = sizeof(struct kctx),
 };
 
-static DEFINE_PER_CPU(struct kpc_data, per_cpu_kpc_data);
+struct kctx *kctx_by_task(struct task_struct *task)
+{
+	return (struct kctx *)swap_ktd(&ktd_cur, task);
+}
+
+void switch_to_bits_set(struct kctx *ctx, unsigned long mask)
+{
+	ctx->st_flags |= mask;
+}
+
+void switch_to_bits_reset(struct kctx *ctx, unsigned long mask)
+{
+	ctx->st_flags &= ~mask;
+}
+
+unsigned long switch_to_bits_get(struct kctx *ctx, unsigned long mask)
+{
+	return ctx->st_flags & mask;
+}
+
+static DEFINE_PER_CPU(struct kpc_data, per_cpu_kpc_data_i);
+static DEFINE_PER_CPU(struct kpc_data, per_cpu_kpc_data_st);
 
 static struct kpc_data *kp_core_data(void)
 {
-	if (able2resched())
-		return (struct kpc_data *)swap_ktd(&ktd_cur, current);
+	struct kctx *ctx = current_kctx;
 
-	return &__get_cpu_var(per_cpu_kpc_data);
+	if (in_interrupt())
+		return &__get_cpu_var(per_cpu_kpc_data_i);
+	else if (switch_to_bits_get(ctx, SWITCH_TO_ALL))
+		return &__get_cpu_var(per_cpu_kpc_data_st);
+
+	return &ctx->kpc;
 }
 
 static int kprobe_cur_reg(void)
@@ -698,6 +728,7 @@ int trampoline_probe_handler(struct kprobe *p, struct pt_regs *regs)
 	else
 		kp_core_running_set(NULL);
 
+	switch_to_bits_reset(current_kctx, SWITCH_TO_RP);
 	spin_unlock_irqrestore(&kretprobe_lock, flags);
 
 	/*
