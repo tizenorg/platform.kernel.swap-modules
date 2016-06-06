@@ -369,6 +369,10 @@ static int kprobe_handler(struct pt_regs *regs)
 {
 	struct kp_core *p, *cur;
 	struct kp_core_ctlblk *kcb;
+	struct kctx *ctx = current_kctx;
+
+	if (regs->ARM_pc == sched_addr)
+		switch_to_bits_set(ctx, SWITCH_TO_KP);
 
 	kcb = kp_core_ctlblk();
 	cur = kp_core_running();
@@ -413,6 +417,8 @@ static int kprobe_handler(struct pt_regs *regs)
 	} else {
 		goto no_kprobe;
 	}
+
+	switch_to_bits_reset(ctx, SWITCH_TO_KP);
 
 	return 0;
 
@@ -569,6 +575,7 @@ void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
 		ptr_ret_addr = (unsigned long *)&tinfo->cpu_context.pc;
 		ri->sp = NULL;
 		ri->task = tinfo->task;
+		switch_to_bits_set(kctx_by_task(tinfo->task), SWITCH_TO_RP);
 	} else {
 		ptr_ret_addr = (unsigned long *)&regs->ARM_lr;
 		ri->sp = (unsigned long *)regs->ARM_sp;
