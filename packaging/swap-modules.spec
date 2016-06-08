@@ -14,7 +14,7 @@ Provides: swap-modules
 %if "%{_repository}" == "emulator32" || "%{_repository}" == "emulator32-wayland"
 BuildRequires: emulator-kernel-devel
   %define build_arch i386
-  %define kernel_path /usr/src/linux-kernel-build-3.14.25
+  %define kernel_path /usr/src/kernel-devel-tizen_emulator
 %else
 
   %if "%{_repository}" == "target-TM1"
