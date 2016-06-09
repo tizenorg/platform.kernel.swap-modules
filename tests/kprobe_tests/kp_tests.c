@@ -21,56 +21,14 @@
 
 
 #include <linux/slab.h>
-#include <linux/string.h>
 #include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/kthread.h>
-#include <ksyms/ksyms.h>
 #include <kprobe/swap_kprobes.h>
-#include <master/swap_initializer.h>
+#include "kp_module.h"
 
 
 static struct task_struct *cur_task;
-
-
-
-/*
- ******************************************************************************
- *                                    log                                     *
- ******************************************************************************
- */
-static long write_to_stdout(const char *buf, size_t len)
-{
-	static asmlinkage long (*sys_write)(unsigned int, const char __user *, size_t) = NULL;
-	long ret = -ESRCH;
-
-	if (sys_write == NULL)
-		sys_write = (void *)swap_ksyms("sys_write");
-
-	if (sys_write) {
-		mm_segment_t fs = get_fs();
-		set_fs(get_ds());
-		ret = sys_write(1, buf, len);
-		set_fs(fs);
-	}
-
-	return ret;
-}
-
-static void olog(const char *fmt, ...)
-{
-	char buf[256];
-	va_list args;
-
-	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
-	va_end(args);
-
-	printk("%s", buf);
-	write_to_stdout(buf, strlen(buf));
-}
-
-
 
 
 static struct kprobe *kp_create(char *name,
@@ -447,24 +405,10 @@ static void test_sync_unreg_and_multiple_handlers2(void)
 	post_test_sync_unreg_and_mh(2, 2);
 }
 
-
-static void print_mod_info(void)
-{
-	struct module *mod = THIS_MODULE;
-
-	printk("### MOD_INFO:\n");
-	printk("    core: %p..%p\n", mod->module_init, mod->module_init + mod->init_text_size);
-	printk("    init: %p..%p\n", mod->module_core, mod->module_core + mod->core_text_size);
-	printk("\n");
-}
-
-static int test_init(void)
+int kp_tests_run(void)
 {
 	cur_task = current;
 
-	print_mod_info();
-
-	olog("### Begin tests ###\n");
 	test_recursion();
 	test_recursion_and_multiple_handlers();
 	test_recursion_and_multiple_handlers2();
@@ -473,16 +417,6 @@ static int test_init(void)
 	test_sync_unreg();
 	test_sync_unreg_and_multiple_handlers();
 	test_sync_unreg_and_multiple_handlers2();
-	olog("### End tests ###\n");
 
-	return -1;
+	return 0;
 }
-
-static void test_exit(void)
-{
-}
-
-
-SWAP_LIGHT_INIT_MODULE(NULL, test_init, test_exit, NULL, NULL);
-
-MODULE_LICENSE("GPL");

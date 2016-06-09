@@ -1,4 +1,6 @@
 EXTRA_CFLAGS := $(extra_cflags)
 
 obj-m := swap_kp_tests.o
-swap_kp_tests-y := kp_tests_module.o
+swap_kp_tests-y := \
+	kp_module.o \
+	kp_tests.o
