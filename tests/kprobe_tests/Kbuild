@@ -3,4 +3,5 @@ EXTRA_CFLAGS := $(extra_cflags)
 obj-m := swap_kp_tests.o
 swap_kp_tests-y := \
 	kp_module.o \
-	kp_tests.o
+	kp_tests.o \
+	krp_tests.o \

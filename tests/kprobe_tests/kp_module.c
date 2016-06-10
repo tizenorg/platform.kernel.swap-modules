@@ -81,6 +81,7 @@ static void print_mod_info(void)
 
 /* TODO: move declare to header */
 int kp_tests_run(void);
+int krp_tests_run(void);
 
 static int __init tests_init(void)
 {
@@ -94,6 +95,7 @@ static int __init tests_init(void)
 
 	olog("### Begin tests ###\n");
 	kp_tests_run();
+	krp_tests_run();
 	olog("### End tests ###\n");
 
 	return -1;
