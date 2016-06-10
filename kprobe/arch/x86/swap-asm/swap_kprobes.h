@@ -254,6 +254,8 @@ static inline int arch_check_insn(struct arch_specific_insn *ainsn)
 	return 0;
 }
 
+unsigned long swap_kernel_sp(struct pt_regs *regs);
+
 static inline unsigned long swap_get_karg(struct pt_regs *regs, unsigned long n)
 {
 	switch (n) {
@@ -270,7 +272,7 @@ static inline unsigned long swap_get_karg(struct pt_regs *regs, unsigned long n)
 	 * 3 - arguments from registers
 	 * 1 - return address saved on top of the stack
 	 */
-	return *((unsigned long *)kernel_stack_pointer(regs) + n - 2);
+	return *((unsigned long *)swap_kernel_sp(regs) + n - 2);
 }
 
 static inline unsigned long swap_get_sarg(struct pt_regs *regs, unsigned long n)

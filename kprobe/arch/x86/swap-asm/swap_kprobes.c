@@ -46,10 +46,6 @@ static void *(*swap_text_poke)(void *addr, const void *opcode, size_t len);
 static void (*swap_show_registers)(struct pt_regs *regs);
 
 
-/** Stack address. */
-#define stack_addr(regs) ((unsigned long *)kernel_stack_pointer(regs))
-
-
 #define SWAP_SAVE_REGS_STRING			\
 	/* Skip cs, ip, orig_ax and gs. */	\
 	"subl $16, %esp\n"			\
@@ -316,24 +312,41 @@ static int setup_singlestep(struct kp_core *p, struct pt_regs *regs,
 }
 
 
-static struct td_raw kp_tdraw;
-static DEFINE_PER_CPU(struct pt_regs, per_cpu_regs_i);
-static DEFINE_PER_CPU(struct pt_regs, per_cpu_regs_st);
+struct regs_td {
+	struct pt_regs *sp_regs;
+	struct pt_regs regs;
+};
 
-static struct pt_regs *current_regs(void)
+static struct td_raw kp_tdraw;
+static DEFINE_PER_CPU(struct regs_td, per_cpu_regs_td_i);
+static DEFINE_PER_CPU(struct regs_td, per_cpu_regs_td_st);
+
+static struct regs_td *current_regs_td(void)
 {
 	if (in_interrupt())
-		return &__get_cpu_var(per_cpu_regs_i);
+		return &__get_cpu_var(per_cpu_regs_td_i);
 	else if (switch_to_bits_get(current_kctx, SWITCH_TO_ALL))
-		return &__get_cpu_var(per_cpu_regs_st);
+		return &__get_cpu_var(per_cpu_regs_td_st);
 
-	return (struct pt_regs *)swap_td_raw(&kp_tdraw, current);
+	return (struct regs_td *)swap_td_raw(&kp_tdraw, current);
 }
 
+/** Stack address. */
+unsigned long swap_kernel_sp(struct pt_regs *regs)
+{
+	struct pt_regs *sp_regs = current_regs_td()->sp_regs;
+
+	if (sp_regs == NULL)
+		sp_regs = regs;
+
+	return kernel_stack_pointer(sp_regs);
+}
+EXPORT_SYMBOL_GPL(swap_kernel_sp);
 
 void exec_trampoline(void);
 void exec_trampoline_int3(void);
 __asm(
+	".text\n"
 	"exec_trampoline:\n"
 	"call	exec_handler\n"
 	"exec_trampoline_int3:\n"
@@ -343,7 +356,7 @@ __asm(
 static int __used exec_handler(void)
 {
 	struct kp_core *p = kp_core_running();
-	struct pt_regs *regs = current_regs();
+	struct pt_regs *regs = &current_regs_td()->regs;
 
 	return p->handlers.pre(p, regs);
 }
@@ -354,8 +367,11 @@ static int after_exec_trampoline(struct pt_regs *regs)
 	struct kp_core *p = kp_core_running();
 	struct kp_core_ctlblk *kcb = kp_core_ctlblk();
 
-	/* restore regs from stack */
-	*regs = *current_regs();
+	/*
+	 * Restore regs from stack.
+	 * Don't restore SP and SS registers because they are invalid (- 8)
+	 */
+	memcpy(regs, &current_regs_td()->regs, sizeof(*regs) - 8);
 
 	if (ret) {
 		kp_core_put(p);
@@ -467,8 +483,11 @@ static int __kprobe_handler(struct pt_regs *regs)
 	if (able2resched(ctx)) {
 		ret = kprobe_pre_handler(p, regs, kcb);
 		if (ret == KSTAT_PREPARE_KCB) {
+			struct regs_td *rtd = current_regs_td();
+
 			/* save regs to stack */
-			*current_regs() = *regs;
+			rtd->regs = *regs;
+			rtd->sp_regs = regs;
 
 			regs->ip = (unsigned long)exec_trampoline;
 			return 1;
@@ -479,7 +498,10 @@ static int __kprobe_handler(struct pt_regs *regs)
 	} else {
 		ret = kprobe_pre_handler(p, regs, kcb);
 		if (ret == KSTAT_PREPARE_KCB) {
-			int rr = p->handlers.pre(p, regs);
+			int rr;
+
+			current_regs_td()->sp_regs = NULL;
+			rr = p->handlers.pre(p, regs);
 			if (rr) {
 				switch_to_bits_reset(ctx, SWITCH_TO_KP);
 				kp_core_put(p);
@@ -534,7 +556,7 @@ int swap_setjmp_pre_handler(struct kprobe *p, struct pt_regs *regs)
 	pre_entry = (kprobe_pre_entry_handler_t) jp->pre_entry;
 
 	kcb->jprobe_saved_regs = *regs;
-	kcb->jprobe_saved_esp = stack_addr(regs);
+	kcb->jprobe_saved_esp = (unsigned long *)swap_kernel_sp(regs);
 	addr = (unsigned long)(kcb->jprobe_saved_esp);
 
 	/* TBD: As Linus pointed out, gcc assumes that the callee
@@ -618,7 +640,7 @@ static void resume_execution(struct kp_core *p,
 
 	regs->EREG(flags) &= ~TF_MASK;
 
-	tos = stack_addr(regs);
+	tos = (unsigned long *)swap_kernel_sp(regs);
 	insns[0] = p->ainsn.insn[0];
 	insns[1] = p->ainsn.insn[1];
 
@@ -858,7 +880,7 @@ static __used void *trampoline_probe_handler_x86(struct pt_regs *regs)
 void swap_arch_prepare_kretprobe(struct kretprobe_instance *ri,
 				 struct pt_regs *regs)
 {
-	unsigned long *ptr_ret_addr = stack_addr(regs);
+	unsigned long *ptr_ret_addr = (unsigned long *)swap_kernel_sp(regs);
 
 	/* for __switch_to probe */
 	if ((unsigned long)ri->rp->kp.addr == sched_addr) {
@@ -1011,7 +1033,7 @@ int swap_arch_init_kprobes(void)
 {
 	int ret;
 
-	ret = swap_td_raw_reg(&kp_tdraw, sizeof(struct pt_regs));
+	ret = swap_td_raw_reg(&kp_tdraw, sizeof(struct regs_td));
 	if (ret)
 		return ret;
 
