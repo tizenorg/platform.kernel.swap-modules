@@ -33,12 +33,20 @@
 #include <kprobe/swap_kprobes_deps.h>
 
 
-static inline unsigned long swap_do_mmap(struct file *filp, unsigned long addr,
-					 unsigned long len, unsigned long prot,
-					 unsigned long flag,
-					 unsigned long offset)
+static inline unsigned long __swap_do_mmap(struct file *filp,
+					   unsigned long addr,
+					   unsigned long len,
+					   unsigned long prot,
+					   unsigned long flag,
+					   unsigned long offset)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 3, 0)
+	unsigned long populate;
+
+	return swap_do_mmap(filp, addr, len, prot,
+				  flag, 0, offset, &populate);
+
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 	unsigned long populate;
 
 	return swap_do_mmap_pgoff(filp, addr, len, prot,

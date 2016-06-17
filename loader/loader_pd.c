@@ -134,8 +134,8 @@ static struct pd_t *__create_pd(void)
 		return NULL;
 
 	down_write(&current->mm->mmap_sem);
-	page = swap_do_mmap(NULL, 0, PAGE_SIZE, PROT_READ | PROT_WRITE,
-			    MAP_ANONYMOUS | MAP_PRIVATE, 0);
+	page = __swap_do_mmap(NULL, 0, PAGE_SIZE, PROT_READ | PROT_WRITE,
+			      MAP_ANONYMOUS | MAP_PRIVATE, 0);
 	up_write(&current->mm->mmap_sem);
 	if (IS_ERR_VALUE(page)) {
 		printk(KERN_ERR LOADER_PREFIX

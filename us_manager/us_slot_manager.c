@@ -39,8 +39,9 @@ static void *sm_alloc_us(struct slot_manager *sm)
 {
 	unsigned long addr;
 
-	addr = swap_do_mmap(NULL, 0, PAGE_SIZE, PROT_EXEC|PROT_READ|PROT_WRITE,
-			    MAP_ANONYMOUS|MAP_PRIVATE, 0);
+	addr = __swap_do_mmap(NULL, 0, PAGE_SIZE,
+			      PROT_EXEC | PROT_READ | PROT_WRITE,
+			      MAP_ANONYMOUS | MAP_PRIVATE, 0);
 	return (void *)addr;
 }
 

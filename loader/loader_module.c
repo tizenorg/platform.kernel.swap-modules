@@ -397,7 +397,11 @@ static int mmap_ret_handler(struct kretprobe_instance *ri,
 }
 
 static struct kretprobe mmap_rp = {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
+	.kp.symbol_name = "do_mmap",
+#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)) */
 	.kp.symbol_name = "do_mmap_pgoff",
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)) */
 	.data_size = sizeof(struct mmap_priv),
 	.entry_handler = mmap_entry_handler,
 	.handler = mmap_ret_handler

@@ -827,12 +827,20 @@ int once_helper(void)
 	if (unmap_kretprobe.kp.addr == 0)
 		goto not_found;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
+	sym = "do_mmap";
+#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)) */
 	sym = "do_mmap_pgoff";
+#endif  /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)) */
 	mmap_kretprobe.kp.addr = swap_ksyms(sym);
 	if (mmap_kretprobe.kp.addr == 0)
 		goto not_found;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
+	sym = "__set_task_comm";
+#else  /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)) */
 	sym = "set_task_comm";
+#endif  /* (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)) */
 	comm_kretprobe.kp.addr = swap_ksyms(sym);
 	if (comm_kretprobe.kp.addr == 0)
 		goto not_found;

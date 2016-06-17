@@ -264,7 +264,11 @@ static int taskctx_once(void)
 	if (swap_signal_wake_up_state == NULL)
 		goto not_found;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
+	sym = "get_signal";
+#else /* (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) */
 	sym = "get_signal_to_deliver";
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) */
 	sig_kprobe.addr = swap_ksyms(sym);
 	if (sig_kprobe.addr == 0)
 		goto not_found;

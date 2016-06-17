@@ -76,7 +76,20 @@ static inline void swap_kunmap_atomic(void *kvaddr)
 }
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36) */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
+DECLARE_MOD_FUNC_DEP(do_mmap, unsigned long, struct file *file,
+		     unsigned long addr, unsigned long len, unsigned long prot,
+		     unsigned long flags, vm_flags_t vm_flags,
+		     unsigned long pgoff, unsigned long *populate);
+DECLARE_MOD_DEP_WRAPPER(swap_do_mmap,
+			unsigned long,
+			struct file *file, unsigned long addr,
+			unsigned long len, unsigned long prot,
+			unsigned long flags, vm_flags_t vm_flags,
+			unsigned long pgoff, unsigned long *populate)
+IMP_MOD_DEP_WRAPPER(do_mmap, file, addr, len,
+		    prot, flags, vm_flags, pgoff, populate)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 DECLARE_MOD_FUNC_DEP(do_mmap_pgoff, unsigned long, struct file *file,
 		     unsigned long addr, unsigned long len, unsigned long prot,
 		     unsigned long flags, unsigned long pgoff,
@@ -101,7 +114,9 @@ DECLARE_MOD_DEP_WRAPPER(swap_do_mmap_pgoff,
 IMP_MOD_DEP_WRAPPER(do_mmap_pgoff, file, addr, len, prot, flags, pgoff)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
+EXPORT_SYMBOL_GPL(swap_do_mmap);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 EXPORT_SYMBOL_GPL(swap_do_mmap_pgoff);
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) */
 
@@ -136,6 +151,7 @@ static DECLARE_MOD_FUNC_DEP(handle_mm_fault, int, struct mm_struct *mm,
 			    unsigned int flags);
 #endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30) */
 
+#ifdef __HAVE_ARCH_GATE_AREA
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 static DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *,
 			    struct mm_struct *mm);
@@ -144,7 +160,6 @@ static DECLARE_MOD_FUNC_DEP(get_gate_vma, struct vm_area_struct *,
 			    struct task_struct *tsk);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 
-#ifdef __HAVE_ARCH_GATE_AREA
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 DECLARE_MOD_FUNC_DEP(in_gate_area, int, struct mm_struct *mm,
 		     unsigned long addr);
@@ -152,13 +167,13 @@ DECLARE_MOD_FUNC_DEP(in_gate_area, int, struct mm_struct *mm,
 DECLARE_MOD_FUNC_DEP(in_gate_area, int, struct task_struct *task,
 		     unsigned long addr);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-#endif /* __HAVE_ARCH_GATE_AREA */
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 static DECLARE_MOD_FUNC_DEP(in_gate_area_no_mm, int, unsigned long addr);
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 static DECLARE_MOD_FUNC_DEP(in_gate_area_no_task, int, unsigned long addr);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+#endif /* __HAVE_ARCH_GATE_AREA */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 static DECLARE_MOD_FUNC_DEP(follow_page_mask, \
@@ -228,17 +243,22 @@ DECLARE_MOD_DEP_WRAPPER(swap_handle_mm_fault,
 }
 #endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30) */
 
+struct vm_area_struct *swap_get_gate_vma(struct mm_struct *mm)
+{
+#ifdef __HAVE_ARCH_GATE_AREA
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
-DECLARE_MOD_DEP_WRAPPER(swap_get_gate_vma,
-			struct vm_area_struct *,
-			struct mm_struct *mm)
 IMP_MOD_DEP_WRAPPER(get_gate_vma, mm)
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
-DECLARE_MOD_DEP_WRAPPER(swap_get_gate_vma,
-			struct vm_area_struct *,
-			struct task_struct *tsk)
 IMP_MOD_DEP_WRAPPER(get_gate_vma, tsk)
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+#else /* __HAVE_ARCH_GATE_AREA */
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	return get_gate_vma(mm);
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	return get_gate_vma(tsk);
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+#endif /* __HAVE_ARCH_GATE_AREA */
+}
 
 #ifdef CONFIG_HUGETLB_PAGE
 
@@ -309,6 +329,7 @@ static inline int swap_in_gate_area(struct task_struct *task,
 }
 
 
+#ifdef __HAVE_ARCH_GATE_AREA
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 DECLARE_MOD_DEP_WRAPPER(swap_in_gate_area_no_mm, int, unsigned long addr)
 IMP_MOD_DEP_WRAPPER(in_gate_area_no_mm, addr)
@@ -316,14 +337,23 @@ IMP_MOD_DEP_WRAPPER(in_gate_area_no_mm, addr)
 DECLARE_MOD_DEP_WRAPPER(swap_in_gate_area_no_task, int, unsigned long addr)
 IMP_MOD_DEP_WRAPPER(in_gate_area_no_task, addr)
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+#endif /* __HAVE_ARCH_GATE_AREA */
 
 static inline int swap_in_gate_area_no_xxx(unsigned long addr)
 {
+#ifdef __HAVE_ARCH_GATE_AREA
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 	return swap_in_gate_area_no_mm(addr);
 #else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
 	return swap_in_gate_area_no_task(addr);
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+#else /* __HAVE_ARCH_GATE_AREA */
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
+	return in_gate_area_no_mm(addr);
+#else /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+	return in_gate_area_no_task(addr);
+#endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38) */
+#endif /* __HAVE_ARCH_GATE_AREA */
 }
 
 DECLARE_MOD_DEP_WRAPPER(swap__flush_anon_page,
@@ -369,7 +399,6 @@ int init_module_dependencies(void)
 #endif /* copy_to_user_page */
 
 	INIT_MOD_DEP_VAR(find_extend_vma, find_extend_vma);
-	INIT_MOD_DEP_VAR(get_gate_vma, get_gate_vma);
 
 #ifdef CONFIG_HUGETLB_PAGE
 	INIT_MOD_DEP_VAR(follow_hugetlb_page, follow_hugetlb_page);
@@ -377,6 +406,13 @@ int init_module_dependencies(void)
 
 #ifdef	__HAVE_ARCH_GATE_AREA
 	INIT_MOD_DEP_VAR(in_gate_area, in_gate_area);
+	INIT_MOD_DEP_VAR(get_gate_vma, get_gate_vma);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+	INIT_MOD_DEP_VAR(in_gate_area_no_mm, in_gate_area_no_mm);
+#else /* (LINUX_VERSION_CODE > KERNEL_VERSION(3, 9, 0))  */
+	INIT_MOD_DEP_VAR(in_gate_area_no_task, in_gate_area_no_task);
+#endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(3, 9, 0))  */
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
@@ -390,10 +426,6 @@ int init_module_dependencies(void)
 #ifndef is_zero_pfn
 	swap_zero_pfn = page_to_pfn(ZERO_PAGE(0));
 #endif /* is_zero_pfn */
-
-	INIT_MOD_DEP_VAR(in_gate_area_no_mm, in_gate_area_no_mm);
-#else /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))  */
-	INIT_MOD_DEP_VAR(in_gate_area_no_task, in_gate_area_no_task);
 #endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))  */
 
 #if defined(ARCH_HAS_FLUSH_ANON_PAGE) && defined(CONFIG_ARM)
@@ -411,7 +443,9 @@ int init_module_dependencies(void)
 #else /*2.6.16 */
 	INIT_MOD_DEP_VAR(put_task_struct, __put_task_struct_cb);
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
+	INIT_MOD_DEP_VAR(do_mmap, do_mmap);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 	INIT_MOD_DEP_VAR(do_mmap_pgoff, do_mmap_pgoff);
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) */
 
