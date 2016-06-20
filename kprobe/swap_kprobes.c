@@ -213,7 +213,7 @@ static struct kpc_data *kp_core_data(void)
 {
 	struct kctx *ctx = current_kctx;
 
-	if (in_interrupt())
+	if (swap_in_interrupt())
 		return &__get_cpu_var(per_cpu_kpc_data_i);
 	else if (switch_to_bits_get(ctx, SWITCH_TO_ALL))
 		return &__get_cpu_var(per_cpu_kpc_data_st);

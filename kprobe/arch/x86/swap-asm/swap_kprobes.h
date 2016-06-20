@@ -89,6 +89,10 @@ static inline int swap_user_mode(struct pt_regs *regs)
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0) */
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
+#define swap_in_interrupt()	(in_interrupt() & ~HARDIRQ_OFFSET)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0) */
+
 static inline unsigned long arch_get_task_pc(struct task_struct *p)
 {
 	/* FIXME: Not implemented yet */

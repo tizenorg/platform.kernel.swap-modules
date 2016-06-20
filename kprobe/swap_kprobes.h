@@ -304,9 +304,14 @@ void switch_to_bits_set(struct kctx *ctx, unsigned long mask);
 void switch_to_bits_reset(struct kctx *ctx, unsigned long mask);
 unsigned long switch_to_bits_get(struct kctx *ctx, unsigned long mask);
 
+
+#ifndef swap_in_interrupt
+#define swap_in_interrupt()	in_interrupt()
+#endif /* swap_in_interrupt */
+
 static inline int able2resched(struct kctx *ctx)
 {
-	if (in_interrupt() || switch_to_bits_get(ctx, SWITCH_TO_ALL))
+	if (swap_in_interrupt() || switch_to_bits_get(ctx, SWITCH_TO_ALL))
 		return 0;
 
 	return 1;

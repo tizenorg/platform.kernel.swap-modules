@@ -323,7 +323,7 @@ static DEFINE_PER_CPU(struct regs_td, per_cpu_regs_td_st);
 
 static struct regs_td *current_regs_td(void)
 {
-	if (in_interrupt())
+	if (swap_in_interrupt())
 		return &__get_cpu_var(per_cpu_regs_td_i);
 	else if (switch_to_bits_get(current_kctx, SWITCH_TO_ALL))
 		return &__get_cpu_var(per_cpu_regs_td_st);
