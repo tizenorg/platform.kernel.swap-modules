@@ -83,27 +83,35 @@ atomic_t kprobe_count;
 EXPORT_SYMBOL_GPL(kprobe_count);
 
 
-static void *(*module_alloc)(unsigned long size);
-static void *(*module_free)(struct module *mod, void *module_region);
+static void *(*__module_alloc)(unsigned long size);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+static void (*__module_free)(void *module_region);
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
+static void (*__module_free)(struct module *mod, void *module_region);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 
-static void *__wrapper_module_alloc(unsigned long size)
+static void *wrapper_module_alloc(unsigned long size)
 {
-	return module_alloc(size);
+	return __module_alloc(size);
 }
 
-static void *__wrapper_module_free(void *module_region)
+static void wrapper_module_free(void *module_region)
 {
-	return module_free(NULL, module_region);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	__module_free(module_region);
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
+	__module_free(NULL, module_region);
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 }
 
 static void *sm_alloc(struct slot_manager *sm)
 {
-	return __wrapper_module_alloc(PAGE_SIZE);
+	return wrapper_module_alloc(PAGE_SIZE);
 }
 
 static void sm_free(struct slot_manager *sm, void *ptr)
 {
-	__wrapper_module_free(ptr);
+	wrapper_module_free(ptr);
 }
 
 static void init_sm(void)
@@ -1135,13 +1143,17 @@ static int once(void)
 	const char *sym;
 
 	sym = "module_alloc";
-	module_alloc = (void *)swap_ksyms(sym);
-	if (module_alloc == NULL)
+	__module_alloc = (void *)swap_ksyms(sym);
+	if (__module_alloc == NULL)
 		goto not_found;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	sym = "module_memfree";
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 	sym = "module_free";
-	module_free = (void *)swap_ksyms(sym);
-	if (module_alloc == NULL)
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
+	__module_free = (void *)swap_ksyms(sym);
+	if (__module_free == NULL)
 		goto not_found;
 
 	sym = "__put_task_struct";
