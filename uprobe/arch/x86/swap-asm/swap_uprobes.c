@@ -468,6 +468,14 @@ static void prepare_ss(struct pt_regs *regs)
 
 static unsigned long resume_userspace_addr;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+static void __rcu_nmi_enter(void) {}
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+#error "This kernel is not support"
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) */
+static void (*__rcu_nmi_enter)(void);
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) */
+
 static void __used __up_handler(void)
 {
 	struct pt_regs *regs = current_ctx()->ptr_regs;
@@ -516,6 +524,14 @@ static int exceptions_handler(struct pt_regs *regs,
 	regs->cs = __KERNEL_CS | get_kernel_rpl();
 	regs->gs = 0;
 	regs->flags = X86_EFLAGS_IF | X86_EFLAGS_FIXED;
+
+	/*
+	 * Here rcu_nmi_enter() call is needed, because we change
+	 * US context to KS context as a result rcu_nmi_exit() will
+	 * be called on exiting exception and rcu_nmi_enter() and
+	 * rcu_nmi_exit() calls must be consistent
+	 */
+	__rcu_nmi_enter();
 
 	return 1;
 }
@@ -710,6 +726,13 @@ int swap_arch_init_uprobes(void)
 	kp_do_exit.addr = swap_ksyms(sym);
 	if (kp_do_exit.addr == 0)
 		goto not_found;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
+	sym = "rcu_nmi_enter";
+	__rcu_nmi_enter = (void *)swap_ksyms(sym);
+	if (__rcu_nmi_enter == NULL)
+		goto not_found;
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) */
 
 	ret = swap_td_raw_reg(&td_raw, sizeof(struct uprobe_ctlblk));
 	if (ret)
