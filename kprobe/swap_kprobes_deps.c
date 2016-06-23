@@ -408,11 +408,11 @@ int init_module_dependencies(void)
 	INIT_MOD_DEP_VAR(in_gate_area, in_gate_area);
 	INIT_MOD_DEP_VAR(get_gate_vma, get_gate_vma);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38)
 	INIT_MOD_DEP_VAR(in_gate_area_no_mm, in_gate_area_no_mm);
-#else /* (LINUX_VERSION_CODE > KERNEL_VERSION(3, 9, 0))  */
+#else /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))  */
 	INIT_MOD_DEP_VAR(in_gate_area_no_task, in_gate_area_no_task);
-#endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(3, 9, 0))  */
+#endif /* (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 38))  */
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
