@@ -438,8 +438,7 @@ void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 			sspt_file_set_mapping(file, vma);
 
 			page = sspt_find_page_mapped(file, page_addr);
-			if (page)
-				sspt_register_page(page, file);
+			sspt_file_install(file);
 		}
 	}
 }
