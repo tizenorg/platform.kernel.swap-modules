@@ -433,11 +433,7 @@ void sspt_proc_install_page(struct sspt_proc *proc, unsigned long page_addr)
 		struct dentry *dentry = vma->vm_file->f_path.dentry;
 		struct sspt_file *file = sspt_proc_find_file(proc, dentry);
 		if (file) {
-			struct sspt_page *page;
-
 			sspt_file_set_mapping(file, vma);
-
-			page = sspt_find_page_mapped(file, page_addr);
 			sspt_file_install(file);
 		}
 	}
