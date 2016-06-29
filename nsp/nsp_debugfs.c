@@ -133,41 +133,51 @@ free_lpad_path:
 
 /*
  * format:
- *	appcore_efl_main:__do_app:appcore_init@plt:elm_run@plt:libappcore-efl
+ *	appcore_efl_init:__do_app:libappcore-efl ui_app_init:elm_run@plt:libcapi-appfw-application
  *
  * sample:
- *	0x3730:0x2960:0x1810:0x1c70:/usr/lib/libappcore-efl.so.1
+ *	0x2000:0x2ed0:/usr/lib/libappcore-efl.so.1 0x2b20:0x11f0:/usr/lib/libcapi-appfw-application.so.0
  */
 static int do_set_appcore_info(const char *data, size_t len)
 {
 	int n, ret;
-	struct appcore_info_data info;
-	const char fmt[] = "%%lx:%%lx:%%lx:%%lx:/%%%ds";
+	struct nsp_info_data info;
+	const char fmt[] = "%%lx:%%lx:/%%%ds %%lx:%%lx:/%%%ds";
 	char fmt_buf[64];
-	char *path;
+	char *appcore_path, *capi_path;
 
-	n = snprintf(fmt_buf, sizeof(fmt_buf), fmt, PATH_MAX - 2);
+	n = snprintf(fmt_buf, sizeof(fmt_buf), fmt, PATH_MAX - 2, PATH_MAX - 2);
 	if (n <= 0)
 		return -EINVAL;
 
-	path = kmalloc(PATH_MAX, GFP_KERNEL);
-	if (path == NULL)
+	appcore_path = kmalloc(PATH_MAX, GFP_KERNEL);
+	if (!appcore_path)
 		return -ENOMEM;
 
-	n = sscanf(data, fmt_buf,
-		   &info.ac_efl_main, &info.do_app,
-		   &info.ac_init, &info.elm_run, path + 1);
-	if (n != 5) {
-		ret = -EINVAL;
-		goto free_lib_path;
+	capi_path = kmalloc(PATH_MAX, GFP_KERNEL);
+	if (!capi_path) {
+		ret = -ENOMEM;
+		goto fail_alloc;
 	}
-	path[0] = '/';
 
-	info.path = path;
+	n = sscanf(data, fmt_buf,
+		   &info.ac_efl_init, &info.do_app, appcore_path + 1,
+		   &info.ac_init, &info.elm_run, capi_path + 1);
+	if (n != 6) {
+		ret = -EINVAL;
+		goto fail;
+	}
+	appcore_path[0] = '/';
+	capi_path[0] = '/';
+
+	info.appcore_path = appcore_path;
+	info.capi_path = capi_path;
 	ret = nsp_set_appcore_info(&info);
 
-free_lib_path:
-	kfree(path);
+fail:
+	kfree(capi_path);
+fail_alloc:
+	kfree(appcore_path);
 	return ret;
 }
 
@@ -256,7 +266,7 @@ static ssize_t read_cmd(struct file *file, char __user *user_buf,
 			"\tr $app_path - remove\n"
 			"\tc - remove all\n"
 			"\tb dlopen_addr@plt:dlsym_addr@plt:launchpad_path\n"
-			"\tl appcore_efl_main:__do_app:appcore_init@plt:elm_run@plt:libappcore-efl_path\n";
+			"\tl appcore_efl_init:__do_app:libappcore-efl_path ui_app_init:elm_run@plt:libcapi-appfw-application_path\n";
 	ssize_t ret;
 
 	ret = simple_read_from_buffer(user_buf, count, ppos,

@@ -101,6 +101,8 @@ static struct dentry *lpad_dentry;
 
 static const char *libappcore_path;
 static struct dentry *libappcore_dentry;
+static const char *libcapi_path;
+static struct dentry *libcapi_dentry;
 
 static void uninit_variables(void)
 {
@@ -111,11 +113,15 @@ static void uninit_variables(void)
 	kfree(libappcore_path);
 	libappcore_path = NULL;
 	libappcore_dentry = NULL;
+
+	kfree(libcapi_path);
+	libcapi_path = NULL;
+	libcapi_dentry = NULL;
 }
 
 static bool is_init(void)
 {
-	return lpad_dentry && libappcore_dentry;
+	return lpad_dentry && libappcore_dentry && libcapi_dentry;
 }
 
 static int do_set_lpad_info(const char *path, unsigned long dlopen,
@@ -146,33 +152,57 @@ static int do_set_lpad_info(const char *path, unsigned long dlopen,
 	return 0;
 }
 
-static int do_set_appcore_info(struct appcore_info_data *info)
+static int do_set_appcore_info(struct nsp_info_data *info)
 {
 	struct dentry *dentry;
 	const char *new_path;
+	int ret = 0;
 
-	dentry = dentry_by_path(info->path);
-	if (dentry == NULL) {
-		pr_err("dentry not found (path='%s')\n", info->path);
-		return -EINVAL;
-	}
-
-	new_path = kstrdup(info->path, GFP_KERNEL);
-	if (new_path == NULL) {
-		pr_err("out of memory\n");
+	new_path = kstrdup(info->appcore_path, GFP_KERNEL);
+	if (!new_path)
 		return -ENOMEM;
-	}
-
 	kfree(libappcore_path);
-
 	libappcore_path = new_path;
+
+	new_path = kstrdup(info->capi_path, GFP_KERNEL);
+	if (!new_path) {
+		ret = -ENOMEM;
+		goto fail_alloc;
+	}
+	kfree(libcapi_path);
+	libcapi_path = new_path;
+
+	dentry = dentry_by_path(info->appcore_path);
+	if (!dentry) {
+		pr_err("dentry not found (path='%s')\n", info->appcore_path);
+		ret = -EINVAL;
+		goto fail;
+	}
 	libappcore_dentry = dentry;
-	p_ac_efl_main.offset = info->ac_efl_main;
+
+	dentry = dentry_by_path(info->capi_path);
+	if (!dentry) {
+		pr_err("dentry not found (path='%s')\n", info->capi_path);
+		ret = -EINVAL;
+		goto fail;
+	}
+	libcapi_dentry = dentry;
+
+	p_ac_efl_main.offset = info->ac_efl_init;
+	p_do_app.offset = info->do_app;
 	p_ac_init.offset = info->ac_init;
 	p_elm_run.offset = info->elm_run;
-	p_do_app.offset = info->do_app;
 
 	return 0;
+
+fail:
+	kfree(libcapi_path);
+	libcapi_path = NULL;
+fail_alloc:
+	kfree(libappcore_path);
+	libappcore_path = NULL;
+
+	return ret;
 }
 
 
@@ -288,11 +318,11 @@ static int nsp_data_inst(struct nsp_data *data)
 	if (ret)
 		goto ur_main;
 
-	ret = pin_register(&p_ac_init, pfg, libappcore_dentry);
+	ret = pin_register(&p_ac_init, pfg, libcapi_dentry);
 	if (ret)
 		goto ur_ac_efl_main;
 
-	ret = pin_register(&p_elm_run, pfg, libappcore_dentry);
+	ret = pin_register(&p_elm_run, pfg, libcapi_dentry);
 	if (ret)
 		goto ur_ac_init;
 
@@ -305,9 +335,9 @@ static int nsp_data_inst(struct nsp_data *data)
 	return 0;
 
 ur_elm_run:
-	pin_unregister(&p_elm_run, pfg, libappcore_dentry);
+	pin_unregister(&p_elm_run, pfg, libcapi_dentry);
 ur_ac_init:
-	pin_unregister(&p_ac_init, pfg, libappcore_dentry);
+	pin_unregister(&p_ac_init, pfg, libcapi_dentry);
 ur_ac_efl_main:
 	pin_unregister(&p_ac_efl_main, pfg, libappcore_dentry);
 ur_main:
@@ -326,8 +356,8 @@ static void nsp_data_uninst(struct nsp_data *data)
 	struct pf_group *pfg = data->pfg;
 
 	pin_unregister(&p_do_app, pfg, libappcore_dentry);
-	pin_unregister(&p_elm_run, pfg, libappcore_dentry);
-	pin_unregister(&p_ac_init, pfg, libappcore_dentry);
+	pin_unregister(&p_elm_run, pfg, libcapi_dentry);
+	pin_unregister(&p_ac_init, pfg, libcapi_dentry);
 	pin_unregister(&p_ac_efl_main, pfg, libappcore_dentry);
 	pin_unregister(&data->p_main, pfg, data->app_dentry);
 	pin_unregister(&p_dlopen, pfg, lpad_dentry);
@@ -462,7 +492,7 @@ DECLARE_SAFE_FUNC3(nsp_set_lpad_info, do_set_lpad_info,
 		   const char *, path, unsigned long, dlopen,
 		   unsigned long, dlsym);
 DECLARE_SAFE_FUNC1(nsp_set_appcore_info, do_set_appcore_info,
-		   struct appcore_info_data *, info);
+		   struct nsp_info_data *, info);
 
 
 

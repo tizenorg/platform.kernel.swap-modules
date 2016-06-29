@@ -33,10 +33,12 @@ enum nsp_stat {
 	NS_ON
 };
 
-struct appcore_info_data {
-	const char *path;
-	unsigned long ac_efl_main;
+struct nsp_info_data {
+	const char *appcore_path;
+	unsigned long ac_efl_init;
 	unsigned long do_app;
+
+	const char *capi_path;
 	unsigned long ac_init;
 	unsigned long elm_run;
 };
@@ -46,7 +48,7 @@ void nsp_exit(void);
 
 int nsp_set_lpad_info(const char *path, unsigned long dlopen,
 		      unsigned long dlsym);
-int nsp_set_appcore_info(struct appcore_info_data *info);
+int nsp_set_appcore_info(struct nsp_info_data *info);
 
 int nsp_set_stat(enum nsp_stat st);
 enum nsp_stat nsp_get_stat(void);
