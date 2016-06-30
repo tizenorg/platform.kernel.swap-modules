@@ -156,15 +156,8 @@ int sspt_register_page(struct sspt_page *page, struct sspt_file *file)
 	LIST_HEAD(not_inst_head);
 
 	mutex_lock(&page->ip_list.mtx);
-	if (list_empty(&page->ip_list.not_inst)) {
-		struct task_struct *task = page->file->proc->leader;
-
-		printk(KERN_INFO "page %lx in %s task[tgid=%u, pid=%u] "
-		       "already installed\n",
-		       page->offset, file->dentry->d_iname,
-		       task->tgid, task->pid);
+	if (list_empty(&page->ip_list.not_inst))
 		goto unlock;
-	}
 
 	list_for_each_entry_safe(ip, n, &page->ip_list.not_inst, list) {
 		/* set virtual address */
