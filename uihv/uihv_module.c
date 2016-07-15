@@ -19,6 +19,8 @@
 #define ip_to_proc(ip) page_to_proc((ip)->page)
 #define urp_to_ip(rp) container_of(rp, struct sspt_ip, retprobe)
 
+static DEFINE_MUTEX(mutex_enable);
+
 static struct dentry *uihv_dentry = NULL;
 
 static inline struct pd_t *__get_process_data(struct uretprobe *rp)
@@ -45,33 +47,24 @@ struct ui_viewer_data {
 	struct dentry *app_dentry;
 	struct probe_new p_main;
 	struct pf_group *pfg;
+	bool enable;
 };
 
 static struct ui_viewer_data __ui_data;
 
 static int uihv_data_inst(void)
 {
-	int ret;
 	struct pf_group *pfg;
 
 	pfg = get_pf_group_by_dentry(__ui_data.app_dentry,
 				     (void *)__ui_data.app_dentry);
-	if (pfg == NULL)
+	if (!pfg)
 		return -ENOMEM;
-
-	ret = pin_register(&__ui_data.p_main, pfg, __ui_data.app_dentry);
-	if (ret)
-		goto put_g;
 
 	__ui_data.pfg = pfg;
 
 	return 0;
-put_g:
-	put_pf_group(pfg);
-	return ret;
 }
-
-
 
 struct dentry *get_dentry(const char *filepath)
 {
@@ -95,6 +88,11 @@ int uihv_data_set(const char *app_path, unsigned long main_addr)
 {
 	struct dentry *dentry;
 
+	if (__ui_data.enable) {
+		pr_err("UIHV already enabled, can't set data\n");
+		return -EBUSY;
+	}
+
 	dentry = dentry_by_path(app_path);
 	if (dentry == NULL)
 		return -ENOENT;
@@ -102,7 +100,6 @@ int uihv_data_set(const char *app_path, unsigned long main_addr)
 	__ui_data.app_dentry = dentry;
 	__ui_data.p_main.desc = &pin_main;
 	__ui_data.p_main.offset = main_addr;
-	__ui_data.pfg = NULL;
 
 	return uihv_data_inst();
 }
@@ -178,6 +175,54 @@ static int uihv_main_rh(struct uretprobe_instance *ri, struct pt_regs *regs)
 	return 0;
 }
 
+int uihv_enable(void)
+{
+	int ret = 0;
+
+	mutex_lock(&mutex_enable);
+	if (__ui_data.enable) {
+		pr_err("UIHV already enabled\n");
+		ret = -EBUSY;
+		goto out;
+	}
+
+	ret = pin_register(&__ui_data.p_main, __ui_data.pfg,
+			   __ui_data.app_dentry);
+	if (ret)
+		goto out;
+
+	__ui_data.enable = true;
+
+out:
+	mutex_unlock(&mutex_enable);
+	return ret;
+}
+
+int uihv_disable(void)
+{
+	int ret = 0;
+
+	mutex_lock(&mutex_enable);
+	if (!__ui_data.enable) {
+		pr_err("UIHV already disabled\n");
+		ret = -EBUSY;
+		goto out;
+	}
+
+	ret = pin_unregister(&__ui_data.p_main, __ui_data.pfg,
+			     __ui_data.app_dentry);
+	if (ret)
+		goto out;
+
+	put_pf_group(__ui_data.pfg);
+	__ui_data.pfg = NULL;
+	__ui_data.enable = false;
+
+out:
+	mutex_unlock(&mutex_enable);
+	return ret;
+}
+
 static int uihv_init(void)
 {
 	int ret;
@@ -191,6 +236,8 @@ static void uihv_exit(void)
 {
 	if (uihv_dentry != NULL)
 		put_dentry(uihv_dentry);
+
+	uihv_dfs_exit();
 }
 
 SWAP_LIGHT_INIT_MODULE(NULL, uihv_init, uihv_exit, NULL, NULL);

@@ -10,6 +10,7 @@
 static const char UIHV_FOLDER[] = "uihv";
 static const char UIHV_PATH[] = "path";
 static const char UIHV_APP_INFO[] = "app_info";
+static const char UIHV_ENABLE[] = "enable";
 
 static struct dentry *uihv_root;
 
@@ -132,13 +133,49 @@ free_buf:
 
 static const struct file_operations uihv_app_info_file_ops = {
 	.owner = THIS_MODULE,
-	.write =	write_uihv_app_info,
+	.write = write_uihv_app_info,
 };
 
+static ssize_t write_uihv_enable(struct file *file,
+				 const char __user *user_buf,
+				 size_t len, loff_t *ppos)
+{
+	ssize_t ret = len;
+	char *buf;
+
+	buf = kmalloc(len, GFP_KERNEL);
+	if (!buf) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	if (copy_from_user(buf, user_buf, len)) {
+		ret = -EINVAL;
+		goto free_buf;
+	}
+
+	buf[len - 1] = '\0';
+
+	if (buf[0] == '0')
+		ret = uihv_disable();
+	else
+		ret = uihv_enable();
+
+free_buf:
+	kfree(buf);
+
+out:
+	return ret;
+}
+
+static const struct file_operations uihv_enable_file_ops = {
+	.owner = THIS_MODULE,
+	.write = write_uihv_enable,
+};
 
 int uihv_dfs_init(void)
 {
-	struct dentry *swap_dentry, *root, *path, *app_info;
+	struct dentry *swap_dentry, *root, *path, *app_info, *uihv_enable;
 	int ret;
 
 	ret = -ENODEV;
@@ -167,6 +204,13 @@ int uihv_dfs_init(void)
 	app_info = debugfs_create_file(UIHV_APP_INFO, UIHV_DEFAULT_PERMS,
 			        root, NULL, &uihv_app_info_file_ops);
 	if (IS_ERR_OR_NULL(app_info)) {
+		ret = -ENOMEM;
+		goto remove;
+	}
+
+	uihv_enable = debugfs_create_file(UIHV_ENABLE, UIHV_DEFAULT_PERMS,
+					  root, NULL, &uihv_enable_file_ops);
+	if (IS_ERR_OR_NULL(uihv_enable)) {
 		ret = -ENOMEM;
 		goto remove;
 	}
