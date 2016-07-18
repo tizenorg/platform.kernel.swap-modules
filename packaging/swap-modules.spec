@@ -11,7 +11,7 @@ BuildRequires: perl
 BuildRequires: python
 Provides: swap-modules
 
-%if "%{_repository}" == "emulator32" || "%{_repository}" == "emulator32-wayland"
+%if "%{_repository}" == "emulator32" || "%{_repository}" == "emulator32-wayland" || "%{_repository}" == "emulator-circle"
 BuildRequires: emulator-kernel-devel
   %define build_arch i386
   %if "%{TIZEN_PRODUCT_TV}" == "1"
